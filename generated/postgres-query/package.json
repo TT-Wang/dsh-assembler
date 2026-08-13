@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/postgres-query",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "MCP stdio server wrapping pg 8.12.0 (brianc/node-postgres, MIT): execute parameterized SQL queries, list tables, describe table schema, and test connectivity against a PostgreSQL server.",
+  "private": true,
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "pg": "8.12.0",
+    "zod": "^3.23.0"
+  }
+}

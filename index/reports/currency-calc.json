@@ -1,0 +1,29 @@
+{
+  "id": "currency-calc",
+  "repo": "scurker/currency.js",
+  "rev": "v2.0.4",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "currency-calc",
+      "description": "精度安全的货币四则运算（add/subtract/multiply/divide）。value 为基础金额、operand 为运算数，均可为数字或含货币符号/千分位的字符串（\"(2.5)\" 表示负数）；multiply 时 operand 为倍数，divide 时不能为 0。可选 precision（小数位，默认 2）、fromCents（输入按分解析）、increment（舍入增量，如 0.05）、symbol/separator/decimal（格式化样式）。返回结果数值、整数分、格式化字符串与精度信息。"
+    },
+    {
+      "name": "currency-format",
+      "description": "按货币选项把金额格式化为字符串：symbol（货币符号，空串去掉符号）、separator（千分位）、decimal（小数分隔符）、precision（小数位）、pattern/negativePattern（格式模板，! 为符号、# 为金额）、useVedic（印度编号分组）、increment（显示舍入增量）、fromCents（输入为分）。返回格式化字符串、解析后数值与整数分。"
+    },
+    {
+      "name": "currency-distribute",
+      "description": "将金额均分为 count 份（先整除、余下最小货币单位依次堆到前面的份上，总和不变），如 1.12 分 5 份 → [0.23,0.23,0.22,0.22,0.22]。适合分摊账单/拆分订单。返回每份数值与格式化结果，并校验 sumMatchesTotal。"
+    },
+    {
+      "name": "currency-parse",
+      "description": "解析并校验金额输入：自动剥离货币符号与千分位、支持括号负数 \"(1.99)\"→-1.99、decimal 可指定非 \".\" 的小数分隔符（解析欧元格式如 \"€2.573.693,75\"）。返回解析后数值 value、整数分 intValue、dollars、cents；默认 errorOnInvalid=true，无数字输入返回明确错误而非静默为 0。"
+    }
+  ],
+  "smoke": "node smoke.mjs：listTools 返回 4 个工具；真实调用全部通过——currency-calc add(1.23, 4.56) → value=5.79/formatted=\"$5.79\"（精度验证：浮点直接相加为 5.789999999999999，currency.js 内部整数运算得 5.79）；multiply(\"2,573,693.75\", 2) → 5147387.5；divide-by-0 返回\"不能为 0\"错误；currency-format(1234.56, symbol=¥) → \"¥1,234.56\"；currency-distribute(1.12, 5) → 5 份且 sumMatchesTotal=true；currency-parse(\"€2.573.693,75\", decimal=,) → 2573693.75；缺参触发 SDK zod 校验错误（-32602 Invalid input at value）；非法输入 \"abc\" 返回\"至少一个数字\"错误。全部 12 项断言 PASS，exit 0。",
+  "issues": [
+    "SDK 1.30.0 的 server.tool() 位置参数重载不接受 z.object(...) 实例（会被误判为 ToolAnnotations 报 \"expected a Zod schema or ToolAnnotations\"），已改用其官方支持的 ZodRawShape 形式（普通对象 + zod 字段），字段全部为 zod schema，等价于 z.object；与此前生成的 date-format 等目录模式一致。"
+  ]
+}

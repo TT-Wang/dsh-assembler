@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/html-to-text",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP stdio server adapter for html-to-text v9.0.5: convert HTML to readable plain text, batch-convert, render tables as aligned text, and extract links with URLs",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "html-to-text": "9.0.5",
+    "zod": "^3.23.0"
+  }
+}

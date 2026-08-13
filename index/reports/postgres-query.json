@@ -1,0 +1,34 @@
+{
+  "id": "postgres-query",
+  "repo": "brianc/node-postgres",
+  "rev": "pg@8.12.0 (0f42880861951970e193d31359508d460a67d25a)",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "postgres-test-connection",
+      "description": "测试到 PostgreSQL 服务器的连接是否可用：建立连接并执行 SELECT version()，返回服务器版本、当前数据库、当前用户、服务器地址、服务器时间等诊断信息。适合在正式查询前先用它验证 connectionString/host/port/user/password/database 等连接配置是否正确。参数: 连接配置同 postgres-query（connectionString 可选，host 默认 localhost，port 默认 5432，user 默认当前系统用户，password 可选，database 可选，ssl 可选，connectTimeoutMillis 默认 10000）。"
+    },
+    {
+      "name": "postgres-list-tables",
+      "description": "连接 PostgreSQL 并按 schema 列出表与视图（information_schema.tables），返回表名与类型数组及数量。适合在查询前探索库中有哪些表。参数: 连接配置同 postgres-test-connection（connectionString/host/port/user/password/database/ssl/connectTimeoutMillis）；schema（可选，schema 名，默认 public）；includeViews（可选，是否包含视图，默认 true）。"
+    },
+    {
+      "name": "postgres-describe-table",
+      "description": "连接 PostgreSQL 并查看一张表（或视图）的完整结构（information_schema.columns，左连接主键约束标注 isPrimaryKey），返回每列的 name/ordinal/dataType/udtName/isNullable/columnDefault/charMaxLength/numericPrecision/numericScale。适合在编写 SQL 前确认列名、类型与主键。参数: 连接配置同 postgres-test-connection；schema（可选，默认 public）；table（必填，表名）。"
+    },
+    {
+      "name": "postgres-query",
+      "description": "连接 PostgreSQL 并执行任意 SQL（SELECT / INSERT / UPDATE / DELETE / DDL），支持 $1/$2 位置参数绑定（参数数组按序对应）。SELECT 返回 { command, rowCount, rows, fields }：rows 为行对象数组（字段名为键，numeric/bigint 以字符串返回保证 JSON 安全，bytea 二进制列以 { $binary: <base64>, encoding: \"base64\" } 返回，timestamp 为 ISO 字符串），fields 为列元数据（name/dataTypeID/dataTypeSize/format）；写语句返回 { command, rowCount, rows: [] }。注意：本工具直接执行传入的 SQL，可能修改数据，需谨慎使用。参数: 连接配置同 postgres-test-connection（connectionString 可选，host 默认 localhost，port 默认 5432，user 默认当前系统用户，password 可选，database 可选，ssl 可选，connectTimeoutMillis 默认 10000）；sql（必填，要执行的 SQL 文本，参数占位符用 $1/$2/...）；params（可选，位置参数数组，元素可为字符串/数字/布尔/null，二进制参数用 { $binary: \"<base64>\" } 形式）；queryTimeoutMillis（可选，单条查询超时毫秒，默认 30000）。"
+    }
+  ],
+  "smoke": "成功。GitHub tag 实际为 pg@8.12.0（非 v8.12.0，v8.12.0 不存在，已克隆正确 tag，HEAD 0f42880 'Publish'），源码为纯 JS（packages/pg/lib/ 无需构建），npm 发布包 pg@8.12.0 内容与 tag 一致，API 核验与依赖均以 npm 包为准。npm install 13s 完成（sdk 1.30.0 / zod 3.25.76 / pg 8.12.0），node --check index.js 通过，printf '' | node index.js 在 stdin 关闭后干净退出（exit 0）。本机有 Postgres.app（PostgreSQL 18.0，localhost:5432，本用户 trust 认证、密码为空），因此冒烟用 MCP Client + StdioClientTransport 拉起 index.js 连真实 PG 服务器做端到端验证，共 41 项断言全部 PASS（exit 0）：listTools 返回 4 个工具且每个都有可读描述与输入参数 schema；postgres-test-connection 真实往返返回 connected:true + 'PostgreSQL 18.0' + current_database=postgres；postgres-query 建表（command=CREATE）→ 参数化 INSERT（$1..$5，rowCount=1，含 { $binary } 二进制参数写入 bytea 列）→ 参数化 SELECT 返回 1 行，numeric 以字符串 '12345.67' 返回，bytea 以 { $binary, encoding: 'base64' } 返回且 base64 与原值一致，timestamptz 以 ISO 字符串返回，fields 元数据（name/dataTypeID）正确；postgres-list-tables 在 public schema 中列出 dsh_smoke_people（type=BASE TABLE）；postgres-describe-table 返回 7 列，id 列 isPrimaryKey=true，photo 列 udtName=bytea，balance numeric(10,2) 精度正确；缺 sql 参数调用 postgres-query 返回 isError:true + 'MCP error -32602: Input validation error: Invalid arguments for tool postgres-query: Required at sql'；连接已关闭端口返回 isError:true + '错误: connect ECONNREFUSED 127.0.0.1:... [ECONNREFUSED]'；冒烟结束 DROP TABLE 清理，再次查询确认无残留表。",
+  "issues": [
+    "GitHub 仓库无 v8.12.0 tag，实际 tag 为 pg@8.12.0（monorepo 按包命名，如 pg@8.12.0 / pg-cursor@2.11.0）；已克隆 pg@8.12.0（commit 0f42880 'Publish'）并以其为 rev 记录。",
+    "MCP SDK 1.30.0 的 server.tool(name, description, schema, cb) 分离参数重载只接受 zod 原始 shape（字段对象）；直接传 z.object() 实例会被误判为 ToolAnnotations 并抛 'expected a Zod schema or ToolAnnotations, but received an unrecognized object'。适配方案：传原始 shape（zod v3 字段带 .default()/.describe()），SDK 经 objectFromShape 构建 ZodObject；zod 解析到 3.25.76，满足 SDK peer 范围 ^3.25 || ^4.0。",
+    "缺必填参数（sql）时 SDK 1.30 不向客户端抛异常，而是以工具错误结果返回（content: 'MCP error -32602: Input validation error: ...'，isError: true），冒烟按结果文本断言。",
+    "pg 8.12.0 的 SELECT 结果 command 字段对 CREATE TABLE 等 DDL 返回 'CREATE'（语句首词而非 'CREATE TABLE'）；numeric/bigint 默认以字符串返回（JSON 安全），bytea 返回 Buffer（序列化为 { $binary, encoding: 'base64' }），timestamp 返回 Date（序列化为 ISO 字符串），均已在 postgres-query 工具描述中注明。",
+    "bytea 参数写入：pg 的 prepareValue 会把 Buffer 参数原样发送（pg-protocol 序列化为 \\x 十六进制），因此工具在 params 数组中额外支持 { $binary: '<base64>' } 形式，工具内部解码为 Buffer 后传给 pg，实现二进制列的端到端写入与读取（已在描述中注明）。",
+    "每次工具调用建立独立连接并在结束时关闭（finally client.end()），无状态、可独立调用，避免 MCP 服务器进程持有长期 PG 连接；连接配置默认值与上游 pg 保持一致（host=localhost、port=5432、user=当前 OS 用户、database 继承 user），连接/查询超时分别由 connectTimeoutMillis（默认 10000）与 queryTimeoutMillis（默认 30000）控制并返回清晰错误。"
+  ]
+}

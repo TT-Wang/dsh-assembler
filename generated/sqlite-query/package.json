@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/sqlite-query",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "MCP stdio server wrapping better-sqlite3 11.1.2: run SQL SELECT queries, execute write/DDL statements, and list tables in a SQLite database.",
+  "private": true,
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "better-sqlite3": "11.1.2",
+    "zod": "^4.0.0"
+  }
+}

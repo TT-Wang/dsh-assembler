@@ -1,0 +1,33 @@
+{
+  "id": "http-request",
+  "repo": "axios/axios",
+  "rev": "v1.7.2",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "http-request",
+      "description": "通用 HTTP 请求（axios.request 封装）：任意方法向任意 URL 发起请求，支持查询参数、请求头、JSON 请求体、HTTP Basic 认证、超时、重定向与响应类型控制，适合调用 REST API / GraphQL / 抓取页面。参数：method（必填，get/post/put/patch/delete/head/options）、url（必填）、baseURL、params（查询参数对象）、headers、data（JSON 对象，按 application/json 发送）、timeout（毫秒）、maxRedirects、authUser/authPass（Basic 认证）、responseType（json|text|arraybuffer|stream）、responseEncoding、validateStatus（false 时任意状态码不算错误）。返回状态码、响应头与响应体；HTTP 4xx/5xx 与网络错误以 isError 文本返回详情。"
+    },
+    {
+      "name": "http-get",
+      "description": "HTTP GET 请求（axios.get 封装）：拉取 URL 内容，支持查询参数、请求头、超时与响应类型，适合读取网页/API 数据与健康检查。参数：url（必填）、params（查询参数对象）、headers、timeout（毫秒）、responseType（json|text|arraybuffer|stream）。返回状态码、响应头与响应体。"
+    },
+    {
+      "name": "http-post",
+      "description": "HTTP POST 请求（axios.post 封装）：向 URL 提交 JSON 请求体，支持请求头与超时，适合创建资源、提交 JSON 数据。参数：url（必填）、data（必填，JSON 对象，按 application/json 序列化发送）、headers、timeout（毫秒）。返回状态码、响应头与响应体。"
+    },
+    {
+      "name": "build-url",
+      "description": "拼接完整请求 URL（axios.getUri 封装）：由 baseURL + url + params 生成最终地址并正确编码查询参数，纯本地计算、不发起任何网络请求，适合确认 URL 编码或提前构造链接。参数：url（必填）、baseURL、params（查询参数对象）。返回最终 URL 字符串。"
+    }
+  ],
+  "smoke": "成功。node smoke.mjs 7/7 通过：listTools 列出 4 个工具（http-request/http-get/http-post/build-url）；http-get 真实 GET https://example.com 往返返回 200 OK 与 HTML 响应体（约 1.5s）；build-url 本地拼接 baseURL+url+params 得到 https://example.com/api/items?q=hello+world&page=2（空格按 axios 默认编码为 +）；http-post 到 example.com 收到 HTTP 405 时以 isError 文本返回错误详情（含 code/响应体）；http-get 缺 url 与 http-request timeout=-5 均触发 SDK 参数校验（MCP error -32602 Invalid arguments，以 isError 结果返回）。node --check index.js 通过；node index.js 独立启动、stdin 关闭后干净退出（exit 0）。",
+  "issues": [
+    "MCP SDK 声明 ^1.0.0 实际解析到 1.30.0，其 server.tool 要求参数 schema 为 Zod schema（纯 JSON schema 对象会被当作 ToolAnnotations 抛出 'expected a Zod schema or ToolAnnotations'）；已改用 zod 定义全部工具 schema，并在 package.json 显式声明 zod ^3.23.0 依赖",
+    "工具 schema 层面 data 仅接受 JSON 对象（自动按 application/json 序列化）；原始字符串请求体暂未开放（handler 内部支持但 schema 未暴露，避免 z.union/oneOf 在 SDK 各版本的兼容风险）",
+    "axios 对查询参数空格默认编码为 +（application/x-www-form-urlencoded 风格）而非 %20，属上游默认行为，冒烟断言已按实际输出调整",
+    "http-post 冒烟对 example.com 返回 405 验证了错误分支；真实 2xx 的 POST 写入场景依赖外部服务，未在冒烟中覆盖",
+    "真实 HTTP 请求依赖外网可达性；冒烟期间 https://example.com 可达（200 OK）"
+  ]
+}

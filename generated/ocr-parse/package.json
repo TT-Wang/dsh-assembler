@@ -1,0 +1,15 @@
+{
+  "name": "@dsh-index/ocr-parse",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP stdio server wrapping tesseract.js@5.1.0: OCR image-to-text recognition (multi-language, PSM/whitelist/region options), plus language list and page-segmentation-mode reference tools",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "tesseract.js": "5.1.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "sharp": "^0.33.4"
+  }
+}

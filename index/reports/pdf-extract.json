@@ -1,0 +1,28 @@
+{
+  "id": "pdf-extract",
+  "repo": "pdf-parse/pdf-parse",
+  "rev": "v1.1.1",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "get-pdf-text",
+      "description": "从本地 PDF 文件提取全部文本内容（含 numPages/renderedPages/pdfjsVersion 统计）。参数：path（必填，本地 PDF 文件路径，绝对或相对服务器工作目录），maxPages（可选整数≥0，最多提取前 N 页，0/省略=全部页）。返回统计头 + 提取的正文纯文本。适合把 PDF 正文转成纯文本供 LLM 阅读、摘要或后续检索；大文件建议用 maxPages 限制以节省时间。"
+    },
+    {
+      "name": "get-pdf-info",
+      "description": "读取本地 PDF 的元数据而不提取正文：numPages（页数）、info（标题/作者/创建工具 Creator/Producer/PDFFormatVersion 等）、metadata（XMP 原始元数据）、pdfjsVersion。参数：path（必填，本地 PDF 文件路径）。返回 JSON 摘要。适合快速判断 PDF 结构、页数与来源信息，如提取前先确认文档规模。"
+    },
+    {
+      "name": "search-pdf-text",
+      "description": "在本地 PDF 的提取文本中做大小写不敏感的关键词搜索（子串匹配，非正则）。参数：path（必填，本地 PDF 文件路径），query（必填，关键词/短语），maxPages（可选整数≥0，最多搜索前 N 页，0/省略=全部页）。返回 {totalMatches, hits:[{line,text}]}（命中最多 200 条，每条截断 300 字符）。适合判断文档是否包含某主题/人名/编号，避免把整篇文本读给模型。"
+    }
+  ],
+  "smoke": "成功。node smoke.mjs 全部 17 项断言通过（exit 0）：StdioClientTransport 启动 node index.js 连接成功；listTools 返回 3 个工具；测试输入为上游官方测试文件 sample.pdf（pdf-parse@1.1.1 自带 test/data/01-valid.pdf，14 页真实学术论文）。get-pdf-text(maxPages=1) 返回 numPages=14/renderedPages=1 并提取到第 1 页标题 'Trace-based Just-in-Time Type Specialization...'；get-pdf-info 返回 numPages=14、info 含 PDFFormatVersion/Creator/Producer、pdfjsVersion=1.10.100；search-pdf-text(query='just-in-time', maxPages=1) 大小写不敏感命中 2 处（totalMatches=2，含标题与 Keywords 行）；缺参调用（arguments={}）返回 SDK 参数校验错误 isError=true/-32602（'Required at path'）；不存在路径返回 'ERROR: 无法访问文件...'；非 PDF 文件返回 'ERROR: Invalid PDF structure'；独立进程验证 stdin 关闭后 server 以 exit 0 干净退出。另经探针验证全 14 页提取成功（renderedPages=14，文本 82910 字符）。npm install 成功（0 漏洞）：@modelcontextprotocol/sdk@1.30.0 + pdf-parse@1.1.1 + zod@3.25.76，node --check 通过。",
+  "issues": [
+    "任务给出的 GitHub 仓库 pdf-parse/pdf-parse 不存在（git clone 报 Repository not found，GitHub 404），真实上游为 gitlab.com/autokent/pdf-parse（npm metadata 所载），且该仓库无 v1.1.1 tag（master HEAD 5cba7c3149bdf35fff02eaed1facc8caf6a4a98a）。经 diff 核验：gitlab master 的 index.js 与 lib/pdf-parse.js 与 npm 发布的 pdf-parse@1.1.1 完全一致（逐字节相同），故按任务规则以 npm 发布的 v1.1.1 源码包为准做 API 核验（index.js 入口 + lib/pdf-parse.js 实现 + 内置 pdf.js v1.10.100）。报告 repo/rev 按任务参数填写",
+    "pdf-parse@1.1.1 的 npm 入口 index.js 含 `let isDebugMode = !module.parent` 调试块：Node 22 下经 ESM import 加载时 module.parent 为 undefined，isDebugMode=true，模块加载即尝试读 ./test/data/05-versions-space.pdf 并执行 debugger，导致 server 启动即崩溃。适配器改为导入实现模块 'pdf-parse/lib/pdf-parse.js'（与入口导出同一函数）绕开该上游怪癖，冒烟前曾直接复现该崩溃（ENOENT）并验证规避生效",
+    "pdf-parse@1.1.1 内置 pdf.js v1.10.100（2018 年版本）对极小化 PDF 存在不稳定解析：手写单页 %PDF-1.4（xref 偏移经脚本逐项核验正确、pdf-lib 严格解析通过、pdf.js 官方 01-valid.pdf 首调用即成功）在部分进程/时序下首次解析报 'bad XRef entry'，且即时重试与延时重试均不可靠复现。属上游解析器边缘怪癖，对真实 PDF（上游官方 01-valid.pdf 等）首调用与重复调用均稳定成功；适配器未加入不可靠的 workaround，冒烟采用上游官方测试 PDF 保证确定性",
+    "依赖面：pdf-parse@1.1.1 依赖 debug@^3.1.0 与 node-ensure@^0.0.0（pdf.js 构建文件的 require 占位），npm install 正常安装无原生编译；加密/带密码 PDF 不支持（pdf-parse 未可靠暴露 password 参数，未在适配器暴露）；大 PDF 全页提取文本量可达数万~数十万字符（工具描述建议用 maxPages 限制），search 命中上限 200 条为有意裁剪"
+  ]
+}

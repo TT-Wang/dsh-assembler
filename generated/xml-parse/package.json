@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/xml-parse",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP stdio server adapter for fast-xml-parser v4.4.0: validate XML syntax, parse XML to JSON, build XML from JSON",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "fast-xml-parser": "4.4.0",
+    "zod": "^3.23.0"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/calendar-parse",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "MCP stdio server wrapping node-ical 0.19.0: parse ICS/ICAL calendar text, parse local .ics files, fetch and parse remote ICS feeds.",
+  "private": true,
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "node-ical": "0.19.0",
+    "zod": "^3.23.0"
+  }
+}

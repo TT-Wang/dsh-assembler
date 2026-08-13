@@ -1,0 +1,13 @@
+{
+  "name": "@dsh-index/readability-extract",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP stdio server adapter for @mozilla/readability + jsdom: extract main article text from arbitrary web HTML, stripping navigation/ads/footer noise. Supports Chinese and English pages",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@mozilla/readability": "^0.5.0",
+    "jsdom": "^24.1.0",
+    "zod": "^3.23.0"
+  }
+}

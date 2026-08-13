@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/pdf-extract",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP stdio server wrapping pdf-parse@1.1.1: extract text, metadata and search keywords from local PDF files",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "pdf-parse": "1.1.1",
+    "zod": "^3.23.0"
+  }
+}

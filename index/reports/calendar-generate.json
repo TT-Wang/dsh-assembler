@@ -1,0 +1,32 @@
+{
+  "id": "calendar-generate",
+  "repo": "sebbo2002/ical-generator",
+  "rev": "v7.1.0",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "create-calendar",
+      "description": "Build a standalone iCalendar (.ics) calendar with metadata only — name, description, method (PUBLISH/REQUEST/...), timezone, url, prodId, scale, ttl, source. Returns the full RFC 5545 VCALENDAR text. Use for calendar feed skeletons or shared calendar properties; for calendars with events use the create-*-event tools."
+    },
+    {
+      "name": "create-event",
+      "description": "Create a calendar containing ONE timed or all-day event and return the complete .ics text. Params: summary, start (required, ISO 8601), end (defaults to start+1h), allDay, floating, timezone, description, location, url, status (CONFIRMED/TENTATIVE/CANCELLED), priority (0-9), organizer {name,email}, attendees [{name,email,role,status,rsvp,type}], categories[], alarms[] (type + triggerBefore/AfterMinutes + repeat), custom X-properties."
+    },
+    {
+      "name": "create-all-day-event",
+      "description": "Create a calendar containing ONE all-day (multi-day) event from date-only strings and return the complete .ics text. Params: summary, startDate (YYYY-MM-DD, required, inclusive), endDate (YYYY-MM-DD, EXCLUSIVE — the day after the event), timezone, description, location, url, status, categories. Emits DTSTART;VALUE=DATE / DTEND;VALUE=DATE. Ideal for holidays, birthdays, deadlines, trips."
+    },
+    {
+      "name": "create-recurring-event",
+      "description": "Create a calendar containing ONE recurring event and return the complete .ics text with an RRULE. Params: summary, start (required), end, freq (required: SECONDLY/MINUTELY/HOURLY/DAILY/WEEKLY/MONTHLY/YEARLY), interval, count, until, byDay (SU..SA), byMonth (1-12), byMonthDay (-31..31), bySetPos, startOfWeek, allDay, timezone, description, location, url. Ideal for weekly meetings, monthly reports, daily standups."
+    }
+  ],
+  "smoke": "node smoke.mjs (MCP Client + StdioClientTransport, command:'node', args:['index.js']): listTools() returned exactly 4 tools; 5 real tool round-trips succeeded (create-event timed event -> BEGIN:VCALENDAR/VEVENT/SUMMARY/DTSTART/ATTENDEE; create-all-day-event -> DTSTART;VALUE=DATE:20240601 + exclusive DTEND;VALUE=DATE:20240604; create-recurring-event -> RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE,FR;COUNT=10; create-calendar -> METHOD:REQUEST + X-WR-CALNAME); missing-required-arg (create-event without start) and invalid-value (startDate '2024/06/01') both returned clean errors without crashing. 16/16 checks PASS, exit code 0. Additional checks: node --check OK; `printf '' | node index.js` exits 0 (clean shutdown when stdin closes).",
+  "issues": [
+    "Task-specified repo path 'sebbekarlsson/ical-generator' does not exist (git clone 404). Correct upstream is 'sebbo2002/ical-generator' (npm package ical-generator, repository.url field); cloned the correct repo at tag v7.1.0 (commit 24683dc293a161df34317ee5280e839a83e9fb7b).",
+    "Upstream checkout is TypeScript source without a dist/ build; per pipeline rule, API verification and the adapter dependency use the npm-published ical-generator@7.1.0 (npm 'latest' is 11.1.0; this adapter pins 7.1.0 to match rev).",
+    "Runtime-verified enum values (ICalCalendarMethod, ICalEventStatus, ICalAttendeeRole/Status/Type, weekday codes) and the RRULE emission order (FREQ;COUNT;INTERVAL;UNTIL;BYDAY;BYMONTH;BYMONTHDAY;BYSETPOS;WKST) against v7.1.0 source, not just docs."
+  ],
+  "notes": "Capability split: 4 stateless tools, each returning the complete .ics text as MCP text content (no binary output). create-calendar = calendar-level metadata skeleton; create-event = single timed/all-day event with the full event option surface (attendees/alarms/categories/organizer/X-props); create-all-day-event = date-only convenience (DTSTART;VALUE=DATE); create-recurring-event = RRULE specialization. Generated at /Users/tongtao/code/dsh-assembler/generated/calendar-generate/ (package.json + index.js + smoke.mjs); installed deps: @modelcontextprotocol/sdk 1.30.0, ical-generator 7.1.0, zod 3.25.76 (95 packages, no native build). server.tool() uses zod z.object schemas; errors returned as 'ERROR: ...' text with isError, never thrown. verified=true only because listTools succeeded AND >=1 real tool round-trip succeeded (in fact all 5 calls passed)."
+}

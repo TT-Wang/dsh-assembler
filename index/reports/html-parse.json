@@ -1,0 +1,32 @@
+{
+  "id": "html-parse",
+  "repo": "cheeriojs/cheerio",
+  "rev": "v1.0.0-rc.12",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "extract-text",
+      "description": "解析 HTML 文档并提取文本内容。参数：html（必填，待解析的 HTML 标记字符串）、selector（可选，CSS 选择器如 \"h1\"、\"ul li.price\"，缺省提取整篇文档文本）、collapseWhitespace（可选，默认 false，折叠连续空白）、maxLength（可选，默认 100000，输出截断上限）。返回纯文本（JSON 包装为 {text}）。选择器未命中时返回 matched=0 说明。典型用途：从抓取的 HTML 抽取标题/正文/可读文本。"
+    },
+    {
+      "name": "extract-attributes",
+      "description": "解析 HTML 并按 CSS 选择器定位元素，提取每个匹配元素的指定属性值（href/src/class/data-* 等）。参数：html（必填）、selector（必填，CSS 选择器）、attributes（可选，属性名数组，缺省返回全部属性）、maxResults（可选，默认 100）。返回 {matched, results:[{index, tag, attrs}]}，仅包含实际存在的属性。典型用途：批量抽取链接（a[href]）、图片地址（img[src]）、表单字段等。"
+    },
+    {
+      "name": "query-elements",
+      "description": "解析 HTML 并按 CSS 选择器查询元素，返回每个匹配元素的结构摘要。参数：html（必填）、selector（必填，CSS 选择器）、limit（可选，默认 50）、textMaxLength（可选，默认 300）、htmlMaxLength（可选，默认 2000）。返回 {matched, results:[{index, tag, id, classes, attrs, text, html}]}。典型用途：先探查页面结构，再配合 extract-text / extract-attributes 做精确抽取。"
+    },
+    {
+      "name": "serialize-html",
+      "description": "解析 HTML（或 XML）标记并重新序列化为规范化标记文本，可用于清洗缩进/大小写、补全缺失闭合标签、验证标记可解析性。参数：html（必填）、fragment（可选，默认 true，true 按片段解析不注入 html/head/body 包装；false 按完整文档解析）、xml（可选，默认 false，true 时以 XML 模式解析并序列化，适合自闭合标签文档）。返回 {serialized, note}。"
+    }
+  ],
+  "smoke": "成功。node smoke.mjs 通过：StdioClientTransport 连接 node index.js，listTools 列出 4 个工具；extract-text 提取整篇文档文本与 selector=li 拼接文本（collapseWhitespace 生效）；extract-attributes 命中 a[href] 并正确提取 href/title、img 缺省返回全部属性；query-elements 返回 li.apple 的 tag/classes/attrs(data-price)/text；serialize-html 片段模式补全闭合标签 <ul><li>a</li><li>b</li></ul>、xml 模式保留自闭合 <item id=\"1\"/>；缺 html 与 html 传数字均触发 SDK 参数校验（isError=true, -32602）；未匹配选择器干净返回 matched=0。独立启动 node index.js 在 stdin 关闭后干净退出（exit=0）。共 18 项断言全部通过。",
+  "issues": [
+    "上游 tag v1.0.0-rc.12 的仓库为源码形态（无 lib/ 构建产物），适配包依赖 npm 发布的 cheerio@1.0.0-rc.12 构建（npm install 安装 108 个包，版本核对 1.0.0-rc.12）；源码仅用于 API 理解，未修改上游",
+    "cheerio.load 第三参 isDocument 语义易混淆：true=文档模式（parse5 会注入 <html>/<head>/<body> 包装），false=片段模式；适配器 loadHtml 统一以 fragment 布尔入参并取反传入，冒烟中曾发现反向传递导致 serialize-html 片段模式输出带包装（已修复并复测通过）",
+    "cheerio 是服务端解析器而非浏览器：不执行 JS、不加载外部资源、不渲染 CSS；对 SPA 等 JS 渲染页面无法直接提取（工具描述中未承诺浏览器能力，选择器用途受限时需先取静态 HTML）",
+    "extract-text 全文模式使用 $.root().text()（单一根节点 textContent，无重复）；selector 模式按 jQuery/cheerio 语义拼接匹配元素文本（父元素含子元素文本，可能重复计数），已在工具描述中注明"
+  ]
+}

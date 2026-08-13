@@ -1,0 +1,33 @@
+{
+  "id": "pdf-generate",
+  "repo": "Hopding/pdf-lib",
+  "rev": "v1.17.1",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "create-pdf",
+      "description": "从零创建一个新的 PDF 文档，可包含多页，每页写入一组文本行。纯本地内存执行。参数：pages（必填，页面数组，至少 1 页）。每页字段：size（可选，标准纸张如 A4/Letter/Legal/A3/Tabloid，默认 A4）、width/height（可选，自定义尺寸点数 1pt=1/72in，提供则覆盖 size）、font（可选，标准字体名默认 Helvetica，可选 Courier/HelveticaBold/TimesRoman/TimesRomanItalic 等，接受 Times Roman 这类易读写法）、fontSize（可选默认 12）、margin（可选默认 50）、lineGap（可选默认 1.25）、lines（可选，文本行数组）。每行对象：text（必填）、x/y（可选绝对坐标，缺省按从页顶向下自动换行排版）、size/font/color（可选覆盖页级）、color（可选，支持 #rrggbb/#rgb/rgb(r,g,b)/基本颜色名，默认黑）。注意：标准字体仅支持 Latin-1/WinAnsi 字符集，文本须为英文/西文，中文等非拉丁字符会返回清晰错误。返回 {pdfBase64, byteLength, pageCount, note}。典型用途：生成含标题/正文/列表的 PDF、合同模板、批量票据。"
+    },
+    {
+      "name": "merge-pdfs",
+      "description": "把多个 PDF 文档（Base64 提供）按顺序合并为一个新 PDF。纯本地内存执行。参数：pdfs（必填，至少 1 个源文档），每项 { base64（必填，源 PDF 标准 Base64）, pages（可选，0 基页索引数组如 [0,2] 只取第 1、3 页，缺省取全部页） }；ignoreEncryption（可选默认 false，true 跳过加密保护）。返回 {pdfBase64, byteLength, pageCount, sourceDocs:[{doc,pagesTaken,totalPages}]}。页索引越界会返回清晰错误。典型用途：把多份扫描件/发票/合同片段合并成一份文件。"
+    },
+    {
+      "name": "extract-pages",
+      "description": "从单个 PDF 文档中抽取指定页（0 基索引）组成一个新的 PDF。纯本地内存执行。参数：pdfBase64（必填，源 PDF 标准 Base64）、pages（必填，0 基页索引数组，顺序按数组给定）、ignoreEncryption（可选默认 false）。返回 {pdfBase64, byteLength, pageCount, sourcePageCount, note?}。索引越界返回清晰错误，重复索引自动去重并在 note 中说明。典型用途：从长文档挑出需要的页（签名页/目录页）、把多页 PDF 拆分成小份。"
+    },
+    {
+      "name": "pdf-info",
+      "description": "检查现有 PDF 文档的结构元信息，不做任何修改。纯本地内存执行。参数：pdfBase64（必填，PDF 标准 Base64）、ignoreEncryption（可选默认 false）。返回 {pageCount, pageSizes:[{width,height}], encrypted}（尺寸单位为点数）。encrypted=true 时默认 load 会失败，可带 ignoreEncryption=true 读取元信息。典型用途：合并/抽取前确认页数与页面尺寸、验证下载的 PDF 是否损坏或加密。"
+    }
+  ],
+  "smoke": "成功。node smoke.mjs 通过（22 项断言全部通过）：StdioClientTransport 启动 node index.js 连接成功；listTools 列出 4 个工具；create-pdf 生成 2 页（A4+Letter）PDF，输出 Base64 字节头 %PDF-1.7，写入 /tmp 临时文件落盘校验通过；pdf-info 读回 pageCount=2、A4(595.28x841.89)/Letter(612x792) 尺寸、encrypted=false；extract-pages 抽取第 2 页得 1 页新 PDF 且尺寸为 Letter；merge-pdfs 合并 3 页（抽取页+原两页）并正确记录 sourceDocs；缺 pdfBase64 触发 SDK 参数校验（isError=true, -32602）；非法 base64、未知页面尺寸均返回 isError=true 的清晰错误；中文文本触发 WinAnsi 编码预检，返回说明 Latin-1/WinAnsi 限制的清晰错误而非晦涩底层异常。npm install 安装 98 个包（@modelcontextprotocol/sdk + pdf-lib@1.17.1 + zod 等）成功。",
+  "issues": [
+    "上游 tag v1.17.1 的仓库为源码形态（无 cjs/es 构建产物），适配包依赖 npm 发布的 pdf-lib@1.17.1 构建（main=cjs/index.js，无 exports 字段，Node ESM 经 CJS interop 以命名导入 PDFDocument/StandardFonts/PageSizes/rgb 验证可用）；源码仅用于 API 理解，未修改上游",
+    "pdf-lib 的 14 种标准字体仅支持 Latin-1/WinAnsi 字符集，中文/日文/韩文等非拉丁字符无法编码（底层抛 WinAnsi cannot encode）。冒烟首轮使用中文文本即触发此错误；适配器已加 assertWinAnsiEncodable 预检把错误转成清晰可操作的提示（建议英文文本或集成 @pdf-lib/fontkit + 自定义 TTF），工具描述中亦注明。本适配器未捆绑 CJK 字体文件，如需中文排版需在后续版本集成 fontkit",
+    "字体嵌入仅覆盖标准字体；自定义 TTF/OTF（如品牌字体）需 registerFontkit + embedFont，本适配器未暴露该能力（无外部字体文件来源，属有意裁剪）",
+    "颜色解析支持 #rrggbb/#rgb/rgb(r,g,b)/基本颜色名，不支持 CSS 高级颜色（hsl、rgba、calc 等）；drawText 不支持多行富文本（加粗/斜体混排需拆成多个 line 对象分别指定 font）",
+    "全部工具为纯内存执行，无网络依赖；加密 PDF 默认拒绝读取（pdf-lib 语义），ignoreEncryption=true 仅能绕过读取保护读取元信息，解密本身需要密码且 pdf-lib 不提供解密能力（未暴露相关参数）"
+  ]
+}

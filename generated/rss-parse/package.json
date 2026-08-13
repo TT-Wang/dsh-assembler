@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/rss-parse",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP stdio server adapter for rss-parser v3.13.0 (rbren/rss-parser, MIT): parse RSS 0.9/1/2.0 and Atom feed strings or URLs into structured JSON; extract compact item lists and feed-level metadata",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "rss-parser": "3.13.0",
+    "zod": "^3.23.0"
+  }
+}

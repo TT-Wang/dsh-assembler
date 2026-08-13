@@ -1,0 +1,27 @@
+{
+  "id": "template-render",
+  "repo": "handlebars-lang/handlebars.js",
+  "rev": "v4.7.8 (commit 8dc3d2517b41d12b1e06f88a449f30d27c137c21)",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "render-template",
+      "description": "编译并渲染一个 Handlebars 模板字符串，返回渲染后的文本。支持 {{变量}} 插值、{{#each}} 循环（含 @index/@key/@first/@last 等元数据）、{{#if}}/{{#unless}}/{{#with}} 条件与作用域块、内建 helpers（lookup、log 等），以及通过 partials 参数传入的命名子模板（模板中用 {{> name}} 引用）。context 为渲染数据（JSON 对象，键对应模板变量名）。options 可控制 HTML 转义（noEscape）、严格模式（strict）等编译行为。适用于把模板+数据渲染成 HTML 或文本，例如生成邮件、报表、代码片段。"
+    },
+    {
+      "name": "precompile-template",
+      "description": "将 Handlebars 模板预编译为 TemplateSpecification 的 JavaScript 源码字符串（对象字面量，内含 main 编译函数），可在渲染前离线完成编译。输出可缓存、存储或写入文件，之后原样传给 render-precompiled 工具即可渲染，避免每次重复编译，适合热路径渲染、启动提速或模板分发。注意：输出是 JS 源码字符串，不是渲染结果。"
+    },
+    {
+      "name": "render-precompiled",
+      "description": "用预编译的模板 spec 渲染输出文本。spec 是 precompile-template 工具的输出（JS 对象字面量源码字符串），或任何包含 main 编译函数的等价预编译模板 spec。与直接渲染相比省去每次编译的开销。注意：预编译模板 spec 本质上是可执行的 JavaScript 代码，请只传入由可信来源（如 precompile-template）生成的 spec，不要传入不可信内容。"
+    },
+    {
+      "name": "validate-template",
+      "description": "校验 Handlebars 模板的语法与编译是否通过，不执行渲染。返回 JSON 文本：{\"valid\": true|false, \"errors\": [{\"message\": string, \"line\": number|null, \"column\": number|null}]}。模板含语法错误（如未闭合的 {{#if}}、非法表达式、bad partial 语法）时 valid 为 false 并给出错误信息与行列位置。适合在渲染前对模板做门禁校验，或让 LLM 先自查生成的模板再渲染。"
+    }
+  ],
+  "smoke": "== 1. listTools ==\ntools: [\"render-template\",\"precompile-template\",\"render-precompiled\",\"validate-template\"]\n  [PASS] listTools 返回 4 个工具\n  [PASS] 工具存在: render-template\n  [PASS] 工具存在: precompile-template\n  [PASS] 工具存在: render-precompiled\n  [PASS] 工具存在: validate-template\n\n== 2. render-template：变量 + each 循环 + if 条件 ==\noutput: \"Hello World!\\n[0:a][1:b]\\n(admin)\" isError: false\n  [PASS] 变量/循环/条件渲染结果正确\n\n== 2b. render-template：partial 子模板 ==\noutput: \"<h1>T</h1> <h1>T</h1>\"\n  [PASS] partial 渲染正确\n\n== 2c. render-template：HTML 转义（noEscape 对比） ==\nescaped: \"&lt;b&gt;&amp;&quot;&#x27;&#x60;&#x3D;\" noEscape: \"<b>&\\\"'`=\"\n  [PASS] 默认转义生效\n  [PASS] noEscape 生效\n\n== 2d. render-template：strict 模式缺失字段报错 ==\nisError: true output: \"Handlebars error: \\\"field\\\" not defined in undefined - 1:2 (line 1, column 2)\"\n  [PASS] strict 模式缺失字段返回错误\n\n== 3. precompile-template -> render-precompiled 往返 ==\nprecompile 输出长度: 1171 前缀: \"{\\\"compiler\\\":[8,\\\">= 4.3.0\\\"],\\\"main\\\":function(container,depth0,\"\n  [PASS] precompile 返回非空 JS 源码字符串\nrender-precompiled output: \"Hi Agent, count=42\"\n  [PASS] 预编译 spec 渲染正确\n\n== 4. validate-template：合法与非法模板 ==\nvalid template -> {\"valid\":true,\"errors\":[]}\n  [PASS] 合法模板 valid=true\ninvalid template -> {\"valid\":false,\"errors\":[{\"message\":\"Parse error on line 2:\\n...e1{{#if x}}unclosed\\n----------------------^\\nExpecting 'OPEN_INVERSE_CHAIN', 'INVERSE', 'OPEN_ENDBLOCK', got 'EOF'\",\"line\":null,\"column\":null}]}\n  [PASS] 非法模板 valid=false 且带错误信息\n\n== 4b. render-template 对语法错误模板返回错误 ==\nisError: true output: \"Handlebars error: Parse error on line 1:\\n{{#if x}}unclosed\\n-----------------^\\nExpecting 'OPEN_INVERSE_CHAIN', 'INVERSE', 'OPEN_ENDBLOCK', got 'EOF'\"\n  [PASS] 语法错误模板渲染返回 isError\n\n== 5. 缺参调用（校验错误往返） ==\n缺参调用返回: {\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Input validation error: Invalid arguments for tool render-template: Required at template\"}],\"isError\":true}\n  [PASS] 缺参调用返回错误结果\n\n== 6. 关闭客户端，验证 server 干净退出 ==\nchild exitCode: n/a\n  [PASS] client.close 后子进程已退出\n\n==== SMOKE SUMMARY: 17 passed, 0 failed ====",
+  "issues": []
+}

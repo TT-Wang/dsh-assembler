@@ -1,0 +1,11 @@
+{
+  "name": "@dsh-index/currency-calc",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "MCP stdio server exposing currency.js (v2.0.4) precision-safe currency arithmetic, formatting, distribution and parsing tools",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "currency.js": "2.0.4",
+    "zod": "^3.23.0"
+  }
+}

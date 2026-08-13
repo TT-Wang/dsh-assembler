@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/excel-read-write",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP stdio server wrapping exceljs 4.4.0: read/write .xlsx and .csv files as JSON row data",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "exceljs": "4.4.0",
+    "zod": "^3.23.0"
+  }
+}

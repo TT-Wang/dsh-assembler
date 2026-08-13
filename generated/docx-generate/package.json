@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/docx-generate",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "MCP stdio server wrapping dolanmiu/docx v8.5.0: generate .docx documents (text/table) and patch existing documents via token replacement.",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "docx": "8.5.0",
+    "zod": "^3.23.0"
+  }
+}

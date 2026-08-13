@@ -1,0 +1,32 @@
+{
+  "id": "github-api",
+  "repo": "octokit/rest.js",
+  "rev": "v20.1.1",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "get-user",
+      "description": "获取 GitHub 用户的公开资料（GET /users/{username}）。参数 username（必填，如 octokit）。返回登录名、姓名、头像、bio、关注者数、公开仓库数等。无需认证（受速率限制）。"
+    },
+    {
+      "name": "get-repo",
+      "description": "获取 GitHub 仓库元数据（GET /repos/{owner}/{repo}）。参数 owner、repo（均必填）。返回描述、默认分支、star/fork 数、语言、许可证、最近推送时间等。无需认证（受速率限制）。"
+    },
+    {
+      "name": "list-org-repos",
+      "description": "列出 GitHub 组织的仓库（GET /orgs/{org}/repos）。参数 org（必填），可选 type(all/public/private/forks/sources/member)、sort(created/updated/pushed/full_name)、per_page(1-100)。返回仓库名、描述、语言、star 数列表。无需认证（受速率限制）。"
+    },
+    {
+      "name": "search-repositories",
+      "description": "按 GitHub 搜索语法搜索公开仓库（GET /search/repositories）。参数 q（必填，支持 qualifier 如 topic:octokit、language:javascript），可选 sort(stars/forks/help-wanted-issues/updated)、order、per_page。返回匹配仓库列表与总数。无需认证（匿名限速 10 次/分钟）。"
+    }
+  ],
+  "smoke": "成功：listTools() 返回 4 个工具；真实调用 get-user {username:octokit} 成功并返回真实用户数据（login=octokit, public_repos=71）；缺参调用 get-repo {} 被 zod 校验拦截（MCP error -32602: Required at owner/repo），参数校验生效。node smoke.mjs 退出码 0，SMOKE RESULT: PASS。",
+  "issues": [
+    "可选认证：server 读取 GITHUB_TOKEN 环境变量；未设置时以匿名身份调用，仅限公开数据，受 GitHub 速率限制（REST 60 次/小时/IP，搜索 10 次/分钟）",
+    "npm install 报告 2 个 moderate 级别漏洞（@octokit/request 传递依赖链），不影响本适配器运行",
+    "上游仓库 v20.1.1 源码为 TypeScript 且发布包由构建脚本生成（pkg/），本适配直接依赖 npm 发布的 @octokit/rest@20.1.1 预构建产物，未改动上游代码"
+  ],
+  "notes": "本适配依赖 npm 发布的 @octokit/rest@20.1.1（非本地 clone 源码构建），clone 仅用于理解 API 形态与确认 license=MIT。4 个工具均映射到 octokit.rest 命名空间方法：users.getByUsername / repos.get / repos.listForOrg / search.repos。服务名 github-api，工具名最终为 mcp__github-api__<tool>。所有工具经 mcp-client 往返验证通过。"
+}

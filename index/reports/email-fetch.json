@@ -1,0 +1,33 @@
+{
+  "id": "email-fetch",
+  "repo": "postalsys/imapflow",
+  "rev": "v1.0.162",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "list-mailboxes",
+      "description": "List all mailboxes (folders) of an IMAP account: path, name, delimiter, flags, special-use role (\\Sent, \\Trash, \\Junk). Requires host/user/pass; optional port, secure, rejectUnauthorized."
+    },
+    {
+      "name": "search-messages",
+      "description": "Search an IMAP mailbox with criteria object (from, to, subject, since, before, unseen, flagged, larger, smaller, header, ...) and return matching message UIDs. Empty criteria matches all messages."
+    },
+    {
+      "name": "fetch-message",
+      "description": "Fetch one message from an IMAP mailbox by UID (or seq number): raw source, envelope, headers, bodyStructure, flags, size, internalDate on demand."
+    },
+    {
+      "name": "list-message-summaries",
+      "description": "Browse an IMAP mailbox: return message summaries (uid, seq, envelope, flags, internal date, size) for an IMAP sequence range like \"1:*\" or \"1:50\", capped by limit."
+    }
+  ],
+  "smoke": "成功：listTools 返回 4 个工具且 inputSchema 完整；缺参调用（无 host/user/pass、无 uid）与类型错误（uid 传字符串）均被 zod 校验拦截并返回清晰 InvalidParams 错误（往返成功）；对不可达 IMAP 端点 (127.0.0.1:1) 的真实调用返回结构化 Error 文本（handler 端到端执行成功）。真实邮件收发需外部 IMAP 服务器，未在离线冒烟中执行。",
+  "issues": [
+    "任务指定的仓库 'imapflow/imapflow' 不存在，实际为 postalsys/imapflow（npm 包 imapflow 的官方仓库），已按真实仓库克隆 tag v1.0.162（commit 954a9ded083edf638d90356a1ea38f28c69ac4ce）",
+    "上游包为 CJS（module.exports.ImapFlow），index.js 通过 ESM 默认导入互操作 (import imapflowPkg from 'imapflow') 使用，已验证可用",
+    "必须设置 ImapFlow options.logger=false，否则 pino 日志会污染 MCP stdio 的 stdout 协议通道（已在代码中处理）",
+    "npm install 报告 4 个传递依赖漏洞（2 moderate, 2 high，来自上游依赖链），不影响本适配器运行",
+    "真实 IMAP 收发未做端到端验证（无可用 IMAP 测试服务器），需要真实服务器时建议用 ethereal.email 之类的测试账号补验"
+  ]
+}

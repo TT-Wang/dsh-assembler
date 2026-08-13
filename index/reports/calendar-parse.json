@@ -1,0 +1,29 @@
+{
+  "id": "calendar-parse",
+  "repo": "jens-maus/node-ical",
+  "rev": "0.19.0",
+  "license": "Apache-2.0",
+  "verified": true,
+  "tools": [
+    {
+      "name": "parse-ics",
+      "description": "Parse iCalendar (ICS/ICAL) text into structured JSON via node-ical. Input: ics (raw calendar text, e.g. an embedded BEGIN:VCALENDAR ... END:VCALENDAR string). Returns {counts, totalComponents, components}: counts tallies component types (VEVENT/VTODO/VJOURNAL/VFREEBUSY/VTIMEZONE/VALARM), components maps each UID to its record with summary, description, location, start/end as {value: ISO 8601, tz: TZID}, status, organizer, attendees, rrule (recurrence rule string), expanded recurrences, and alarms. Ideal for extracting events/todos from ICS strings in files, emails or API payloads."
+    },
+    {
+      "name": "parse-ics-file",
+      "description": "Parse a local .ics/.ical file on disk into the same structured JSON as parse-ics ({counts, totalComponents, components} keyed by UID, datetimes as {value, tz}). Input: path (filesystem path to the calendar file). Returns a clear error text if the file is missing/unreadable or contains no calendar components. Avoids re-sending file content through the tool boundary."
+    },
+    {
+      "name": "fetch-ics-url",
+      "description": "Fetch an iCalendar (ICS/ICAL) feed from a remote URL via HTTP GET (axios) and parse it into the same structured JSON as parse-ics. Inputs: url (absolute URL of a .ics file or calendar subscription endpoint), optional timeoutMs (1000-120000, default 15000). NOTE: performs an outbound network request; the endpoint must be publicly reachable without auth. Returns a clear error text on timeout, HTTP failure, or unparseable body."
+    }
+  ],
+  "smoke": "成功：MCP 客户端（StdioClientTransport，command=node args=[index.js]）连接成功；listTools 返回恰好 3 个工具（parse-ics / parse-ics-file / fetch-ics-url）且均有面向 LLM 的描述。parse-ics 解析内嵌 BEGIN:VCALENDAR 字符串（1 VEVENT + 1 VTODO + 1 嵌套 VALARM）：counts 正确，提取 summary='Team standup'、location='Zoom'，start 规范化为 {\"value\":\"2024-04-10T09:00:00.000Z\",\"tz\":\"Etc/UTC\"}，VTODO 'Submit timesheet' 成功提取。缺省必填参数 ics 触发 schema 校验错误（MCP isError 结果）。垃圾输入 'hello world, not ical' 返回清晰错误文本 'no calendar components found'。parse-ics-file 读取磁盘临时 .ics 成功（含全天事件 datetype=date），缺失路径返回 ENOENT 错误文本。fetch-ics-url 通过本地 HTTP 服务提供上游 test1.ics fixture，端到端获取并解析出 9 个 VEVENT，命中已知事件 'Dyncon 2011'（外部源 raw.githubusercontent.com 被本环境出口策略拦截，见 issues）。全部 18 项断言通过，exit 0；server 在 stdin 关闭后干净退出。",
+  "issues": [
+    "许可证与任务描述不符：任务称 MIT，但上游 tag 0.19.0 的 LICENSE 文件与 npm node-ical@0.19.0 tarball 均为 Apache License 2.0，package.json \"license\":\"Apache-2.0\"。本报告按事实记录为 Apache-2.0。",
+    "版本标识：git tag 为 '0.19.0'（无 v 前缀），任务中的 'v0.19.0' 分支不存在，克隆回退后检出精确 tag 0.19.0（commit 77e762c 'fix braces security issue'）；npm 发布版 node-ical@0.19.0 与 tag 内容一致（diff 仅多出 cvt-to-json.js 等非发布文件），API 核验以 npm 0.19.0 包为准。",
+    "SDK 适配细节：实际安装 @modelcontextprotocol/sdk 1.30.0，其 server.tool() 的参数 schema 要求 ZodRawShape（zod 字段对象），传 z.object({...}) 实例会抛 'expected a Zod schema or ToolAnnotations'。已按 SDK 1.30 实际行为改为直接传 zod 字段 shape（SDK 内部构建并校验 z.object），node --check 与全部冒烟通过。",
+    "网络出口受限：本环境 raw.githubusercontent.com 与 calendar.google.com 均超时不可达（仅 registry.npmjs.org / github.com 正常），无法对公网 ICS feed 做真实外呼；fetch-ics-url 改由本地 HTTP 服务提供上游真实 fixture 验证完整 axios 获取+解析链路（代码路径一致），公网外呼留待运行环境网络放行后复核。"
+  ],
+  "notes": "适配代码位于 /Users/tongtao/code/dsh-assembler/generated/calendar-parse/（package.json + index.js + smoke.mjs）。npm install 成功（110 包，11s，纯 JS 无原生编译）。切分为 3 个能力点：parse-ics（字符串解析，覆盖事件/待办/闹钟/时区）、parse-ics-file（本地文件）、fetch-ics-url（远程订阅源），共享统一输出规范：{counts, totalComponents, components}，Date 规范化为 {value: ISO 8601, tz} 以保留时区信息（node-ical 的 Date.tz 不会出现在默认 JSON 序列化中），rrule 实例经 toString 还原为 RFC 5545 规则串，并带循环引用防护。上游 API 核验面：ical.parseICS(string)、sync.parseFile(path)、async.fromURL(url, options)（d.ts 199 行 + node-ical.js 249 行 + ical.js 768 行逐一核对）。serverName='calendar-parse'，工具经 dsh mcp-client 暴露为 mcp__calendar-parse__parse-ics 等。解析全部进程内完成（moment-timezone + rrule），无外部服务依赖；仅 fetch-ics-url 需要运行时出网。"
+}

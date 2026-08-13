@@ -1,0 +1,11 @@
+{
+  "name": "@dsh-index/csv-parse",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "MCP stdio server wrapping papaparse 5.4.1: parse CSV to JSON, serialize JSON to CSV, validate CSV.",
+  "private": true,
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "papaparse": "5.4.1"
+  }
+}

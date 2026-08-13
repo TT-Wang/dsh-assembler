@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/qrcode-generate",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP stdio server exposing QR code generation tools backed by node-qrcode (soldair/node-qrcode v1.5.3, MIT)",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "qrcode": "1.5.3",
+    "zod": "^3.23.0"
+  }
+}

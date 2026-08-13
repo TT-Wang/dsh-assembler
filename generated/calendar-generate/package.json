@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/calendar-generate",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP stdio server wrapping ical-generator v7.1.0: generate RFC 5545 iCalendar (.ics) strings (calendars, timed events, all-day events, recurring events)",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "ical-generator": "7.1.0",
+    "zod": "^3.23.0"
+  }
+}

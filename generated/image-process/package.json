@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/image-process",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP stdio server wrapping sharp@0.33.4: image metadata, resize, format conversion and thumbnail generation (base64 in/out)",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "sharp": "0.33.4",
+    "zod": "^3.23.0"
+  }
+}

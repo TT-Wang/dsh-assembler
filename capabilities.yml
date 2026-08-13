@@ -1,0 +1,260 @@
+# dsh-cs-tools capability catalog — the vibe-assembly directory.
+#
+# One entry per reusable capability. The assembler reads this file, matches a
+# natural-language requirement against `tags` / `description`, and emits an
+# agent preset that mounts the selected rows.
+#
+# `via` — where the capability comes from:
+#   package  → a tool in THIS package (dsh-cs-tools)
+#   harness  → a built-in DeepSeek Harness tool, already available to any
+#              preset that mounts the standard tool rows (see
+#              presets/agent-template.yml)
+#   mcp      → auto-generated at runtime from connected MCP servers
+#              (federateMcpTools): every `mcp__*` tool in ctx.tools.visible
+#              becomes an entry; the server's connection config must exist
+#              under `mcp-servers` below (or be added to the preset by hand).
+#
+# `mcp-servers` — connection configs for MCP servers whose tools the
+# assembler can select. When a selected capability references a server here,
+# the emitted preset gains an mcp-client row for it.
+#
+# Entries are additive: adding a new capability is appending one entry —
+# the assembler learns it automatically.
+
+mcp-servers:
+  filesystem:
+    transport: stdio
+    command: npx
+    args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp']
+    # Mounted on the host plane (web profile cordis.patch.yml): its tools are
+    # globally visible to every agent, so assembled presets must NOT emit a
+    # duplicate mcp-client row (serverName conflict would fail the mount).
+    hostMounted: true
+
+  # ── 代码索引流水线产物（index/catalog.yml 一一对应）──────────────────────
+  # 每个 server = generated/<id>/ 里的 MCP stdio 适配（我们生成的胶水，包装
+  # 上游开源库）。hostMounted: false → 只有选中的 preset 才挂载（窄表面）。
+  # 注意：mcp-client 的 serverName 进程全局唯一，两个同时挂载同一 server
+  # 的 preset 会冲突（MVP 阶段限制：同一时间只用一个这类 preset）。
+  email-send:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/email-send/index.js']
+  email-fetch:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/email-fetch/index.js']
+  http-request:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/http-request/index.js']
+  html-parse:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/html-parse/index.js']
+  csv-parse:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/csv-parse/index.js']
+  pdf-generate:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/pdf-generate/index.js']
+  date-format:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/date-format/index.js']
+  sqlite-query:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/sqlite-query/index.js']
+  github-api:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/github-api/index.js']
+  markdown-render:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/markdown-render/index.js']
+  pdf-extract:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/pdf-extract/index.js']
+  excel-read-write:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/excel-read-write/index.js']
+  docx-generate:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/docx-generate/index.js']
+  zip-archive:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/zip-archive/index.js']
+  fuzzy-search:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/fuzzy-search/index.js']
+  template-render:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/template-render/index.js']
+  html-to-text:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/html-to-text/index.js']
+  xml-parse:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/xml-parse/index.js']
+  image-process:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/image-process/index.js']
+  rss-parse:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/rss-parse/index.js']
+  calendar-parse:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/calendar-parse/index.js']
+  calendar-generate:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/calendar-generate/index.js']
+  mysql-query:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/mysql-query/index.js']
+  number-format:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/number-format/index.js']
+  qrcode-generate:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/qrcode-generate/index.js']
+  postgres-query:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/postgres-query/index.js']
+  browser-automate:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/browser-automate/index.js']
+  ocr-parse:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/ocr-parse/index.js']
+  currency-calc:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/currency-calc/index.js']
+  readability-extract:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/readability-extract/index.js']
+  pdf-report:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/pdf-report/index.js']
+
+capabilities:
+  # ── customer-service domain tools (this package) ──────────────────────────
+  - id: crm-query
+    via: package
+    tool: crm_query
+    description: Look up a customer's orders and their status (order id, ETA, tracking).
+    tags: [crm, order, orders, shipment, shipping, tracking, delivery, eta, refund, status, query]
+    config: {}
+  - id: ticket-create
+    via: package
+    tool: ticket_create
+    description: Open a support ticket for an issue that needs a human (refund dispute, damaged item).
+    tags: [ticket, ticket-create, escalation, complaint, refund-dispute, damaged, support]
+    config: {}
+  - id: human-handoff
+    via: package
+    tool: human_handoff
+    description: Transfer the conversation to a human agent (user asked for human, or out of remit).
+    tags: [human, handoff, human-agent, transfer, escalate, live-agent, representative]
+    config: {}
+
+  # ── harness-provided capabilities (reuse, not code) ───────────────────────
+  - id: kb-search
+    via: harness
+    description: Search the knowledge base (FAQ/policy documents under kb/).
+    tags: [knowledge, kb, faq, policy, docs, search, question, answer, refund-policy, shipping-policy]
+    config:
+      # Disabled for now: bare fs-search lets the model search the WHOLE host
+      # (measured: 25+ glob/grep calls in the cs-03 damage scenario). A real
+      # kb capability needs a scoped read tool rooted at kb/ — future work.
+      enabled: false
+  - id: web-lookup
+    via: harness
+    description: Search the web for current information (latest policy, news).
+    tags: [web, search, internet, current, news, latest]
+    config:
+      presetRows:
+        - id: tool-web
+          name: '@deepseek-ai/dsh-tool-web'
+          config:
+            fetch: true
+            searchTimeoutMs: 60000
+  - id: content-search
+    via: harness
+    description: Search file contents by keyword and return the matching files with line numbers (grep-style content search).
+    tags: [search, content, grep, keyword, text, find, files, 搜索, 内容, 关键字, 查找]
+    config:
+      presetRows:
+        - id: tool-fs-search
+          name: '@deepseek-ai/dsh-tool-fs-search'
+
+  # ── persona / behavior (a capability in its own right) ────────────────────
+  - id: file-manager-persona
+    via: harness
+    description: File-management assistant persona — lists directories, reads files, and searches file contents for the user.
+    tags: [persona, tone, behavior, file, files, manager, directory, folder, list, read, search, 文件, 目录, 管理, 助手]
+    config:
+      persona: |
+        You are a file-management assistant. Be concise and accurate. Answer in
+        the user's language. Work ONLY with your filesystem tools — never
+        invent file contents, and never use means outside your tool surface:
+        - list directories: mcp__filesystem__list_directory (or
+          mcp__filesystem__directory_tree for a recursive view) to show what a
+          folder contains.
+        - read files: mcp__filesystem__read_text_file to show a file's content.
+        - search contents: grep to find files whose CONTENT matches a keyword —
+          matches come back with file paths and line numbers. Use
+          glob or mcp__filesystem__search_files to find files by NAME pattern.
+        - when unsure where you may operate, check
+          mcp__filesystem__list_allowed_directories first and stay inside the
+          allowed roots.
+        When a search matches many files, summarize the matches and read the
+        most relevant file before answering in detail.
+
+  - id: cs-persona
+    via: harness
+    description: Customer-service agent persona — polite, concise, resolves issues before escalating.
+    tags: [persona, tone, behavior, customer-service, support-agent]
+    config:
+      # A domain persona declares its baseline tool surface: the assembler
+      # force-includes these regardless of what the requirement happened to
+      # mention, so a customer-service agent always gets the full toolkit.
+      baselineTools: [crm_query, ticket_create, human_handoff]
+      persona: |
+        You are a customer-service agent for an online electronics store.
+        Be polite and concise. Answer in the user's language.
+        You have three tools. Use them, do not describe using them, and do
+        not explore the host with other means:
+        - crm_query: check order state before claiming anything about an order.
+        - ticket_create: OPEN A TICKET directly when the user reports a
+          damaged item, missing item, or refund dispute. Call the tool; never
+          merely say a ticket is opened without calling it.
+        - human_handoff: when the user asks for a human or the issue is out
+          of remit.
+        Damaged items: cite the short return policy, open the ticket, then
+        tell the user a human will follow up. Do not stop to ask preference
+        questions before the ticket exists.

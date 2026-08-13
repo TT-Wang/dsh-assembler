@@ -1,0 +1,313 @@
+# dsh-assembler 代码索引目录
+#
+# 每条目 = 一个经过"切分→生成适配→构建→冒烟验证"的开源库能力集。
+# 来源：索引流水线（AI 切分 + 生成 MCP stdio 适配 + 冒烟验证）。
+# 约定：
+#   - verified: true 表示 listTools 成功且至少一次真实工具调用/校验往返成功
+#   - 上游源码不 vendored，按 rev 从 GitHub/npm 拉取；generated/<id>/ 是我们的适配代码
+#   - 组装目录（capabilities.yml）的 mcp-servers 段与本文件一一对应
+#
+# 试点批次（2026-08-12）：10 库 / 37 工具，全部 verified。
+
+- id: email-send
+  repo: nodemailer/nodemailer
+  rev: v6.9.13
+  license: MIT
+  tools:
+    - { name: send-email, description: 发送邮件（smtp/json/stream 三种 transport）}
+    - { name: verify-smtp-config, description: 验证 SMTP 连接与认证 }
+    - { name: parse-email-addresses, description: 解析 RFC 5322 地址列表 }
+    - { name: create-test-account, description: 创建 Ethereal 临时测试邮箱 }
+
+- id: email-fetch
+  repo: postalsys/imapflow
+  rev: v1.0.162
+  license: MIT
+  tools:
+    - { name: list-mailboxes, description: 列出 IMAP 邮箱文件夹 }
+    - { name: search-messages, description: 按条件搜索邮件 UID }
+    - { name: fetch-message, description: 按 UID 获取邮件全文/信封/结构 }
+    - { name: list-message-summaries, description: 浏览邮箱邮件摘要列表 }
+
+- id: http-request
+  repo: axios/axios
+  rev: v1.7.2
+  license: MIT
+  tools:
+    - { name: http-request, description: 通用 HTTP 请求（任意方法/参数/认证）}
+    - { name: http-get, description: HTTP GET 拉取 URL }
+    - { name: http-post, description: HTTP POST 提交 JSON }
+    - { name: build-url, description: 拼接 URL（纯本地，不发起请求）}
+
+- id: html-parse
+  repo: cheeriojs/cheerio
+  rev: v1.0.0-rc.12
+  license: MIT
+  tools:
+    - { name: extract-text, description: 从 HTML 提取文本 }
+    - { name: extract-attributes, description: 按选择器批量提取属性（链接/图片等）}
+    - { name: query-elements, description: 查询元素结构摘要 }
+    - { name: serialize-html, description: HTML/XML 规范化序列化 }
+
+- id: csv-parse
+  repo: papaparse/papaparse
+  rev: 5.4.1
+  license: MIT
+  tools:
+    - { name: parse-csv, description: CSV 文本转 JSON }
+    - { name: unparse-csv, description: JSON 序列化为 CSV }
+    - { name: validate-csv, description: 校验 CSV 格式与分隔符探测 }
+
+- id: pdf-generate
+  repo: Hopding/pdf-lib
+  rev: v1.17.1
+  license: MIT
+  tools:
+    - { name: create-pdf, description: 生成多页 PDF（文本/坐标/颜色）}
+    - { name: merge-pdfs, description: 合并多个 PDF }
+    - { name: extract-pages, description: 抽取指定页组成新 PDF }
+    - { name: pdf-info, description: 读取 PDF 元信息（页数/尺寸/加密）}
+
+- id: date-format
+  repo: iamkun/dayjs
+  rev: v1.11.11
+  license: MIT
+  tools:
+    - { name: format-date, description: 日期时间格式化 }
+    - { name: parse-date, description: 解析日期为结构化字段 }
+    - { name: date-diff, description: 两个日期差值计算 }
+    - { name: date-manipulate, description: 日期加减/月初月末等链式操作 }
+
+- id: sqlite-query
+  repo: WiseLibs/better-sqlite3
+  rev: v11.1.2
+  license: MIT
+  tools:
+    - { name: query, description: SQLite 只读查询（SELECT）}
+    - { name: execute, description: SQLite 写/DDL 执行 }
+    - { name: list-tables, description: 列出库中表与视图 }
+
+- id: github-api
+  repo: octokit/rest.js
+  rev: v20.1.1
+  license: MIT
+  tools:
+    - { name: get-user, description: 获取 GitHub 用户公开资料 }
+    - { name: get-repo, description: 获取仓库元数据 }
+    - { name: list-org-repos, description: 列出组织仓库 }
+    - { name: search-repositories, description: 搜索公开仓库 }
+
+- id: markdown-render
+  repo: markedjs/marked
+  rev: v12.0.2
+  license: MIT
+  tools:
+    - { name: render-markdown, description: Markdown 转 HTML（GFM）}
+    - { name: render-markdown-inline, description: 行内 Markdown 转 HTML }
+    - { name: tokenize-markdown, description: Markdown 词法分析为 token 流 }
+
+# ── 第二批（2026-08-12）：文档/数据/模板域 ────────────────────────────────
+
+- id: pdf-extract
+  repo: pdf-parse/pdf-parse
+  rev: 1.1.1
+  license: MIT
+  tools:
+    - { name: get-pdf-text, description: 从 PDF 文件提取全部文本 }
+    - { name: get-pdf-info, description: 读取 PDF 元数据（页数/标题/作者）}
+    - { name: search-pdf-text, description: 在 PDF 文本中按关键词搜索 }
+
+- id: excel-read-write
+  repo: exceljs/exceljs
+  rev: v4.4.0
+  license: MIT
+  tools:
+    - { name: read-xlsx-file, description: 读 Excel 工作表为 JSON 行数据 }
+    - { name: write-xlsx-file, description: 从 JSON 数据写 Excel（支持公式）}
+    - { name: read-csv-file, description: 读 CSV 文件为 JSON 行数据 }
+    - { name: write-csv-file, description: 写 CSV 文件 }
+
+- id: docx-generate
+  repo: dolanmiu/docx
+  rev: 8.5.0
+  license: MIT
+  tools:
+    - { name: docx-generate-text, description: 生成纯文本型 Word 文档（标题/段落/列表）}
+    - { name: docx-generate-table, description: 生成表格型 Word 文档 }
+    - { name: docx-patch-document, description: 用数据填充 Word 模板占位符 }
+
+- id: zip-archive
+  repo: cthackers/adm-zip
+  rev: v0.5.12
+  license: MIT
+  tools:
+    - { name: zip-list-entries, description: 列出 zip 归档条目 }
+    - { name: zip-read-file, description: 读取 zip 内指定条目 }
+    - { name: zip-create-archive, description: 由内存文件列表创建 zip }
+    - { name: zip-update-archive, description: 增/改/删 zip 条目并重打包 }
+
+- id: fuzzy-search
+  repo: krisk/Fuse
+  rev: v7.0.0
+  license: Apache-2.0
+  tools:
+    - { name: fuzzy-search, description: 对文档数组做模糊搜索 }
+    - { name: fuse-create-index, description: 预计算可复用搜索索引 }
+    - { name: fuse-search-with-index, description: 用预建索引搜索 }
+    - { name: fuse-config, description: 返回 Fuse 默认配置 }
+
+- id: template-render
+  repo: handlebars-lang/handlebars.js
+  rev: v4.7.8
+  license: MIT
+  tools:
+    - { name: render-template, description: Handlebars 模板渲染（变量/循环/条件/partial）}
+    - { name: precompile-template, description: 预编译模板为 JS spec }
+    - { name: render-precompiled, description: 用预编译 spec 渲染 }
+    - { name: validate-template, description: 校验模板语法 }
+
+- id: html-to-text
+  repo: html-to-text/node-html-to-text
+  rev: 9.0.5
+  license: MIT
+  tools:
+    - { name: html-to-text, description: HTML 转纯文本（邮件正文/摘要）}
+    - { name: html-to-text-batch, description: 批量 HTML 转文本 }
+    - { name: html-to-text-table, description: HTML 表格转对齐纯文本 }
+    - { name: html-to-text-links, description: 提取 HTML 中所有链接 }
+
+- id: xml-parse
+  repo: NaturalIntelligence/fast-xml-parser
+  rev: v4.4.0
+  license: MIT
+  tools:
+    - { name: xml-validate, description: 校验 XML 良构性（带行列定位）}
+    - { name: xml-parse, description: XML 转 JSON }
+    - { name: xml-build, description: JSON 序列化为 XML }
+
+# ── 第三批（2026-08-12）：图片/日历/RSS/数据库/金额/二维码 ────────────────
+
+- id: image-process
+  repo: lovell/sharp
+  rev: v0.33.4
+  license: Apache-2.0
+  tools:
+    - { name: image-info, description: 图片元信息（格式/尺寸/色彩空间/动图帧）}
+    - { name: image-resize, description: 图片缩放（fit/焦点/不放大）}
+    - { name: image-convert, description: 格式转换+压缩（jpeg/png/webp/avif）}
+    - { name: image-thumbnail, description: 生成缩略图 }
+
+- id: rss-parse
+  repo: rbren/rss-parser
+  rev: v3.13.0
+  license: MIT
+  tools:
+    - { name: parse-rss-string, description: 解析 RSS/Atom 字符串为结构化 JSON }
+    - { name: parse-rss-url, description: 从 URL 抓取并解析 feed }
+    - { name: extract-feed-items, description: 提取 feed 条目清单（标题/链接/日期）}
+    - { name: parse-feed-metadata, description: 提取 feed 频道元数据 }
+
+- id: calendar-parse
+  repo: jens-maus/node-ical
+  rev: 0.19.0
+  license: Apache-2.0
+  tools:
+    - { name: parse-ics, description: 解析 ICS 日历文本为结构化 JSON }
+    - { name: parse-ics-file, description: 解析本地 .ics 文件 }
+    - { name: fetch-ics-url, description: 从 URL 获取并解析日历订阅源 }
+
+- id: calendar-generate
+  repo: sebbo2002/ical-generator
+  rev: v7.1.0
+  license: MIT
+  tools:
+    - { name: create-calendar, description: 生成日历级元数据 ICS }
+    - { name: create-event, description: 生成单个事件 ICS（定时/全天/参与人/闹钟）}
+    - { name: create-all-day-event, description: 生成全天事件 ICS }
+    - { name: create-recurring-event, description: 生成重复事件 ICS（RRULE）}
+
+- id: mysql-query
+  repo: sidorares/node-mysql2
+  rev: v3.10.0
+  license: MIT
+  tools:
+    - { name: mysql-query, description: MySQL 任意 SQL（参数绑定）}
+    - { name: mysql-list-tables, description: 列出库中表 }
+    - { name: mysql-describe-table, description: 查看表结构 }
+    - { name: mysql-test-connection, description: 测试连接诊断 }
+
+- id: number-format
+  repo: adamwdraper/Numeral-js
+  rev: 2.0.6
+  license: MIT
+  tools:
+    - { name: format-number, description: 数字格式化（千分位/货币/百分比/缩写/字节/时间）}
+    - { name: unformat-number, description: 解析数字字符串回数值 }
+    - { name: arithmetic, description: 浮点安全算术（add/subtract/multiply/divide）}
+    - { name: validate-number, description: 校验数字格式 }
+
+- id: qrcode-generate
+  repo: soldair/node-qrcode
+  rev: v1.5.3
+  license: MIT
+  tools:
+    - { name: qr-generate-png, description: 生成 QR 码 PNG（base64）}
+    - { name: qr-generate-data-url, description: 生成 QR 码 data URL }
+    - { name: qr-generate-svg, description: 生成 QR 码 SVG 矢量 }
+    - { name: qr-generate-terminal, description: 生成终端可扫描的 QR 字符画 }
+
+# ── 第四批（2026-08-12）：数据库/浏览器/OCR/货币 ───────────────────────────
+
+- id: postgres-query
+  repo: brianc/node-postgres
+  rev: pg@8.12.0
+  license: MIT
+  tools:
+    - { name: postgres-test-connection, description: 测试 PG 连接诊断 }
+    - { name: postgres-list-tables, description: 按 schema 列出表与视图 }
+    - { name: postgres-describe-table, description: 查看表结构（含主键）}
+    - { name: postgres-query, description: PG 任意 SQL（参数绑定/二进制列）}
+
+- id: browser-automate
+  repo: microsoft/playwright
+  rev: v1.45.0
+  license: Apache-2.0
+  tools:
+    - { name: browser-open, description: 打开 URL 等待加载（无头浏览器）}
+    - { name: browser-extract, description: 从当前页面提取文本/属性 }
+    - { name: browser-click, description: 点击页面元素 }
+    - { name: browser-screenshot, description: 页面/元素截图（base64）}
+
+- id: ocr-parse
+  repo: naptha/tesseract.js
+  rev: v5.1.0
+  license: Apache-2.0
+  tools:
+    - { name: ocr-languages, description: 列出 OCR 支持的语言代码 }
+    - { name: ocr-psm-modes, description: 列出页面分割模式（PSM）}
+    - { name: ocr-recognize, description: 图片文字识别（多语言/白名单/区域/PDF输出）}
+
+- id: currency-calc
+  repo: scurker/currency.js
+  rev: v2.0.4
+  license: MIT
+  tools:
+    - { name: currency-calc, description: 精度安全货币四则运算 }
+    - { name: currency-format, description: 货币格式化（符号/千分位/印度分组）}
+    - { name: currency-distribute, description: 金额均分（分摊账单/拆分订单）}
+    - { name: currency-parse, description: 解析并校验金额输入 }
+
+- id: readability-extract
+  repo: mozilla/readability
+  rev: 0.5.0
+  license: MIT
+  tools:
+    - { name: extract-article, description: 从 HTML 提取正文（Readability 算法，剥离导航/广告/页脚噪音，中英文页面） }
+    - { name: extract-batch, description: 批量提取多个 HTML 文档正文 }
+
+- id: pdf-report
+  repo: Hopding/pdf-lib
+  rev: v1.17.1
+  license: MIT
+  tools:
+    - { name: create-report-pdf, description: 结构化研究报告生成多页 PDF（中英文混排/自动换行分页/字体子集化） }

@@ -1,0 +1,31 @@
+{
+  "id": "number-format",
+  "repo": "adamwdraper/Numeral-js",
+  "rev": "v2.0.6",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "format-number",
+      "description": "按 numeral.js 格式串把数字格式化为可读字符串。value 可为数字或可解析字符串（如 \"1,000\"、\"50%\"、\"$1,234.56\"）；format 支持 \"0,0\" 千分位（1000→\"1,000\"）、\"0,0.00\" 定长小数、\"$0,0.00\" 货币（默认 $）、\"0%\" 百分比（×100，0.5→\"50%\"）、\"0a\" 缩写 k/m/b/t（1500→\"2k\"）、\"0o\" 序数（1→\"1st\"）、\"0.00e+0\" 科学计数、\"0b\"/\"0ib\" 字节（1500000→\"1.5MB\"）、\"00:00:00\" 时分秒（3661→\"01:01:01\"）、\"0BPS\" 基点（×10000）、\"0000\" 前导零；rounding 可选 round/floor/ceil。返回格式化字符串；解析失败返回 error: 前缀文本。"
+    },
+    {
+      "name": "unformat-number",
+      "description": "把人类可读的数字字符串解析回数值（format-number 的逆操作）：\"1,000\"→1000、\"$1,234.56\"→1234.56、\"50%\"→0.5、\"1.5MB\"→1500000、\"2k\"→2000、\"1st\"→1、\"01:01:01\"→3661、\"50BPS\"→0.005。返回数值纯文本；无可解析数字时返回 error: 前缀文本。"
+    },
+    {
+      "name": "arithmetic",
+      "description": "基于 numeral.js 的浮点安全算术（用校正因子规避 JS 浮点误差）：add(a+b)、subtract(a-b)、multiply(a*b)、divide(a/b)、difference(|a-b|)。例如 add(0.1,0.2)→0.3（而非 0.30000000000000004）、multiply(1.005,100)→100.5。返回数值纯文本；除以 0 返回 error: 文本。"
+    },
+    {
+      "name": "validate-number",
+      "description": "用 numeral.validate 校验字符串是否为合法数字格式：接受纯数字（\"123\"）、千分位小数（\"1,234.56\"）、货币符号前缀（\"$1,234.56\"）与缩写后缀（\"1.5m\"）。注意：百分比（\"50%\"）、字节（\"1.5MB\"）、时间（\"01:01:01\"）不被 numeral.validate 视为合法（库本身行为），此类字符串请用 unformat-number。返回 JSON 文本 {\"valid\":bool,\"input\":string,\"value\":number|null}。"
+    }
+  ],
+  "smoke": "成功：listTools 返回 4 个工具；真实往返 format(1000,'0,0')→\"1,000\" 再 unformat(\"1,000\")→1000 一致；format(0.5,'0%')→\"50%\"、format(1234.5,'$0,0.00')→\"$1,234.50\"、arithmetic add(0.1,0.2)→0.3、validate(\"1,234.56\")→valid:true 均正确；非法输入 unformat(\"not-a-number\") 返回 error: 文本；缺参调用返回 SDK 参数校验错误（MCP error -32602, isError:true）；node index.js < /dev/null 干净退出（exit 0）。",
+  "issues": [
+    "上游 git tag 实际名为 2.0.6（无 v 前缀），按任务脚本 `--branch v2.0.6` 克隆失败；已按要求以 npm 发布的 numeral@2.0.6 包做 API 核验，且安装的 numeral@2.0.6 与 git tag 2.0.6 的 numeral.js 源码逐字节一致（diff 无差异）。",
+    "numeral 为 CommonJS/UMD 模块（无 ESM 导出），ESM 下经默认导入互操作（import numeral from 'numeral'）使用，已验证可用。",
+    "numeral.validate 不接受百分比/字节/时间格式字符串（库本身行为，非适配缺陷），已在 validate-number 工具描述中注明并指引改用 unformat-number。"
+  ]
+}

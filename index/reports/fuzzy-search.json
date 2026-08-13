@@ -1,0 +1,32 @@
+{
+  "id": "fuzzy-search",
+  "repo": "krisk/Fuse",
+  "rev": "v7.0.0",
+  "license": "Apache-2.0",
+  "verified": true,
+  "tools": [
+    {
+      "name": "fuzzy-search",
+      "description": "对文档数组执行一次性的模糊搜索（Fuse.js v7）。输入 documents（字符串数组或对象数组）与 query 模式串；可选 keys 指定在对象的哪些字段上搜索（支持嵌套路径与权重），threshold/ignoreLocation 等选项控制匹配严格度。返回按相关度升序排列的结果列表，每条结果含 refIndex（文档在原数组中的下标）、score（0=完全匹配，1=完全不匹配）与 item（命中的原文或对象）；includeMatches 开启时另含匹配字符区间 indices（可用于高亮）。适合“从列表中找出与某模式最接近的若干项”。"
+    },
+    {
+      "name": "fuse-create-index",
+      "description": "为文档集预计算 Fuse.js 可复用的搜索索引，返回可序列化的 JSON（{ keys, records }）。对同一批文档执行多次搜索时，先用本工具建立索引，再把返回的 index 与完全相同的 documents 传给 fuse-search-with-index，从而复用索引、避免每次重复构建。注意：索引与 documents 必须一一对应（同一顺序、同一内容）。"
+    },
+    {
+      "name": "fuse-search-with-index",
+      "description": "使用 fuse-create-index 生成的 JSON 索引对同一文档集执行模糊搜索。输入 index（{keys, records}，取自 fuse-create-index 的输出）、与建索引时完全一致的 documents 数组、query 及可选搜索选项，返回与 fuzzy-search 相同格式（含 refIndex/score/item）的排序结果。适合对固定数据集反复查询的场景。"
+    },
+    {
+      "name": "fuse-config",
+      "description": "返回 Fuse.js 的默认配置（Fuse.config），包含 includeMatches、includeScore、threshold、distance、location、keys、useExtendedSearch、isCaseSensitive、ignoreFieldNorm、fieldNormWeight、shouldSort、minMatchCharLength 等全部选项的默认值，供调用方在发起搜索前了解各选项的默认行为。注意：函数类型的字段（sortFn、getFn）无法序列化，会被省略。"
+    }
+  ],
+  "smoke": "smoke.mjs：真实 MCP Client + StdioClientTransport（command:node, args:[index.js]）连本 server。1) listTools 返回 4 个工具（名称 kebab-case，与切分一致）；2) fuzzy-search 对 8 条水果字符串搜 \"apple\"：命中 6 条且按 score 升序，Apple score=0 居首，含子串命中 Pineapple(refIndex=1)/applesauce，证明打分与排序正确；3) fuzzy-search 对象数组 + keys:[\"title\"] 搜 \"sea\"：标题含 Sea 的书排前且分数更低（Sea-Wolf 0.10 < Old Man and the Sea 0.52），includeMatches 返回匹配区间 indices；4) useExtendedSearch 前缀语法 ^app 只命中 3 条以 app 开头的项；5) fuse-create-index 产出 {keys,records} 8 条 → fuse-search-with-index 复用索引搜索结果与直接搜索完全一致；6) fuse-config 返回默认配置（threshold=0.6、distance=100、includeMatches=false 等）；7) 缺参调用 fuzzy-search({}) 被 SDK 拒绝（InvalidParams），documents 传字符串而非数组同样被拒。全部 15 项断言通过，SMOKE OK，exit 0。另验证 node index.js < /dev/null（stdin 关闭）后立即干净退出，无挂起。",
+  "issues": [
+    "默认 threshold=0.6 时模糊匹配可能返回语义宽松的命中（如 query \"sea\" 会以 score 0.6 命中 \"War and Peace\"）。这是 Fuse.js 固有行为而非适配缺陷；需要更严格匹配时可调低 threshold 或改用扩展搜索语法（^/!/=/|）。",
+    "fuse-create-index 产出的索引与 documents 必须保持同一顺序与内容一一对应，适配层无法校验这一点，需调用方自行保证。",
+    "fuse-config 输出的默认配置省略函数类型字段（sortFn、getFn），因无法 JSON 序列化。"
+  ],
+  "notes": "上游 krisk/Fuse 的 v7.0.0 tag 存在（git describe 确认，commit 93bad12）；源码仓自带 dist 构建产物（含全量版 fuse.mjs，注册了 ExtendedSearch，useExtendedSearch 可用）。运行时依赖采用 npm 发布的 fuse.js@7.0.0（零依赖）。适配包依赖：@modelcontextprotocol/sdk ^1.0.0（实装 1.30.0）、fuse.js 7.0.0、zod ^3.23.0（实装 3.25.76），全部纯 JS 无 native 编译。node --check 通过；npm install 3s 完成。工具 schema 全部使用 zod（z.object/ZodRawShape），符合 MCP SDK 1.30 要求。"
+}

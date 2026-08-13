@@ -1,0 +1,11 @@
+{
+  "name": "@dsh-index/pdf-generate",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP stdio server adapter for pdf-lib v1.17.1: create PDFs from text, merge multiple PDFs, extract page subsets, and inspect PDF metadata — all in-memory, no external services",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "pdf-lib": "1.17.1"
+  }
+}

@@ -1,0 +1,35 @@
+# agent preset TEMPLATE — the assembler fills in the `{{ }}` slots and emits
+# the final file as agent.cordis.yml under $DSH_HOME/.agent-presets/<name>/.
+#
+# Structure follows the harness's `standard` agent preset (see the slice-loop
+# benchmark preset): rows register into the host registries (tools, prompt),
+# no service row publishes into the root realm, and per-session state stays
+# keyed by Session/Agent inside the plugins. Tools need no realm; the persona
+# row shadows the deployment default.
+#
+# NOTE: deliberately NO bash/fs/tasks/todo rows. This is a task-agent surface
+# (customer service): the model gets ONLY the domain tools plus whatever
+# capability rows the assembler selected (kb search, web). An open shell or
+# filesystem invites the model to leave the task and explore the host —
+# measured in the cs-03 damage scenario (50 tool calls of host exploration
+# before the model remembered the customer). A task agent's surface is its
+# contract; narrowing it IS the assembly decision.
+#
+# The `tool-cs` row mounts dsh-cs-tools; capability-driven rows (kb search,
+# web) and the persona text are the assembler's output.
+
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: {{persona}}
+
+# ── task-agent baseline: only ask-user (no shell, no filesystem) ────────────
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'
+
+# ── capability rows (assembler-selected) ────────────────────────────────────
+# packageRows: dsh-cs-tools domain tools (one row, `tools:` narrows);
+# extraRows: capability presetRows (harness tools) and mcp-client rows.
+{{packageRows}}
+
+{{extraRows}}

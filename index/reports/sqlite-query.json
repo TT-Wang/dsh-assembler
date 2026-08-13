@@ -1,0 +1,28 @@
+{
+  "id": "sqlite-query",
+  "repo": "WiseLibs/better-sqlite3",
+  "rev": "v11.1.2",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "query",
+      "description": "对 SQLite 数据库执行只读 SQL 语句（通常是 SELECT）并返回全部结果行（JSON 数组）。参数: database（可选，文件路径或 \":memory:\"，默认 \":memory:\"，同一会话内相同标识复用同一连接）；sql（必填，可用 ? 占位符）；params（可选，位置参数数组，按顺序绑定到 ?）。"
+    },
+    {
+      "name": "execute",
+      "description": "对 SQLite 数据库执行单条写/DDL 语句（INSERT/UPDATE/DELETE/CREATE/ALTER 等），返回 { changes, lastInsertRowid }。参数: database（可选，同 query）；sql（必填，可用 ? 占位符）；params（可选，位置参数数组）。"
+    },
+    {
+      "name": "list-tables",
+      "description": "列出 SQLite 数据库中的所有表和视图（来自 sqlite_master），返回 JSON 数组（name/type/sql），用于查询前探索库结构。参数: database（可选，同 query）。"
+    }
+  ],
+  "smoke": "成功。连接 MCP stdio server 后 listTools 返回 3 个工具；在默认内存库中执行 CREATE TABLE、带参数 INSERT（changes=1, lastInsertRowid=1）、带参数 SELECT（正确返回 Alice 行）、list-tables（列出 users 表及建表 SQL）；缺 sql / params 非数组 / 无效 SQL 三种错误路径均返回清晰的“错误: ...”文本。共 8 项断言全部 PASS。",
+  "issues": [
+    "任务给定的仓库名 Wisembly/better-sqlite3 不存在（404），实际上游为 WiseLibs/better-sqlite3（JoshuaWise 更名而来），已按 WiseLibs 克隆 v11.1.2（HEAD 254b8e9）并验证，报告中 repo 字段如实填写 WiseLibs/better-sqlite3。",
+    "@modelcontextprotocol/sdk 1.30.0 的 server.tool() 不接受裸 JSON Schema 对象（抛 \"expected a Zod schema\"），需改用 zod schema（zod 为 SDK 直接依赖，另显式加入 dependencies 保证可用）。",
+    "better-sqlite3 为含原生 addon 的 CJS 包；npm install 通过 prebuild-install 拉取 darwin-arm64 Node 22 预编译二进制成功，无需 node-gyp 编译。",
+    "服务器按 database 标识持有长期打开的连接（含 :memory:），便于跨工具调用复用；该状态随 MCP server 进程生命周期存在，进程重启后内存库清空。"
+  ]
+}

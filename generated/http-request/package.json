@@ -1,0 +1,11 @@
+{
+  "name": "@dsh-index/http-request",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "axios": "1.7.2",
+    "zod": "^3.23.0"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "id": "rss-parse",
+  "repo": "rbren/rss-parser",
+  "rev": "v3.13.0",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "parse-rss-string",
+      "description": "解析一段 RSS（0.9/1.0/2.0）或 Atom feed 的 XML 字符串为完整结构化 JSON（频道元数据 + items 条目列表），纯本地解析、无需网络。参数：xml（必填，feed 的 XML 内容字符串）、customFeedFields（可选，额外提取的频道级自定义字段名数组，如 [\"itunes:author\"]；也支持 [源字段, 目标字段] 重命名对）、customItemFields（可选，额外提取的条目级自定义字段名数组，如 [\"media:content\"]；支持 [源字段, 目标字段] 重命名对）、defaultRss（可选，仅当 XML 缺少 rss version 属性时生效：0.9 / 1 / 2）。返回：{feed:{title, description, link, feedUrl, lastBuildDate, image?, paginationLinks?, itunes?, items:[{title, link, guid, pubDate, isoDate, creator, summary, content, contentSnippet, categories, enclosure?}]}}。典型用途：把读到的 feed 字符串转成结构化数据以便检索条目、展示标题/链接/日期、提取频道信息；无法识别的 XML 返回清晰错误。"
+    },
+    {
+      "name": "parse-rss-url",
+      "description": "从 URL 抓取 RSS/Atom feed 并解析为完整结构化 JSON（频道元数据 + items 条目列表），需要网络访问目标地址（http/https）。参数：url（必填，feed 的 http/https 地址）、timeoutMs（可选，请求超时毫秒数，默认 60000）、maxRedirects（可选，最大重定向次数，默认 5，范围 0-20）、headers（可选，附加 HTTP 请求头对象，如 {\"User-Agent\":\"...\"}，默认 User-Agent=rss-parser / Accept=application/rss+xml）。返回：{feed:{title, description, link, feedUrl, lastBuildDate, image?, paginationLinks?, itunes?, items:[...]}}（结构与 parse-rss-string 相同）。典型用途：给定订阅源地址获取最新条目与频道信息；3xx 重定向自动跟随（超过 maxRedirects 报 \"Too many redirects\"），非 2xx/3xx 状态码、超时与网络错误返回清晰错误。"
+    },
+    {
+      "name": "extract-feed-items",
+      "description": "解析 RSS/Atom feed 的 XML 字符串并只返回紧凑条目列表（每条含 title/link/guid/pubDate/isoDate/creator/author/categories/summary/contentSnippet 等，不含大段 HTML content），纯本地解析、无需网络。参数：xml（必填，feed 的 XML 内容字符串）、limit（可选，最多返回的条目数，正整数，默认返回全部）、customItemFields（可选，额外提取的条目级自定义字段名数组或 [源字段, 目标字段] 重命名对）。返回：{count, items:[{title, link, guid, pubDate, isoDate, creator, author, categories, summary, contentSnippet, ...}]}。典型用途：只需要订阅源的条目标题/链接/日期清单（如展示\"最新 10 条\"）时比完整解析更省输出；isoDate 为 ISO 8601 字符串可直接比较排序。"
+    },
+    {
+      "name": "parse-feed-metadata",
+      "description": "解析 RSS/Atom feed 的 XML 字符串并只返回频道级元数据（title/description/link/feedUrl/lastBuildDate/language/copyright/image/paginationLinks/itunes 等），不含条目列表，纯本地解析、无需网络。参数：xml（必填，feed 的 XML 内容字符串）、customFeedFields（可选，额外提取的频道级自定义字段名数组或 [源字段, 目标字段] 重命名对，如 [\"itunes:author\"]）。返回：{metadata:{title, description, link, feedUrl, lastBuildDate, language, copyright, generator, image?, paginationLinks?, itunes?, ...}}。典型用途：判断一个 feed 是什么（站点名/描述/主页/图标）、读取播客 itunes 元数据、获取分页链接（self/first/next/prev/last）；输出体积小、不含条目。"
+    }
+  ],
+  "smoke": "成功。node smoke.mjs 通过（39 项断言全绿，exit=0）：StdioClientTransport 连接 node index.js，listTools 列出 4 个工具（parse-rss-string / parse-rss-url / extract-feed-items / parse-feed-metadata）；parse-rss-string 解析内嵌 RSS 2.0 字符串（无需网络）得到频道 title/link/language、2 个条目，条目含 title/link/pubDate/isoDate/categories，contentSnippet 正确去 HTML 标签，dc:creator 映射为 creator=李四；parse-feed-metadata 只返回频道元数据（title/link/lastBuildDate，无 items 键）；extract-feed-items limit=2 截断生效、紧凑输出不含大段 content 键、自定义字段重命名 [dc:subject→subject] 正确取值（人工智能）；parse-rss-url 对本地临时 http 服务（提供 Atom feed）抓取解析成功（title/2 条目/rel=self 的 feedUrl/content 解析/自定义请求头 X-Test 透传），重定向与超时参数透传不报错；缺参调用 parse-rss-string 触发 SDK z.object 参数校验（-32602 isError=true，提示 Required at xml）；非法 XML 返回 Unclosed root tag 错误、无法识别的 XML 返回 'Feed not recognized as RSS 1 or 2.'、非 http/https URL 返回'仅支持 http/https 协议地址'（均 isError=true）；独立启动 node index.js 关闭 stdin 干净退出 exit=0 且无 stderr 输出。",
+  "issues": [
+    "上游仓库 v3.13.0 为源码形态（CJS，main 指向 lib/parser.js，依赖 xml2js/entities 未在克隆内安装），适配以 npm 发布的 rss-parser@3.13.0 为依赖做 API 核验与运行（npm install 安装 98 包，rss-parser 3.13.0 / @modelcontextprotocol/sdk 1.30.0 / zod 3.25.76）；源码仅用于 API 理解，未修改上游",
+    "MCP SDK 1.30 的 server.tool() 运行时只接受原始 shape（{key: zod 字段}）作为参数 schema，直接传 z.object(...) 实例会抛 'expected a Zod schema or ToolAnnotations'；为满足 z.object 规范，适配改用 server.registerTool(name, {description, inputSchema: z.object({...})}, cb) 注册（SDK 官方支持完整 zod schema 的路径），冒烟已实际验证缺参触发 -32602 参数校验",
+    "parse-rss-url 依赖上游 node http/https 模块，仅支持 http/https 协议（适配层前置校验并返回清晰错误）；重定向上限与超时沿用上游默认（5 次 / 60s），冒烟通过本地临时 http 服务验证 URL 路径（避免外部网络依赖）",
+    "上游 defaultRSS 仅在 XML 无 rss version 属性时生效，否则 parseString 对无 version 的 <rss> 报 'Feed not recognized as RSS 1 or 2.'（冒烟已覆盖该错误路径）",
+    "extract-feed-items 为省输出默认剔除大段 HTML content 字段（保留去 HTML 的 contentSnippet），且仅保留 title/link/guid/pubDate/isoDate/creator/author/categories/summary/contentSnippet/id/enclosure 及用户自定义字段；需要完整内容请用 parse-rss-string",
+    "本适配全部为文本 JSON 输出，无二进制输出（不涉及 base64 编码需求）"
+  ]
+}

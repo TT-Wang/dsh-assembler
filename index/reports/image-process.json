@@ -1,0 +1,33 @@
+{
+  "id": "image-process",
+  "repo": "lovell/sharp",
+  "rev": "v0.33.4",
+  "license": "Apache-2.0",
+  "verified": true,
+  "tools": [
+    {
+      "name": "image-info",
+      "description": "读取 base64 图片的元信息（不输出图片）：返回 JSON，含 format（格式）、width/height（像素）、space（色彩空间 sRGB/CMYK 等）、channels（通道数）、hasAlpha、hasProfile（ICC 配置）、density（DPI）、orientation（EXIF 方向）、isProgressive、pages/pageHeight/delay/loop（动图帧信息）、size（原始字节数）。参数：image（必填，输入图片 base64，原始二进制，无 data: 前缀；支持 JPEG/PNG/WebP/GIF/AVIF/TIFF/SVG/HEIF，按文件头自动探测）。适合在处理前先确认图片格式与尺寸、判断是否动图/透明通道，或作为其它 image-* 工具的输入校验。"
+    },
+    {
+      "name": "image-resize",
+      "description": "按目标尺寸缩放图片，返回 base64 编码的结果图片（JSON：{image, format, width, height, sizeBytes, mimeType}，image 为 base64 字符串，需解码后使用）。参数：image（必填，输入图片 base64）；width/height（可选正整数，至少提供一个，只给一个时另一边按原图宽高比自动计算）；fit（可选，默认 cover=裁剪填满可裁边，另有 contain 完整容纳留边/fill 拉伸变形/inside 等比缩小不放大/outside 等比放大到至少一边达目标）；position（可选，fit=cover/outside 时的裁剪焦点，默认 centre，可用 north/south/east/west/entropy/attention 等）；withoutEnlargement（可选布尔，默认 false，true 时禁止把小图放大）；format（可选，输出格式，默认与原图一致；支持 jpeg/png/webp/avif/tiff）；quality（可选 1-100，jpeg/webp 默认 80、avif 默认 50，png 忽略）。适合调整图片到指定尺寸用于展示、上传或进一步处理。"
+    },
+    {
+      "name": "image-convert",
+      "description": "把图片转换成指定格式并应用压缩参数，返回 base64 编码的结果图片（JSON：{image, format, width, height, sizeBytes, mimeType}）。参数：image（必填，输入图片 base64）；format（必填，目标格式 jpeg/png/webp/avif/tiff/gif，其中 gif 输出要求输入为动图，转换后尺寸不变）；quality（可选 1-100，jpeg/webp 默认 80、avif 默认 50）；lossless（可选布尔，webp/avif 无损模式，默认 false）；effort（可选整数 0-9，webp/avif 压缩努力程度，默认 4，越大越慢越小）；compressionLevel（可选整数 0-9，png 压缩级别，默认 6）；progressive（可选布尔，jpeg 渐进式编码，默认 false）。适合把图片统一转成目标格式以减小体积（如 jpeg→webp）、生成透明 PNG 或归档为 tiff。"
+    },
+    {
+      "name": "image-thumbnail",
+      "description": "生成图片缩略图，返回 base64 编码的结果图片（JSON：{image, format, width, height, sizeBytes, mimeType}）。与 image-resize 的区别：默认 fit=cover 且 withoutEnlargement=true（小图不会被放大），适合生成预览/列表小图。参数：image（必填，输入图片 base64）；width/height（可选正整数，至少提供一个，缺省时按原图宽高比推算）；fit（可选，默认 cover=居中裁剪填满，另有 contain 完整容纳留边/fill 拉伸变形/inside 等比缩小不放大/outside 等比放大到至少一边达目标）；position（可选，fit=cover/outside 时的裁剪焦点，默认 centre）；format（可选，输出格式，默认与原图一致）。"
+    }
+  ],
+  "smoke": "成功。node smoke.mjs 全部 31 项断言通过（exit 0）：StdioClientTransport 启动 node index.js 连接成功；listTools 返回 4 个工具（image-info/image-resize/image-convert/image-thumbnail），每个工具均有 >50 字符中文描述与输入 schema；测试输入为 sharp 内存生成的 100x100 纯色 PNG buffer。image-info 返回 format=png、100x100、size=354 与输入一致；image-resize(50x50) 输出 base64 图片解码实测 50x50 且保持 png，仅给宽度(40)+format=webp+quality=70 时等比缩放 40x40 并输出 webp；image-convert(png→jpeg q85) 输出 jpeg 且尺寸保持 100x100；image-thumbnail(40x40 cover) 实测 40x40，fit=contain 30x60 等比留边不裁剪；缺参调用 image-info 返回 SDK 参数校验错误（MCP error -32602，isError=true）；非法数据返回 'ERROR: Input buffer contains unsupported image format'；resize 缺宽高返回业务错误 'ERROR: width 与 height 至少提供一个目标尺寸'；独立进程验证 stdin 关闭后 server 以 exit 0 干净退出。另经额外验证：JPEG 输入（64x48 srgb）格式探测正确，jpeg→webp lossless 转换成功。npm install 成功（104 包）：@modelcontextprotocol/sdk@1.30.0 + sharp@0.33.4（预编译 libvips 8.15.2）+ zod@3.25.76，node --check 通过。",
+  "issues": [
+    "sharp 0.33.4 无 .thumbnail() 链式方法（git 源码 lib/resize.js 与 npm 发布的包双向核验，原型仅暴露 resize/extend/extract/trim）：文档中的\"缩略图\"即 resize + fit:'cover' + withoutEnlargement:true 配方，适配器按该配方实现 image-thumbnail，行为等价（冒烟验证 40x40 cover 与 30x60 contain 均通过）。初版实现误用 .thumbnail()，在冒烟中被 'img.thumbnail is not a function' 捕获并修复",
+    "npm audit 报告 1 个 high 漏洞：sharp <0.35.0 继承 libvips 的 CVE-2026-33327/CVE-2026-33328/CVE-2026-35590/CVE-2026-35591（GHSA-f88m-g3jw-g9cj）。属任务指定版本 v0.33.4 的上游公告，修复需破坏性升级到 0.35.x，超出本任务版本约束，记录不修",
+    "二进制输出（图片）以 base64 编码放在 JSON 的 image 字段返回，工具描述均已注明；输入 base64 长度上限 40MB（约 30MB 二进制）防止内存耗尽，超限返回清晰错误",
+    "gif 输出要求输入为动图（sharp 需以 animated:true 加载输入，静态图转 gif 会抛 sharp 原生错误文本），适配器已按需设置 animated",
+    "依赖面：sharp@0.33.4 经 npm 安装 @img/sharp-darwin-arm64 预编译 libvips 8.15.2 二进制，无源码编译失败风险；node 22.22.3 / macOS arm64 实测通过（engines 要求 ^18.17.0 || ^20.3.0 || >=21.0.0 满足）"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "id": "zip-archive",
+  "repo": "cthackers/adm-zip",
+  "rev": "v0.5.12",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "zip-list-entries",
+      "description": "列出 zip 归档中的全部条目（文件与目录）及元信息：entryName、name、isDirectory、size、compressedSize、method(0=STORED/8=DEFLATED)、crc32、comment。参数 zip 为归档的 base64 编码（留空=新建空归档），password 可选用于加密归档。返回 {count, entries:[...]}；归档损坏或 base64 非法时返回清晰错误文本。"
+    },
+    {
+      "name": "zip-read-file",
+      "description": "读取 zip 归档内指定条目的内容。参数 zip（base64）、entry（条目路径，与 zip-list-entries 的 entryName 一致）、encoding（utf8 默认解码为文本 / base64 返回二进制）、password（可选解密）。返回 {entry, isDirectory, encoding, content, size}；条目不存在、是目录或解密失败时返回清晰错误。"
+    },
+    {
+      "name": "zip-create-archive",
+      "description": "由内存中的一组文件创建 zip 归档并返回 base64。参数 files=[{name, content, comment?, encoding?}]：name 为条目路径（以 \"/\" 结尾且 content 为空表示显式目录条目，adm-zip 不会为文件路径隐式建目录）；encoding 可选 utf8/base64 解释 content；comment 可选条目注释。返回 {zip, count, entries}，zip 可直接传给其他 zip-* 工具或 base64 解码落盘。"
+    },
+    {
+      "name": "zip-update-archive",
+      "description": "对已有 zip 归档增/改/删条目并返回重新打包后的新归档 base64。参数 zip（原归档 base64）、addOrUpdate=[{name, content, comment?, encoding?}]（同名覆盖/新名新增）、delete=[条目路径]（不存在则报错）、comment（可选设置归档级注释）。返回 {zip, count, entries, zipComment}。"
+    }
+  ],
+  "smoke": "20/20 PASS。listTools() 返回 4 个工具；zip-create-archive 内存压缩 4 个条目（含显式目录 docs/、UTF-8 文本 hello.txt、base64 二进制 bin/data.bin）→ zip-list-entries 列出 4 条目元信息正确 → zip-read-file 以 utf8 读回中文文本一致、以 base64 读回二进制字节 [0,1,2,253,254,255] 一致 → zip-update-archive 覆盖 hello.txt、新增 new-file.txt、删除 docs/readme.md、设置归档注释，条目数与内容均正确；删除不存在条目返回 isError 清晰错误；缺参调用 zip-read-file（无 entry）被 SDK zod 校验拒绝（-32602）；非法 base64 返回中文错误文本。独立验证 stdin EOF 后 server 以退出码 0 干净退出、无挂起。依赖：@modelcontextprotocol/sdk@1.30.0、adm-zip@0.5.12（npm 包与上游 tag 源码文件一致，API 核验吻合）、zod@3.25.76；node --check index.js 通过。",
+  "issues": [
+    "zip 数据以 base64 在工具间传递，受 MCP stdio 消息大小限制（默认约 4MB，base64 膨胀约 1.33x），单次传入建议 < 2MB，超大归档建议改用磁盘方案（上游 extractAllTo / addLocalFolder 等磁盘 API 未封装为工具）"
+  ]
+}

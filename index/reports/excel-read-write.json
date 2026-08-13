@@ -1,0 +1,27 @@
+{
+  "id": "excel-read-write",
+  "repo": "exceljs/exceljs",
+  "rev": "v4.4.0",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "read-xlsx-file",
+      "description": "Read an Excel .xlsx file and return its worksheets as JSON row data. Useful for inspecting spreadsheet contents, exported tables, or generated reports. Each worksheet is returned as a 2D array (rows of cells); empty cells are null, numbers/strings/booleans pass through, dates become ISO 8601 strings, formula cells become their cached result (or \"=formula\" text when no cached result), error cells become their error code (e.g. \"#N/A\"). Params: filePath (required, path of the .xlsx file), sheetName (optional, read only this tab), cellRange (optional, e.g. \"A1:C5\" to limit the read)."
+    },
+    {
+      "name": "write-xlsx-file",
+      "description": "Create a new Excel .xlsx file (or overwrite an existing one) from row-major JSON data. Accepts one or more worksheets; each worksheet is a 2D array of cell values (strings, numbers, booleans or null for empty cells). A string cell starting with \"=\" (e.g. \"=SUM(A1:A3)\") is stored as a live Excel formula. Params: filePath (required, output path), sheets (required, array of {name, rows}), overwrite (optional, false refuses to overwrite an existing file). Returns the path and per-sheet row/column counts."
+    },
+    {
+      "name": "read-csv-file",
+      "description": "Read a CSV text file and return its content as JSON row data. Parses with fast-csv semantics: numeric-looking values become numbers, ISO-like dates become dates, empty fields become null. Useful for consuming CSV exports or data dumps as structured data. Params: filePath (required), delimiter (optional, single char, default \",\"), sheetName (optional, internal worksheet name, default \"Sheet1\")."
+    },
+    {
+      "name": "write-csv-file",
+      "description": "Write a CSV text file from row-major JSON data. Each inner array is one CSV record; values may be strings, numbers, booleans or null (empty field). The file is written as UTF-8. Params: filePath (required, output path), rows (required, 2D array), delimiter (optional, single char, default \",\"), sheetName (optional, default \"Sheet1\"). Returns the written path and row/column counts."
+    }
+  ],
+  "smoke": "node smoke.mjs against a real MCP stdio client (SDK 1.30.0, command:'node', args:['index.js']): 28/28 assertions PASS, exit 0, stderr empty. Covered: (1) listTools() returns exactly the 4 tools with descriptions; (2) write-xlsx-file round trip — in-memory workbook with 2 sheets (Sales incl. a \"=SUM(...)\" formula cell, Empty), then read-xlsx-file reads back cell B2==3, C2==1.5, empty cell null, formula cell \"=SUM(B2:B3)\"; (3) cellRange \"A1:B2\" returns 2x2 data; (4) unknown sheetName returns clean ERROR text; (5) write-csv-file -> read-csv-file round trip with numeric coercion (36) and null empty field; (6) missing-argument calls (read-xlsx-file {}, write-csv-file without rows) return validation errors; (7) nonexistent input file and invalid cellRange return clean ERROR text. Server also verified standalone: initialize request answered correctly, process exits 0 with empty stderr when stdin closes.",
+  "issues": []
+}

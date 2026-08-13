@@ -1,0 +1,27 @@
+{
+  "id": "qrcode-generate",
+  "repo": "soldair/node-qrcode",
+  "rev": "v1.5.3",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "qr-generate-png",
+      "description": "Generate a QR code as a PNG image. Accepts arbitrary text (URLs, phone numbers, plain text, up to ~2953 bytes at error level L). Returns the PNG binary data as a base64-encoded string — decode it before saving to a file. Use this tool when the caller needs an actual image file/buffer. Options: text (required), errorCorrectionLevel L/M/Q/H (default M), version 1-40, margin (quiet zone, default 4), width (px >= 21), scale (pixels per module, default 4), darkColor/lightColor (RGBA hex)."
+    },
+    {
+      "name": "qr-generate-data-url",
+      "description": "Generate a QR code as a data URL string in the form \"data:image/png;base64,....\". The returned string can be used directly as an <img src=\"...\"> value or embedded in HTML/CSS — no decoding needed. Choose this over qr-generate-png when the target is a web page or a document renderer. Options: text (required), errorCorrectionLevel, version, margin, width, scale, darkColor/lightColor."
+    },
+    {
+      "name": "qr-generate-svg",
+      "description": "Generate a QR code as a standalone SVG markup string (vector, infinitely scalable, no raster artifacts). The returned string is the raw <svg>...</svg> XML — write it to a .svg file or embed inline. Colors accept any CSS color value (e.g. \"#ff0000\", \"red\", \"rgb(0,0,0)\"). Options: text (required), errorCorrectionLevel, version, margin, width, scale, darkColor/lightColor (CSS color)."
+    },
+    {
+      "name": "qr-generate-terminal",
+      "description": "Render a QR code as UTF-8 block characters for display in a terminal or monospace text context. The output is a plain-text/ANSI-free string of half-block characters; it is scannable from the screen. Set small=true for a compact rendering (best for narrow terminals). Options: text (required), small (bool), errorCorrectionLevel, version, margin."
+    }
+  ],
+  "smoke": "smoke.mjs 通过 MCP Client + StdioClientTransport (command:'node', args:['index.js']) 连接本 server。11/11 检查通过：listTools 返回 4 个工具；qr-generate-png 真实调用返回 base64，解码后 PNG 魔数 89504E47 验证通过（128px、H 级，1476 字节）；qr-generate-data-url 返回 data:image/png;base64, 前缀；qr-generate-svg 返回 <svg 开头标记（920 字符）；qr-generate-terminal 返回含 ▀▄█ 半块字符的多行文本；缺 text 参数与非法 version=99 均返回清晰错误文本而非崩溃。另验证 stdin 关闭（EOF）后进程以 exit code 0 干净退出，无挂起。",
+  "issues": []
+}

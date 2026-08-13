@@ -1,0 +1,29 @@
+{
+  "id": "xml-parse",
+  "repo": "NaturalIntelligence/fast-xml-parser",
+  "rev": "v4.4.0",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "xml-validate",
+      "description": "校验一段 XML/HTML 标记的语法是否正确（是否良构 well-formed）。参数：xml（必填，待校验的 XML 字符串）、allowBooleanAttributes（可选，默认 false，允许无值布尔属性如 <input disabled>）、unpairedTags（可选，无闭合标签的标签名数组如 [\"br\",\"hr\"]）。返回 {valid:true} 或 {valid:false, error:{code,msg,line,col}}（错误码/信息/1 起始行列）。典型用途：解析或转换前确认 XML 良构并定位格式错误的行列。"
+    },
+    {
+      "name": "xml-parse",
+      "description": "把 XML 字符串解析为 JSON 对象（fast-xml-parser v4 语义）。参数：xml（必填）、validate（可选，默认 true，解析前先校验，非法 XML 直接返回带行列的校验错误；需要尽力解析可设 false）、pretty（可选，默认 true）、options（可选解析选项：ignoreAttributes 默认 true 即属性不进入结果，保留属性须设 false 且属性键形如 \"@_id\"；attributeNamePrefix 默认 \"@_\"；parseTagValue 默认 true 自动转数字/布尔；trimValues 默认 true；removeNSPrefix 默认 false；preserveOrder 默认 false；textNodeName 默认 \"#text\"；cdataPropName/commentPropName 可选；unpairedTags；allowBooleanAttributes；processEntities 默认 true；htmlEntities 默认 false）。返回 {parsed}。典型用途：把 XML 配置/接口响应解析为 JSON；大文档输出可能较大。"
+    },
+    {
+      "name": "xml-build",
+      "description": "把 JSON 对象序列化为 XML 字符串（fast-xml-parser v4 XMLBuilder 语义），可配合 xml-parse 做 XML↔JSON 往返。参数：json（必填，JSON 对象/数组或 JSON 字符串；属性键用 \"@_\" 前缀，文本值用 textNodeName（默认 \"#text\"）键）、options（可选构建选项：format 默认 false 输出多行缩进；indentBy 默认 \"  \"；ignoreAttributes 默认 true 即 \"@_\" 前缀键会当普通标签输出，用属性须设 false；attributeNamePrefix 默认 \"@_\"；textNodeName；cdataPropName/commentPropName；suppressEmptyNode 默认 false；suppressUnpairedNode 默认 true；suppressBooleanAttributes 默认 true；arrayNodeName（顶层数组包装根名，未提供时自动以 root 包装并在 note 说明）；processEntities 默认 true；unpairedTags）。返回 {xml, note?}。典型用途：JSON 数据/配置序列化为 XML 报文，或解析→改 JSON→重建实现 XML 改写。"
+    }
+  ],
+  "smoke": "成功。node smoke.mjs 通过（24 项断言全绿）：StdioClientTransport 连接 node index.js，listTools 列出 3 个工具（xml-validate / xml-parse / xml-build）；xml-validate 良构返回 {valid:true}、非法 XML 返回 {valid:false, error:{code:InvalidTag, msg, line:1, col:17}}；xml-parse 以 ignoreAttributes:false 解析含 XML 声明/属性/数字/重复标签的文档，正确得到 @_id/@_lang/@_currency、title 文本、price 数字 39.99、重复 tag 成数组；非法 XML 默认 validate 返回带 code/line/col 的校验错误（isError=true）；xml-build format:true 输出带缩进多行 XML；往返一致性：解析→构建→再解析两次 JSON 完全一致（JSON.stringify 相等）；顶层数组自动以 arrayNodeName=root 包装并带 note；JSON 字符串入参成功；三个工具缺必填参均触发 SDK 参数校验（-32602 isError=true）；非法 JSON 字符串返回清晰错误。独立启动 node index.js（stdin 关闭）干净退出 exit=0。",
+  "issues": [
+    "上游 tag v4.4.0 仓库为源码形态（main 指向 src/fxp.js，且依赖 strnum 未在克隆内安装），适配包以 npm 发布的 fast-xml-parser@4.4.0 为准做 API 核验并作为依赖（npm install 安装 95 个包，版本核对 4.4.0）；源码仅用于 API 理解，未修改上游",
+    "上游默认 ignoreAttributes:true：解析时属性不进结果、构建时 \"@_\" 前缀键会被当普通标签名输出（实测 <@_id>1</@_id>）。两个工具的 options 均保持上游默认并已在描述中显著提示，需要属性时须显式传 ignoreAttributes:false",
+    "xml-build 顶层数组的上游语义是每个数组元素各生成一个包装根节点（实测 arrayNodeName=root 输出 <root>…</root><root>…</root>），多根输出非良构 XML；适配器在未提供 arrayNodeName 时自动以 root 包装并在 note 中说明该限制",
+    "xml-parse 的 validate 默认 true 与上游 parse() 默认不校验不同（适配层选择默认先校验以获得清晰错误，避免非法输入产出畸形结果）；需尽力解析可设 validate:false",
+    "CDATA 默认并入文本值，需 cdataPropName 才分离；preserveOrder:true 输出为有序数组结构（非键值对象），两者均按上游语义透传，冒烟未覆盖这两种模式的往返"
+  ]
+}

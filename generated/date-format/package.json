@@ -1,0 +1,10 @@
+{
+  "name": "@dsh-index/date-format",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "MCP stdio server exposing dayjs date-time formatting, parsing, diff and manipulation tools",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "dayjs": "1.11.11"
+  }
+}

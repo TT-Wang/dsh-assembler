@@ -1,0 +1,12 @@
+# dependencies
+node_modules/
+
+# build output
+lib/
+
+# runtime artifacts (local only)
+*.tsbuildinfo
+.DS_Store
+
+# smoke test scratch files
+generated/*/smoke-*

@@ -1,0 +1,11 @@
+{
+  "name": "@dsh-index/html-parse",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP stdio server adapter for cheerio v1.0.0-rc.12: parse HTML/XML and extract text, attributes, element info, or re-serialize normalized markup",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "cheerio": "1.0.0-rc.12"
+  }
+}

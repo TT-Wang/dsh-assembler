@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/mysql-query",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "MCP stdio server wrapping mysql2 3.10.0 (sidorares/node-mysql2, MIT): execute parameterized SQL queries, list tables, describe table schema, and test connectivity against a MySQL server.",
+  "private": true,
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "mysql2": "3.10.0",
+    "zod": "^3.23.0"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@dsh-index/number-format",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "MCP stdio server exposing numeral.js v2.0.6 (MIT) number capabilities: format-number, unformat-number, arithmetic, validate-number.",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "numeral": "2.0.6",
+    "zod": "^3.23.0"
+  }
+}

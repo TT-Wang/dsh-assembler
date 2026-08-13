@@ -1,0 +1,33 @@
+{
+  "id": "html-to-text",
+  "repo": "html-to-text/node-html-to-text",
+  "rev": "28dbb4d93e789acacd14a03c932565bcd1b39cd3",
+  "tag": "9.0.5",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "html-to-text",
+      "description": "把一段 HTML 字符串转换为可读的纯文本（常用于邮件正文、摘要、阅读文本）。参数：html 为必填 HTML 源串；wordwrap 为每行最大宽度（默认 130，传 false 禁用自动换行）；uppercaseHeadings 控制 h1-h6 标题是否大写（默认 true）；preserveNewlines 是否保留输入中的换行（默认 false）；decodeEntities 是否解码 HTML 实体（默认 true）；maxInputLength 限制输入长度（超出截断，默认 16777216）；selectorsJson 为高级用法：JSON 数组形式的 selector 覆盖定义，可覆盖默认格式与锚点选项。"
+    },
+    {
+      "name": "html-to-text-batch",
+      "description": "用同一组选项批量把多个 HTML 文档转为纯文本，返回与输入一一对应的文本数组。内部使用 compile() 预编译选项复用，适合邮件/文章的批处理（性能优于逐条 convert）。参数：htmls 为必填的 HTML 字符串数组（至少 1 个）；其余选项（wordwrap / uppercaseHeadings / preserveNewlines / decodeEntities / maxInputLength / selectorsJson）含义与 html-to-text 工具一致。"
+    },
+    {
+      "name": "html-to-text-table",
+      "description": "把 HTML 文档中的 <table> 表格渲染为对齐的纯文本表格（支持 colspan/rowspan、表头大写），非常适合把网页表格转成邮件正文或可读文本。文档中表格之外的内容不会出现在输出中；若文档包含多个表格，它们按出现顺序依次输出。参数：html 为必填 HTML 源串（可含多个 <table>）；colSpacing 为列间距空格数（默认 3）；rowSpacing 为行间空行数（默认 0）；uppercaseHeaderCells 是否把表头 <th> 大写（默认 true）；maxInputLength 限制输入长度（默认 16777216）。"
+    },
+    {
+      "name": "html-to-text-links",
+      "description": "提取 HTML 文档中所有 <a> 链接，输出为 \"链接文本 [URL]\" 的逐行列表（只输出链接，不输出其余正文）。参数：html 为必填 HTML 源串；baseUrl 用于把以 / 开头的相对链接解析为绝对 URL（例如 \"https://example.com\"）；linkBrackets 为链接括号（默认 [\"[\",\"]\"]，传 false 则不带括号）；ignoreHref 为 true 时忽略 href 只输出链接文本；hideLinkHrefIfSameAsText 为 true 时若链接文本与 URL 相同则省略 [URL]；noAnchorUrl 控制是否忽略 href 以 # 开头的页内锚点（默认 true）；maxInputLength 限制输入长度（默认 16777216）。"
+    }
+  ],
+  "smoke": "smoke.mjs 通过 StdioClientTransport 启动 index.js（node index.js）：listTools() 返回 4 个工具且名称集合正确；真实调用 html-to-text（含 <h1>/<b>/<a>/<table> 的文档 → 标题大写、链接带 [URL]、无标签残留）、html-to-text-batch（2 个文档批量转换、uppercaseHeadings=false 保留原样）、html-to-text-table（表头+数据对齐输出、不含表外正文）、html-to-text-links（相对链接经 baseUrl 解析为绝对 URL、只输出链接）；缺 html 参数的调用返回 isError=true 且错误信息清晰（MCP error -32602: Required at html）。共 15 项断言全部通过（exit 0）；另验证 stdin 关闭后 server 干净退出（exit 0）。",
+  "issues": [
+    "任务给的仓库地址 https://github.com/html-to-text/html-to-text.git 不存在（Repository not found），实际仓库为 html-to-text/node-html-to-text（npm repository 字段核验），且 tag 名为 9.0.5 而非 v9.0.5；已用正确地址与 tag 克隆，rev 为 tag 9.0.5 的 commit 28dbb4d93e789acacd14a03c932565bcd1b39cd3。",
+    "git 仓库为 monorepo 源码形态，packages/html-to-text 无构建产物 lib/（npm 包 files 字段声明 lib 但不在 git 中），故以 npm 发布的 html-to-text@9.0.5 包为准做 API 核验：exports 确认包含 compile、convert、htmlToText（与 src 导出一致），依赖安装的是该 npm 包（9.0.5）。",
+    "冒烟第一次运行有 1 项断言误报：smoke.mjs 缺参错误正则大小写敏感（SDK 返回 'Required at html' 大写 R），非 server 缺陷；已修正正则并复跑全部通过。"
+  ],
+  "notes": "能力切分依据上游 API（convert/compile 两个入口 + anchor/dataTable 两个内置格式器）切成 4 个工具：通用转换、批量转换（compile 复用）、表格渲染（dataTable 格式器 + baseElements ['table']）、链接提取（anchor 格式器 + baseElements ['a']）。MCP SDK 1.30.0 已装，server.tool() 全部使用 zod (z.object) 参数 schema，纯本地执行无网络依赖；工具实现均捕获异常并以 isError=true 返回清晰错误文本。冒烟通过，verified=true。"
+}

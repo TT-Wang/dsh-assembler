@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/email-fetch",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP stdio server exposing IMAP email-fetch capabilities built on imapflow (ImapFlow client)",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "imapflow": "1.0.162",
+    "zod": "^4.4.3"
+  }
+}

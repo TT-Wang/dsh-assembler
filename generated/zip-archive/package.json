@@ -1,0 +1,11 @@
+{
+  "name": "@dsh-index/zip-archive",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "MCP stdio server exposing adm-zip (v0.5.12) archive tools: list entries, read file content, create archive from files, update existing archive",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "adm-zip": "0.5.12",
+    "zod": "^3.23.0"
+  }
+}

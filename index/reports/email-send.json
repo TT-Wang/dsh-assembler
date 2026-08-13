@@ -1,0 +1,32 @@
+{
+  "id": "email-send",
+  "repo": "nodemailer/nodemailer",
+  "rev": "v6.9.13",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "send-email",
+      "description": "发送一封邮件。transport=smtp（默认）时通过真实 SMTP 服务器发送，需要 host/port/authUser/authPass；transport=json 时不连接任何服务器，直接返回 RFC822 消息体与 messageId（适合开发/冒烟）；transport=stream 时返回渲染后的消息 buffer（同样无需服务器）。参数：transport(smtp|json|stream)、host、port、secure、authUser、authPass、from、to、cc、bcc、replyTo、subject、text、html、attachments。返回 messageId、envelope、accepted/rejected 等信息。"
+    },
+    {
+      "name": "verify-smtp-config",
+      "description": "验证 SMTP 服务器是否可连接、认证是否通过（nodemailer transporter.verify()）。参数：host（必填）、port、secure、authUser、authPass、tlsRejectUnauthorized、connectionTimeout。返回连接验证结果或具体错误信息，用于排查 SMTP 配置。"
+    },
+    {
+      "name": "parse-email-addresses",
+      "description": "解析 RFC 5322 邮件地址列表字符串（nodemailer 内置 addressparser）。参数：addresses（必填，如 \"John Doe <john@example.com>, jane@example.com\"）、flatten（是否展开分组）。返回结构化地址对象数组（name/address/group）。纯本地解析，无网络依赖。"
+    },
+    {
+      "name": "create-test-account",
+      "description": "在 Ethereal（ethereal.email）创建一个临时测试邮箱账户（nodemailer.createTestAccount）。参数：apiUrl（可选，默认 https://api.nodemailer.com）。返回可直接用于 send-email 的 SMTP 配置（host/port/user/pass）。需要外网访问。"
+    }
+  ],
+  "smoke": "成功。node smoke.mjs 通过：listTools 列出 4 个工具；send-email(transport=json) 往返成功并返回 messageId <20511bd0-9970-67aa-f374-4e800a640248@example.com>；parse-email-addresses 正确解析 2 个地址；缺参调用 send-email 触发 SDK 参数校验（isError=true, \"Invalid arguments...expected string, received undefined at from\"）。补充验证：verify-smtp-config 对不可达主机干净返回 ECONNREFUSED 错误（isError=true）；index.js 独立启动在 stdin 开放时保持存活、stdin 关闭后干净退出。",
+  "issues": [
+    "上游 package.json 的 license 字段声明为 MIT-0，但仓库 LICENSE 文件内容为标准 MIT 文本（Copyright 2011-2023 Andris Reinman），本报告按任务模板与 LICENSE 文件记为 MIT",
+    "send-email 的 smtp 模式需要真实 SMTP 服务器/凭据，冒烟改用 jsonTransport（无需外网）验证发送链路；真实 SMTP 发送未在冒烟中覆盖",
+    "create-test-account 依赖外网 api.nodemailer.com，冒烟未调用（避免外网依赖导致的不确定性）",
+    "ESM 深路径导入必须写完整文件路径 nodemailer/lib/addressparser/index.js，目录导入 nodemailer/lib/addressparser 会抛 ERR_UNSUPPORTED_DIR_IMPORT（已修复）"
+  ]
+}

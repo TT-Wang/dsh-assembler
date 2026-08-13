@@ -1,0 +1,19 @@
+{
+ "id": "readability-extract",
+ "repo": "mozilla/readability",
+ "rev": "0.5.0",
+ "license": "MIT",
+ "verified": true,
+ "tools": [
+  {
+   "name": "extract-article",
+   "description": "从 HTML 提取正文（Readability 算法，剥离导航/广告/页脚噪音，中英文页面）"
+  },
+  {
+   "name": "extract-batch",
+   "description": "批量提取多个 HTML 文档正文"
+  }
+ ],
+ "smoke": "node smoke.mjs:listTools 返回 2 个工具;真实调用全部通过——extract-article 中文文章页(含导航/广告/页脚噪音)提取出标题与正文;英文页面提取通过;噪音导航页正确返回 isError(\"提取到的正文仅 32 字符(阈值 500)\");extract-batch 混合 2 项 per-item 结果正确(第 1 项成功、第 2 项失败互不影响);缺 html 参数触发 -32602 校验错误。",
+ "issues": []
+}

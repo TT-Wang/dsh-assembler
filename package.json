@@ -1,0 +1,40 @@
+{
+  "name": "@dsh-external/dsh-assembler",
+  "description": "Vibe-assembly for DeepSeek Harness: turn a natural-language agent requirement into a composed agent preset by matching the capability catalog. Registers the /assemble command.",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*",
+    "capabilities.yml",
+    "presets/**/*"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "link:dsh": "node scripts/link-dsh.mjs"
+  },
+  "license": "BSD-3-Clause",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1-rc.1",
+    "@deepseek-ai/dsh-commands": "^0.0.1-rc.1",
+    "@deepseek-ai/dsh-llm": "^0.0.1-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.0.1-rc.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}

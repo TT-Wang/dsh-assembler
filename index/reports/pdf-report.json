@@ -1,0 +1,15 @@
+{
+ "id": "pdf-report",
+ "repo": "Hopding/pdf-lib",
+ "rev": "v1.17.1",
+ "license": "MIT",
+ "verified": true,
+ "tools": [
+  {
+   "name": "create-report-pdf",
+   "description": "结构化研究报告生成多页 PDF（中英文混排/自动换行分页/字体子集化）"
+  }
+ ],
+ "smoke": "node smoke.mjs:listTools 返回 1 个工具;真实调用全部通过——create-report-pdf 生成含中文正文的报告(内嵌 CJK 字体渲染验证通过);outputPath 落盘 /tmp/pdf-report-smoke-<ts>.pdf,文件以 %PDF- 魔数开头;缺 title/sections 触发 -32602 Input validation error。",
+ "issues": []
+}

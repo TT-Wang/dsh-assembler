@@ -1,0 +1,28 @@
+{
+  "id": "markdown-render",
+  "repo": "markedjs/marked",
+  "rev": "v12.0.2",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "render-markdown",
+      "description": "Convert a Markdown source string to an HTML string using marked v12.0.2 (parse). Supports headings, lists, fenced code, blockquotes, links, images, emphasis, and GFM extensions (tables, task lists, strikethrough, autolinks). Params: markdown (string, required, the Markdown source); gfm (bool, optional, default true, enable GitHub-flavored Markdown); breaks (bool, optional, default false, requires gfm, convert single line breaks to <br>); pedantic (bool, optional, default false, conform to markdown.pl quirks). Returns the rendered HTML as text."
+    },
+    {
+      "name": "render-markdown-inline",
+      "description": "Convert an inline Markdown fragment (no block-level elements) to HTML without an enclosing <p> tag using marked v12.0.2 parseInline. Best for short spans such as '**bold** text', '`code`', or 'a [link](https://example.com)' — returns raw inline HTML like <strong>bold</strong> text. Params: markdown (string, required, the inline fragment); gfm (bool, optional, default true). Returns the inline HTML as text."
+    },
+    {
+      "name": "tokenize-markdown",
+      "description": "Lex a Markdown source string into its parsed token stream and return it as a JSON array using the marked v12.0.2 lexer. Each token has a 'type' (heading, paragraph, list, code, table, text, strong, link, ...) plus type-specific fields (raw, text, depth, tokens, ...). Useful for inspecting how Markdown parses, counting structure, or feeding tokens to a later stage. Params: markdown (string, required, the Markdown source). Returns a JSON-formatted array of tokens as text."
+    }
+  ],
+  "smoke": "成功：MCP stdio 客户端连接成功，listTools 返回 3 个工具；render-markdown 将含 GFM 表格、任务列表（checkbox）、删除线、围栏代码块的文档渲染为正确 HTML（<h1>/<table>/<input type=checkbox>/<del>/<pre><code> 全部断言通过）；render-markdown-inline 输出无 <p> 包裹的内联 HTML（<strong>/<code>/<a>）；tokenize-markdown 返回可 JSON.parse 的 token 数组（heading + paragraph）；缺省必填参数 markdown 与传 number 类型均返回 isError=true 的清晰校验错误（MCP error -32602: Required at markdown / Expected string, received number）。全部 18 项断言通过，exit 0。",
+  "issues": [
+    "git 检出（v12.0.2 tag，commit c6a98ea）不含 lib/ 构建产物（main 指向 ./lib/marked.cjs），适配与验证基于 npm 发布的 marked@12.0.2 包（包含 lib/marked.esm.js），与源码 src/*.ts 一一对应，API 已按 src/marked.ts 核对（parse / parseInline / lexer）。",
+    "marked 的 async/true、hooks、renderer、tokenizer、extensions、walkTokens 等扩展点需要传入函数/对象，无法跨 MCP 传递，未暴露；本条目只暴露输入输出清晰的 parse / parseInline / lexer 三个能力点。",
+    "tokenize-markdown 输出 JSON 不含 TokensList.links 聚合信息（JSON.stringify 数组时丢弃附加属性），如需链接引用表可在后续扩展中单独暴露。"
+  ],
+  "notes": "适配代码位于 /Users/tongtao/code/dsh-assembler/generated/markdown-render/（package.json + index.js + smoke.mjs）。npm install 成功（94 包，43s，纯 JS 无原生编译）。依赖：@modelcontextprotocol/sdk ^1.0.0（实际 1.30.0）、marked 12.0.2、zod ^3.23.0。serverName='markdown-render'，工具经 dsh mcp-client 暴露为 mcp__markdown-render__render-markdown 等。marked 为纯 JS 解析器，同步在进程内完成，无外部服务依赖，离线可用。node --check 通过，index.js 为标准 ESM MCP stdio server。"
+}

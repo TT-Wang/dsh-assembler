@@ -1,0 +1,34 @@
+{
+  "id": "mysql-query",
+  "repo": "sidorares/node-mysql2",
+  "rev": "v3.10.0",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "mysql-query",
+      "description": "对 MySQL 服务器执行任意 SQL（SELECT/INSERT/UPDATE/DELETE/DDL），支持 ? 位置参数绑定。SELECT 返回 rows（字段名为键，BIGINT 以字符串返回，二进制列如 BLOB/VARBINARY 以 { $binary: <base64>, encoding: \"base64\" } 返回）与 fields 元数据；写语句返回 { affectedRows, insertId, warningStatus, info }。参数: host（默认 127.0.0.1）、port（默认 3306）、user（默认 root）、password（默认空）、database（可选）、ssl（可选）、connectTimeout（默认 10000ms）、sql（必填）、params（可选位置参数数组）。"
+    },
+    {
+      "name": "mysql-list-tables",
+      "description": "连接 MySQL 并列出数据库中的全部表（SHOW TABLES），返回表名数组与数量，可选 like 参数按 SQL LIKE 模式过滤（如 \"user%\"），用于查询前探索库结构。参数: 连接配置同 mysql-query（host/port/user/password/database/ssl/connectTimeout）；like（可选）。"
+    },
+    {
+      "name": "mysql-describe-table",
+      "description": "连接 MySQL 并查看一张表的完整结构（SHOW FULL COLUMNS），返回每列的 Field/Type/Collation/Null/Key/Default/Extra/Comment，用于编写 SQL 前确认列名与类型。参数: 连接配置同 mysql-query；table（必填，表名，大小写敏感）。"
+    },
+    {
+      "name": "mysql-test-connection",
+      "description": "测试到 MySQL 服务器的连接是否可用：建立连接并执行 SELECT VERSION()，返回 connected、服务器版本、连接 ID、当前数据库等诊断信息，适合在正式查询前验证连接配置。参数: 连接配置同 mysql-query（host/port/user/password/database/ssl/connectTimeout）。"
+    }
+  ],
+  "smoke": "成功。克隆 sidorares/node-mysql2@v3.10.0（HEAD e87ffb7）后 npm install 8s 完成（sdk 1.30.0 / zod 3.25.76 / mysql2 3.10.0），node --check 通过。冒烟用 MCP Client + StdioClientTransport 拉起 index.js，并以 mysql2 自带的 createServer() 在进程内起 mock MySQL 服务器（复用上游 test/common.test.cjs 握手方式，版本 8.0.33-mock），完成端到端验证：listTools 返回 4 个工具且每个都有可读描述与输入参数 schema；4 个工具全部真实往返成功——test-connection 返回 connected:true + 版本；list-tables 返回 users/orders（like='user%' 过滤正确）；describe-table 返回 id/name/email 三列（int/PRI/auto_increment）；query 带 ? 参数 SELECT 返回 Alice 行、INSERT 返回 affectedRows:1/insertId:42、BINARY 列以 { $binary: base64 } 返回；缺 sql 参数返回 'MCP error -32602: Input validation error: Invalid arguments for tool mysql-query: Required at sql'（isError:true）；连接已关闭端口返回 '错误: connect ECONNREFUSED 127.0.0.1:... [ECONNREFUSED]'；SQL 语法错误返回 '错误: ... [ER_PARSE_ERROR]'。共 44 项断言全部 PASS（exit 0）；node index.js 在 stdin 关闭后 147ms 干净退出（code 0）。",
+  "issues": [
+    "本机无 MySQL 服务器，真实服务器查询不可行；冒烟改用 mysql2 自带 createServer() 起进程内 mock MySQL 服务器（复用上游 test/common.test.cjs 的 serverHandshake/authCallback 方式）完成真实查询往返。mock 服务器会触发 mysql2 客户端/服务器两侧 'packets out of order' 协议序列号警告（上游测试同样存在，属 mysql2 协议 mock 的已知装饰性噪音，数据解析正确，真实 MySQL 服务器不会出现），smoke.mjs 已过滤展示。",
+    "MCP SDK 1.30.0 的 server.tool(name, description, schema, cb) 分离参数重载只接受 zod 原始 shape（字段对象）；直接传 z.object() 实例会被误判为 ToolAnnotations 并抛 'expected a Zod schema or ToolAnnotations, but received an unrecognized object'。适配方案：传原始 shape（zod v3 字段带 .default()/.describe()），SDK 经 objectFromShape 构建 ZodObject；zod 解析到 3.25.76，满足 SDK peer 范围 ^3.25 || ^4.0。",
+    "缺必填参数（sql）时 SDK 1.30 不向客户端抛异常，而是以工具错误结果返回（content: 'MCP error -32602: Input validation error: ...'，isError: true），冒烟按结果文本断言。",
+    "mysql2 3.10.0 为纯 JS 源码形态（lib/ 无需构建），npm 发布包 mysql2@3.10.0 内容与 v3.10.0 tag 一致，API 核验与依赖均以 npm 包为准。",
+    "默认启用 supportBigNumbers+bigNumberStrings，BIGINT 以字符串返回保证 JSON 安全（已在工具描述中注明）；BINARY 字符集列由客户端返回 Buffer，工具序列化为 { $binary: base64, encoding: \"base64\" }（已在 mysql-query 描述中注明）。",
+    "每次工具调用建立独立连接并在结束时关闭（finally conn.end()），无状态、可独立调用，避免 MCP 服务器进程持有长期 MySQL 连接。"
+  ]
+}

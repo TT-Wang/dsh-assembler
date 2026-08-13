@@ -1,0 +1,31 @@
+{
+  "id": "ocr-parse",
+  "repo": "naptha/tesseract.js",
+  "rev": "v5.1.0",
+  "license": "Apache-2.0",
+  "verified": true,
+  "tools": [
+    {
+      "name": "ocr-languages",
+      "description": "列出 tesseract.js 支持的 OCR 语言代码（无输入参数）。返回 JSON：{count, languages:[{code, name}]}，code 是传给 ocr-recognize 的 langs 参数的取值（如 eng/chi_sim/chi_tra/jpn/kor/deu/fra/spa），name 是对应语言名。多语言用 + 连接（如 chi_sim+eng）。适合在调用 ocr-recognize 前确认目标语言代码是否存在，或让调用方自行决定识别语言。"
+    },
+    {
+      "name": "ocr-psm-modes",
+      "description": "列出 Tesseract 页面分割模式（PSM，Page Segmentation Mode）的值与适用场景（无输入参数）。返回 JSON：{modes:[{value, description}]}。PSM 决定引擎如何把图片切分成文本块/行/词：如 3=全自动分页（布局未知的整页）、6=单块文本（默认，纯文本段落）、7=单行文本（标题/验证码）、11=稀疏文本（多列/散落文本）。在调用 ocr-recognize 前可用本工具确认 psm 参数取值。"
+    },
+    {
+      "name": "ocr-recognize",
+      "description": "对图片执行 OCR 文字识别，返回识别出的文字 text、平均置信度 confidence（0-100）、引擎 version 等。参数：image（必填，输入图片：原始 base64 字符串（推荐，不含 data: 前缀）、data:image/...;base64, data URI、http(s):// 或 file:// URL、或本地文件路径；支持 PNG/JPEG/GIF/BMP/WebP/TIFF）；langs（可选，默认 eng，用 + 连接多语言如 chi_sim+eng，可用 ocr-languages 查询代码）；psm（可选，页面分割模式值，默认 6=单块文本，常用 3=全自动/7=单行/11=稀疏文本，可用 ocr-psm-modes 查询）；whitelist（可选，字符白名单，结果只含这些字符，如 \"0123456789\" 只识别数字）；rectangle（可选，{top,left,width,height} 指定图片内识别区域，单位为像素）；rotateAuto（可选布尔，默认 false，自动检测并校正旋转角度）；output（可选，逗号分隔的附加输出格式，默认仅 text；可选 text,blocks,tsv,hocr,box,osd,unlv,pdf，其中 pdf 为 base64 编码的二进制需解码后使用，blocks 为词/行/块级结构化 JSON）。返回 JSON：{text, confidence, language, psm, version, ...请求的附加格式}。适合把截图/扫描件/表格图片转成可检索文本，或按区域/白名单做定向识别。"
+    }
+  ],
+  "smoke": "成功。node smoke.mjs 全部 29 项断言通过（exit 0），0 失败 0 警告。StdioClientTransport 启动 node index.js 连接成功；listTools 返回 3 个工具（ocr-languages/ocr-psm-modes/ocr-recognize），每个均有 >50 字符中文描述与输入 schema。测试图片由 sharp 渲染 SVG 文本生成（英文 'HELLO WORLD 2024' + 中文 '你好，世界 2024'，PNG buffer）。ocr-languages 返回 102 种语言（含 eng/chi_sim/chi_tra）；ocr-psm-modes 返回 14 种模式（含 3/6/7）。ocr-recognize 英文识别：text='HELLO WORLD 2024'、confidence=95、version=5.1.0-280-ge20b；psm=7 + output=text,blocks 返回结构化块级数据（blocks=1, paragraphs=1）；whitelist='0123456789' 时结果只剩 '2024'（数字白名单生效）；中文 chi_sim 识别 text='你 好 ， 世 界 2024'（CJK 字符间有引擎插入的空格，去空白后含 '你好'）；缺参调用返回 MCP error -32602 校验错误；非图片 base64 返回 'ERROR: image 不是受支持的图片格式…'；未知语言代码/非法 psm 均返回中文业务错误；独立进程验证 stdin 关闭后 server 以 exit 0 干净退出（worker_threads 不会阻止退出）。额外验证：本地文件路径与 data URI 两种 image 输入均正确识别 'PATH TEST 42'。npm install 成功（118 包）：@modelcontextprotocol/sdk@1.30.0 + tesseract.js@5.1.0 + zod@3.25.76，sharp@0.33.5 仅作 devDependency 供冒烟生成测试图；node --check 通过；语言数据首次从 jsdelivr CDN 下载后已落盘缓存 node_modules/.cache/tesseract.js（eng 5.2MB / chi_sim 2.5MB）。",
+  "issues": [
+    "中文识别输出中 CJK 字符间会插入空格（如 '你 好 ， 世 界'），这是 tesseract 引擎输出特性而非缺陷，下游如需精确比对应先去除空白（冒烟已按此处理并通过）",
+    "首次创建 worker 需从 jsdelivr CDN 下载语言数据（eng 约 2.9MB.gz / chi_sim 约 1.7MB.gz），依赖网络；下载后自动落盘缓存 node_modules/.cache/tesseract.js，已缓存的语言后续调用离线可用；网络不可用时首次调用会返回创建超时/下载错误（isError=true），不会崩溃",
+    "图片 base64 输入判定为启发式：>64 字符的纯 base64 串、或以 = 结尾/含空白的短串按 base64 解码并嗅探格式，其余按本地文件路径处理；极端情况（极短且不含 = 的 base64 串）会被当路径报 ENOENT，已通过错误文本提示，建议 base64 输入使用长串或 data URI",
+    "worker 采用按语言组合缓存 + 失败即销毁驱逐的策略：单次识别失败（超时/引擎错误）会终止并重建 worker（语言数据已缓存时重建较快），代价是极端情况下同一语言的连续两次失败会重复重建，属可接受的稳健性权衡",
+    "二进制输出（pdf 格式）以 base64 编码放在返回 JSON 的 pdf.base64 字段（含 mimeType/sizeBytes），工具描述已注明需解码后使用；blocks 结构化输出可能较大（词/行/块级全量树），大图识别时响应体偏大属预期"
+  ],
+  "notes": "能力切分：从 tesseract.js v5.1.0 的 createWorker/worker.recognize/constants(languages,PSM) API 面切出 3 个工具——ocr-languages（无输入，语言代码查询，支撑 langs 参数选择）、ocr-psm-modes（无输入，页面分割模式查询，支撑 psm 参数选择）、ocr-recognize（核心 OCR：base64/URL/路径输入，多语言/PSM/白名单/区域/自动旋转选项，输出 text/blocks/tsv/hocr/box/osd/unlv/pdf）。源码与 npm 包双向核验：git tag v5.1.0（83df363）与 npm tesseract.js@5.1.0 的 exports（languages 102 项、OEM、PSM、createWorker 等）、src/worker-script/node 布局一致；recognize 的 options 可透传 tessedit_* 变量（已利用）且识别后自动恢复，输出开关需显式声明否则继承 defaultOutput（hocr/tsv 默认 true，已显式关闭避免多余计算）。实现要点：必须传 errorHandler（否则上游 reject 分支 throw 未捕获异常导致进程崩溃）；worker_threads 会阻止进程退出，已在 stdin 关闭/SIGINT/SIGTERM 时终止全部 worker 后 exit(0)。verified=true 依据：listTools 成功 + ocr-languages/ocr-psm-modes/ocr-recognize（英文、中文、白名单、blocks、psm、缺参、坏参、错误分支）多次工具往返成功。",
+  "reportPath": "/Users/tongtao/code/dsh-assembler/index/reports/ocr-parse.json"
+}

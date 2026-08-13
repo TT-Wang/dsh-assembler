@@ -1,0 +1,28 @@
+{
+  "id": "csv-parse",
+  "repo": "papaparse/papaparse",
+  "rev": "5.4.1",
+  "license": "MIT",
+  "verified": true,
+  "tools": [
+    {
+      "name": "parse-csv",
+      "description": "Parse CSV text into structured JSON via papaparse. Returns {data, errors, meta}: rows as objects (header=true, default) or arrays (header=false); supports auto delimiter detection, dynamic typing (numbers/booleans), skipEmptyLines (true/'greedy'), custom newline/quoteChar/comments, and preview (parse first N rows)."
+    },
+    {
+      "name": "unparse-csv",
+      "description": "Serialize JSON data into a CSV string via papaparse (inverse of parse-csv). Accepts array of objects (keys become header row), array of arrays, array of strings, or a single string. Options: delimiter, newline, header, columns (key order/subset), quotes (wrap all fields), skipEmptyLines."
+    },
+    {
+      "name": "validate-csv",
+      "description": "Check CSV text well-formedness without extracting data: returns valid, auto-detected delimiter and line ending, row count, field count of first row, and detailed parse errors (e.g. unterminated quotes). Useful as a cheap pre-check before parse-csv or to discover an unknown delimiter."
+    }
+  ],
+  "smoke": "成功：MCP 客户端连接成功，listTools 返回 3 个工具；parse-csv 真实解析 3 行 CSV 并动态类型化（age 30/25 变 number）；unparse-csv 将对象数组序列化回 CSV（round-trip）；缺省必填参数 csv 触发 schema 校验错误并作为文本返回（MCP error -32602）；validate-csv 对正常输入返回 valid:true，对未闭合引号输入返回 valid:false 并给出 'Quoted field unterminated' 错误；unparse-csv 传非法类型（number）返回清晰 Error 文本。全部 7 项冒烟通过，exit 0。",
+  "issues": [
+    "GitHub 仓库不存在 tag 5.4.1（上游 tag 止于 5.1.0，5.4.1 为 npm 发布版本）；已验证 npm 5.4.1 tarball 源码与所适配 API 一致，npm 依赖锁定为 papaparse@5.4.1，后续 5.5.x 版本不会影响本条目。",
+    "函数型 PapaParse 配置（transform、transformHeader、dynamicTyping 函数）无法跨 MCP 传递，未暴露；validate-csv 是对 Papa.parse 错误报告与分隔符自动检测的封装能力点。",
+    "上游 master 分支代码停留在 5.1.0（2019 年提交），本次适配与验证基于 npm 官方 5.4.1 发布包，而非 git 检出。"
+  ],
+  "notes": "适配代码位于 /Users/tongtao/code/dsh-assembler/generated/csv-parse/（package.json + index.js + smoke.mjs），npm install 成功（94 包，纯 JS 无原生编译，5s）。serverName='csv-parse'，工具经 dsh mcp-client 暴露为 mcp__csv-parse__parse-csv 等。papaparse 为纯 JS 单文件 UMD（papaparse.js），同步解析，无外部服务依赖，离线可用。"
+}

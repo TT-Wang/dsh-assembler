@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/markdown-render",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "MCP stdio server wrapping marked 12.0.2: render Markdown to HTML, render inline fragments, tokenize Markdown.",
+  "private": true,
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "marked": "12.0.2",
+    "zod": "^3.23.0"
+  }
+}
