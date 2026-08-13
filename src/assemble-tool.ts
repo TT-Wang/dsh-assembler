@@ -40,18 +40,25 @@ export function assembleToolDefinition(ctx: Context, config: Config): ToolDefini
           'The full natural-language requirement for the agent to build, '
           + 'e.g. "a customer-service bot that can look up orders, open tickets, and hand off to a human".',
       },
+      name: {
+        type: 'string',
+        description:
+          'Optional preset id for the new agent: a short kebab-case slug (lowercase letters, digits, hyphens), '
+          + 'e.g. "web-research-assistant". Omit to let the assembler derive one from the requirement.',
+      },
     },
     output: {
       schema: { type: 'string' as const },
       render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
     },
     execute: async (args: unknown): Promise<string> => {
-      const a = args as { requirement?: unknown } | null
+      const a = args as { requirement?: unknown; name?: unknown } | null
       const requirement = typeof a?.requirement === 'string' ? a.requirement.trim() : ''
       if (requirement === '') {
         throw new Error('assemble needs {"requirement": "<what you want the agent to do>"}')
       }
-      const result = await assemble(ctx, requirement, config)
+      const name = typeof a?.name === 'string' ? a.name.trim() : ''
+      const result = await assemble(ctx, requirement, config, { name: name === '' ? undefined : name })
       return assembleResultText(result)
     },
   })

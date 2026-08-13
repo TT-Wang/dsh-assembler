@@ -55,7 +55,7 @@
 **方式 A — 命令**（人类快捷方式）：
 
 ```
-/assemble 帮我组装一个客服机器人，能查客户信息、创建工单、转人工
+/assemble 帮我组装一个客服机器人，能查客户信息、创建工单、转人工 [--name customer-service-bot]
 ```
 
 **方式 B — 直接说**（agent 原生路径，推荐）：在任意会话里说：
@@ -137,7 +137,7 @@ mcp__filesystem__write_file    写盘 /tmp/orders_report.pdf.base64.txt
 
 ## 已知限制
 
-1. **mcp-client serverName 进程全局唯一**：两个同时挂载同一零件的 preset 会冲突（同一时间只开一个使用相同零件的 preset）
+1. **同一 preset 的并发会话共用 serverName**：serverName 已按 preset id 哈希后缀命名空间化，跨 preset 不再冲突；残余限制是同一个 preset 同时开多个会话仍会撞名
 2. **联邦顺序连接**：32 个服务器顺序连接约 10s（计划改为并行）
 3. **目录选型压力**：130 条目下 LLM 选型仍准确，但更大规模需要按域分层
 4. **组装映射调用默认使用 fast 模型**（`deepseek-v4-flash`，可经插件 `config.model` 覆盖），不继承会话的重模型配置（重模型曾导致单次组装约 10 分钟）

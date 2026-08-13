@@ -34,8 +34,10 @@ mcp-servers:
   # ── 代码索引流水线产物（index/catalog.yml 一一对应）──────────────────────
   # 每个 server = generated/<id>/ 里的 MCP stdio 适配（我们生成的胶水，包装
   # 上游开源库）。hostMounted: false → 只有选中的 preset 才挂载（窄表面）。
-  # 注意：mcp-client 的 serverName 进程全局唯一，两个同时挂载同一 server
-  # 的 preset 会冲突（MVP 阶段限制：同一时间只用一个这类 preset）。
+  # 注意：mcp-client 的 serverName 在宿主进程内全局唯一，且空闲会话的 agent
+  # 会一直持有已挂载的 server，所以 emitPreset 给每个 preset 的 serverName
+  # 追加 preset id 的哈希后缀（如 http-request-f8733621）——跨 preset 永不冲突；
+  # 剩余限制：同一 preset 的多个并发会话仍共用同名 server（会冲突）。
   email-send:
     transport: stdio
     command: node

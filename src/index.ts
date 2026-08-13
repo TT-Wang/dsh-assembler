@@ -14,10 +14,11 @@
  * later sessions. Unlike the CLI prototype, model calls go through the host's
  * `ctx.llm` (provider/key from the host config), not a private fetch.
  */
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createHash } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import type { CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
 import { BlockAssembler, type GenerateOptions } from '@deepseek-ai/dsh-llm'
@@ -26,6 +27,12 @@ import yaml from 'js-yaml'
 import { assembleToolDefinition } from './assemble-tool.js'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+
+/** Harness preset id pattern (dsh-agent-presets PRESET_ID): lowercase alnum + hyphens, starts alnum. */
+const PRESET_ID_RE = /^[a-z0-9][a-z0-9-]*$/
+
+/** Longest preset id this assembler will emit (keeps paths and picker rows friendly). */
+const MAX_PRESET_ID_LENGTH = 48
 
 export interface Config {
   /** Catalog path (default: this package's capabilities.yml). */
@@ -80,6 +87,12 @@ interface AssembleRequest {
   persona?: string
   /** Draft capability entries for each missing item (see MissingDraft). */
   missingEntries?: MissingDraft[]
+  /**
+   * Suggested preset id (kebab-case slug) derived from the requirement, e.g.
+   * "web-research-assistant". Used as the preset's directory id when the
+   * caller did not name the preset explicitly.
+   */
+  name?: string
 }
 
 export function loadCatalog(path: string): Catalog {
@@ -104,11 +117,12 @@ export async function llmMapRequirement(
     tagsIndex,
     '',
     'Rules:',
-    '- Respond with JSON only: {"capabilityIds": [...], "missing": [...], "missingEntries": [...], "persona": "...", "rationale": "..."}',
+    '- Respond with JSON only: {"capabilityIds": [...], "missing": [...], "missingEntries": [...], "persona": "...", "name": "...", "rationale": "..."}',
     `- capabilityIds must ONLY use ids from this exact set: ${ids.join(', ')}`,
     '- If the requirement asks for something the catalog cannot provide, list it in "missing" (e.g. "phone support", "payment").',
     '- Include capabilities that are implied (a support agent needs a persona).',
     '- When NO catalog persona matches the requirement, write a "persona" string: a concise assistant persona for the assembled agent (role, tone, answer in the user\'s language, tool-use discipline). Omit it when a catalog persona IS selected — the catalog text wins.',
+    '- Write a "name" for the assembled preset: a short kebab-case slug naming what the agent IS (2-5 words, lowercase letters, digits and hyphens only, e.g. "customer-service-bot", "web-research-assistant"). It becomes the preset id users pick in the roster.',
     '- For every item in "missing", add one matching entry to "missingEntries": {id, via, description, tags, tool?, mount?} — id is kebab-case; via is "package" | "harness" | "mcp"; when you know a harness plugin package that provides the capability, set mount.name to it (e.g. "@deepseek-ai/dsh-tool-fs-search"), else omit mount; set tool only for via: "package". Omit "missingEntries" entirely when nothing is missing.',
     '',
     `Requirement: ${requirement}`,
@@ -156,7 +170,7 @@ function renderYamlValue(value: unknown): string {
   return JSON.stringify(value)
 }
 
-export function emitPreset(req: AssembleRequest, catalog: Catalog, template: string): string {
+export function emitPreset(req: AssembleRequest, catalog: Catalog, template: string, presetId: string): string {
   const byId = new Map(catalog.capabilities.map((c) => [c.id, c]))
   // Enabled-only: `enabled: false` entries are excluded from the LLM's
   // choice set by llmMapRequirement below; this is the second gate for the
@@ -202,7 +216,17 @@ export function emitPreset(req: AssembleRequest, catalog: Catalog, template: str
   // to every agent — emit NO mcp-client row (a duplicate serverName would
   // fail the preset mount: "serverName is already in use"). Otherwise emit
   // an mcp-client row so the preset is self-contained.
+  //
+  // serverName is namespaced with the preset id suffix: the harness reserves
+  // MCP serverNames process-globally (per ctx.root), and an idle session's
+  // agent keeps its mcp-client instances alive, so two presets mounting the
+  // same catalog server collide even when only one of them runs at a time.
+  // A per-preset name makes cross-preset collisions impossible; the residual
+  // limit is two CONCURRENT sessions of the SAME preset (same names), which
+  // the preset file cannot avoid by construction. Suffix is the id's last 8
+  // chars to fit the harness serverName cap of 32 characters.
   const mcpServers = catalog['mcp-servers'] ?? {}
+  const nameSuffix = presetNameSuffix(presetId)
   const mcpRows = [...new Set(
     selected.filter((c) => c.via === 'mcp').map((c) => (c.config?.server as string | undefined) ?? ''),
   )].filter((server) => server !== '' && mcpServers[server] !== undefined && mcpServers[server].hostMounted !== true)
@@ -210,7 +234,8 @@ export function emitPreset(req: AssembleRequest, catalog: Catalog, template: str
       const cfg = mcpServers[server]
       const lines = Object.entries(cfg).filter(([k]) => k !== 'hostMounted')
         .map(([k, v]) => `\n    ${k}: ${renderYamlValue(v)}`).join('')
-      return `- id: mcp-${server}\n  name: '@deepseek-ai/dsh-mcp-client'\n  config:\n    serverName: ${renderYamlValue(server)}${lines}`
+      const serverName = `${server}-${nameSuffix}`
+      return `- id: mcp-${server}\n  name: '@deepseek-ai/dsh-mcp-client'\n  config:\n    serverName: ${renderYamlValue(serverName)}${lines}`
     })
     .join('\n\n')
   const allRows = [extraRows, mcpRows].filter((s) => s !== '').join('\n\n')
@@ -220,9 +245,57 @@ export function emitPreset(req: AssembleRequest, catalog: Catalog, template: str
     .replace('{{extraRows}}', allRows)
 }
 
-/** One-shot id: stable, short, collision-free enough for a session-local tool. */
+/** One-shot fallback id for when no usable name exists: stable, short, collision-free enough. */
 function mintPresetId(): string {
   return `assembled-${Date.now().toString(36)}`
+}
+
+/**
+ * Normalize a requested/suggested preset name to the harness id pattern
+ * (`^[a-z0-9][a-z0-9-]*$`): lowercase, other characters become hyphens,
+ * leading/trailing hyphens drop, length caps at {@link MAX_PRESET_ID_LENGTH}.
+ * Returns '' when nothing usable remains.
+ */
+export function sanitizePresetName(raw: string): string {
+  const slug = String(raw ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, MAX_PRESET_ID_LENGTH)
+  return PRESET_ID_RE.test(slug) ? slug : ''
+}
+
+/**
+ * Resolve the preset id to write under `presetRoot`.
+ *
+ * Precedence: caller-supplied name (sanitized) → matcher-suggested name
+ * (sanitized) → {@link mintPresetId}. A name whose directory already exists
+ * gains a `-2`/`-3`/… suffix instead of silently colliding, so a re-assembly
+ * of the same concept never overwrites or fails.
+ */
+export function resolvePresetId(
+  requestedName: string | undefined,
+  suggestedName: string | undefined,
+  presetRoot: string,
+): string {
+  const base = sanitizePresetName(requestedName ?? '') || sanitizePresetName(suggestedName ?? '')
+  const desired = base !== '' ? base : mintPresetId()
+  let id = desired
+  for (let n = 2; existsSync(join(presetRoot, id)); n++) {
+    id = `${desired}-${n}`
+  }
+  return id
+}
+
+/**
+ * Stable 8-char suffix for a preset's MCP serverNames, derived by hashing the
+ * preset id. Hashing (rather than tail-truncation) keeps two similarly-named
+ * presets ("web-research" vs "deep-research") from sharing a suffix — their
+ * serverNames must stay distinct in the host's process-global registry.
+ */
+export function presetNameSuffix(presetId: string): string {
+  return createHash('sha256').update(presetId).digest('hex').slice(0, 8)
 }
 
 /** Ambient env with only string values (process.env entries can be undefined). */
@@ -327,11 +400,19 @@ export function renderMissingDraft(draft: MissingDraft): string {
  * Assemble one preset from a requirement and persist it under the preset
  * root. Returns the preset id, the selection, the missing report, and
  * copy-paste-ready catalog drafts for every missing capability.
+ *
+ * `options.name` is the caller's requested preset id (kebab-case slug). When
+ * absent, the matcher's suggested name is used; when neither yields a usable
+ * slug, the timestamp fallback id applies. The resolved id is minted BEFORE
+ * emission because emitted MCP serverNames carry a hash suffix derived from
+ * it — that is what keeps every preset's servers collision-free inside the
+ * host's process-global serverName registry.
  */
 export async function assemble(
   ctx: Context,
   requirement: string,
   config: Config,
+  options: { name?: string } = {},
 ): Promise<{
   id: string
   capabilityIds: string[]
@@ -345,12 +426,16 @@ export async function assemble(
   const catalog = await federateMcpTools(staticCatalog)
   const req = await llmMapRequirement(ctx, requirement, catalog, { provider: config.provider, model: config.model }, config)
   const template = readFileSync(templatePath, 'utf8')
-  const preset = emitPreset(req, catalog, template)
   const presetRoot = config.presetRoot ?? join(homedir(), '.dsh', '.agent-presets')
-  const id = mintPresetId()
+  const id = resolvePresetId(options.name, req.name, presetRoot)
+  const preset = emitPreset(req, catalog, template, id)
   const dir = join(presetRoot, id)
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'agent.cordis.yml'), preset)
+  // Display metadata beside the composition: the roster picker shows the name
+  // and a one-line description (harness dsh-agent-presets reads preset.yml).
+  const description = requirement.replace(/\s+/g, ' ').trim().slice(0, 140)
+  writeFileSync(join(dir, 'preset.yml'), yaml.dump({ name: id, description }, { lineWidth: -1 }))
   const drafts = (req.missingEntries ?? []).map(renderMissingDraft)
   return { id, capabilityIds: req.capabilityIds, missing: req.missing, presetPath: join(dir, 'agent.cordis.yml'), drafts }
 }
@@ -383,7 +468,7 @@ export function apply(ctx: Context, config: Config = {}): void {
 
   ctx.commands.register({
     name: 'assemble',
-    description: 'Assemble an agent from a natural-language requirement (vibe assembly). Usage: /assemble <requirement>',
+    description: 'Assemble an agent from a natural-language requirement (vibe assembly). Usage: /assemble <requirement> [--name <kebab-case-preset-name>]',
     // input.hint is REQUIRED for the web client's slash pipeline to claim
     // the token and route "/assemble <args>" to command.execute. Without it,
     // an argued line falls through to the default chat sink (the LLM gets
@@ -392,12 +477,22 @@ export function apply(ctx: Context, config: Config = {}): void {
     // contract as the built-in feedback/goal/permission/plan commands.
     input: { hint: '<requirement>' },
     handler: async (invocation: CommandInvocation): Promise<CommandResult> => {
-      const requirement = invocation.rawInput.trim()
+      const raw = invocation.rawInput.trim()
+      if (raw === '') {
+        return {
+          kind: 'error',
+          text: 'usage: /assemble <what you want the agent to do> [--name <kebab-case-preset-name>]',
+        }
+      }
+      // Optional trailing "--name <slug>" / "--name=<slug>": names the preset
+      // id directly (e.g. web-research); without it the matcher suggests one.
+      const nameMatch = raw.match(/^(.*?)\s+--name(?:=|\s+)([a-zA-Z0-9][a-zA-Z0-9-]{0,63})\s*$/)
+      const requirement = (nameMatch ? nameMatch[1] : raw).trim()
       if (requirement === '') {
-        return { kind: 'error', text: 'usage: /assemble <what you want the agent to do>' }
+        return { kind: 'error', text: 'usage: /assemble <what you want the agent to do> [--name <kebab-case-preset-name>]' }
       }
       try {
-        const result = await assemble(ctx, requirement, config)
+        const result = await assemble(ctx, requirement, config, { name: nameMatch?.[2] })
         return { kind: 'success', text: assembleResultText(result) }
       } catch (error: unknown) {
         return {
