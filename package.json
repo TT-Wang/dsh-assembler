@@ -26,9 +26,9 @@
   "license": "BSD-3-Clause",
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1-rc.1",
-    "@deepseek-ai/dsh-commands": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-llm": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-tools": "^0.0.1-rc.1"
+    "@deepseek-ai/dsh-commands": "^0.0.1-rc.1 || ^0.1.0-rc.1",
+    "@deepseek-ai/dsh-llm": "^0.0.1-rc.1 || ^0.1.0-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.0.1-rc.1 || ^0.1.0-rc.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
