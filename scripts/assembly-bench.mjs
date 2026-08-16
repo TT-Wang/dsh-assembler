@@ -57,7 +57,11 @@ const rpc = async (method, payload) => {
   return j.result.value
 }
 
-/** 一题:独立会话发 /assemble 命令,等 command/done,抽出结果文本。 */
+/**
+ * 一题:独立会话让 agent 调 assemble 工具(裸 wire 的 session.prompt 不走
+ * slash 命令管线——那是 web 客户端的 token 认领;'/assemble' 文本会被当普通
+ * 聊天),等 turn/end,从 tool/result 事件里抽"自动验证"判定行。
+ */
 async function runOne(item, index) {
   const cwd = mkdtempSync(join(tmpdir(), `bench-${item.slug}-`))
   const { sessionId } = await rpc('session.create', { cwd })
@@ -73,36 +77,43 @@ async function runOne(item, index) {
   const name = `bench-${String(index + 1).padStart(2, '0')}-${item.slug}`
   await rpc('session.prompt', {
     sessionId, mode: 'queue',
-    content: [{ type: 'text', text: `/assemble ${item.req} --name ${name}` }],
+    content: [{ type: 'text', text: `请调用 assemble 工具,requirement 为"${item.req}",name 参数用 "${name}"。工具返回后直接复述结果,不要做任何其他探索或额外工具调用。` }],
   })
   const t0 = Date.now()
-  let done
-  while (Date.now() - t0 < 10 * 60_000) {
-    done = frames.find((e) => e.type === 'command/done')
-    if (done !== undefined) break
+  while (Date.now() - t0 < 8 * 60_000 && !frames.some((e) => e.type === 'turn/end')) {
     await new Promise((r) => setTimeout(r, 2000))
   }
   ws.close()
-  const text = JSON.stringify(done?.data ?? {})
-  const verdict = text.includes('自动验证:PASS') ? 'PASS'
-    : text.includes('自动验证:FAIL') ? 'FAIL'
-      : text.includes('自动验证:跳过') ? 'SKIPPED'
-        : done === undefined ? 'TIMEOUT' : 'UNKNOWN'
-  const line = (text.match(/自动验证[^\\"]*/) ?? [''])[0].slice(0, 300)
+  const finished = frames.some((e) => e.type === 'turn/end')
+  const toolText = frames
+    .filter((e) => e.type === 'tool/result' || e.type === 'tool/end')
+    .map((e) => JSON.stringify(e.data ?? {}))
+    .find((s) => s.includes('自动验证')) ?? ''
+  const verdict = toolText.includes('自动验证:PASS') ? 'PASS'
+    : toolText.includes('自动验证:FAIL') ? 'FAIL'
+      : toolText.includes('自动验证:跳过') ? 'SKIPPED'
+        : finished ? 'UNKNOWN' : 'TIMEOUT'
+  const line = (toolText.match(/自动验证[^\\"]*/) ?? [''])[0].slice(0, 300)
   console.log(`[${index + 1}/20] ${name}: ${verdict}  ${line.slice(0, 120)}`)
   return { name, requirement: item.req, verdict, verifyLine: line, wallSeconds: Math.round((Date.now() - t0) / 1000) }
 }
 
 const startedAt = new Date().toISOString()
-const results = []
-for (let i = 0; i < REQUIREMENTS.length; i++) {
-  try {
-    results.push(await runOne(REQUIREMENTS[i], i))
-  } catch (error) {
-    console.log(`[${i + 1}/20] ${REQUIREMENTS[i].slug}: ERROR ${error.message.slice(0, 200)}`)
-    results.push({ name: REQUIREMENTS[i].slug, requirement: REQUIREMENTS[i].req, verdict: 'ERROR', verifyLine: error.message.slice(0, 300), wallSeconds: 0 })
+const LANES = 2
+const results = new Array(REQUIREMENTS.length)
+let cursor = 0
+const lane = async () => {
+  while (cursor < REQUIREMENTS.length) {
+    const i = cursor++
+    try {
+      results[i] = await runOne(REQUIREMENTS[i], i)
+    } catch (error) {
+      console.log(`[${i + 1}/20] ${REQUIREMENTS[i].slug}: ERROR ${error.message.slice(0, 200)}`)
+      results[i] = { name: REQUIREMENTS[i].slug, requirement: REQUIREMENTS[i].req, verdict: 'ERROR', verifyLine: error.message.slice(0, 300), wallSeconds: 0 }
+    }
   }
 }
+await Promise.all(Array.from({ length: LANES }, () => lane()))
 
 const passes = results.filter((r) => r.verdict === 'PASS').length
 const rate = Math.round((passes / REQUIREMENTS.length) * 100)

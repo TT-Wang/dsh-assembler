@@ -149,7 +149,7 @@ vibe assembly 的承诺是 find → assemble → **verify**：装出来的 agent
 
 探针 agent 实际执行了:http-get 取实时汇率 → currency-calc 乘法 → currency-format 格式化(¥676.06) → qr-generate-data-url 生成二维码——四个零件、一次组合调用链,全部真实往返。FAIL 时组装器把失败原因喂回选型 LLM 重选一次零件再探;探针基础设施故障(如 headless 无 webServer)降级为"跳过",不拦装配。
 
-基准:`npm run bench`(assembly-bench,20 条需求全闭环,标准 PASS ≥ 80%,结果落盘 `bench/results/`)。
+基准:`npm run bench`(assembly-bench,20 条需求全闭环,标准 PASS ≥ 80%,结果落盘 `bench/results/`)。**实测(2026-08-16,15 单件 + 5 组合):首跑 19/20 PASS(95%),达标**;唯一非 PASS 是目录数据债——fs-search 零件的 presetRow 缺 rc 版新必填配置(与验证环无关),补配后该题复验 PASS(账本含复验记录)。探针任务全部由 fast 模型自主设计,含逐字回显标记(`SMOKE-2847-QR`)、欧式小数解析(`€2.573.693,75`)、跨零件组合链(CSV→SQLite 汇总、汇率→二维码)等真实验收。
 
 ## 已知限制
 

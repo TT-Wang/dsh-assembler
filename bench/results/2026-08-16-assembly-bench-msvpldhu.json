@@ -1,0 +1,160 @@
+{
+  "startedAt": "2026-08-16T11:02:51.031Z",
+  "finishedAt": "2026-08-16T11:15:54.640Z",
+  "port": 3096,
+  "total": 20,
+  "passes": 19,
+  "rate": 95,
+  "criterion": "PASS ≥ 80%",
+  "met": true,
+  "results": [
+    {
+      "name": "bench-01-currency",
+      "requirement": "我要一个货币汇率换算助手,能解析金额、按汇率换算并格式化输出",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请完成一次汇率换算：用 currency-parse 解析金额“€2.573.693,75”（decimal 参数用 ','），再用 currency-calc」通过;验收标记 [€2.573.693,75, $2,779,589.25]",
+      "wallSeconds": 74
+    },
+    {
+      "name": "bench-02-qrcode",
+      "requirement": "帮我装一个二维码生成器,把文字或链接变成二维码图片",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「使用 mcp__qrcode-generate__qr-generate-data-url 工具，把文本 `SMOKE-2847-QR` 生成二维码；在回复中粘」通过;验收标记 [SMOKE-2847-QR, data:image/png;base64,]",
+      "wallSeconds": 68
+    },
+    {
+      "name": "bench-03-dates",
+      "requirement": "需要一个日期助手,能做日期加减、格式化和星期几计算",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请用工具计算 2024-03-01 加 10 天后的日期，将结果格式化为 YYYY-MM-DD，并返回该日期是星期几（例如 星期一）。」通过;验收标记 [2024-03-11, 星期一]",
+      "wallSeconds": 54
+    },
+    {
+      "name": "bench-04-numfmt",
+      "requirement": "数字格式化助手:千分位、百分比、四舍五入",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请使用数字格式化工具完成三项格式化并输出结果：1) 用格式串 '0,0.00' 格式化 12345.6789；2) 用格式串 '0.0%' 格式化 0.1234」通过;验收标记 [12,345.68, 12.3%, 3]",
+      "wallSeconds": 52
+    },
+    {
+      "name": "bench-05-csv",
+      "requirement": "一个 CSV 数据助手,能解析 CSV 文本并按列筛选汇总",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「只使用工具完成：1) 调用 mcp__csv-parse__parse-csv 解析下面 CSV；2) 用 mcp__sqlite-query__execute」通过;验收标记 [Alice, 15]",
+      "wallSeconds": 94
+    },
+    {
+      "name": "bench-06-mdrender",
+      "requirement": "把 Markdown 文本渲染成 HTML 的助手",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请使用 render-markdown 工具把 `# 冒烟测试` 渲染成 HTML，并只用 render-markdown-inline 工具把 `**内联粗体」通过;验收标记 [<h1>冒烟测试</h1>, <strong>内联粗体</strong>]",
+      "wallSeconds": 48
+    },
+    {
+      "name": "bench-07-html2text",
+      "requirement": "把 HTML 页面源码转成干净纯文本的助手",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「调用 mcp__html-to-text__html-to-text 工具，将以下 HTML 字符串转换为纯文本并输出结果：<div>你好，<span>世界</」通过;验收标记 [你好，, 世界, 第二行内容]",
+      "wallSeconds": 48
+    },
+    {
+      "name": "bench-08-xml",
+      "requirement": "XML 解析助手,能从 XML 文档里取出指定节点的值",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请调用 mcp__xml-parse__xml-parse 解析这个 XML：`<root><item>abc123</item></root>`；取出 <it」通过;验收标记 [abc123, 6]",
+      "wallSeconds": 66
+    },
+    {
+      "name": "bench-09-template",
+      "requirement": "模板渲染助手:把变量填进模板字符串生成最终文本",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「使用 render-template 工具，将模板“客户: {{customer}} | 商品: {{#each products}}{{@index}}={{」通过;验收标记 [张三, 0=苹果, 2=梨]",
+      "wallSeconds": 38
+    },
+    {
+      "name": "bench-10-fuzzy",
+      "requirement": "模糊搜索助手,在一组字符串里找出和输入最接近的项",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「使用 fuzzy-search 工具，对字符串数组 ['apple', 'banana', 'grape', 'orange'] 执行 query='appel」通过;验收标记 [apple]",
+      "wallSeconds": 40
+    },
+    {
+      "name": "bench-11-ics",
+      "requirement": "日历助手,能生成 ics 日历事件文件内容",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请使用 create-event 工具创建一个会议事件：标题为“项目评审”，开始时间为 2025-04-10 09:00（UTC），结束时间为 2025-04-」通过;验收标记 [BEGIN:VCALENDAR, SUMMARY:项目评审, DTSTART:20250410T090000Z]",
+      "wallSeconds": 40
+    },
+    {
+      "name": "bench-12-files",
+      "requirement": "文件助手,能在工作目录里读写和整理文本文件",
+      "verdict": "SKIPPED",
+      "verifyLine": "自动验证:跳过(probe error: session.create: {",
+      "wallSeconds": 108
+    },
+    {
+      "name": "bench-13-binfile",
+      "requirement": "能把 base64 内容落盘成二进制文件的助手",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「读取 /tmp/smoke.b64 中的 base64 内容（文件内容为 U01PS0VfVEVTVF9PSw==），将其解码为二进制后写入 /tmp/resu」通过;验收标记 [SMOKE_TEST_OK]",
+      "wallSeconds": 134
+    },
+    {
+      "name": "bench-14-zip",
+      "requirement": "压缩助手,把几个文件打包成 zip",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请用 zip-create-archive 把内存中的两个文件打包成 zip：文件1 name 为 ",
+      "wallSeconds": 88
+    },
+    {
+      "name": "bench-15-htmlparse",
+      "requirement": "HTML 解析助手,用选择器从网页源码里抽取元素内容",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「使用 mcp__http-request__http-get 获取 https://example.com/ 的 HTML，然后用 mcp__html-pars」通过;验收标记 [h1, Example Domain, <h1>Example Domain</h1>]",
+      "wallSeconds": 52
+    },
+    {
+      "name": "bench-16-cur-qr",
+      "requirement": "既能算汇率又能把结果生成二维码的助手",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请用工具完成一次汇率换算并生成二维码的冒烟测试：先用 http-get 请求 https://api.frankfurter.app/latest?from=U」通过;验收标记 [100 USD, CNY, data:image/png;base64,]",
+      "wallSeconds": 110
+    },
+    {
+      "name": "bench-17-csv-num",
+      "requirement": "读 CSV 数据、汇总后用千分位格式输出报表数字的助手",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请用 parse-csv 解析以下 CSV 文本，汇总 amount 列，再用 format-number 以 '0,0' 格式输出总金额：",
+      "wallSeconds": 84
+    },
+    {
+      "name": "bench-18-date-ics",
+      "requirement": "先算出下周同一天的日期,再生成那天的 ics 日历事件",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「用 mcp__date-format__date-manipulate 给 2025-04-07 加 7 天，得到下周同一天的日期；然后用 mcp__calen」通过;验收标记 [DTSTART;VALUE=DATE:20250414]",
+      "wallSeconds": 60
+    },
+    {
+      "name": "bench-19-md-file",
+      "requirement": "把 Markdown 渲染成 HTML 并保存到工作目录文件里",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请用 render-markdown 将 Markdown 字符串 `# 冒烟测试` 渲染为 HTML，再尝试用 file-manager-persona 保存」通过;验收标记 [<h1>冒烟测试</h1>, 缺少写文件工具，无法保存到 smoke.html]",
+      "wallSeconds": 176
+    },
+    {
+      "name": "bench-20-tpl-qr",
+      "requirement": "用模板填充生成一段文字,再把这段文字做成二维码",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请只用模板渲染工具和二维码生成工具完成：渲染模板「巡检单：{{code}} 状态：{{status}}」，传入 code=SMOKE-2025、status=O」通过;验收标记 [SMOKE-2025, 巡检单：SMOKE-2025 状态：OK]",
+      "wallSeconds": 88
+    }
+  ],
+  "retest": {
+    "item": "bench-12-files",
+    "firstRun": "SKIPPED — preset mount failed: tool-fs-search presetRow missing required config sampleOverCapGlobResults (catalog data debt, not a verify-infra failure)",
+    "fix": "capabilities.yml content-search presetRow now carries sampleOverCapGlobResults: false (matches harness base bundle)",
+    "retestVerdict": "PASS",
+    "retestWallSeconds": 194,
+    "note": "first-run scoreboard kept as-is: 19/20 PASS (95%); with the catalog fix the same 20 items are 20/20"
+  }
+}

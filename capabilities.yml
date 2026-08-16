@@ -218,6 +218,10 @@ capabilities:
       presetRows:
         - id: tool-fs-search
           name: '@deepseek-ai/dsh-tool-fs-search'
+          config:
+            # Required since rc.x (no schema default); false = the harness
+            # base bundle's own setting (packages/bundle/base/cordis.patch.yml).
+            sampleOverCapGlobResults: false
 
   # ── persona / behavior (a capability in its own right) ────────────────────
   - id: file-manager-persona
