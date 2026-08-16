@@ -58,12 +58,24 @@ const catalog = {
 const req = { capabilityIds: ['mcp-http-request-http-get'], missing: [], rationale: '', persona: '网页研究助手 persona' }
 const template = '{{extraRows}}'
 const out = emitPreset(req, catalog, template, 'web-research')
-check('serverName 含 hash suffix', out.includes(`serverName: "http-request-${s1}"`), out)
+check('serverName 含 8 位 hex suffix', /serverName: "http-request-[0-9a-f]{8}"/.test(out), out)
 const parsed = yaml.load(out)
 check('输出是合法 YAML 顶层列表', Array.isArray(parsed), JSON.stringify(parsed))
 const mcpRow = parsed.find((r) => r && r.name === '@deepseek-ai/dsh-mcp-client')
-check('mcp row config.serverName 带 suffix', mcpRow?.config?.serverName === `http-request-${s1}`, mcpRow?.config?.serverName)
+check('mcp row config.serverName 带 suffix', /^http-request-[0-9a-f]{8}$/.test(mcpRow?.config?.serverName ?? ''), mcpRow?.config?.serverName)
 check('serverName ≤ 32 字符', mcpRow.config.serverName.length <= 32)
+
+// 5. 代际不变式:同输入字节级确定;字节变(哪怕只有 persona)⇒ serverName 变。
+// host 对同 id preset 的被取代 generation 永不释放 serverName,所以重发文件
+// 只要字节不同就必须换名,否则新 generation 挂载必撞旧 generation。
+const outAgain = emitPreset(req, catalog, template, 'web-research')
+check('同输入重发字节级相同', outAgain === out)
+// persona 要真的进入渲染文本,字节才会变;真实模板含 {{persona}}。
+const personaTemplate = '# persona: {{persona}}\n{{extraRows}}'
+const nameOf = (text) => yaml.load(text.split('\n').slice(1).join('\n')).find((r) => r && r.name === '@deepseek-ai/dsh-mcp-client').config.serverName
+const outV1 = emitPreset(req, catalog, personaTemplate, 'web-research')
+const outV2 = emitPreset({ ...req, persona: '网页研究助手 persona v2' }, catalog, personaTemplate, 'web-research')
+check('字节变则 serverName 变', nameOf(outV2) !== nameOf(outV1), `${nameOf(outV1)} vs ${nameOf(outV2)}`)
 
 rmSync(root, { recursive: true, force: true })
 console.log(`\n==== 命名功能测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)

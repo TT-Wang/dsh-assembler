@@ -25,6 +25,7 @@ import { BlockAssembler, type GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { createUserMessage } from '@deepseek-ai/dsh-llm/message'
 import yaml from 'js-yaml'
 import { assembleToolDefinition } from './assemble-tool.js'
+import { deriveProbe, runProbe, type ProbeResult } from './verify.js'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -35,6 +36,10 @@ const PRESET_ID_RE = /^[a-z0-9][a-z0-9-]*$/
 const MAX_PRESET_ID_LENGTH = 48
 
 export interface Config {
+  /** Run the assemble-then-verify probe after emitting (default true). */
+  verify?: boolean
+  /** Probe turn timeout in ms (default 180000). */
+  verifyTimeoutMs?: number
   /** Catalog path (default: this package's capabilities.yml). */
   catalogPath?: string
   /** Preset template path (default: this package's presets/agent-template.yml). */
@@ -47,7 +52,7 @@ export interface Config {
   presetRoot?: string
 }
 
-interface CapabilityEntry {
+export interface CapabilityEntry {
   id: string
   via: 'package' | 'harness' | 'mcp'
   tool?: string
@@ -217,32 +222,39 @@ export function emitPreset(req: AssembleRequest, catalog: Catalog, template: str
   // fail the preset mount: "serverName is already in use"). Otherwise emit
   // an mcp-client row so the preset is self-contained.
   //
-  // serverName is namespaced with the preset id suffix: the harness reserves
-  // MCP serverNames process-globally (per ctx.root), and an idle session's
-  // agent keeps its mcp-client instances alive, so two presets mounting the
-  // same catalog server collide even when only one of them runs at a time.
-  // A per-preset name makes cross-preset collisions impossible; the residual
-  // limit is two CONCURRENT sessions of the SAME preset (same names), which
-  // the preset file cannot avoid by construction. Suffix is the id's last 8
-  // chars to fit the harness serverName cap of 32 characters.
+  // serverName is namespaced with a suffix hashed from the preset id AND the
+  // whole rendered composition: the harness reserves MCP serverNames
+  // process-globally (per ctx.root), mounts a preset file once per file
+  // GENERATION (mtime+size stamp), and never releases a superseded
+  // generation's names while the process lives. So the invariant has to be
+  // "different file bytes ⇒ different serverNames" — any re-emit that
+  // restamps the file (re-selection, or just a reworded persona) must arrive
+  // with fresh names or its mount collides with its own predecessor. The
+  // rows are rendered with a placeholder first, the full text is hashed,
+  // and the suffix is substituted in; a byte-identical re-emit reproduces
+  // the same suffix and is then skipped by {@link writePresetFile}, keeping
+  // the stamp and the already-mounted generation. 8 hex chars fit the
+  // harness serverName cap of 32 characters.
   const mcpServers = catalog['mcp-servers'] ?? {}
-  const nameSuffix = presetNameSuffix(presetId)
-  const mcpRows = [...new Set(
+  const selectedServers = [...new Set(
     selected.filter((c) => c.via === 'mcp').map((c) => (c.config?.server as string | undefined) ?? ''),
   )].filter((server) => server !== '' && mcpServers[server] !== undefined && mcpServers[server].hostMounted !== true)
+  const SUFFIX_SLOT = '@@GEN-SUFFIX@@'
+  const mcpRows = selectedServers
     .map((server) => {
       const cfg = mcpServers[server]
       const lines = Object.entries(cfg).filter(([k]) => k !== 'hostMounted')
         .map(([k, v]) => `\n    ${k}: ${renderYamlValue(v)}`).join('')
-      const serverName = `${server}-${nameSuffix}`
+      const serverName = `${server}-${SUFFIX_SLOT}`
       return `- id: mcp-${server}\n  name: '@deepseek-ai/dsh-mcp-client'\n  config:\n    serverName: ${renderYamlValue(serverName)}${lines}`
     })
     .join('\n\n')
   const allRows = [extraRows, mcpRows].filter((s) => s !== '').join('\n\n')
-  return template
+  const rendered = template
     .replace('{{persona}}', JSON.stringify(persona))
     .replace('{{packageRows}}', packageRows)
     .replace('{{extraRows}}', allRows)
+  return rendered.replaceAll(SUFFIX_SLOT, presetNameSuffix(presetId, rendered))
 }
 
 /** One-shot fallback id for when no usable name exists: stable, short, collision-free enough. */
@@ -290,12 +302,32 @@ export function resolvePresetId(
 
 /**
  * Stable 8-char suffix for a preset's MCP serverNames, derived by hashing the
- * preset id. Hashing (rather than tail-truncation) keeps two similarly-named
- * presets ("web-research" vs "deep-research") from sharing a suffix — their
- * serverNames must stay distinct in the host's process-global registry.
+ * preset id plus a generation seed (the rendered composition text, before
+ * suffix substitution). Hashing (rather than tail-truncation) keeps two
+ * similarly-named presets ("web-research" vs "deep-research") from sharing a
+ * suffix, and seeding with the composition text keeps two GENERATIONS of the
+ * same preset from sharing one — the host never releases a superseded
+ * generation's serverNames while the process lives, so a re-emitted file
+ * whose bytes changed must carry fresh names to be mountable at all
+ * (observed live: the verify-retry re-emit collided on every serverName of
+ * its own first generation).
  */
-export function presetNameSuffix(presetId: string): string {
-  return createHash('sha256').update(presetId).digest('hex').slice(0, 8)
+export function presetNameSuffix(presetId: string, seed = ''): string {
+  return createHash('sha256').update(`${presetId}\n${seed}`).digest('hex').slice(0, 8)
+}
+
+/**
+ * Write a composition file only when its bytes actually change.
+ *
+ * The host keys a preset's standing mount to the file's mtime+size stamp; a
+ * byte-identical rewrite would restamp the file and force a pointless next
+ * generation — whose mcp rows carry the SAME serverNames (same selection ⇒
+ * same suffix) and therefore cannot mount. Skipping the write keeps the
+ * stamp, and the host keeps serving the already-mounted generation.
+ */
+export function writePresetFile(path: string, content: string): void {
+  if (existsSync(path) && readFileSync(path, 'utf8') === content) return
+  writeFileSync(path, content)
 }
 
 /** Ambient env with only string values (process.env entries can be undefined). */
@@ -330,44 +362,62 @@ export async function federateMcpTools(catalog: Catalog): Promise<Catalog> {
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
   const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js')
   const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js')
-  const known = new Set(catalog.capabilities.map((c) => c.id))
   const mcpEntries: CapabilityEntry[] = []
-  for (const server of serverNames) {
-    const cfg = servers[server]
-    try {
-      const transport = cfg.transport === 'streamable-http'
-        ? new StreamableHTTPClientTransport(new URL(cfg.url as string))
-        : new StdioClientTransport({
-            command: cfg.command as string,
-            args: cfg.args as string[],
-            ...(cfg.env !== undefined
-              ? { env: { ...scrubbedEnv(), ...(cfg.env as Record<string, string>) } }
-              : { env: scrubbedEnv() }),
+  // Parallel federation with a bounded pool: 30+ stdio spawns at once would
+  // be a fork storm; a pool keeps wall-clock near max(server) while staying
+  // polite. Wall-clock floor is per-server process cold-start (~0.5s each),
+  // so 33 servers land around 5s. Env-tunable for measurement and CI.
+  const CONCURRENCY = Math.max(1, Number(process.env.DSH_ASSEMBLER_FED_LANES ?? 16) || 16)
+  const queue = [...serverNames]
+  const collected = new Map<string, CapabilityEntry[]>()
+  const worker = async (): Promise<void> => {
+    for (let server = queue.shift(); server !== undefined; server = queue.shift()) {
+      const cfg = servers[server]
+      const entries: CapabilityEntry[] = []
+      try {
+        const transport = cfg.transport === 'streamable-http'
+          ? new StreamableHTTPClientTransport(new URL(cfg.url as string))
+          : new StdioClientTransport({
+              command: cfg.command as string,
+              args: cfg.args as string[],
+              ...(cfg.env !== undefined
+                ? { env: { ...scrubbedEnv(), ...(cfg.env as Record<string, string>) } }
+                : { env: scrubbedEnv() }),
+            })
+        const client = new Client({ name: 'dsh-assembler', version: '0.0.1' })
+        await client.connect(transport)
+        const tools = await client.listTools()
+        for (const tool of tools.tools) {
+          const description = typeof tool.description === 'string' && tool.description !== ''
+            ? tool.description
+            : `MCP tool ${tool.name} from server ${server}`
+          const id = `mcp-${server}-${tool.name.replace(/[^a-z0-9-]/gi, '-').toLowerCase()}`
+          const words = description.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 4)
+          const tags = [...new Set([server.toLowerCase(), ...words.slice(0, 8)])]
+          entries.push({
+            id,
+            via: 'mcp',
+            tool: `mcp__${server}__${tool.name}`,
+            description,
+            tags,
+            config: { server },
           })
-      const client = new Client({ name: 'dsh-assembler', version: '0.0.1' })
-      await client.connect(transport)
-      const tools = await client.listTools()
-      for (const tool of tools.tools) {
-        const description = typeof tool.description === 'string' && tool.description !== ''
-          ? tool.description
-          : `MCP tool ${tool.name} from server ${server}`
-        const id = `mcp-${server}-${tool.name.replace(/[^a-z0-9-]/gi, '-').toLowerCase()}`
-        if (known.has(id)) continue
-        const words = description.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 4)
-        const tags = [...new Set([server.toLowerCase(), ...words.slice(0, 8)])]
-        mcpEntries.push({
-          id,
-          via: 'mcp',
-          tool: `mcp__${server}__${tool.name}`,
-          description,
-          tags,
-          config: { server },
-        })
-        known.add(id)
+        }
+        await client.close()
+        collected.set(server, entries)
+      } catch (error: unknown) {
+        console.error(`[assembler] federateMcpTools: server "${server}" unreachable: ${error instanceof Error ? error.message : String(error)}`)
       }
-      await client.close()
-    } catch (error: unknown) {
-      console.error(`[assembler] federateMcpTools: server "${server}" unreachable: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, serverNames.length) }, () => worker()))
+  // Deterministic merge in declared server order (parallel arrival order is not)
+  const known = new Set(catalog.capabilities.map((c) => c.id))
+  for (const server of serverNames) {
+    for (const entry of collected.get(server) ?? []) {
+      if (known.has(entry.id)) continue
+      known.add(entry.id)
+      mcpEntries.push(entry)
     }
   }
   if (mcpEntries.length === 0) return catalog
@@ -419,6 +469,7 @@ export async function assemble(
   missing: string[]
   presetPath: string
   drafts: string[]
+  verification: ProbeResult
 }> {
   const catalogPath = config.catalogPath ?? join(REPO, 'capabilities.yml')
   const templatePath = config.templatePath ?? join(REPO, 'presets', 'agent-template.yml')
@@ -426,18 +477,68 @@ export async function assemble(
   const catalog = await federateMcpTools(staticCatalog)
   const req = await llmMapRequirement(ctx, requirement, catalog, { provider: config.provider, model: config.model }, config)
   const template = readFileSync(templatePath, 'utf8')
-  const presetRoot = config.presetRoot ?? join(homedir(), '.dsh', '.agent-presets')
+  const presetRoot = config.presetRoot ?? join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), '.agent-presets')
   const id = resolvePresetId(options.name, req.name, presetRoot)
   const preset = emitPreset(req, catalog, template, id)
   const dir = join(presetRoot, id)
   mkdirSync(dir, { recursive: true })
-  writeFileSync(join(dir, 'agent.cordis.yml'), preset)
+  writePresetFile(join(dir, 'agent.cordis.yml'), preset)
   // Display metadata beside the composition: the roster picker shows the name
   // and a one-line description (harness dsh-agent-presets reads preset.yml).
   const description = requirement.replace(/\s+/g, ' ').trim().slice(0, 140)
   writeFileSync(join(dir, 'preset.yml'), yaml.dump({ name: id, description }, { lineWidth: -1 }))
   const drafts = (req.missingEntries ?? []).map(renderMissingDraft)
-  return { id, capabilityIds: req.capabilityIds, missing: req.missing, presetPath: join(dir, 'agent.cordis.yml'), drafts }
+
+  // ── Assemble-then-verify ─────────────────────────────────────────────
+  // vibe assembly's promise is find → assemble → VERIFY. Default-on probe:
+  // derive a one-turn task, run it in a real session bound to this preset,
+  // judge the reply. One FAIL triggers a re-selection (the matcher is told
+  // what failed) and a single re-emit under the same id.
+  let verification: ProbeResult = { status: 'SKIPPED', reason: 'verify disabled' }
+  if (config.verify !== false) {
+    const port = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
+    if (port === undefined) {
+      verification = { status: 'SKIPPED', reason: 'webServer port unavailable (headless run?)' }
+    } else {
+      const byId = new Map(catalog.capabilities.map((c) => [c.id, c]))
+      const selected = req.capabilityIds.map((cid) => byId.get(cid)).filter((c): c is CapabilityEntry => c !== undefined)
+      try {
+        const probe = await deriveProbe(ctx, requirement, selected, { provider: config.provider, model: config.model })
+        verification = await runProbe(port, id, probe, config.verifyTimeoutMs)
+        if (verification.status === 'FAIL') {
+          // One re-selection with failure feedback, re-emit under the same id.
+          // Its own catch: a transient failure INSIDE the retry (a flaky model
+          // call, a wire hiccup) must not erase the first probe's verdict —
+          // the FAIL plus its evidence is the actionable result.
+          try {
+            const retryReq = await llmMapRequirement(
+              ctx,
+              `${requirement}\n\n(上一次装配选了 [${req.capabilityIds.join(', ')}],冒烟探针未通过:${verification.reason ?? '回复未包含验收标记'}。请重新选型,优先替换可能不匹配的零件。)`,
+              catalog,
+              { provider: config.provider, model: config.model },
+              config,
+            )
+            const retryPreset = emitPreset(retryReq, catalog, template, id)
+            writePresetFile(join(dir, 'agent.cordis.yml'), retryPreset)
+            const retryProbe = await deriveProbe(ctx, requirement, retryReq.capabilityIds.map((cid) => byId.get(cid)).filter((c): c is CapabilityEntry => c !== undefined), { provider: config.provider, model: config.model })
+            verification = await runProbe(port, id, retryProbe, config.verifyTimeoutMs)
+            if (verification.status === 'PASS') {
+              req.capabilityIds = retryReq.capabilityIds
+            }
+          } catch (retryError: unknown) {
+            verification = {
+              ...verification,
+              reason: `${verification.reason ?? '回复未包含验收标记'};重试轮出错:${retryError instanceof Error ? retryError.message : String(retryError)}`,
+            }
+          }
+        }
+      } catch (error: unknown) {
+        verification = { status: 'SKIPPED', reason: `probe error: ${error instanceof Error ? error.message : String(error)}` }
+      }
+    }
+  }
+
+  return { id, capabilityIds: req.capabilityIds, missing: req.missing, presetPath: join(dir, 'agent.cordis.yml'), drafts, verification }
 }
 
 /** Shared human-facing result text for the command and the tool. */
@@ -448,7 +549,15 @@ export function assembleResultText(result: Awaited<ReturnType<typeof assemble>>)
   const drafts = result.drafts.length > 0
     ? `\n\n补件草案 (append to the "capabilities:" section of capabilities.yml):\n${result.drafts.join('\n')}`
     : ''
-  return `assembled preset "${result.id}" with: ${result.capabilityIds.join(', ')}${missing}${drafts}\n`
+  const v = result.verification
+  const marks = v.probe !== undefined ? `;验收标记 [${v.probe.mustInclude.join(', ')}]` : ''
+  const verifyLine = v.status === 'PASS'
+    ? `\n自动验证:PASS — 探针「${v.probe?.task.slice(0, 80) ?? ''}」通过${marks}`
+    : v.status === 'FAIL'
+      ? `\n自动验证:FAIL — ${v.reason ?? '探针回复未含验收标记'}${marks};探针「${v.probe?.task.slice(0, 80) ?? ''}」`
+        + `${v.reply !== undefined && v.reply !== '' ? `;回复摘录「${v.reply.slice(0, 120)}」` : ''}(preset 已生成,建议人工试用)`
+      : `\n自动验证:跳过(${v.reason ?? ''})`
+  return `assembled preset "${result.id}" with: ${result.capabilityIds.join(', ')}${missing}${drafts}${verifyLine}\n`
     + `preset file: ${result.presetPath}\n`
     + `start a new session and select preset ${result.id} to use it.`
 }

@@ -1,0 +1,15 @@
+{
+ "id": "binary-write",
+ "repo": "first-party",
+ "rev": "-",
+ "license": "BSD-3-Clause",
+ "verified": true,
+ "tools": [
+  {
+   "name": "write-binary-file",
+   "description": "把 base64 内容解码写成二进制文件(限工作区内)"
+  }
+ ],
+ "smoke": "node smoke.mjs:listTools 返回 1 个工具;真实调用全部通过——写入 %PDF- 魔数文件并读回验证;../ 越出工作区被拒;非法 base64(字符/长度校验)被拒。",
+ "issues": []
+}

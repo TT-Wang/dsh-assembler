@@ -38,6 +38,11 @@ mcp-servers:
   # 会一直持有已挂载的 server，所以 emitPreset 给每个 preset 的 serverName
   # 追加 preset id 的哈希后缀（如 http-request-f8733621）——跨 preset 永不冲突；
   # 剩余限制：同一 preset 的多个并发会话仍共用同名 server（会冲突）。
+  binary-write:
+    transport: stdio
+    command: node
+    args: ["generated/binary-write/index.js"]
+
   email-send:
     transport: stdio
     command: node

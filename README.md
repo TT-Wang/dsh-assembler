@@ -9,9 +9,10 @@
 ## 特性
 
 - **双入口**：`/assemble <需求>` 命令（人类快捷方式）+ `assemble` 工具（agent 原生路径，调用轨迹自动渲染）
-- **能力目录**：133 个目录条目 = 8 条静态 + 125 条 MCP 联邦（32 个 MCP 服务器 / 111 个零件工具），组装时实时联邦
+- **装配即验证**：装配完成后自动派生一条冒烟探针任务，在绑定新 preset 的**真实会话**里跑一轮，按内容型验收标记判 PASS/FAIL；FAIL 触发一次带失败反馈的重新选型再探（find → assemble → **verify** 闭环，默认开启，`config.verify: false` 关闭）
+- **能力目录**：134 个目录条目 = 8 条静态 + 126 条 MCP 联邦（33 个 MCP 服务器 / 112 个零件工具），组装时实时并行联邦
 - **零代码扩展**：往 `mcp-servers` 加一段配置 = 整组新能力（MCP 服务器自动联邦）
-- **索引流水线**：AI 切分开源库 → 生成 MCP 适配 → 冒烟验证（`verified`）→ 入库，31 个库全部通过
+- **索引流水线**：AI 切分开源库 → 生成 MCP 适配 → 冒烟验证（`verified`）→ 入库，32 个库全部通过（31 个上游 + 1 个第一方 `binary-write`）
 - **补件闭环**：需求超出目录时，返回可复制的 YAML 补件草案 + missing 报告
 - **生成 persona**：目录无匹配 persona 时，LLM 生成针对性 persona 文本
 
@@ -24,8 +25,9 @@
 └──────────────────────────────────────────────────────────────────────────────┘
                                     ↓
 ┌───────────────────────── 组装（能力消费） ───────────────────────────────────┐
-│ capabilities.yml(目录) + MCP 联邦 → LLM 选型 → 生成 preset                   │
+│ capabilities.yml(目录) + MCP 并行联邦 → LLM 选型 → 生成 preset               │
 │   → ~/.dsh/.agent-presets/<id>/agent.cordis.yml                              │
+│   → 自动验证:派生探针任务 → 真实会话试跑 → PASS / FAIL(重选型一次)          │
 └──────────────────────────────────────────────────────────────────────────────┘
                                     ↓
 ┌───────────────────────── 运行时 ─────────────────────────────────────────────┐
@@ -81,9 +83,9 @@ dsh-assembler/
 │   └── agent-template.yml  # preset 模板（{{persona}}/{{packageRows}}/{{extraRows}} 插槽）
 ├── capabilities.yml        # ★ 组装目录：能力条目 + mcp-servers 连接配置
 ├── index/
-│   ├── catalog.yml         # ★ 代码索引：31 个开源库的条目（repo/rev/tools）
+│   ├── catalog.yml         # ★ 代码索引：32 个库的条目（repo/rev/tools,含第一方）
 │   └── reports/            # 每个库的冒烟验证报告
-├── generated/              # ★ 零件库：31 个 MCP 适配服务器（每库一个目录）
+├── generated/              # ★ 零件库：32 个 MCP 适配服务器（每库一个目录）
 │   └── <id>/{package.json, index.js, smoke.mjs}
 └── scripts/
     └── link-dsh.mjs        # 链接 DSH peer 包（@deepseek-ai/cordis 等）
@@ -97,11 +99,11 @@ dsh-assembler/
 |---|---|---|
 | `package` | 本仓库/自有插件包的工具 | `crm-query`（dsh-cs-tools）|
 | `harness` | DSH 内置工具 | `content-search`（dsh-tool-fs-search）|
-| `mcp` | MCP 服务器工具（组装时自动联邦）| `mcp-email-send-send-email` 等 125 个 |
+| `mcp` | MCP 服务器工具（组装时自动联邦）| `mcp-email-send-send-email` 等 126 个 |
 
 `mcp-servers` 段声明连接配置；`hostMounted: true` 表示服务器已在 host 平面挂载（工具全局可见，preset 不重复生成 mcp-client 行）。
 
-当前规模：**31 个库 / 111 个零件工具 / 133 个目录条目**，覆盖：邮件收发、HTTP、HTML、CSV、Excel、PDF 生成与提取、Word、ZIP、模糊搜索、模板渲染、XML、图片处理、RSS、日历解析与生成、SQLite/PostgreSQL/MySQL、GitHub API、Markdown、OCR、二维码、货币、浏览器自动化。
+当前规模：**32 个库（31 上游 + 1 第一方）/ 112 个零件工具 / 134 个目录条目**，覆盖：邮件收发、HTTP、HTML、CSV、Excel、PDF 生成与提取、Word、ZIP、模糊搜索、模板渲染、XML、图片处理、RSS、日历解析与生成、SQLite/PostgreSQL/MySQL、GitHub API、Markdown、OCR、二维码、货币、浏览器自动化、二进制落盘。
 
 ## 索引流水线（零件生产）
 
@@ -135,19 +137,35 @@ mcp__filesystem__write_file    写盘 /tmp/orders_report.pdf.base64.txt
 
 过程中零件校验真实生效（空行参数被拒后 agent 自动修复；写盘越界被 filesystem 根目录边界拦截后自动改路径）。
 
+## 装配即验证（实测输出）
+
+vibe assembly 的承诺是 find → assemble → **verify**：装出来的 agent 不能只是"文件生成了"，得证明它真的能干活。装配完成后，组装器用 fast 模型从需求派生一条一轮可完成的探针任务（含内容型验收标记——计算值、逐字回显，拒绝 "done" 式自我宣称），走 host 公开线契约（HTTP RPC + events.mux）开一个绑定新 preset 的真实会话试跑，判定回复。实测（需求："能做货币汇率换算、也能生成二维码的助手"）：
+
+```
+自动验证:PASS — 探针「用 http-get 请求 https://open.er-api.com/v6/latest/USD，
+读取返回 JSON 中的 rates.CNY 作为汇率；…」通过;
+验收标记 [100 USD = ¥, CNY=, data:image/png;base64]
+```
+
+探针 agent 实际执行了:http-get 取实时汇率 → currency-calc 乘法 → currency-format 格式化(¥676.06) → qr-generate-data-url 生成二维码——四个零件、一次组合调用链,全部真实往返。FAIL 时组装器把失败原因喂回选型 LLM 重选一次零件再探;探针基础设施故障(如 headless 无 webServer)降级为"跳过",不拦装配。
+
+基准:`npm run bench`(assembly-bench,20 条需求全闭环,标准 PASS ≥ 80%,结果落盘 `bench/results/`)。
+
 ## 已知限制
 
-1. **同一 preset 的并发会话共用 serverName**：serverName 已按 preset id 哈希后缀命名空间化，跨 preset 不再冲突；残余限制是同一个 preset 同时开多个会话仍会撞名
-2. **联邦顺序连接**：32 个服务器顺序连接约 10s（计划改为并行）
-3. **目录选型压力**：130 条目下 LLM 选型仍准确，但更大规模需要按域分层
+1. **同 preset 并发会话没有问题**（旧版此处的"并发撞名"限制是误判，已实证纠正）：harness 对每个 preset 文件代际只挂载一次 standing 组合，并发会话通过 scope parenting 共用同一实例——两个会话同时跑同一个装配 preset 各自完成，无 serverName 冲突。真正的残余限制是：**host 进程存活期内不释放被取代代际的 serverName**，所以手工编辑 preset 文件（字节变了、serverName 没变）后，同一 host 进程里的新会话会撞旧代际，重启 host 恢复。组装器自身的重发已按"文件字节哈希入 serverName 后缀 + 字节相同跳写盘"根治（任何字节差异自动换名，字节相同不换代）
+2. **联邦耗时下限**：已并行化（默认 16 车道，`DSH_ASSEMBLER_FED_LANES` 可调），33 个服务器实测 11.2s（串行基线）→ 约 4.7s；地板是每个 stdio 零件的进程冷启动，再降需要索引缓存增量探测（规划中）
+3. **目录选型压力**：134 条目下 LLM 选型仍准确，但更大规模需要按域分层
 4. **组装映射调用默认使用 fast 模型**（`deepseek-v4-flash`，可经插件 `config.model` 覆盖），不继承会话的重模型配置（重模型曾导致单次组装约 10 分钟）
-5. **二进制落盘缺口**：零件返回 base64，直接落盘二进制文件需要 base64 解码环节配合
+5. **自动验证依赖 webServer**：headless（无 web 面板）装配时探针无处可跑，自动验证降级为"跳过"，装配本身不受影响
 
 ## 开发
 
 ```bash
 npm run link:dsh   # 链接 DSH peer 包（需要 DSH_SOURCE 环境变量或 ~/.dsh/source/current）
 npm run build      # tsc 构建到 lib/
+npm test           # 构建 + 命名/发射代际不变式 + 验证判定/幂等写盘 单元测试
+npm run bench      # assembly-bench:20 条需求全闭环(需要已挂 assembler 的 web profile 在跑)
 ```
 
 改 `lib/` 后需重启 DSH web 进程生效；改 `capabilities.yml` 无需重启（组装时实时读取）。

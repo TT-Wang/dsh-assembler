@@ -1,0 +1,10 @@
+{
+  "name": "@dsh-index/binary-write",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^3.23.0"
+  }
+}

@@ -311,3 +311,11 @@
   license: MIT
   tools:
     - { name: create-report-pdf, description: 结构化研究报告生成多页 PDF（中英文混排/自动换行分页/字体子集化） }
+
+- id: binary-write
+  repo: first-party
+  rev: "-"
+  license: BSD-3-Clause
+  tools:
+    - name: write-binary-file
+      description: 把 base64 内容解码写成二进制文件(限工作区内,拒绝路径穿越与非法 base64)
