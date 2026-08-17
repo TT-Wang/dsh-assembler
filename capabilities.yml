@@ -169,6 +169,11 @@ mcp-servers:
     command: node
     args: ['/Users/tongtao/code/dsh-assembler/generated/pdf-report/index.js']
 
+  text-diff:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/text-diff/index.js']
+
 capabilities:
   # ── customer-service domain tools (this package) ──────────────────────────
   - id: crm-query

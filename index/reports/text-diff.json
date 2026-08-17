@@ -1,0 +1,20 @@
+{
+  "id": "text-diff",
+  "verifiedAt": "2026-08-17T00:45:44.125Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "create-patch",
+      "description": "对比两段文本,生成统一 diff(unified diff)补丁文本。输入旧文本/新文本与可选文件名;返回标准补丁(含 ---/+++/@@ 头),可直接交给 apply-patch 或人工审阅。"
+    },
+    {
+      "name": "apply-patch",
+      "description": "把统一 diff 补丁应用到文本上,返回打完补丁的新文本。补丁与文本对不上(上下文不匹配)时返回错误而不是产出损坏结果。"
+    },
+    {
+      "name": "diff-words",
+      "description": "词级对比两段文本,返回带标注的合并视图:新增词包在 {+...+} 里,删除词包在 [-...-] 里,未变的词原样保留。适合向用户展示两版措辞的具体差别。"
+    }
+  ]
+}

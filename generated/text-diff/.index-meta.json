@@ -1,0 +1,8 @@
+{
+  "id": "text-diff",
+  "pkg": "diff",
+  "version": "9.0.0",
+  "repo": "kpdecker/jsdiff",
+  "license": "BSD-3-Clause",
+  "scaffoldedAt": "2026-08-17T00:44:51.881Z"
+}

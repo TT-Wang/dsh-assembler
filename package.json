@@ -24,7 +24,11 @@
     "link:dsh": "node scripts/link-dsh.mjs",
     "parts:install": "for d in generated/*/; do (cd \"$d\" && npm install --no-audit --no-fund); done",
     "test": "npm run build && node tests-naming.mjs && node tests-verify.mjs && node tests-federation.mjs",
-    "bench": "node scripts/assembly-bench.mjs"
+    "bench": "node scripts/assembly-bench.mjs",
+    "index:add": "node scripts/index-add.mjs scaffold",
+    "index:verify": "node scripts/index-add.mjs verify",
+    "index:register": "node scripts/index-add.mjs register",
+    "index:check": "node scripts/index-add.mjs check-all"
   },
   "license": "BSD-3-Clause",
   "peerDependencies": {

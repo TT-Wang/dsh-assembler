@@ -10,11 +10,11 @@
 
 - **双入口**：`/assemble <需求>` 命令（人类快捷方式）+ `assemble` 工具（agent 原生路径，调用轨迹自动渲染）
 - **装配即验证**：装配完成后自动派生一条冒烟探针任务，在绑定新 preset 的**真实会话**里跑一轮，按内容型验收标记判 PASS/FAIL；FAIL 触发一次带失败反馈的重新选型再探（find → assemble → **verify** 闭环，默认开启，`config.verify: false` 关闭）
-- **能力目录**：134 个目录条目 = 8 条静态 + 126 条 MCP 联邦（33 个 MCP 服务器 / 112 个零件工具），组装时实时并行联邦
+- **能力目录**：137 个目录条目 = 8 条静态 + 129 条 MCP 联邦（34 个 MCP 服务器 / 115 个零件工具），组装时实时并行联邦
 - **联邦索引缓存**：每个零件的工具清单按（连接配置 + 适配器文件指纹）缓存,命中零连接——冷 ~5s,热 **<0.01s**;适配器重新生成自动失效,7 天 TTL 兜底远程服务器
 - **零件物料清单（BOM）**：每次装配随 preset 发射 `parts.lock.yml`——每个零件的上游 repo@rev、许可证、验证状态、实际挂载 serverName,装出的 agent 像依赖锁文件一样可审计
 - **零代码扩展**：往 `mcp-servers` 加一段配置 = 整组新能力（MCP 服务器自动联邦）
-- **索引流水线**：AI 切分开源库 → 生成 MCP 适配 → 冒烟验证（`verified`）→ 入库，32 个库全部通过（31 个上游 + 1 个第一方 `binary-write`）
+- **索引流水线**：AI 切分开源库 → 生成 MCP 适配 → 冒烟验证（`verified`）→ 入库，33 个库全部通过（32 个上游 + 1 个第一方 `binary-write`）
 - **补件闭环**：需求超出目录时，返回可复制的 YAML 补件草案 + missing 报告
 - **生成 persona**：目录无匹配 persona 时，LLM 生成针对性 persona 文本
 
@@ -85,12 +85,14 @@ dsh-assembler/
 │   └── agent-template.yml  # preset 模板（{{persona}}/{{packageRows}}/{{extraRows}} 插槽）
 ├── capabilities.yml        # ★ 组装目录：能力条目 + mcp-servers 连接配置
 ├── index/
-│   ├── catalog.yml         # ★ 代码索引：32 个库的条目（repo/rev/tools,含第一方）
+│   ├── catalog.yml         # ★ 代码索引：33 个库的条目（repo/rev/tools,含第一方）
 │   └── reports/            # 每个库的冒烟验证报告
-├── generated/              # ★ 零件库：32 个 MCP 适配服务器（每库一个目录）
+├── generated/              # ★ 零件库：33 个 MCP 适配服务器（每库一个目录）
 │   └── <id>/{package.json, index.js, smoke.mjs}
 └── scripts/
-    └── link-dsh.mjs        # 链接 DSH peer 包（@deepseek-ai/cordis 等）
+    ├── link-dsh.mjs        # 链接 DSH peer 包（@deepseek-ai/cordis 等）
+    ├── index-add.mjs       # ★ 索引流水线 CLI：scaffold/verify/register/check-all
+    └── assembly-bench.mjs  # 20 题装配质量基准
 ```
 
 ## 能力目录（capabilities.yml）
@@ -101,25 +103,31 @@ dsh-assembler/
 |---|---|---|
 | `package` | 本仓库/自有插件包的工具 | `crm-query`（dsh-cs-tools）|
 | `harness` | DSH 内置工具 | `content-search`（dsh-tool-fs-search）|
-| `mcp` | MCP 服务器工具（组装时自动联邦）| `mcp-email-send-send-email` 等 126 个 |
+| `mcp` | MCP 服务器工具（组装时自动联邦）| `mcp-email-send-send-email` 等 129 个 |
 
 `mcp-servers` 段声明连接配置；`hostMounted: true` 表示服务器已在 host 平面挂载（工具全局可见，preset 不重复生成 mcp-client 行）。
 
-当前规模：**32 个库（31 上游 + 1 第一方）/ 112 个零件工具 / 134 个目录条目**，覆盖：邮件收发、HTTP、HTML、CSV、Excel、PDF 生成与提取、Word、ZIP、模糊搜索、模板渲染、XML、图片处理、RSS、日历解析与生成、SQLite/PostgreSQL/MySQL、GitHub API、Markdown、OCR、二维码、货币、浏览器自动化、二进制落盘。
+当前规模：**33 个库（32 上游 + 1 第一方）/ 115 个零件工具 / 137 个目录条目**，覆盖：邮件收发、HTTP、HTML、CSV、Excel、PDF 生成与提取、Word、ZIP、模糊搜索、模板渲染、XML、图片处理、RSS、日历解析与生成、SQLite/PostgreSQL/MySQL、GitHub API、Markdown、OCR、二维码、货币、浏览器自动化、二进制落盘、文本 diff/补丁。
 
-## 索引流水线（零件生产）
+## 索引流水线（零件生产,CLI 化）
 
+收录一个新开源库 = 三条命令 + 中间由 agent 写适配。CLI 的设计前提是**调用方就是 agent**:确定性环节(取源、出工单、装依赖、质检、登记)全在 CLI 里,"切能力点 + 写适配代码"这一智能环节留给调用方——不内嵌 LLM 调用,每个子命令末行输出 JSON 判定,机器可判读。
+
+```bash
+node scripts/index-add.mjs scaffold kpdecker/jsdiff --pkg diff --id text-diff
+#   → npm 元数据(锁版/许可证) + 浅取上游源码 + 生成骨架与工单 WORK-ORDER.md
+#   (agent 按工单写 generated/text-diff/{index.js,smoke.mjs})
+node scripts/index-add.mjs verify text-diff
+#   → npm install → 冒烟(exit 0 必须)→ 独立 listTools 实探 → 写验证报告
+node scripts/index-add.mjs register text-diff
+#   → 幂等登记 index/catalog.yml + capabilities.yml;下次装配联邦自动看见
+node scripts/index-add.mjs check-all   # 全量复检:跑每个零件的冒烟,可当回归门
 ```
-选库 → git clone(锁定 rev) → AI 全量阅读 → 切分 2~4 个能力点
-  → 生成 MCP stdio 适配服务器(generated/<id>/)
-  → npm install → 冒烟验证(listTools + 真实调用 + 错误路径)
-  → 写验证报告(index/reports/<id>.json)
-  → verified → 登记进 capabilities.yml 的 mcp-servers 段
-```
 
-- 上游源码**不 vendored**（按 rev 拉取，许可证合规）；`generated/` 只含我们生成的适配代码及少量冒烟夹具/字体资产（OFL）
+**质检门在流水线里**:verify 不过,register 直接拒绝;报告非 pass 拒绝登记。首个 CLI 收录实测(text-diff,jsdiff@9.0.0):scaffold→写适配→verify(冒烟 7/7)→register,目录 134→137 条目,收录后首次联邦 0.28s(其余零件全缓存命中,只实探新件)。
+
+- 上游源码**不 vendored**（浅取到 `.cache/upstream/` 供阅读,依赖按 npm 精确锁版,许可证登记入目录）；`generated/` 只含我们生成的适配代码及少量冒烟夹具/字体资产（OFL）
 - `verified: true` 仅在 listTools 成功且至少一次真实工具往返（成功或结构化报错）时授予
-- 流水线由多 agent 编排（workflow）执行，每批 3~4 个库并行
 
 ## 端到端示例（已验证）
 
@@ -182,7 +190,7 @@ parts:
 
 1. **同 preset 并发会话没有问题**（旧版此处的"并发撞名"限制是误判，已实证纠正）：harness 对每个 preset 文件代际只挂载一次 standing 组合，并发会话通过 scope parenting 共用同一实例——两个会话同时跑同一个装配 preset 各自完成，无 serverName 冲突。真正的残余限制是：**host 进程存活期内不释放被取代代际的 serverName**，所以手工编辑 preset 文件（字节变了、serverName 没变）后，同一 host 进程里的新会话会撞旧代际，重启 host 恢复。组装器自身的重发已按"文件字节哈希入 serverName 后缀 + 字节相同跳写盘"根治（任何字节差异自动换名，字节相同不换代）
 2. **联邦耗时**：已解决——并行化（16 车道，`DSH_ASSEMBLER_FED_LANES` 可调）+ 索引缓存后,冷跑约 5s,**缓存命中 <0.01s**(实测 0.002s,33 服务器零连接)。失效键 = 连接配置哈希 + 适配器文件指纹(只 stamp 常规文件,目录参数如 `/tmp` 的 mtime 抖动不会假失效);`DSH_ASSEMBLER_FED_CACHE=0` 强制全实探,`DSH_ASSEMBLER_FED_TTL_MS` 调 TTL(默认 7 天,兜底远程服务器工具集漂移)
-3. **目录选型压力**：134 条目下 LLM 选型仍准确，但更大规模需要按域分层
+3. **目录选型压力**：137 条目下 LLM 选型仍准确，但更大规模需要按域分层
 4. **组装映射调用默认使用 fast 模型**（`deepseek-v4-flash`，可经插件 `config.model` 覆盖），不继承会话的重模型配置（重模型曾导致单次组装约 10 分钟）
 5. **自动验证依赖 webServer**：headless（无 web 面板）装配时探针无处可跑，自动验证降级为"跳过"，装配本身不受影响
 
