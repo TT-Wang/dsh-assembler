@@ -2,6 +2,12 @@
 /**
  * Link the DeepSeek Harness peer packages into node_modules for local development.
  * Same pattern as dsh-cs-tools: peers are host-provided; symlink from the checkout.
+ *
+ * Only the peers listed below are managed here. Plain dependencies (js-yaml) belong
+ * to npm and must not be borrowed from the harness — a borrowed copy survives every
+ * `npm install` and silently pins itself to whichever checkout was current the day
+ * the link was made.
+ *
  * Usage: npm run link:dsh
  */
 import { existsSync, mkdirSync, rmSync, symlinkSync, lstatSync, readlinkSync } from 'node:fs'
@@ -33,17 +39,24 @@ function resolveHarnessRoot() {
 const root = resolveHarnessRoot()
 const modulesDir = join(REPO, 'node_modules')
 mkdirSync(modulesDir, { recursive: true })
-for (const [name, rel] of Object.entries(PEERS)) {
-  const target = join(root, rel)
+
+/**
+ * Point `node_modules/<name>` at `target`, replacing whatever is there.
+ * A link that already exists but resolves elsewhere is REPLACED, not kept:
+ * a checkout that moves (or a `source/current` that flips to a new release)
+ * would otherwise leave the old target in place and go on serving a previous
+ * generation's code from under a current-looking name.
+ */
+function ensureLink(name, target) {
   const link = join(modulesDir, name)
   if (!existsSync(target)) {
     console.warn(`skip ${name}: ${target} missing`)
-    continue
+    return
   }
-  if (existsSync(link)) {
+  if (existsSync(link) || isDanglingLink(link)) {
     try {
       const stat = lstatSync(link)
-      if (stat.isSymbolicLink() && readlinkSync(link) === target) continue
+      if (stat.isSymbolicLink() && readlinkSync(link) === target) return
     } catch { /* fall through and replace */ }
     rmSync(link, { recursive: true, force: true })
   }
@@ -51,21 +64,15 @@ for (const [name, rel] of Object.entries(PEERS)) {
   symlinkSync(target, link, 'junction')
   console.log(`linked ${name} -> ${target}`)
 }
-// js-yaml (plain dep for catalog parsing) and tsx (dev runner)
-for (const [name, pkg] of Object.entries({
-  'js-yaml': 'node_modules/js-yaml',
-  'tsx': 'node_modules/tsx',
-})) {
-  const target = join(root, pkg)
-  const link = join(modulesDir, name)
-  if (!existsSync(target)) {
-    console.warn(`skip ${name}: ${target} missing`)
-    continue
+
+/** A symlink whose target has vanished: invisible to existsSync, still in the way of symlinkSync. */
+function isDanglingLink(link) {
+  try {
+    return lstatSync(link).isSymbolicLink()
+  } catch {
+    return false
   }
-  if (!existsSync(link)) {
-    mkdirSync(dirname(link), { recursive: true })
-    symlinkSync(target, link, 'junction')
-  }
-  console.log(`linked ${name} -> ${target}`)
 }
+
+for (const [name, rel] of Object.entries(PEERS)) ensureLink(name, join(root, rel))
 console.log('done')
