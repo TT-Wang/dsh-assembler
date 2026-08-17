@@ -1,0 +1,24 @@
+{
+  "id": "apisguru-directory",
+  "kind": "service",
+  "client": "acme",
+  "service": "https://api.apis.guru/v2",
+  "provider": "APIs.guru",
+  "license": "CC0 1.0",
+  "terms": "(客户自有接口:条款以合同为准)",
+  "rateLimit": "(未声明)",
+  "specSource": "https://api.apis.guru/v2/specs/apis.guru/2.2.0/openapi.json",
+  "specVersion": "2.2.0",
+  "network": true,
+  "requiredSecrets": [
+    {
+      "env": "APISGURU_TOKEN",
+      "purpose": "可选凭证,匿名亦可用"
+    },
+    {
+      "env": "EXTRA_TOKEN",
+      "purpose": "第二个,测试分号分隔"
+    }
+  ],
+  "scaffoldedAt": "2026-08-17T06:01:26.693Z"
+}

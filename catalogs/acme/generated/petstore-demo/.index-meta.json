@@ -1,0 +1,14 @@
+{
+  "id": "petstore-demo",
+  "kind": "service",
+  "client": "acme",
+  "service": "/api/v3",
+  "provider": "Swagger Petstore - OpenAPI 3.0",
+  "license": "Apache 2.0",
+  "terms": "https://swagger.io/terms/",
+  "rateLimit": "(未声明)",
+  "specSource": "https://petstore3.swagger.io/api/v3/openapi.json",
+  "specVersion": "1.0.27",
+  "network": true,
+  "scaffoldedAt": "2026-08-17T06:00:32.804Z"
+}

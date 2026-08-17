@@ -22,8 +22,9 @@
  *       全量复检:跑每个 generated/<id>/smoke.mjs,任一失败退出非零。
  */
 import { execSync, spawnSync } from 'node:child_process'
+import yaml from 'js-yaml'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -72,6 +73,45 @@ const die = (msg) => {
 }
 const out = (obj) => {
   console.log(JSON.stringify({ ok: true, ...obj }))
+}
+
+/**
+ * Parse `--requires-secret "ENV:purpose; ENV2:purpose"`.
+ *
+ * Entries split on SEMICOLONS, not commas: a purpose is prose written for a
+ * human operator and prose contains commas ("可选,匿名亦可用" produced a
+ * bogus variable named 匿名亦可用 the first time this ran). An entry with no
+ * colon is a bare variable name. Only strings that look like env vars are
+ * accepted, so a malformed line is dropped loudly rather than registered as
+ * a credential nobody can ever configure.
+ */
+function parseRequiredSecrets(raw) {
+  return String(raw ?? '')
+    .split(';')
+    .map((x) => x.trim())
+    .filter((x) => x !== '')
+    .map((x) => {
+      const i = x.indexOf(':')
+      return i === -1 ? { env: x.trim() } : { env: x.slice(0, i).trim(), purpose: x.slice(i + 1).trim() }
+    })
+    .filter((x) => {
+      if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(x.env)) return true
+      console.error(`[index-add] 忽略非法凭证声明(变量名不合法):${JSON.stringify(x.env)}——条目用分号分隔,用途里可以带逗号`)
+      return false
+    })
+}
+
+/**
+ * Roots for one catalog: the public one, or a client's private one.
+ *
+ * A client's parts live in catalogs/<client>/ with their own generated/,
+ * index/ and capabilities.yml. Isolation is the point — ACME's internal API
+ * part must never surface in a different client's assembly — and it comes
+ * from separate FILES rather than a filter, so there is no flag anyone can
+ * forget that would leak one client's surface into another's.
+ */
+function catalogRoot(client) {
+  return client === undefined || client === '' ? REPO : join(REPO, 'catalogs', client)
 }
 
 // ── dedup gate ─────────────────────────────────────────────────────────────
@@ -138,14 +178,7 @@ function scaffoldService(id, opts) {
     }, null, 2) + '\n')
   }
   // requiredSecrets: "ENV:用途,ENV2:用途" — declared here, valued nowhere.
-  const requiredSecrets = (opts['requires-secret'] ?? '')
-    .split(',')
-    .map((x) => x.trim())
-    .filter((x) => x !== '')
-    .map((x) => {
-      const i = x.indexOf(':')
-      return i === -1 ? { env: x } : { env: x.slice(0, i).trim(), purpose: x.slice(i + 1).trim() }
-    })
+  const requiredSecrets = parseRequiredSecrets(opts['requires-secret'])
   const meta = {
     id,
     kind: 'service',
@@ -175,7 +208,9 @@ function scaffoldService(id, opts) {
        Nominatim/SEC 等服务强制要求 UA,缺了会被封
      * 非 2xx、超时、JSON 解析失败一律返回 { isError: true, ... } 且**说明是哪个服务出了什么问题**,绝不抛裸异常
      * 尊重速率限制(${meta.rateLimit});不做并发扇出
-     * **代理韧性**:传输层失败(不是 HTTP 错误码)时,自动重试一次并显式绕开代理
+     * **传输层韧性(两条)**:① 瞬时抖动(socket 重置/DNS/TLS 打嗝)先原路重试一次
+       (约 400ms 退避)——实测网络零件会偶发单次失败、单跑三次全过,不重试就是假红;
+       ② 仍失败则显式绕开代理再试一次
        —— 同一机器上不同域名对代理的要求可能相反(实测:www.sec.gov 必须走代理,
        data.sec.gov 走代理会断 TLS)。写法参照 generated/sec-filings/index.js 的
        fetchWithProxyFallback;HTTP 错误码不重试(403 是答复,不是断路)
@@ -291,7 +326,7 @@ ${meta.description ? `简介:${meta.description}` : ''}
 
 // ── verify ─────────────────────────────────────────────────────────────────
 async function verify() {
-  out(await verifyCore(target))
+  out(await verifyCore(target, flags.client))
 }
 
 /**
@@ -299,9 +334,10 @@ async function verify() {
  * probe, report. Throws with the smoke output on failure — `auto` feeds that
  * text back to the agent so it can repair its own part.
  */
-async function verifyCore(idArg) {
+async function verifyCore(idArg, clientName) {
   const id = idArg
-  const dir = join(REPO, 'generated', id ?? '')
+  const root = catalogRoot(clientName)
+  const dir = join(root, 'generated', id ?? '')
   if (!id || !existsSync(dir)) die(`generated/${id} 不存在——先 scaffold`)
   for (const f of ['index.js', 'smoke.mjs', 'package.json']) {
     if (!existsSync(join(dir, f))) die(`缺 ${f}——按 WORK-ORDER.md 补齐`)
@@ -325,8 +361,8 @@ async function verifyCore(idArg) {
   await client.close()
   if (tools.length === 0) die('listTools 为空')
 
-  mkdirSync(join(REPO, 'index', 'reports'), { recursive: true })
-  writeFileSync(join(REPO, 'index', 'reports', `${id}.json`), JSON.stringify({
+  mkdirSync(join(root, 'index', 'reports'), { recursive: true })
+  writeFileSync(join(root, 'index', 'reports', `${id}.json`), JSON.stringify({
     id, verifiedAt: new Date().toISOString(), node: process.version,
     smoke: 'pass', tools,
   }, null, 2) + '\n')
@@ -335,15 +371,16 @@ async function verifyCore(idArg) {
 
 // ── register ───────────────────────────────────────────────────────────────
 function register() {
-  out(registerCore(target))
+  out(registerCore(target, flags.client))
 }
 
 /** Idempotent catalog registration; refuses without a passing verify report. */
-function registerCore(idArg) {
+function registerCore(idArg, client) {
   const id = idArg
-  const dir = join(REPO, 'generated', id ?? '')
+  const root = catalogRoot(client)
+  const dir = join(root, 'generated', id ?? '')
   const metaPath = join(dir, '.index-meta.json')
-  const reportPath = join(REPO, 'index', 'reports', `${id}.json`)
+  const reportPath = join(root, 'index', 'reports', `${id}.json`)
   if (!existsSync(metaPath)) die('缺 .index-meta.json——先 scaffold')
   if (!existsSync(reportPath)) die('缺 verify 报告——质检门:先 verify 且必须通过')
   const meta = JSON.parse(readFileSync(metaPath, 'utf8'))
@@ -352,7 +389,11 @@ function registerCore(idArg) {
 
   const changed = []
   // catalog.yml:追加条目(幂等)
-  const catalogPath = join(REPO, 'index', 'catalog.yml')
+  const catalogPath = join(root, 'index', 'catalog.yml')
+  if (!existsSync(catalogPath)) {
+    mkdirSync(dirname(catalogPath), { recursive: true })
+    writeFileSync(catalogPath, `# ${client ?? 'public'} 零件索引(由 index-add 维护)\n`)
+  }
   const catalog = readFileSync(catalogPath, 'utf8')
   if (!new RegExp(`^- id: ${id}$`, 'm').test(catalog)) {
     const toolLines = report.tools
@@ -374,7 +415,10 @@ ${toolLines}
     changed.push('index/catalog.yml')
   }
   // capabilities.yml:mcp-servers 段插入连接配置(段尾 = capabilities: 键之前;幂等)
-  const capsPath = join(REPO, 'capabilities.yml')
+  const capsPath = join(root, 'capabilities.yml')
+  if (!existsSync(capsPath)) {
+    writeFileSync(capsPath, `# ${client ?? 'public'} 能力目录(由 index-add 维护)\nmcp-servers:\n\ncapabilities: []\n`)
+  }
   const caps = readFileSync(capsPath, 'utf8')
   if (!new RegExp(`^  ${id}:$`, 'm').test(caps)) {
     // requiredSecrets travels into capabilities.yml too: that is where the
@@ -383,12 +427,155 @@ ${toolLines}
     const secretDecl = Array.isArray(meta.requiredSecrets) && meta.requiredSecrets.length > 0
       ? `    requiredSecrets:\n${meta.requiredSecrets.map((x) => `      - { env: ${x.env}, purpose: ${JSON.stringify(x.purpose ?? '')} }`).join('\n')}\n`
       : ''
-    const entry = `  ${id}:\n    transport: stdio\n    command: node\n    args: ['${join(REPO, 'generated', id, 'index.js')}']\n${secretDecl}\n`
+    const entry = `  ${id}:\n    transport: stdio\n    command: node\n    args: ['${join(root, 'generated', id, 'index.js')}']\n${secretDecl}\n`
     if (!/^capabilities:$/m.test(caps)) die('capabilities.yml 缺 capabilities: 键,无法定位 mcp-servers 段尾')
     writeFileSync(capsPath, caps.replace(/^capabilities:$/m, entry + 'capabilities:'))
     changed.push('capabilities.yml')
   }
   return { id, registered: changed, note: changed.length > 0 ? 'git diff 后提交即完成收录;联邦缓存无此 server 键,下次装配自动实探' : '已登记过,无改动' }
+}
+
+// ── from-spec ──────────────────────────────────────────────────────────────
+// FDE 的日常动作不是收录 npm 包,是接客户的系统。客户手里通常有一份
+// OpenAPI/Swagger(或者只有一段接口说明),这里把它变成零件骨架 + 工单:
+// CLI 做确定性的部分(取回 spec、清点端点、按 tag 归组、写工单),
+// "挑哪几个能力点、怎么映射参数"仍然留给调用方(agent)。
+//
+// 客户私有目录:--client <name> 把零件写进 catalogs/<client>/,与公共目录
+// 隔离 —— A 客户的接口零件不该出现在 B 客户的装配里。
+
+/** Fetch or read an OpenAPI document (JSON or YAML). */
+async function loadSpec(src) {
+  let text
+  if (/^https?:\/\//.test(src)) {
+    const res = await fetch(src, { signal: AbortSignal.timeout(20_000), headers: { 'User-Agent': 'dsh-assembler/0.1 (+https://github.com/TT-Wang/dsh-assembler)' } })
+    if (!res.ok) die(`取 spec 失败:HTTP ${res.status} ${src}`)
+    text = await res.text()
+  } else {
+    if (!existsSync(src)) die(`spec 文件不存在:${src}`)
+    text = readFileSync(src, 'utf8')
+  }
+  try {
+    return text.trimStart().startsWith('{') ? JSON.parse(text) : yamlParse(text)
+  } catch (error) {
+    die(`spec 解析失败(既不是合法 JSON 也不是合法 YAML):${error.message.slice(0, 200)}`)
+  }
+}
+
+/** Minimal YAML subset parser is not attempted — js-yaml is a dependency. */
+function yamlParse(text) {
+  return yaml.load(text)
+}
+
+/**
+ * Endpoint inventory grouped by tag, with the facts an adapter author needs:
+ * method, path, summary, parameter names, whether a body is required.
+ */
+function inventoryEndpoints(spec) {
+  const groups = new Map()
+  const paths = spec.paths ?? {}
+  for (const [path, item] of Object.entries(paths)) {
+    for (const method of ['get', 'post', 'put', 'patch', 'delete']) {
+      const op = item?.[method]
+      if (op === undefined) continue
+      const tag = (Array.isArray(op.tags) && op.tags.length > 0) ? String(op.tags[0]) : 'default'
+      const params = [...(item.parameters ?? []), ...(op.parameters ?? [])]
+        .map((prm) => `${prm.name}${prm.required === true ? '*' : ''}(${prm.in})`)
+      const entry = {
+        method: method.toUpperCase(),
+        path,
+        summary: String(op.summary ?? op.description ?? '').replace(/\s+/g, ' ').slice(0, 120),
+        operationId: op.operationId,
+        params,
+        hasBody: op.requestBody !== undefined,
+        auth: Array.isArray(op.security) ? op.security.length > 0 : undefined,
+      }
+      if (!groups.has(tag)) groups.set(tag, [])
+      groups.get(tag).push(entry)
+    }
+  }
+  return groups
+}
+
+function fromSpec() {
+  const src = target
+  if (src === undefined || src === '') die('用法:index-add.mjs from-spec <spec-url|spec-file> --id <零件id> [--client <客户名>] [--requires-secret ENV:用途]')
+  return (async () => {
+    const spec = await loadSpec(src)
+    const id = (flags.id ?? spec.info?.title ?? 'client-api').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48)
+    const client = flags.client
+    const root = client === undefined ? REPO : join(REPO, 'catalogs', client)
+    const dir = join(root, 'generated', id)
+    if (existsSync(join(dir, '.index-meta.json')) && flags.force !== 'yes') die(`去重门:${id} 已存在(${dir})`)
+
+    const groups = inventoryEndpoints(spec)
+    const total = [...groups.values()].reduce((n, g) => n + g.length, 0)
+    if (total === 0) die('spec 里没有找到任何端点(paths 为空?)')
+    const servers = Array.isArray(spec.servers) ? spec.servers.map((sv) => sv.url).filter(Boolean) : []
+    const baseUrl = flags['base-url'] ?? servers[0] ?? '(spec 未声明 servers,需手工确认 base URL)'
+
+    const requiredSecrets = parseRequiredSecrets(flags['requires-secret'])
+
+    mkdirSync(dir, { recursive: true })
+    if (!existsSync(join(dir, 'package.json'))) {
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({
+        name: `@dsh-index/${id}`, version: '0.0.1', type: 'module', private: true,
+        description: `MCP stdio server for ${spec.info?.title ?? id}`,
+        dependencies: { '@modelcontextprotocol/sdk': '^1.0.0', zod: '^3.23.0' },
+      }, null, 2) + '\n')
+    }
+    writeFileSync(join(dir, '.index-meta.json'), JSON.stringify({
+      id, kind: 'service', client: client ?? null,
+      service: baseUrl,
+      provider: spec.info?.title ?? id,
+      license: flags.license ?? spec.info?.license?.name ?? 'UNKNOWN',
+      terms: flags.terms ?? spec.info?.termsOfService ?? '(客户自有接口:条款以合同为准)',
+      rateLimit: flags['rate-limit'] ?? '(未声明)',
+      specSource: src,
+      specVersion: spec.info?.version ?? null,
+      network: true,
+      ...(requiredSecrets.length > 0 ? { requiredSecrets } : {}),
+      scaffoldedAt: new Date().toISOString(),
+    }, null, 2) + '\n')
+
+    const inventory = [...groups.entries()].map(([tag, eps]) => {
+      const lines = eps.slice(0, 25).map((e) => `  - ${e.method} ${e.path}${e.params.length > 0 ? ` [${e.params.join(', ')}]` : ''}${e.hasBody ? ' +body' : ''}${e.summary !== '' ? ` — ${e.summary}` : ''}`)
+      const more = eps.length > 25 ? `  - …另有 ${eps.length - 25} 个端点` : ''
+      return `### ${tag}(${eps.length} 个端点)\n${lines.join('\n')}${more === '' ? '' : '\n' + more}`
+    }).join('\n\n')
+
+    writeFileSync(join(dir, 'WORK-ORDER.md'), `# 收录工单(客户接口):${id}
+
+来源 spec:${src}
+接口标题:${spec.info?.title ?? '(未声明)'} ${spec.info?.version ?? ''}
+Base URL:${baseUrl}
+${client === undefined ? '' : `客户:${client}(零件写入 catalogs/${client}/,与公共目录隔离)\n`}${requiredSecrets.length > 0 ? `所需凭证:${requiredSecrets.map((x) => `${x.env}${x.purpose ? `(${x.purpose})` : ''}`).join('、')}\n` : ''}
+## 端点清单(共 ${total} 个,已按 tag 归组)
+
+${inventory}
+
+## 要写的两个文件
+
+1. **index.js** — MCP stdio 适配服务器(照抄 generated/geocode/index.js 的户型)
+   - **从上面清单里挑 2~5 个最有业务价值的端点**做成工具:一个工具 = 一个 agent 说得清楚的完整动作,不要把端点一对一翻译成工具
+   - 用内置 fetch;超时 AbortSignal.timeout(15000);明确 User-Agent;返回体裁剪
+   - 非 2xx / 超时 / 解析失败一律 { isError: true, ... } 并说清是哪个接口什么问题
+   - 传输层失败重试一次并绕开代理(参照 generated/sec-filings/index.js 的 fetchWithProxyFallback)
+   - **凭证从自己进程的环境变量读**,绝不写进代码、绝不当工具参数;未配时 listTools 照常成功、调用给出可行动错误
+   - **写操作**(POST/PUT/DELETE)的 description 必须以【写操作,会真实修改客户系统】开头
+2. **smoke.mjs** — 冒烟(check() 计数,process.exit(failures))
+   - listTools 断言 + 每个工具真实调用(或零凭证降级路径)+ 错误路径
+   - 用 NETWORK_ENV 写法把代理环境传给子进程(见 generated/geocode/smoke.mjs)
+   - 断言结构与量纲,不断言易变的具体值
+`)
+    out({
+      id, client: client ?? null, dir: dir.replace(REPO + '/', ''),
+      endpoints: total, tags: [...groups.keys()],
+      baseUrl, requiredSecrets: requiredSecrets.map((x) => x.env),
+      workOrder: join(dir, 'WORK-ORDER.md').replace(REPO + '/', ''),
+      next: `写 ${id} 的 index.js + smoke.mjs,然后 verify${client === undefined ? '' : ` --client ${client}`}`,
+    })
+  })()
 }
 
 // ── auto ───────────────────────────────────────────────────────────────────
@@ -508,30 +695,67 @@ async function auto() {
 
 // ── check-all ──────────────────────────────────────────────────────────────
 async function checkAll() {
+  // Public parts plus every client catalog: a client's parts are isolated
+  // from other clients' assemblies, not from the regression gate.
+  const roots = [REPO]
+  const catalogsDir = join(REPO, 'catalogs')
+  if (existsSync(catalogsDir)) {
+    for (const c of readdirSync(catalogsDir)) {
+      if (existsSync(join(catalogsDir, c, 'generated'))) roots.push(join(catalogsDir, c))
+    }
+  }
+  const ids = []
+  const genOf = new Map()
+  for (const r of roots) {
+    const g = join(r, 'generated')
+    if (!existsSync(g)) continue
+    for (const d of readdirSync(g)) {
+      if (!existsSync(join(g, d, 'smoke.mjs'))) continue
+      const label = r === REPO ? d : `${basename(r)}/${d}`
+      ids.push(label)
+      genOf.set(label, join(g, d))
+    }
+  }
   const gen = join(REPO, 'generated')
-  const ids = readdirSync(gen).filter((d) => existsSync(join(gen, d, 'smoke.mjs')))
   // A network part's smoke makes real calls, so an offline run would report
   // failures that say nothing about the part. Those are SKIPPED and counted
   // separately — never folded into the pass count, because "did not run" and
   // "ran and passed" are different facts and the ledger must keep them apart.
+  // Connectivity probe with the same resilience the parts have: a single
+  // endpoint on a single path is not evidence of being offline — one flaky
+  // host or a proxy that covers some domains and not others would silently
+  // convert the whole network suite into SKIPPED, and a run that skips
+  // everything looks green while proving nothing.
   const online = await (async () => {
-    try {
-      const r = await fetch('https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR', { signal: AbortSignal.timeout(8000) })
-      return r.ok
-    } catch { return false }
+    const targets = [
+      'https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR',
+      'https://registry.npmjs.org/diff/latest',
+      'https://date.nager.at/api/v3/AvailableCountries',
+    ]
+    const { Agent } = await import('undici').catch(() => ({ Agent: null }))
+    for (const url of targets) {
+      for (const dispatcher of [undefined, Agent === null ? undefined : new Agent()]) {
+        try {
+          const r = await fetch(url, { signal: AbortSignal.timeout(8000), ...(dispatcher === undefined ? {} : { dispatcher }) })
+          if (r.ok) return true
+        } catch { /* try the next path/target */ }
+      }
+    }
+    return false
   })()
   const results = []
   for (const id of ids) {
+    const partDir = genOf.get(id) ?? join(gen, id)
     let networkPart = false
     try {
-      networkPart = JSON.parse(readFileSync(join(gen, id, '.index-meta.json'), 'utf8')).network === true
+      networkPart = JSON.parse(readFileSync(join(partDir, '.index-meta.json'), 'utf8')).network === true
     } catch { /* library part or pre-metadata part */ }
     if (networkPart && !online) {
       results.push({ id, skipped: true })
       console.error(`  ↷ SKIP ${id}(网络零件,当前离线)`)
       continue
     }
-    const r = spawnSync('node', ['smoke.mjs'], { cwd: join(gen, id), encoding: 'utf8', timeout: 180_000, env: partEnv() })
+    const r = spawnSync('node', ['smoke.mjs'], { cwd: partDir, encoding: 'utf8', timeout: 180_000, env: partEnv() })
     results.push({ id, pass: r.status === 0 })
     console.error(`${r.status === 0 ? '  ✓' : '  ✗ FAIL'} ${id}`)
   }
@@ -554,4 +778,5 @@ else if (cmd === 'register') register()
 else if (cmd === 'check-all') await checkAll()
 else if (cmd === 'coverage') coverage()
 else if (cmd === 'auto') await auto()
+else if (cmd === 'from-spec') await fromSpec()
 else die('用法:index-add.mjs scaffold <owner/repo> --pkg <npm名> | verify <id> | register <id> | check-all | coverage | auto <owner/repo> --pkg <npm名> [--id <id>] [--port 3096]')

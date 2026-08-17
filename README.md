@@ -136,6 +136,17 @@ node scripts/index-add.mjs auto sindresorhus/slugify --pkg @sindresorhus/slugify
 #   → 过同一道质检门;冒烟不过就把输出喂回同一会话让它自愈(一次)→ 登记
 ```
 
+**接客户的系统(FDE 日常动作)**:客户给一份 OpenAPI/Swagger,一条命令变成零件骨架 + 工单——CLI 取回 spec、清点端点、按 tag 归组、写工单,"挑哪几个能力点"仍留给 agent:
+
+```bash
+node scripts/index-add.mjs from-spec <spec-url|file> --id <零件id> --client <客户名> \
+  --requires-secret "TOKEN:用途说明,可含逗号;OTHER_TOKEN:第二个"
+#   → catalogs/<客户名>/generated/<id>/ + 端点清单工单(方法/路径/必填参数/请求体/摘要)
+#   → verify/register/check-all 都带 --client 走客户私有目录
+```
+
+**客户私有目录**:`catalogs/<client>/` 有自己的 `generated/`、`index/`、`capabilities.yml`——A 客户的内部接口零件**不会出现在** B 客户的装配里。隔离靠**分文件**而不是过滤条件,所以没有"忘了加过滤"这种泄漏路径;但回归门照扫所有客户目录(隔离的是装配面,不是质检)。
+
 **`auto` 的设计**:CLI **调** agent 而非**内嵌** LLM——和装配即验证的探针同构,复用 harness 的模型路由与文件工具,也复用同一道门。职责分离:**流水线管门(verify/register),agent 管文件**(实测教训:工单尾部的操作员命令交给 agent 会让它自己跑门,流水线那遍就变成幂等空操作、报告失真;现在 auto 会把工单的操作员章节剥掉再交给它)。实测两库零人工入库:`@sindresorhus/slugify`(3 工具)、`filenamify`(2 工具),冒烟全过。
 
 **去重两层**(目录是能力目录不是库目录,判重标准是能力点不是库名):① 机械硬门——scaffold 时同 id / 同 npm 包 / 同上游 repo 一律拒收(`--force yes` 逃生),dayjs 换个 id 再收会被"npm 包已被零件 date-format 收录"挡下;② 语义判重——候选对照 `coverage` 覆盖图判 NEW / OVERLAP,重叠能力点不收或只收不重叠部分(实例:convert-units 被 mathjs 的单位换算能力点覆盖而砍掉;moment/cheerio/axios/fast-diff/papaparse 因与既有零件同能力而拒收)。

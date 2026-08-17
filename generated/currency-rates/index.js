@@ -27,15 +27,44 @@ const ok = (payload) => ({ content: [{ type: 'text', text: JSON.stringify(payloa
 const fail = (text) => ({ isError: true, content: [{ type: 'text', text }] });
 
 /**
+ * 传输层韧性:瞬时故障重试一次,再失败则绕开代理重试。
+ *
+ * 两类失败与服务的"答复"无关,属于环境:① 瞬时抖动(socket 重置、DNS/TLS
+ * 打嗝)——短暂退避后重试一次即可把假红变成真读数(实测:check-all 里偶发
+ * 单次失败,单跑三次全过);② 代理不对称——同一机器上某些域名必须走代理、
+ * 兄弟域名走代理反而断(实测 www.sec.gov vs data.sec.gov)。
+ * HTTP 状态码一律不重试:403/404 是答复,不是断路。
+ */
+async function resilientFetch(url, init) {
+  const attempt = (dispatcher) => fetch(url, {
+    ...init,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+    ...(dispatcher === undefined ? {} : { dispatcher }),
+  });
+  try {
+    return await attempt(undefined);
+  } catch (first) {
+    await new Promise((r) => setTimeout(r, 400));
+    try {
+      return await attempt(undefined);
+    } catch {
+      const proxied = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+      if (!proxied) throw first;
+      const { Agent } = await import('undici');
+      return await attempt(new Agent());
+    }
+  }
+}
+
+/**
  * 单次只读 GET:超时、非 2xx、JSON 解析失败一律转成 { error: 说明文本 },
  * 绝不向上抛裸异常。Frankfurter 的错误体形如 {"message":"not found"}。
  */
 async function getJson(url) {
   let res;
   try {
-    res = await fetch(url, {
+    res = await resilientFetch(url, {
       headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (e) {
     const name = e?.name ?? '';
