@@ -1,5 +1,5 @@
 {
-  "appliedAt": "2026-08-17T16:09:28.307Z",
+  "appliedAt": "2026-08-17T17:12:21.945Z",
   "port": 3080,
   "params": {
     "timezone": "Asia/Shanghai",
@@ -8,21 +8,21 @@
   "results": [
     {
       "id": "nw-dep-triage",
-      "verdict": "SKIPPED",
-      "line": "自动验证:跳过(probe error: session.create: {",
-      "wallSeconds": 186
+      "verdict": "FAIL",
+      "line": "自动验证:FAIL — 多轮场景「证明 agent 能把多轮治理扫描持久化到 SQLite，并在不重述批次输入的情况下读取历史批次、比较漏洞变化并生成带出」共 3 轮;第 1 轮未在 300s 内完成",
+      "wallSeconds": 1177
     },
     {
       "id": "nw-upgrade-advisor",
-      "verdict": "SKIPPED",
-      "line": "自动验证:跳过(probe error: session.create: {",
-      "wallSeconds": 160
+      "verdict": "PASS",
+      "line": "自动验证:PASS — 多轮场景「证明依赖升级评估报告能落盘，且后续轮次能独立读取并使用该报告中的编号和修复版本完成核验与留痕。」共 2 轮,逐轮通过",
+      "wallSeconds": 386
     },
     {
       "id": "nw-policy-desk",
-      "verdict": "SKIPPED",
-      "line": "自动验证:跳过(probe error: session.create: {",
-      "wallSeconds": 184
+      "verdict": "PASS",
+      "line": "自动验证:PASS — 探针「请只依据 Northwind 治理口径文档回答下面两个问题，文档没写的就回答“文档未写明”，不要补充其他规定。",
+      "wallSeconds": 747
     }
   ]
 }

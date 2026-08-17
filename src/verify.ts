@@ -89,6 +89,22 @@ export interface ProbeResult {
   reason?: string;
 }
 
+/**
+ * Per-turn probe budget.
+ *
+ * 300s was too small for a heavy agent: the governance desk's first turn has to
+ * batch-scan a dependency list, fetch a licence per hit and write the batch to
+ * SQLite, and it was declared FAIL at 300s for running long rather than for
+ * answering wrong — the worst kind of red, because it accuses the agent of a
+ * defect the probe caused.
+ *
+ * Raising it costs nothing on the happy path (a turn that finishes in 60s still
+ * finishes in 60s); it only lengthens the wait before a genuine failure is
+ * called. A deployment that needs a different figure sets `verifyTimeoutMs` in
+ * the assembler's plugin config.
+ */
+export const DEFAULT_TURN_BUDGET_MS = 600_000;
+
 /** Pure mark check: every mark present, case-insensitive. Unit-tested. */
 export function marksPresent(marks: readonly string[], reply: string): boolean {
   const hay = reply.toLowerCase();
@@ -117,7 +133,7 @@ const MARK_RULES = [
   "- mustInclude: 1-3 content-bearing strings that will appear in the reply IFF the task truly succeeded (a computed value, a verbatim token from the task input). Never accept generic words like \"done\" or \"success\".",
   "- mustInclude values MUST be derivable from data embedded in the task text itself. NEVER use remembered world facts (a domain's IP, a live exchange rate, today's date) — live data changes and remembered values go stale.",
   "- Avoid over-precise numeric marks: a mark like \"111.195\" fails when the tool legitimately prints 111.1949. Prefer a verbatim echo token, an integer, or the leading digits of a number (e.g. \"111.1\").",
-  "- Budget: the probe agent has ~4 minutes per turn. Avoid tasks whose replies embed large payloads (full base64 images) — ask for byte counts or short prefixes instead.",
+  "- Budget: the probe agent has ~10 minutes per turn, and a turn that overruns is scored FAIL. Size EVERY turn to fit, the first one included — if a turn needs many upstream calls (one per item in a list), keep the list short: 3-5 items proves the capability as well as 30 does. Avoid tasks whose replies embed large payloads (full base64 images) — ask for byte counts or short prefixes instead.",
 ];
 
 /** One fast-model JSON call with the deriver's provider/model discipline. */
@@ -342,7 +358,7 @@ export async function runProbe(
   port: number,
   presetId: string,
   probe: ProbeSpec,
-  timeoutMs = 300_000,
+  timeoutMs = DEFAULT_TURN_BUDGET_MS,
 ): Promise<ProbeResult> {
   const session = await openProbeSession(port, presetId);
   try {
@@ -370,7 +386,7 @@ export async function runScenario(
   port: number,
   presetId: string,
   scenario: ScenarioSpec,
-  timeoutMs = 300_000,
+  timeoutMs = DEFAULT_TURN_BUDGET_MS,
 ): Promise<ProbeResult> {
   const session = await openProbeSession(port, presetId);
   const turns: TurnResult[] = [];
