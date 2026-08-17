@@ -331,7 +331,6 @@
 
 - id: crypto-hash
   repo: first-party
-  rev: v-
   license: BSD-3-Clause
   tools:
     - { name: hash-text, description: "计算文本或 base64 字节的哈希摘要。algorithm 支持 sha256/sha512/sha1/md5;inputKind=text 按 UTF-8 " }
@@ -412,7 +411,6 @@
 
 - id: compress-gzip
   repo: first-party
-  rev: v-
   license: BSD-3-Clause
   tools:
     - { name: compress, description: "压缩内容返回 base64 字节。algorithm:gzip 或 brotli;inputKind=text 按 UTF-8 处理,inputKind=bas" }
@@ -420,7 +418,6 @@
 
 - id: dns-lookup
   repo: first-party
-  rev: v-
   license: BSD-3-Clause
   tools:
     - { name: resolve-domain, description: "解析域名的 DNS 记录。type 支持 A/AAAA/MX/TXT/NS/CNAME;返回记录列表 JSON。域名不存在或该类型无记录时返回结构化说明(不是硬" }

@@ -262,7 +262,12 @@ function handover() {
     '| 零件 | 出处 | 许可 |',
     '|---|---|---|',
     ...[...allParts.values()].map((p) => {
-      const origin = p.repo !== undefined ? `${p.repo}@${p.rev}` : (p.service ?? '-')
+      // 出处这一列是给客户的合规台看的,不能出现 "first-party@v-" 这种半成品,
+      // 也不该让"没有出处"和"出处没查到"长得一模一样。
+      const origin = p.repo === 'first-party' ? '第一方(Node 内置薄壳,无第三方依赖)'
+        : p.repo !== undefined ? `${p.repo}${p.rev !== undefined && p.rev !== 'v-' ? `@${p.rev}` : ''}`
+          : p.service !== undefined ? p.service
+            : '宿主自带能力(不来自供应链)'
       return `| ${p.part} | ${origin} | ${p.license ?? '-'} |`
     }),
     '',

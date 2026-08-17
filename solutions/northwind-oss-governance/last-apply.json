@@ -1,5 +1,5 @@
 {
-  "appliedAt": "2026-08-17T18:33:28.879Z",
+  "appliedAt": "2026-08-17T19:20:08.248Z",
   "port": 3080,
   "params": {
     "timezone": "Asia/Shanghai",
@@ -9,20 +9,20 @@
     {
       "id": "nw-dep-triage",
       "verdict": "PASS",
-      "line": "自动验证:PASS — 多轮场景「证明代理能完成依赖漏洞+许可证扫描、SQLite 落库、历史查询/对比和按 Northwind 口径出 Markdown」共 4 轮,逐轮通过",
-      "wallSeconds": 929
+      "line": "自动验证:PASS — 多轮场景「证明一次依赖扫描能被持久化到本地库和 Markdown 报告，并在后续轮次不重查上游即可查询、汇总和对比历史扫描。」共 2 轮,逐轮通过",
+      "wallSeconds": 1434
     },
     {
       "id": "nw-upgrade-advisor",
       "verdict": "PASS",
-      "line": "自动验证:PASS — 多轮场景「证明顾问能按治理口径完成一次依赖升级评估、将报告留痕到文件，并在后续轮次从文件中恢复评估状态。」共 2 轮,逐轮通过",
-      "wallSeconds": 439
+      "line": "自动验证:PASS — 多轮场景「证明 agent 能完成依赖漏洞评估、修复版本确认与治理留痕，并能在下一轮从报告文件中取数生成结论，证明跨轮状态可检索。」共 2 轮,逐轮通过",
+      "wallSeconds": 595
     },
     {
       "id": "nw-policy-desk",
       "verdict": "PASS",
-      "line": "自动验证:PASS — 探针「请依据 nw-governance-kb 的许可证清单判断：许可证 NORTHWIND-TEST-LICENSE-7 能否被引入？如果文档没有写明，请回答：NO」通过;验收标记 [NORTHWIND-TEST-LICENSE-7, 未写明]",
-      "wallSeconds": 114
+      "line": "自动验证:PASS — 探针「请只依据 nw-governance-kb 中的 Northwind 治理口径文档回答以下问题；KB 没有写的，直接回答“KB 未写明”，不要自行补充规定。回答」通过;验收标记 [ACC-7782, QZ-XYZ-7, KB 未写明]",
+      "wallSeconds": 427
     }
   ]
 }

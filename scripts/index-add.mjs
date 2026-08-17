@@ -431,7 +431,7 @@ function registerCore(idArg, client) {
       : ''
     const provenance = meta.kind === 'service'
       ? `  kind: service\n  service: ${s(meta.service)}\n  provider: ${s(meta.provider ?? '')}\n  license: ${s(meta.license)}\n  terms: ${s(meta.terms ?? '')}\n  rateLimit: ${s(meta.rateLimit ?? '')}\n  network: true\n${secretRows}`
-      : `  repo: ${s(meta.repo)}\n  rev: ${s(`v${meta.version}`)}\n  license: ${s(meta.license)}\n${secretRows}`
+      : `  repo: ${s(meta.repo)}\n${meta.version === undefined || meta.version === null || meta.version === '' ? '' : `  rev: ${s(`v${meta.version}`)}\n`}  license: ${s(meta.license)}\n${secretRows}`
     writeYaml(catalogPath, catalog.replace(/\n*$/, '\n') + `
 - id: ${id}
 ${provenance}  tools:

@@ -2,15 +2,15 @@
 
 - 客户:northwind
 - 方案版本:0.1.0
-- 生成时间:2026-08-17T18:33:53.096Z
-- 最近一次装配:2026-08-17T18:33:28.879Z
+- 生成时间:2026-08-17T19:20:53.493Z
+- 最近一次装配:2026-08-17T19:20:08.248Z
 
 ## 交付的 agent
 
 | agent | 状态 | 零件数 | 验收 |
 |---|---|---|---|
 | nw-dep-triage | 已装配 | 13 | PASS |
-| nw-upgrade-advisor | 已装配 | 9 | PASS |
+| nw-upgrade-advisor | 已装配 | 6 | PASS |
 | nw-policy-desk | 已装配 | 3 | PASS |
 
 ## 部署参数
@@ -32,12 +32,13 @@
 
 | 零件 | 出处 | 许可 |
 |---|---|---|
-| content-search | - | - |
-| filesystem | - | - |
-| osv-vulns | - | - |
-| deps-graph | - | - |
-| sqlite-query | - | - |
-| template-render | - | - |
+| content-search | 宿主自带能力(不来自供应链) | - |
+| filesystem | 宿主自带能力(不来自供应链) | - |
+| osv-vulns | https://api.osv.dev | Apache-2.0 (OSV data: per-source, CC-BY-4.0 for OSV-prefixed records) |
+| deps-graph | https://api.deps.dev/v3 | Apache-2.0 (deps.dev; licence data mirrored from upstream registries) |
+| sqlite-query | WiseLibs/better-sqlite3@v11.1.2 | MIT |
+| date-format | iamkun/dayjs@v1.11.11 | MIT |
+| crypto-hash | 第一方(Node 内置薄壳,无第三方依赖) | BSD-3-Clause |
 
 ## 重建方式
 
