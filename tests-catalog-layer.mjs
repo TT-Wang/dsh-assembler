@@ -13,7 +13,7 @@
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { loadCatalog, dedupeRowsById, knowledgeLocatorText } from './lib/index.js'
+import { loadCatalog, dedupeRowsById, knowledgeLocatorText, catalogChain } from './lib/index.js'
 
 let failed = 0
 const ok = (name, cond, extra = '') => {
@@ -150,6 +150,16 @@ ok('顺序保持不变', JSON.stringify(deduped.map((r) => r.id)) === JSON.strin
 ok('空数组安全', dedupeRowsById([]).length === 0)
 ok('全同 id 折成一条', dedupeRowsById([{ id: 'x' }, { id: 'x' }, { id: 'x' }]).length === 1)
 ok('不改动入参数组', rows.length === 3)
+
+// ── 层链:BOM 的出处要顺着同一条链找 ───────────────────────────────────────
+// index/catalog.yml 躺在每个 catalog 旁边,所以 catalog 分层了、index 也就分层
+// 了。第一次只读顶层 index 的后果是交接文档里"出处 / 许可"两列整列空白——
+// 而那正是那张表存在的理由。
+const chain = catalogChain(overlay)
+ok('层链按基座在前的顺序', chain.length === 2 && chain[1] === overlay, chain.length + ' 层')
+ok('基座在链首', chain[0].endsWith('base.yml'))
+ok('无 extends 时链长为 1', catalogChain(standalone).length === 1)
+ok('成环时不无限递归', catalogChain(loopA).length <= 8 + 1)
 
 // ── 知识定位:装好了还得说在哪 ─────────────────────────────────────────────
 // 实测代价:preset 把文档拷进 kb/ 却只说"以 xx 口径文档为准",不给路径,

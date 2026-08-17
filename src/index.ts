@@ -148,6 +148,24 @@ export function dedupeRowsById<T extends { id: string }>(rows: readonly T[]): T[
  * entry (a stricter persona, a different server command) by declaring the same
  * id. `extends` is relative to the file that declares it.
  */
+/**
+ * Every catalog file in an `extends` chain, base first.
+ *
+ * The BOM needs this because provenance lives in `index/catalog.yml` NEXT TO
+ * each catalog, and a layered catalog therefore has a layered index. Reading
+ * only the top layer's index emptied the handover's supply-chain column the
+ * first time a client catalog extended the public one — the part rows were
+ * there, with no repo, rev or licence against any of them, which is precisely
+ * the column that table exists for.
+ */
+export function catalogChain(path: string, seen: readonly string[] = []): string[] {
+  const here = resolve(path)
+  if (seen.includes(here) || seen.length >= MAX_CATALOG_LAYERS) return [here]
+  const raw = (yaml.load(readFileSync(here, 'utf8')) ?? {}) as { extends?: unknown }
+  if (typeof raw.extends !== 'string' || raw.extends === '') return [here]
+  return [...catalogChain(resolve(dirname(here), raw.extends), [...seen, here]), here]
+}
+
 export function loadCatalog(path: string, seen: readonly string[] = []): Catalog {
   const here = resolve(path)
   if (seen.includes(here)) {
@@ -1147,8 +1165,14 @@ export async function assemble(
     // (catalogs/<client>/capabilities.yml) has its own index/catalog.yml, and
     // reading the public one instead produced BOM rows with no provenance at
     // all for client parts — the one thing a handover document exists to show.
-    const indexPath = join(dirname(catalogPath), 'index', 'catalog.yml')
-    const index = existsSync(indexPath) ? (yaml.load(readFileSync(indexPath, 'utf8')) as IndexRecord[]) : []
+    // One index per catalog layer, base first, so a client layer's own parts
+    // override the public entry of the same id.
+    const index = catalogChain(catalogPath).flatMap((layer) => {
+      const indexPath = join(dirname(layer), 'index', 'catalog.yml')
+      if (!existsSync(indexPath)) return []
+      const parsed = yaml.load(readFileSync(indexPath, 'utf8'))
+      return Array.isArray(parsed) ? (parsed as IndexRecord[]) : []
+    })
     const byIdAll = new Map(catalog.capabilities.map((c) => [c.id, c]))
     const finalSelected = req.capabilityIds
       .map((cid) => byIdAll.get(cid))
