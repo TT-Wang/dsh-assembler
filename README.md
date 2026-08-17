@@ -15,6 +15,7 @@
 - **零件物料清单（BOM）**：每次装配随 preset 发射 `parts.lock.yml`——每个零件的上游 repo@rev、许可证、验证状态、实际挂载 serverName,装出的 agent 像依赖锁文件一样可审计
 - **零代码扩展**：往 `mcp-servers` 加一段配置 = 整组新能力（MCP 服务器自动联邦）
 - **索引流水线**：AI 切分开源库 → 生成 MCP 适配 → 冒烟验证（`verified`）→ 入库，63 个库全部通过（59 个上游 + 4 个第一方 `binary-write`/`crypto-hash`/`compress-gzip`/`dns-lookup`）
+- **persona lint**：流水线里最后一个无门工件也有门了——机械核查 persona 文本(点名的工具必须在挂载面里、禁止"第 N 步"编舞句式、长度界),提示进装配结果与 parts.lock;约束靠结构与检查,不靠自觉
 - **补件闭环**：需求超出目录时，返回可复制的 YAML 补件草案 + missing 报告
 - **生成 persona**：目录无匹配 persona 时，LLM 生成针对性 persona 文本
 

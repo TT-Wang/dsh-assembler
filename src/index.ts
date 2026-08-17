@@ -26,6 +26,9 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm/message'
 import yaml from 'js-yaml'
 import { assembleToolDefinition } from './assemble-tool.js'
 import { deriveProbe, runProbe, type ProbeResult } from './verify.js'
+import { lintPersona, resolvePersonaText, type PersonaLintFinding } from './persona-lint.js'
+
+export { lintPersona, resolvePersonaText, type PersonaLintFinding } from './persona-lint.js'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -187,9 +190,8 @@ export function emitPreset(req: AssembleRequest, catalog: Catalog, template: str
   // the matcher's generated text beats the generic default. A requirement
   // outside every catalog domain gets a GENERATED persona — no more
   // "helpful assistant" placeholders for file managers, recruiters, etc.
-  const persona = (personaEntry?.config?.persona as string | undefined)
-    ?? (req.persona !== undefined && req.persona.trim() !== '' ? req.persona : undefined)
-    ?? 'You are a helpful assistant. Be concise and accurate.'
+  // (Shared with the assemble-time lint so the checked text is the emitted text.)
+  const persona = resolvePersonaText(req.persona, selected)
   // Tool surface: LLM-selected package tools. When the selected set includes
   // a persona (a domain agent, e.g. customer service), the persona's implied
   // baseline tools are force-included — the LLM only sees the requirement,
@@ -549,6 +551,7 @@ export function renderPartsLock(opts: {
   selected: CapabilityEntry[]
   presetText: string
   index: IndexRecord[]
+  personaFindings?: PersonaLintFinding[]
 }): string {
   const byId = new Map(opts.index.map((r) => [r.id, r]))
   const serverNames = [...opts.presetText.matchAll(/serverName: "([^"]+)"/g)].map((m) => m[1])
@@ -577,11 +580,14 @@ export function renderPartsLock(opts: {
     }
     return part
   })
-  const doc = {
+  const doc: Record<string, unknown> = {
     preset: opts.presetId,
     assembledAt: new Date().toISOString(),
     requirement: opts.requirement.replace(/\s+/g, ' ').trim().slice(0, 140),
     parts,
+  }
+  if (opts.personaFindings !== undefined && opts.personaFindings.length > 0) {
+    doc.personaLint = opts.personaFindings.map((f) => `${f.kind}: ${f.detail}`)
   }
   return '# 零件物料清单(BOM)— dsh-assembler 自动生成;记录每个能力的供应链出处。\n'
     + '# 审计:repo@rev 为上游锁定版本,license 为上游许可证,serverName 为本 preset 实际挂载名。\n'
@@ -634,6 +640,7 @@ export async function assemble(
   presetPath: string
   drafts: string[]
   verification: ProbeResult
+  personaLint: PersonaLintFinding[]
 }> {
   const catalogPath = config.catalogPath ?? join(REPO, 'capabilities.yml')
   const templatePath = config.templatePath ?? join(REPO, 'presets', 'agent-template.yml')
@@ -659,6 +666,7 @@ export async function assemble(
   // judge the reply. One FAIL triggers a re-selection (the matcher is told
   // what failed) and a single re-emit under the same id.
   let verification: ProbeResult = { status: 'SKIPPED', reason: 'verify disabled' }
+  let personaFindings: PersonaLintFinding[] = []
   if (config.verify !== false) {
     const port = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
     if (port === undefined) {
@@ -712,12 +720,18 @@ export async function assemble(
     const finalSelected = req.capabilityIds
       .map((cid) => byIdAll.get(cid))
       .filter((c): c is CapabilityEntry => c !== undefined)
+    // Persona lint on the FINAL generation's actual text (same resolution
+    // chain emitPreset used) — advisory findings, never a block.
+    const mcpServersAll = catalog['mcp-servers'] ?? {}
+    const hostMounted = Object.keys(mcpServersAll).filter((sv) => mcpServersAll[sv].hostMounted === true)
+    personaFindings = lintPersona(resolvePersonaText(req.persona, finalSelected), finalSelected, hostMounted)
     writeFileSync(join(dir, 'parts.lock.yml'), renderPartsLock({
       presetId: id,
       requirement,
       selected: finalSelected,
       presetText: readFileSync(join(dir, 'agent.cordis.yml'), 'utf8'),
       index,
+      personaFindings,
     }))
   } catch (error: unknown) {
     // The lock is provenance metadata: failing to write it must not fail
@@ -725,7 +739,7 @@ export async function assemble(
     console.error(`[assembler] parts.lock.yml write failed: ${error instanceof Error ? error.message : String(error)}`)
   }
 
-  return { id, capabilityIds: req.capabilityIds, missing: req.missing, presetPath: join(dir, 'agent.cordis.yml'), drafts, verification }
+  return { id, capabilityIds: req.capabilityIds, missing: req.missing, presetPath: join(dir, 'agent.cordis.yml'), drafts, verification, personaLint: personaFindings }
 }
 
 /** Shared human-facing result text for the command and the tool. */
@@ -744,7 +758,10 @@ export function assembleResultText(result: Awaited<ReturnType<typeof assemble>>)
       ? `\n自动验证:FAIL — ${v.reason ?? '探针回复未含验收标记'}${marks};探针「${v.probe?.task.slice(0, 80) ?? ''}」`
         + `${v.reply !== undefined && v.reply !== '' ? `;回复摘录「${v.reply.slice(0, 120)}」` : ''}(preset 已生成,建议人工试用)`
       : `\n自动验证:跳过(${v.reason ?? ''})`
-  return `assembled preset "${result.id}" with: ${result.capabilityIds.join(', ')}${missing}${drafts}${verifyLine}\n`
+  const lint = result.personaLint.length > 0
+    ? `\npersona 检查:${String(result.personaLint.length)} 条提示 — ${result.personaLint.map((f) => f.detail).join(';')}`
+    : ''
+  return `assembled preset "${result.id}" with: ${result.capabilityIds.join(', ')}${missing}${drafts}${verifyLine}${lint}\n`
     + `preset file: ${result.presetPath}\n`
     + `start a new session and select preset ${result.id} to use it.`
 }

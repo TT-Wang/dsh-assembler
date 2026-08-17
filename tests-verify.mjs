@@ -62,5 +62,24 @@ check('BOM host 平面零件标注 plane', fsp.plane === 'host' && fsp.serverNam
 const web = parsed2.parts.find((p) => p.capability === 'web-lookup')
 check('BOM harness 零件 mounts', Array.isArray(web.mounts) && web.mounts[0] === '@deepseek-ai/dsh-tool-web')
 
+// 4. persona lint:约束不编舞、工具面对齐、长度界
+const { lintPersona, resolvePersonaText } = await import('./lib/index.js')
+const SEL = [
+  { id: 'mcp-currency-calc-currency-calc', via: 'mcp', tool: 'mcp__currency-calc__currency-calc', description: '', tags: [], config: { server: 'currency-calc' } },
+]
+const okText = '你是货币换算助手。只用你的货币工具 mcp__currency-calc__currency-calc 处理换算;绝不编造汇率;用用户的语言回答,金额始终带币种符号。'
+check('干净 persona 零发现', lintPersona(okText, SEL).length === 0, JSON.stringify(lintPersona(okText, SEL)))
+check('步骤句式被抓(第 N 步)', lintPersona(okText + ' 第一步解析金额,第二步换算。', SEL).some((f) => f.kind === 'procedure-steps'))
+check('步骤句式被抓(Step N)', lintPersona(okText + ' Step 1: parse.', SEL).some((f) => f.kind === 'procedure-steps'))
+check('首先然后最后三连被抓', lintPersona(okText + ' 首先解析,然后换算,最后输出。', SEL).some((f) => f.kind === 'procedure-steps'))
+check('单独"首先"不误报', !lintPersona(okText + ' 首先要保持礼貌。', SEL).some((f) => f.kind === 'procedure-steps'))
+check('未挂载工具引用被抓', lintPersona(okText + ' 用 mcp__qrcode-generate__qr-generate-png 生成二维码。', SEL).some((f) => f.kind === 'unknown-tool'))
+check('host 平面工具豁免', !lintPersona(okText + ' 用 mcp__filesystem__read_text_file 读文件。', SEL, ['filesystem']).some((f) => f.kind === 'unknown-tool'))
+check('过短被抓', lintPersona('你是助手。', SEL).some((f) => f.kind === 'too-short'))
+check('过长被抓', lintPersona('约束'.repeat(1300), SEL).some((f) => f.kind === 'too-long'))
+check('解析链:目录 persona 优先', resolvePersonaText('generated text', [{ id: 'p', via: 'harness', description: '', tags: [], config: { persona: 'catalog text' } }]) === 'catalog text')
+check('解析链:生成兜底', resolvePersonaText('generated text', SEL) === 'generated text')
+check('解析链:默认殿后', resolvePersonaText(undefined, SEL).includes('helpful assistant'))
+
 console.log(`\n==== verify 单元测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)
 process.exit(failures === 0 ? 0 : 1)
