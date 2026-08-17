@@ -58,7 +58,23 @@ export interface TurnResult {
 }
 
 export interface ProbeResult {
-  status: "PASS" | "FAIL" | "SKIPPED";
+  /**
+   * PASS / FAIL are the probe's verdict on the assembled agent.
+   *
+   * The two non-verdicts are deliberately DIFFERENT statuses, because they mean
+   * opposite things to whoever signs off the delivery:
+   *
+   * - SKIPPED — there was nothing to verify and that is by design: verification
+   *   was turned off, or a required credential is unconfigured so the agent
+   *   cannot reach its upstream yet. Expected, reportable, not a defect.
+   * - ERRORED — the probe itself could not run: the session would not open, the
+   *   preset would not mount. The agent is UNVERIFIED, which is a failure of
+   *   the delivery even though the preset file exists.
+   *
+   * Folding the second into the first is how three unmounted agents once got
+   * reported as `ok: true, failed: []`.
+   */
+  status: "PASS" | "FAIL" | "SKIPPED" | "ERRORED";
   /** Single-turn probe (kind: 'single'). */
   probe?: ProbeSpec;
   /** Scenario probe (kind: 'scenario'). */

@@ -1,0 +1,36 @@
+# northwind-oss-governance —— 方案包清单(FDE 交付单元)
+# apply 会按 agents 逐个装配;凭证只声明不落值,验收结果写进 handover 报告。
+#
+# 客户系统:OSV.dev(漏洞)+ deps.dev(许可证与依赖闭包),两个都是公开接口、
+# 不需要 key。客户私有的是治理口径知识包(catalogs/northwind/)。
+# 三个 agent 各管一件事,不做流程编排——怎么走由模型自己决定。
+name: northwind-oss-governance
+client: northwind
+version: 0.1.0
+catalog: catalogs/northwind/capabilities.yml
+params:
+  timezone: Asia/Shanghai
+  language: zh
+agents:
+  # 主力:一批依赖进来,分诊 → 深挖 → 落库 → 出报告。跨轮次要记得住上一轮扫了什么。
+  - id: nw-dep-triage
+    requirement: >-
+      一个开源依赖治理台助手:接收一份依赖清单(包体系、包名、版本),批量查出每个包命中的已知漏洞,
+      对命中的包补齐严重度、CWE 与应升到的修复版本,同时查出每个包的许可证。
+      把每次扫描的结果存进本地数据库,后续轮次能查询、汇总、对比历史扫描。
+      最后按客户的治理口径出一份可复核的 Markdown 治理报告,写明每条结论的出处与扫描时间。
+      判定分级、许可证清单、没有可用修复时的处置顺序、报告必须留痕的内容,都要照客户治理口径文档来。
+
+  # 单点深挖:给一个包一个版本,回答"该升到哪、升过去有没有别的坑"。
+  - id: nw-upgrade-advisor
+    requirement: >-
+      一个依赖升级顾问:给定一个包和当前版本,查出它命中的漏洞和上游给出的修复版本,
+      再确认那些修复版本确实已经发布、没有被弃用,并给出该版本的许可证和发布时间。
+      如果上游没有可用的修复版本,要按客户治理口径给出替代处置路径,不要含糊过去。
+
+  # 纯知识:不连任何上游,只回答"我们的口径怎么规定"。
+  - id: nw-policy-desk
+    requirement: >-
+      一个开源治理口径问答助手:只依据客户的治理口径文档回答问题——某个 CVSS 分数属于哪一级、
+      多久要修完、某个许可证能不能引入、waiver 需要哪些证据、报告里必须写什么。
+      文档没写的就说没写,不要自己补规定。

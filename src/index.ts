@@ -109,6 +109,31 @@ interface AssembleRequest {
 const MAX_CATALOG_LAYERS = 8
 
 /**
+ * Collapse preset rows contributed by more than one capability, first wins.
+ *
+ * A loader entry id must appear once in a preset; the host refuses the whole
+ * preset otherwise ("duplicate loader entry id: tool-fs-search"). Two
+ * capabilities legitimately wanting the same row is NORMAL — a knowledge pack
+ * needs file search, and so does a content-search capability — and when both
+ * get selected the preset must still mount. Provenance is not lost: the parts
+ * lock records each capability's own `mounts`, so the BOM still shows that both
+ * asked for this row.
+ *
+ * First wins on a config conflict rather than merging: a merged config is one
+ * nobody wrote and nobody reviewed.
+ */
+export function dedupeRowsById<T extends { id: string }>(rows: readonly T[]): T[] {
+  const seen = new Set<string>()
+  const kept: T[] = []
+  for (const row of rows) {
+    if (seen.has(row.id)) continue
+    seen.add(row.id)
+    kept.push(row)
+  }
+  return kept
+}
+
+/**
  * Read a catalog, applying its `extends:` base underneath it.
  *
  * A client catalog LAYERS over the public one rather than replacing it, the
@@ -304,8 +329,7 @@ export function emitPreset(req: AssembleRequest, catalog: Catalog, template: str
   const packageRows = packageTools.length === 0
     ? ''
     : `- id: tool-cs\n  name: '@dsh-external/dsh-cs-tools'\n  config:\n    tools: [${packageTools.join(', ')}]`
-  const extraRows = selected
-    .flatMap((c) => c.config?.presetRows ?? [])
+  const extraRows = dedupeRowsById(selected.flatMap((c) => c.config?.presetRows ?? []))
     .map((row) => {
       const cfg = row.config === undefined
         ? ''
@@ -1059,7 +1083,9 @@ export async function assemble(
           }
         }
       } catch (error: unknown) {
-        verification = { status: 'SKIPPED', reason: `probe error: ${error instanceof Error ? error.message : String(error)}` }
+        // ERRORED, not SKIPPED: the probe machinery broke, so this agent is
+        // UNVERIFIED. A caller aggregating verdicts must be able to fail on it.
+        verification = { status: 'ERRORED', reason: `probe error: ${error instanceof Error ? error.message : String(error)}` }
       }
     }
   }
@@ -1138,7 +1164,9 @@ export function assembleResultText(result: Awaited<ReturnType<typeof assemble>>)
       ? `\n自动验证:PASS — 多轮${head},逐轮通过\n${ladder}`
       : v.status === 'FAIL'
         ? `\n自动验证:FAIL — 多轮${head};${v.reason ?? ''}\n${ladder}(preset 已生成,建议人工试用)`
-        : `\n自动验证:跳过(${v.reason ?? ''})`
+        : v.status === 'ERRORED'
+          ? `\n自动验证:未能验证(${v.reason ?? ''})——preset 已生成但没有跑过验收,不可当作通过`
+          : `\n自动验证:跳过(${v.reason ?? ''})`
   } else {
     const marks = v.probe !== undefined ? `;验收标记 [${v.probe.mustInclude.join(', ')}]` : ''
     verifyLine = v.status === 'PASS'
@@ -1146,7 +1174,9 @@ export function assembleResultText(result: Awaited<ReturnType<typeof assemble>>)
       : v.status === 'FAIL'
         ? `\n自动验证:FAIL — ${v.reason ?? '探针回复未含验收标记'}${marks};探针「${v.probe?.task.slice(0, 80) ?? ''}」`
           + `${v.reply !== undefined && v.reply !== '' ? `;回复摘录「${v.reply.slice(0, 120)}」` : ''}(preset 已生成,建议人工试用)`
-        : `\n自动验证:跳过(${v.reason ?? ''})`
+        : v.status === 'ERRORED'
+          ? `\n自动验证:未能验证(${v.reason ?? ''})——preset 已生成但没有跑过验收,不可当作通过`
+          : `\n自动验证:跳过(${v.reason ?? ''})`
   }
   const paramLine = Object.keys(result.params).length > 0
     ? `\n装配参数:${Object.entries(result.params).map(([k, v]) => `${k}=${v}`).join(', ')}`

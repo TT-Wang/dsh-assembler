@@ -13,7 +13,7 @@
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { loadCatalog } from './lib/index.js'
+import { loadCatalog, dedupeRowsById } from './lib/index.js'
 
 let failed = 0
 const ok = (name, cond, extra = '') => {
@@ -132,6 +132,24 @@ threw('链过深时抛错(不默默截断)', () => loadCatalog(prev), 'layers')
 // ── 缺失的基座要报出来,不能静默当空 ───────────────────────────────────────
 const dangling = write('dangling.yml', 'extends: ./nope.yml\ncapabilities:\n  - id: x\n')
 threw('extends 指向不存在的文件时报错', () => loadCatalog(dangling))
+
+// ── 行去重:两个能力想要同一行是正常的 ─────────────────────────────────────
+// 知识包要文件检索,content-search 也要;两个都被选中时,preset 里必须只出现
+// 一行——否则 host 直接拒载整个 preset("duplicate loader entry id:
+// tool-fs-search"),三个 agent 就是这么全挂的。
+const rows = [
+  { id: 'tool-fs-search', name: '@deepseek-ai/dsh-tool-fs-search', config: { a: 1 } },
+  { id: 'tool-web', name: '@deepseek-ai/dsh-tool-web' },
+  { id: 'tool-fs-search', name: '@deepseek-ai/dsh-tool-fs-search', config: { a: 2 } },
+]
+const deduped = dedupeRowsById(rows)
+ok('同 id 的行只留一条', deduped.length === 2, deduped.map((r) => r.id).join(','))
+ok('留的是第一条(配置不做合并,合并出来的配置没人写过也没人审过)',
+  deduped.find((r) => r.id === 'tool-fs-search')?.config.a === 1)
+ok('顺序保持不变', JSON.stringify(deduped.map((r) => r.id)) === JSON.stringify(['tool-fs-search', 'tool-web']))
+ok('空数组安全', dedupeRowsById([]).length === 0)
+ok('全同 id 折成一条', dedupeRowsById([{ id: 'x' }, { id: 'x' }, { id: 'x' }]).length === 1)
+ok('不改动入参数组', rows.length === 3)
 
 console.log(`\n==== 目录分层单元测试: ${failed === 0 ? '全部通过 ✅' : `${failed} 条失败 ❌`} ====`)
 process.exit(failed === 0 ? 0 : 1)

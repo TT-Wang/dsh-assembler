@@ -1,0 +1,28 @@
+{
+  "appliedAt": "2026-08-17T16:09:28.307Z",
+  "port": 3080,
+  "params": {
+    "timezone": "Asia/Shanghai",
+    "language": "zh"
+  },
+  "results": [
+    {
+      "id": "nw-dep-triage",
+      "verdict": "SKIPPED",
+      "line": "自动验证:跳过(probe error: session.create: {",
+      "wallSeconds": 186
+    },
+    {
+      "id": "nw-upgrade-advisor",
+      "verdict": "SKIPPED",
+      "line": "自动验证:跳过(probe error: session.create: {",
+      "wallSeconds": 160
+    },
+    {
+      "id": "nw-policy-desk",
+      "verdict": "SKIPPED",
+      "line": "自动验证:跳过(probe error: session.create: {",
+      "wallSeconds": 184
+    }
+  ]
+}

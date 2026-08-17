@@ -65,7 +65,7 @@ function init() {
 
 // ── apply ──────────────────────────────────────────────────────────────────
 /** One assemble over the public wire, driven exactly like a user's session. */
-async function assembleOne(port, requirement, id, params) {
+async function assembleOne(port, requirement, id, params, waitMs) {
   const rpc = async (method, payload) => {
     const res = await fetch(`http://127.0.0.1:${port}/api/${method}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -91,23 +91,34 @@ async function assembleOne(port, requirement, id, params) {
     content: [{ type: 'text', text: `请调用 assemble 工具,requirement 为"${requirement}",name 参数用 "${id}"${paramText}。工具返回后直接复述结果,不要做其他探索。` }],
   })
   const t0 = Date.now()
-  while (Date.now() - t0 < 12 * 60_000 && !frames.some((e) => e.type === 'turn/end')) {
+  while (Date.now() - t0 < waitMs && !frames.some((e) => e.type === 'turn/end')) {
     await new Promise((r) => setTimeout(r, 2000))
   }
+  const gaveUp = !frames.some((e) => e.type === 'turn/end')
   ws.close()
   const toolText = frames.filter((e) => e.type === 'tool/result')
     .map((e) => JSON.stringify(e.data ?? {})).find((x) => x.includes('自动验证')) ?? ''
+  // 四种判定,两种"不是通过"要分开:跳过是设计内的降级(凭证未配、验证关闭),
+  // 未能验证是探针根本没跑起来(preset 挂不上、会话开不了)——后者的 agent 是
+  // **未经验收**的,不能和前者一起被当成可接受结果。UNKNOWN 同理按未验证处理:
+  // 拿不到判定行就是没有证据。
   const verdict = toolText.includes('自动验证:PASS') ? 'PASS'
     : toolText.includes('自动验证:FAIL') ? 'FAIL'
-      : toolText.includes('自动验证:跳过') ? 'SKIPPED' : 'UNKNOWN'
+      : toolText.includes('自动验证:未能验证') ? 'UNVERIFIED'
+        : toolText.includes('自动验证:跳过') ? 'SKIPPED'
+          : gaveUp ? 'TIMEOUT' : 'UNKNOWN'
   return { verdict, line: (toolText.match(/自动验证[^\\"]*/) ?? [''])[0].slice(0, 300), wallSeconds: Math.round((Date.now() - t0) / 1000) }
 }
 
 async function apply() {
   const file = target
-  if (file === undefined || !existsSync(file)) die('用法:solution.mjs apply <solution.yml> [--port 3096]')
+  if (file === undefined || !existsSync(file)) die('用法:solution.mjs apply <solution.yml> [--port 3096] [--wait-minutes 30] [--param k=v]')
   const doc = yaml.load(readFileSync(file, 'utf8'))
   const port = Number(flags.port ?? 3096)
+  // 等待上限必须**大于**被调方的最坏情况,否则复杂 agent 永远等不到判定:
+  // assemble 的多轮场景探针每轮各有 5 分钟预算,四轮就是 20 分钟。原来这里写死
+  // 12 分钟,于是治理台那个 agent 在 721 秒被判 UNKNOWN——它其实还在跑。
+  const waitMs = Number(flags['wait-minutes'] ?? 30) * 60_000
   try {
     const probe = await fetch(`http://127.0.0.1:${port}/`)
     if (!probe.ok) throw new Error(String(probe.status))
@@ -126,7 +137,7 @@ async function apply() {
   for (const agent of doc.agents ?? []) {
     process.stderr.write(`[solution] 装配 ${agent.id} …\n`)
     try {
-      const r = await assembleOne(port, agent.requirement, agent.id, params)
+      const r = await assembleOne(port, agent.requirement, agent.id, params, waitMs)
       process.stderr.write(`[solution]   ${agent.id}: ${r.verdict} (${r.wallSeconds}s)\n`)
       results.push({ id: agent.id, ...r })
     } catch (error) {
@@ -136,8 +147,21 @@ async function apply() {
   }
   const applied = { appliedAt: new Date().toISOString(), port, params, results }
   writeFileSync(join(dirname(file), 'last-apply.json'), JSON.stringify(applied, null, 2) + '\n')
-  const bad = results.filter((r) => r.verdict === 'FAIL' || r.verdict === 'ERROR')
-  out({ name: doc.name, agents: results.length, results, params, ok: bad.length === 0, failed: bad.map((r) => r.id) })
+  // 交付判据:每个 agent 都得有证据。PASS 是证据;跳过是"说明白了为什么没有
+  // 证据"(凭证未配),记录但不阻断;FAIL / 未能验证 / 拿不到判定行都是没有
+  // 证据,一律阻断——一次三个 agent 全挂却报 ok:true 的教训就在这一行。
+  const bad = results.filter((r) => ['FAIL', 'ERROR', 'UNVERIFIED', 'UNKNOWN', 'TIMEOUT'].includes(r.verdict))
+  const skipped = results.filter((r) => r.verdict === 'SKIPPED')
+  out({
+    name: doc.name,
+    agents: results.length,
+    passed: results.filter((r) => r.verdict === 'PASS').length,
+    results,
+    params,
+    ok: bad.length === 0,
+    failed: bad.map((r) => r.id),
+    ...(skipped.length > 0 ? { skipped: skipped.map((r) => ({ id: r.id, why: r.line })) } : {}),
+  })
   process.exit(bad.length === 0 ? 0 : 1)
 }
 
