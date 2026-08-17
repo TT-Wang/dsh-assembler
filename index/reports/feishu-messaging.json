@@ -1,0 +1,20 @@
+{
+  "id": "feishu-messaging",
+  "verifiedAt": "2026-08-17T05:49:02.245Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "send-message",
+      "description": "【写操作,会真的发出消息】以机器人身份向飞书用户或群发送一条文本消息(POST /im/v1/messages)。receiveId 填目标的 open_id(形如 ou_xxx)或群的 chat_id(形如 oc_xxx),receiveIdType 说明填的是哪一种。调用成功即消息已送达对方会话、无法撤回,所以只在用户明确要求发消息时调用。返回 messageId / chatId / 发送时间。需要 FEISHU_APP_ID + FEISHU_APP_SECRET 环境变量与 im:message:send_as_bot 权限;未配凭证时返回可行动的错误(说明缺哪个变量、去哪取),不会静默失败。"
+    },
+    {
+      "name": "list-chats",
+      "description": "列出**本机器人已加入**的飞书群(GET /im/v1/chats)。返回每个群的 chatId、名称、描述、群主 ownerId、群模式与是否外部群,可直接拿 chatId 去 send-message 发群消息。机器人没被拉进任何群时返回 { count: 0, chats: [] } 这种结构化结果(不是错误)。需要 FEISHU_APP_ID + FEISHU_APP_SECRET 与 im:chat:readonly 权限;未配凭证时返回可行动错误。"
+    },
+    {
+      "name": "feishu-capabilities",
+      "description": "【免凭证】列出本零件支持的飞书操作、每个操作需要的权限范围与环境变量,并报告各凭证当前是否已配置(只报\"配没配\",绝不回显取值)。零凭证状态下也能正常调用——用它先搞清要去开放平台开哪些权限、凭证在后台哪儿取、怎么注入。"
+    }
+  ]
+}

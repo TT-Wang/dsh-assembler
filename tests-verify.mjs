@@ -121,5 +121,17 @@ check('purpose 透传', secrets.find((x) => x.env === 'SLACK_BOT_TOKEN').purpose
 check('无声明的零件不产生条目', !secrets.some((x) => x.server === 'weather-forecast'))
 check('声明里只有名字没有值', !JSON.stringify(secrets).includes('configured-for-test'))
 
+// 可选凭证:未配也不该拦住验证(GitHub 公开读匿名可用)
+const OPT_SERVERS = { 'github-issues': { requiredSecrets: [{ env: 'GITHUB_TOKEN_TEST_ONLY', purpose: 'PAT', optional: true }] } }
+const optSecrets = collectRequiredSecrets(
+  [{ id: 'g', via: 'mcp', description: '', tags: [], config: { server: 'github-issues' } }],
+  OPT_SERVERS,
+)
+check('optional 标记透传', optSecrets[0].optional === true)
+check('未配的可选凭证不进"阻塞"集合', optSecrets.filter((x) => !x.configured && x.optional !== true).length === 0)
+const REQ_SERVERS = { s: { requiredSecrets: [{ env: 'MUST_HAVE_TEST_ONLY', purpose: 'x' }] } }
+const reqSecrets = collectRequiredSecrets([{ id: 'r', via: 'mcp', description: '', tags: [], config: { server: 's' } }], REQ_SERVERS)
+check('未配的必需凭证进"阻塞"集合', reqSecrets.filter((x) => !x.configured && x.optional !== true).length === 1)
+
 console.log(`\n==== verify 单元测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)
 process.exit(failures === 0 ? 0 : 1)

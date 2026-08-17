@@ -175,6 +175,10 @@ function scaffoldService(id, opts) {
        Nominatim/SEC 等服务强制要求 UA,缺了会被封
      * 非 2xx、超时、JSON 解析失败一律返回 { isError: true, ... } 且**说明是哪个服务出了什么问题**,绝不抛裸异常
      * 尊重速率限制(${meta.rateLimit});不做并发扇出
+     * **代理韧性**:传输层失败(不是 HTTP 错误码)时,自动重试一次并显式绕开代理
+       —— 同一机器上不同域名对代理的要求可能相反(实测:www.sec.gov 必须走代理,
+       data.sec.gov 走代理会断 TLS)。写法参照 generated/sec-filings/index.js 的
+       fetchWithProxyFallback;HTTP 错误码不重试(403 是答复,不是断路)
      * 只读:不调用任何写端点
    - 返回体裁剪成 agent 用得上的字段(别把整个 JSON 倒回上下文)
    - **需要凭证时的零凭证降级(硬规范)**:凭证从**自己进程的环境变量**读(如

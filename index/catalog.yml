@@ -710,3 +710,50 @@
     - { name: search-works, description: "按主题检索 OpenAlex 论文,**结果带引用量**,可用来判断某个方向的代表作与热度。输入查询词与可选条数;返回裁剪后的列表:标题、作者(最多 6 人)、" }
     - { name: work-citations, description: "查单篇论文的被引情况与关键元数据。输入 OpenAlex work id(形如 W2949676527)**或** DOI(裸 DOI 或 https://do" }
     - { name: author-works, description: "按作者名查该作者的画像与代表作:先在 OpenAlex 作者库里匹配到最相关的作者(返回 ORCID、总论文数、总被引、h-index、最近所属机构),再取该作" }
+
+- id: feishu-messaging
+  kind: service
+  service: https://open.feishu.cn/open-apis
+  provider: "飞书开放平台"
+  license: Feishu API ToS
+  terms: "https://open.feishu.cn/document/"
+  rateLimit: "按应用配额,建议 <20 req/s"
+  network: true
+  requiredSecrets:
+    - { env: FEISHU_APP_ID, purpose: "飞书自建应用 App ID" }
+    - { env: FEISHU_APP_SECRET, purpose: "飞书自建应用 App Secret" }
+  tools:
+    - { name: send-message, description: "【写操作,会真的发出消息】以机器人身份向飞书用户或群发送一条文本消息(POST /im/v1/messages)。receiveId 填目标的 open_id(" }
+    - { name: list-chats, description: "列出**本机器人已加入**的飞书群(GET /im/v1/chats)。返回每个群的 chatId、名称、描述、群主 ownerId、群模式与是否外部群,可直接" }
+    - { name: feishu-capabilities, description: "【免凭证】列出本零件支持的飞书操作、每个操作需要的权限范围与环境变量,并报告各凭证当前是否已配置(只报\"配没配\",绝不回显取值)。零凭证状态下也能正常调用——用" }
+
+- id: slack-messaging
+  kind: service
+  service: https://slack.com/api
+  provider: "Slack API"
+  license: Slack API ToS
+  terms: "https://api.slack.com/terms-of-service"
+  rateLimit: "Tier-based,建议 <1 req/s per method"
+  network: true
+  requiredSecrets:
+    - { env: SLACK_BOT_TOKEN, purpose: "Slack Bot User OAuth Token(xoxb- 开头)" }
+  tools:
+    - { name: post-message, description: "【写操作,会真的发出消息】以机器人身份向 Slack 频道发送一条消息(POST /chat.postMessage)。channel 填频道 id(C 开头," }
+    - { name: list-channels, description: "列出 Slack 工作区的公开频道(GET /conversations.list?types=public_channel)。返回每个频道的 id、名称、是否" }
+    - { name: slack-capabilities, description: "【免凭证】列出本零件支持的 Slack 操作、每个操作需要的 OAuth scope(chat:write / channels:read 等)与环境变量,并报" }
+
+- id: github-issues
+  kind: service
+  service: https://api.github.com
+  provider: "GitHub REST API"
+  license: GitHub ToS
+  terms: "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service"
+  rateLimit: "已认证 5000 req/h"
+  network: true
+  requiredSecrets:
+    - { env: GITHUB_TOKEN, purpose: "GitHub Personal Access Token(仓库读写)", optional: true }
+  tools:
+    - { name: list-issues, description: "列出某个 GitHub 仓库的 issue(GET /repos/{owner}/{repo}/issues)。可按状态(open/closed/all)与 l" }
+    - { name: get-issue, description: "取单条 GitHub issue 的详情(GET /repos/{owner}/{repo}/issues/{number})。返回标题、状态、labels、提" }
+    - { name: create-issue, description: "【写操作,会在真实仓库里创建一条真实 issue】在指定 GitHub 仓库新建 issue(POST /repos/{owner}/{repo}/issues" }
+    - { name: github-capabilities, description: "【免凭证】列出本零件支持的 GitHub issue 操作、每个操作需要的 token 权限(scope)与环境变量,说明哪些操作在没 token 时能降级为匿" }

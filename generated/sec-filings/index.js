@@ -42,6 +42,38 @@ const ok = (text) => ({ content: [{ type: 'text', text }] });
 const fail = (text) => ({ isError: true, content: [{ type: 'text', text }] });
 
 let lastRequestAt = 0;
+
+/**
+ * GET with a direct-connection fallback.
+ *
+ * Corporate/local proxies are not uniform per host: on this machine
+ * www.sec.gov requires the proxy while data.sec.gov breaks under it ("Client
+ * network socket disconnected before secure TLS connection was established").
+ * A part that only honours the ambient proxy setting is at the mercy of that
+ * split, so a transport-level failure retries once with the proxy explicitly
+ * bypassed (undici reads NODE_USE_ENV_PROXY per-dispatcher, so a fresh Agent
+ * without it connects directly). HTTP errors are NOT retried — a 403 is an
+ * answer, not a broken path.
+ */
+async function fetchWithProxyFallback(url) {
+  const init = {
+    headers: { 'User-Agent': UA, Accept: 'application/json' },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  };
+  try {
+    return await fetch(url, init);
+  } catch (err) {
+    const proxied = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+    if (!proxied) throw err;
+    const { Agent } = await import('undici');
+    return await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      dispatcher: new Agent(),
+    });
+  }
+}
+
 /** 串行节流:保证两次 SEC 请求之间至少间隔 MIN_GAP_MS。 */
 async function throttle() {
   const wait = lastRequestAt + MIN_GAP_MS - Date.now();
@@ -56,10 +88,7 @@ async function getJson(url, what) {
   await throttle();
   let res;
   try {
-    res = await fetch(url, {
-      headers: { 'User-Agent': UA, Accept: 'application/json' },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
+    res = await fetchWithProxyFallback(url);
   } catch (err) {
     const name = err && err.name;
     if (name === 'TimeoutError' || name === 'AbortError') {

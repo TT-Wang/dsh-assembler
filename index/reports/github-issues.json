@@ -1,0 +1,24 @@
+{
+  "id": "github-issues",
+  "verifiedAt": "2026-08-17T05:49:07.087Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "list-issues",
+      "description": "列出某个 GitHub 仓库的 issue(GET /repos/{owner}/{repo}/issues)。可按状态(open/closed/all)与 label 过滤,返回裁剪后的列表:number、title、state、labels、提出者 user、createdAt、网页 url。注意 GitHub 把 PR 也放在这个端点里返回,本零件已过滤掉 PR 并单独报 pullRequestsFiltered。**读操作不需要凭证**:未配置 GITHUB_TOKEN 时自动降级为匿名调用(仅公开仓库,限额 60 req/h),返回里的 mode 字段会注明当前是匿名还是认证模式;配上 token 则额度 5000 req/h 并可读私有仓库。仓库存在但没有符合条件的 issue 时返回 { count: 0, issues: [] }(不是错误)。"
+    },
+    {
+      "name": "get-issue",
+      "description": "取单条 GitHub issue 的详情(GET /repos/{owner}/{repo}/issues/{number})。返回标题、状态、labels、提出者、时间、评论数、指派人与正文(正文超过 4000 字符会截断并标注)。**读操作不需要凭证**:未配置 GITHUB_TOKEN 时自动降级为匿名调用(仅公开仓库,限额 60 req/h),返回里的 mode 字段会注明当前模式。issue 不存在或仓库私有时返回可行动的错误(会指出配 token 可解)。"
+    },
+    {
+      "name": "create-issue",
+      "description": "【写操作,会在真实仓库里创建一条真实 issue】在指定 GitHub 仓库新建 issue(POST /repos/{owner}/{repo}/issues)。创建后该 issue 对所有能看到这个仓库的人可见、会触发仓库订阅者的邮件/站内通知,且**本零件不提供删除**(GitHub 本身也只能关闭不能删)。所以只在用户明确要求\"提 issue / 建 issue\"时调用,并且先确认 owner/repo 是不是他想要的那个仓库。返回新 issue 的 number 与网页 url。**这个操作必须有凭证**:GitHub 强制认证,未配置 GITHUB_TOKEN 时返回可行动的错误(说明缺哪个变量、去哪取、需要什么权限),不会静默失败、也不会降级为匿名。"
+    },
+    {
+      "name": "github-capabilities",
+      "description": "【免凭证】列出本零件支持的 GitHub issue 操作、每个操作需要的 token 权限(scope)与环境变量,说明哪些操作在没 token 时能降级为匿名(读)、哪些必须有 token(写),并报告 token 当前是否已配置(只报\"配没配\",绝不回显取值)。零凭证状态下也能正常调用——用它先搞清 token 要什么权限、在哪儿生成、怎么注入。"
+    }
+  ]
+}

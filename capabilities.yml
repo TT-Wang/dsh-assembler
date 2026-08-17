@@ -384,6 +384,28 @@ mcp-servers:
     command: node
     args: ['/Users/tongtao/code/dsh-assembler/generated/research-graph/index.js']
 
+  feishu-messaging:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/feishu-messaging/index.js']
+    requiredSecrets:
+      - { env: FEISHU_APP_ID, purpose: "飞书自建应用 App ID" }
+      - { env: FEISHU_APP_SECRET, purpose: "飞书自建应用 App Secret" }
+
+  slack-messaging:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/slack-messaging/index.js']
+    requiredSecrets:
+      - { env: SLACK_BOT_TOKEN, purpose: "Slack Bot User OAuth Token(xoxb- 开头)" }
+
+  github-issues:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/github-issues/index.js']
+    requiredSecrets:
+      - { env: GITHUB_TOKEN, purpose: "GitHub Personal Access Token(仓库读写)", optional: true }
+
 capabilities:
   # ── customer-service domain tools (this package) ──────────────────────────
   - id: crm-query

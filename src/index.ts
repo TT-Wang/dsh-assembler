@@ -348,6 +348,15 @@ export interface RequiredSecret {
   env: string
   /** What it is for, shown in the assemble result and the BOM. */
   purpose?: string
+  /**
+   * True when the part still does useful work without it — GitHub's public
+   * reads work anonymously (rate-limited), Crossref's polite pool is a
+   * courtesy. An optional credential must NOT hold verification back: the
+   * probe can exercise the anonymous path and prove the assembly, which is
+   * strictly more evidence than skipping (observed: a public-repo inspector
+   * was skipped for a token it never needed).
+   */
+  optional?: boolean
 }
 
 /**
@@ -376,6 +385,7 @@ export function collectRequiredSecrets(
       out.set(envName, {
         env: envName,
         ...(typeof item.purpose === 'string' ? { purpose: item.purpose } : {}),
+        ...(item.optional === true ? { optional: true } : {}),
         server,
         configured: typeof process.env[envName] === 'string' && process.env[envName] !== '',
       })
@@ -806,6 +816,7 @@ export function renderPartsLock(opts: {
   if (opts.requiredSecrets !== undefined && opts.requiredSecrets.length > 0) {
     doc.requiredSecrets = opts.requiredSecrets.map((sec) => ({
       env: sec.env, server: sec.server, configured: sec.configured,
+      ...(sec.optional === true ? { optional: true } : {}),
       ...(sec.purpose !== undefined ? { purpose: sec.purpose } : {}),
     }))
   }
@@ -908,7 +919,9 @@ export async function assemble(
   let personaFindings: PersonaLintFinding[] = []
   if (config.verify !== false) {
     const port = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
-    const missingSecrets = requiredSecrets.filter((sec) => !sec.configured)
+    // Only a REQUIRED, unconfigured credential blocks verification. An
+    // optional one leaves an anonymous path the probe can still exercise.
+    const missingSecrets = requiredSecrets.filter((sec) => !sec.configured && sec.optional !== true)
     if (port === undefined) {
       verification = { status: 'SKIPPED', reason: 'webServer port unavailable (headless run?)' }
     } else if (missingSecrets.length > 0) {
@@ -1037,8 +1050,8 @@ export function assembleResultText(result: Awaited<ReturnType<typeof assemble>>)
     ? `\n参数被拒:${result.paramsRejected.map((r) => `${r.key}(${r.reason})`).join(';')}`
     : ''
   const secretLines = result.requiredSecrets.length > 0
-    ? `\n所需凭证:${result.requiredSecrets.map((sec) => `${sec.env}${sec.configured ? '(已配置)' : '(待配置)'}${sec.purpose !== undefined ? ` — ${sec.purpose}` : ''}`).join(';')}`
-      + (result.requiredSecrets.some((sec) => !sec.configured)
+    ? `\n所需凭证:${result.requiredSecrets.map((sec) => `${sec.env}${sec.configured ? '(已配置)' : sec.optional === true ? '(可选,未配则降级)' : '(待配置)'}${sec.purpose !== undefined ? ` — ${sec.purpose}` : ''}`).join(';')}`
+      + (result.requiredSecrets.some((sec) => !sec.configured && sec.optional !== true)
         ? '\n  配置方式:把待配置的变量写进 host 环境或部署的 .env(值不会写进 preset 文件),配好后重跑装配即可完成验证'
         : '')
     : ''

@@ -1,0 +1,20 @@
+{
+  "id": "slack-messaging",
+  "verifiedAt": "2026-08-17T05:49:03.862Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "post-message",
+      "description": "【写操作,会真的发出消息】以机器人身份向 Slack 频道发送一条消息(POST /chat.postMessage)。channel 填频道 id(C 开头,来自 list-channels)或 #频道名;text 是消息正文(支持 Slack mrkdwn)。调用成功即消息已出现在频道里、工作区成员立刻可见,所以只在用户明确要求发消息时调用。传 threadTs 可以回到某条消息的话题串里。返回 channel / ts(消息时间戳,可用作后续 threadTs)。需要 SLACK_BOT_TOKEN 环境变量与 chat:write scope;未配凭证时返回可行动的错误,不会静默失败。"
+    },
+    {
+      "name": "list-channels",
+      "description": "列出 Slack 工作区的公开频道(GET /conversations.list?types=public_channel)。返回每个频道的 id、名称、是否归档、成员数、topic/purpose 摘要,拿到的 id 可直接交给 post-message。结果按 Slack 返回顺序,支持 cursor 翻页。一个频道都没有时返回 { count: 0, channels: [] } 这种结构化结果(不是错误)。需要 SLACK_BOT_TOKEN 与 channels:read scope;未配凭证时返回可行动错误。"
+    },
+    {
+      "name": "slack-capabilities",
+      "description": "【免凭证】列出本零件支持的 Slack 操作、每个操作需要的 OAuth scope(chat:write / channels:read 等)与环境变量,并报告 token 当前是否已配置(只报\"配没配\",绝不回显取值)。零凭证状态下也能正常调用——用它先搞清要开哪些 scope、token 在后台哪儿取、怎么注入。"
+    }
+  ]
+}
