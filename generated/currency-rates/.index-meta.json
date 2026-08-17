@@ -1,0 +1,11 @@
+{
+  "id": "currency-rates",
+  "kind": "service",
+  "service": "https://api.frankfurter.dev/v1",
+  "provider": "Frankfurter (ECB data)",
+  "license": "Public-Domain-ECB",
+  "terms": "https://frankfurter.dev",
+  "rateLimit": "无硬限制,建议 <10 req/s",
+  "network": true,
+  "scaffoldedAt": "2026-08-17T04:57:42.370Z"
+}

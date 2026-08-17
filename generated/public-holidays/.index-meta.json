@@ -1,0 +1,11 @@
+{
+  "id": "public-holidays",
+  "kind": "service",
+  "service": "https://date.nager.at/api/v3",
+  "provider": "Nager.Date",
+  "license": "MIT",
+  "terms": "https://date.nager.at/Home/Terms",
+  "rateLimit": "免费,建议 <10 req/s",
+  "network": true,
+  "scaffoldedAt": "2026-08-17T04:57:42.466Z"
+}

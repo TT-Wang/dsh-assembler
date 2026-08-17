@@ -33,6 +33,21 @@ for (let i = 0; i < rest.length; i += 2) {
   if (rest[i]?.startsWith('--')) flags[rest[i].slice(2)] = rest[i + 1]
 }
 
+/**
+ * Env for spawned part processes and smokes.
+ *
+ * Node's global `fetch` ignores HTTP(S)_PROXY unless NODE_USE_ENV_PROXY=1, so
+ * behind a proxy a healthy service part fails with a bare "fetch failed"
+ * while curl from the same shell succeeds. Forcing the flag here fixes every
+ * network part's smoke at once (the runtime side is handled in scrubbedEnv).
+ */
+function partEnv() {
+  const env = { ...process.env }
+  const proxied = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].some((k) => env[k])
+  if (proxied && env.NODE_USE_ENV_PROXY === undefined) env.NODE_USE_ENV_PROXY = '1'
+  return env
+}
+
 const die = (msg) => {
   console.log(JSON.stringify({ ok: false, error: msg }))
   process.exit(1)
@@ -84,16 +99,92 @@ function scaffold() {
 }
 
 /**
+ * Skeleton + work order for a SERVICE part (a public HTTP API).
+ *
+ * No package to pin and nothing to clone: the recorded facts are the base URL,
+ * the terms/licence the data comes under, and the rate limit the part must
+ * respect. Dependencies stay at the MCP SDK + zod — a service part calls the
+ * API with `fetch`, so there is no third-party client to audit.
+ */
+function scaffoldService(id, opts) {
+  const dir = join(REPO, 'generated', id)
+  mkdirSync(dir, { recursive: true })
+  if (!existsSync(join(dir, 'package.json'))) {
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({
+      name: `@dsh-index/${id}`,
+      version: '0.0.1',
+      type: 'module',
+      private: true,
+      description: `MCP stdio server exposing the ${id} public API`,
+      dependencies: { '@modelcontextprotocol/sdk': '^1.0.0', zod: '^3.23.0' },
+    }, null, 2) + '\n')
+  }
+  const meta = {
+    id,
+    kind: 'service',
+    service: opts.service,
+    provider: opts.provider ?? '(未填)',
+    license: opts.license ?? 'UNKNOWN',
+    terms: opts.terms ?? '(未填:服务条款 URL)',
+    rateLimit: opts['rate-limit'] ?? '(未填)',
+    network: true,
+    scaffoldedAt: new Date().toISOString(),
+  }
+  writeFileSync(join(dir, '.index-meta.json'), JSON.stringify(meta, null, 2) + '\n')
+  writeFileSync(join(dir, 'WORK-ORDER.md'), `# 收录工单(服务型):${id}
+
+服务:${meta.service}
+提供方:${meta.provider} — 数据许可:${meta.license} — 条款:${meta.terms}
+速率限制:${meta.rateLimit}
+
+## 要写的两个文件(户型规范,参照 generated/text-diff/ 与 generated/http-request/)
+
+1. **index.js** — MCP stdio 适配服务器,用内置 fetch 调上述服务(不引第三方 HTTP 客户端)
+   - 切 2~4 个能力点:选这个服务最有业务价值、一轮内可完成的操作
+   - **网络零件铁律**:
+     * 每次请求带超时(AbortSignal.timeout,建议 15s)与明确 User-Agent
+       \`dsh-assembler/0.1 (+https://github.com/TT-Wang/dsh-assembler)\`——
+       Nominatim/SEC 等服务强制要求 UA,缺了会被封
+     * 非 2xx、超时、JSON 解析失败一律返回 { isError: true, ... } 且**说明是哪个服务出了什么问题**,绝不抛裸异常
+     * 尊重速率限制(${meta.rateLimit});不做并发扇出
+     * 只读:不调用任何写端点
+   - 返回体裁剪成 agent 用得上的字段(别把整个 JSON 倒回上下文)
+2. **smoke.mjs** — 冒烟(check() 计数,最后 process.exit(failures))
+   - listTools 数量断言 → 每个工具**真实网络调用**并断言内容型结果 → 至少一条错误路径(非法参数或不存在的资源)
+   - 断言要抗数据漂移:天气/汇率/行情这类值天天变,断言**结构与量纲**(字段存在、数值在合理区间、单位正确),不断言具体数值
+   - **必须把代理环境显式传给零件子进程**:MCP SDK 的 StdioClientTransport 默认只透传
+     白名单 env(HOME/PATH/USER…),HTTPS_PROXY / NODE_USE_ENV_PROXY 都不在其中。
+     不传的话零件在代理网络下只报 "fetch failed",看着像零件坏了、其实是网络路径断了。
+     写法:构造一个 NETWORK_ENV = { ...process.env },当检测到 HTTPS_PROXY/HTTP_PROXY
+     而 NODE_USE_ENV_PROXY 未设时补上 NODE_USE_ENV_PROXY='1',再传给
+     new StdioClientTransport({ command, args, env: NETWORK_ENV })。
+     参照 generated/geocode/smoke.mjs 顶部的现成写法照抄。
+`)
+  return { id, kind: 'service', service: meta.service, license: meta.license, workOrder: `generated/${id}/WORK-ORDER.md`, next: `写 generated/${id}/{index.js,smoke.mjs},然后 verify` }
+}
+
+/**
  * Fetch metadata, shallow-clone upstream, write the skeleton + work order.
  * Returns the result rather than printing it, so `auto` can chain on it.
  */
 function scaffoldCore(repoSlugArg, opts) {
+  // Two part shapes share this pipeline:
+  //   library part  — wraps an npm package (version+license from the registry,
+  //                   upstream shallow-cloned for the author to read);
+  //   service part  — wraps a PUBLIC HTTP API (`--service <base-url>`): there is
+  //                   no package to pin, so the pinned facts are the service's
+  //                   TERMS and rate limit instead. FDE delivery needs those on
+  //                   record: a client's compliance desk asks what the agent
+  //                   calls and under whose licence before it asks anything else.
+  const isService = typeof opts.service === 'string' && opts.service !== ''
   const repoSlug = repoSlugArg
-  if (!repoSlug?.includes('/')) die('scaffold 需要 <owner/repo>,如 kpdecker/jsdiff')
-  const pkg = opts.pkg ?? repoSlug.split('/')[1]
+  if (!isService && !repoSlug?.includes('/')) die('scaffold 需要 <owner/repo>,如 kpdecker/jsdiff(服务型零件用 --service <base-url>)')
+  const pkg = opts.pkg ?? (isService ? (opts.id ?? '') : repoSlug.split('/')[1])
   const id = (opts.id ?? pkg).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '')
-  const dup = dedupGate({ id, pkg, repoSlug })
+  const dup = dedupGate({ id, pkg: isService ? `service:${id}` : pkg, repoSlug: isService ? opts.service : repoSlug })
   if (dup !== null && opts.force !== 'yes') die(`去重门:${dup}(确认要重复收录用 --force yes)`)
+
+  if (isService) return scaffoldService(id, opts)
 
   let meta
   try {
@@ -180,7 +271,7 @@ async function verifyCore(idArg) {
   }
   const install = spawnSync('npm', ['install', '--no-audit', '--no-fund'], { cwd: dir, encoding: 'utf8', timeout: 300_000 })
   if (install.status !== 0) die(`npm install 失败:${(install.stderr ?? '').slice(-400)}`)
-  const smoke = spawnSync('node', ['smoke.mjs'], { cwd: dir, encoding: 'utf8', timeout: 120_000 })
+  const smoke = spawnSync('node', ['smoke.mjs'], { cwd: dir, encoding: 'utf8', timeout: 180_000, env: partEnv() })
   process.stderr.write(smoke.stdout ?? '')
   if (smoke.status !== 0) {
     const err = new Error(`smoke.mjs 退出码 ${smoke.status}——冒烟未过,不入库`)
@@ -192,7 +283,7 @@ async function verifyCore(idArg) {
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
   const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js')
   const client = new Client({ name: 'index-add-verify', version: '0.0.1' })
-  await client.connect(new StdioClientTransport({ command: 'node', args: [join(dir, 'index.js')] }))
+  await client.connect(new StdioClientTransport({ command: 'node', args: [join(dir, 'index.js')], env: partEnv() }))
   const tools = (await client.listTools()).tools.map((t) => ({ name: t.name, description: t.description ?? '' }))
   await client.close()
   if (tools.length === 0) die('listTools 为空')
@@ -230,12 +321,14 @@ function registerCore(idArg) {
     const toolLines = report.tools
       .map((t) => `    - { name: ${t.name}, description: ${JSON.stringify(t.description.replace(/\n[\s\S]*/, '').slice(0, 80))} }`)
       .join('\n')
+    // A service part pins terms + rate limit where a library part pins a rev:
+    // that IS its supply-chain provenance, and the BOM carries it to the client.
+    const provenance = meta.kind === 'service'
+      ? `  kind: service\n  service: ${meta.service}\n  provider: ${JSON.stringify(meta.provider ?? '')}\n  license: ${meta.license}\n  terms: ${JSON.stringify(meta.terms ?? '')}\n  rateLimit: ${JSON.stringify(meta.rateLimit ?? '')}\n  network: true\n`
+      : `  repo: ${meta.repo}\n  rev: v${meta.version}\n  license: ${meta.license}\n`
     writeFileSync(catalogPath, catalog.replace(/\n*$/, '\n') + `
 - id: ${id}
-  repo: ${meta.repo}
-  rev: v${meta.version}
-  license: ${meta.license}
-  tools:
+${provenance}  tools:
 ${toolLines}
 `)
     changed.push('index/catalog.yml')
@@ -368,24 +461,51 @@ async function auto() {
 }
 
 // ── check-all ──────────────────────────────────────────────────────────────
-function checkAll() {
+async function checkAll() {
   const gen = join(REPO, 'generated')
   const ids = readdirSync(gen).filter((d) => existsSync(join(gen, d, 'smoke.mjs')))
+  // A network part's smoke makes real calls, so an offline run would report
+  // failures that say nothing about the part. Those are SKIPPED and counted
+  // separately — never folded into the pass count, because "did not run" and
+  // "ran and passed" are different facts and the ledger must keep them apart.
+  const online = await (async () => {
+    try {
+      const r = await fetch('https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR', { signal: AbortSignal.timeout(8000) })
+      return r.ok
+    } catch { return false }
+  })()
   const results = []
   for (const id of ids) {
-    const r = spawnSync('node', ['smoke.mjs'], { cwd: join(gen, id), encoding: 'utf8', timeout: 120_000 })
+    let networkPart = false
+    try {
+      networkPart = JSON.parse(readFileSync(join(gen, id, '.index-meta.json'), 'utf8')).network === true
+    } catch { /* library part or pre-metadata part */ }
+    if (networkPart && !online) {
+      results.push({ id, skipped: true })
+      console.error(`  ↷ SKIP ${id}(网络零件,当前离线)`)
+      continue
+    }
+    const r = spawnSync('node', ['smoke.mjs'], { cwd: join(gen, id), encoding: 'utf8', timeout: 180_000, env: partEnv() })
     results.push({ id, pass: r.status === 0 })
     console.error(`${r.status === 0 ? '  ✓' : '  ✗ FAIL'} ${id}`)
   }
-  const failed = results.filter((r) => !r.pass)
-  console.log(JSON.stringify({ ok: failed.length === 0, total: results.length, failed: failed.map((r) => r.id) }))
+  const failed = results.filter((r) => r.skipped !== true && !r.pass)
+  const skipped = results.filter((r) => r.skipped === true)
+  console.log(JSON.stringify({
+    ok: failed.length === 0,
+    total: results.length,
+    ran: results.length - skipped.length,
+    skipped: skipped.map((r) => r.id),
+    failed: failed.map((r) => r.id),
+    online,
+  }))
   process.exit(failed.length === 0 ? 0 : 1)
 }
 
 if (cmd === 'scaffold') scaffold()
 else if (cmd === 'verify') await verify()
 else if (cmd === 'register') register()
-else if (cmd === 'check-all') checkAll()
+else if (cmd === 'check-all') await checkAll()
 else if (cmd === 'coverage') coverage()
 else if (cmd === 'auto') await auto()
 else die('用法:index-add.mjs scaffold <owner/repo> --pkg <npm名> | verify <id> | register <id> | check-all | coverage | auto <owner/repo> --pkg <npm名> [--id <id>] [--port 3096]')

@@ -1,0 +1,11 @@
+{
+  "id": "worldbank-data",
+  "kind": "service",
+  "service": "https://api.worldbank.org/v2",
+  "provider": "World Bank Open Data",
+  "license": "CC-BY-4.0",
+  "terms": "https://datacatalog.worldbank.org/public-licenses",
+  "rateLimit": "无公开硬限制",
+  "network": true,
+  "scaffoldedAt": "2026-08-17T04:57:42.513Z"
+}

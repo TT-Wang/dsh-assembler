@@ -1,0 +1,16 @@
+{
+  "id": "weather-forecast",
+  "verifiedAt": "2026-08-17T05:10:10.359Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "current-weather",
+      "description": "查询指定经纬度的当前天气实况(Open-Meteo)。返回当前温度(°C)、相对湿度(%)、10 米风速(km/h)、WMO 天气代码及其中文含义,并附观测时刻(当地时区)与实际匹配到的网格点坐标/海拔/时区。经纬度越界(|lat|>90 或 |lon|>180)时返回错误而不发请求。"
+    },
+    {
+      "name": "daily-forecast",
+      "description": "查询指定经纬度未来 N 天(1-16)的逐日预报(Open-Meteo)。每天返回日期、最高温、最低温(均为 °C)与日累计降水量(mm),按当地时区切分自然日。days 越界或经纬度越界时返回错误而不发请求;返回的 days 数组长度即请求天数。"
+    }
+  ]
+}

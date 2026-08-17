@@ -1,0 +1,16 @@
+{
+  "id": "geocode",
+  "verifiedAt": "2026-08-17T05:17:23.351Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "geocode-address",
+      "description": "正向地理编码:把地址或地名文本解析成坐标(OpenStreetMap Nominatim)。返回 results 数组,每条含规范化地名 displayName、经纬度、地物类别(category/type/addressType)、外接矩形 boundingBox 与 OSM 对象 id,按相关度排序。查不到时返回 { found: false, results: [] } 这种结构化结果(不是错误);只有 query 为空或 limit 越界才算参数错误。注意:受服务条款约束,本零件内部按 1 req/s 串行节流,连续调用会变慢。"
+    },
+    {
+      "name": "reverse-geocode",
+      "description": "反向地理编码:把经纬度解析成最近的地址(OpenStreetMap Nominatim)。返回规范化地址 displayName 与拆解后的 address 结构(国家/省市/街道/邮编等),外加地物类别与 OSM 对象 id。坐标落在公海或无覆盖区域时返回 { found: false } 这种结构化结果(不是错误);经纬度越界(|lat|>90 或 |lon|>180)才算参数错误,且不会发出请求。注意:受服务条款约束,本零件内部按 1 req/s 串行节流,连续调用会变慢。"
+    }
+  ]
+}

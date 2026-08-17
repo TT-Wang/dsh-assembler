@@ -1,0 +1,11 @@
+{
+  "id": "geocode",
+  "kind": "service",
+  "service": "https://nominatim.openstreetmap.org",
+  "provider": "OpenStreetMap Nominatim",
+  "license": "ODbL-1.0",
+  "terms": "https://operations.osmfoundation.org/policies/nominatim/",
+  "rateLimit": "严格 1 req/s,必须带 UA",
+  "network": true,
+  "scaffoldedAt": "2026-08-17T04:57:42.415Z"
+}

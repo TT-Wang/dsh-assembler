@@ -1,0 +1,11 @@
+{
+  "id": "weather-forecast",
+  "kind": "service",
+  "service": "https://api.open-meteo.com/v1",
+  "provider": "Open-Meteo",
+  "license": "CC-BY-4.0",
+  "terms": "https://open-meteo.com/en/terms",
+  "rateLimit": "免费非商用无限制;商用需订阅",
+  "network": true,
+  "scaffoldedAt": "2026-08-17T04:57:42.302Z"
+}

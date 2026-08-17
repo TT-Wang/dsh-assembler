@@ -334,6 +334,26 @@ mcp-servers:
     command: node
     args: ['/Users/tongtao/code/dsh-assembler/generated/safe-filename/index.js']
 
+  package-registry:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/package-registry/index.js']
+
+  weather-forecast:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/weather-forecast/index.js']
+
+  currency-rates:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/currency-rates/index.js']
+
+  geocode:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/geocode/index.js']
+
 capabilities:
   # ── customer-service domain tools (this package) ──────────────────────────
   - id: crm-query

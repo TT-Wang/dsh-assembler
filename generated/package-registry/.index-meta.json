@@ -1,0 +1,11 @@
+{
+  "id": "package-registry",
+  "kind": "service",
+  "service": "https://registry.npmjs.org",
+  "provider": "npm + PyPI registries",
+  "license": "registry ToS",
+  "terms": "https://docs.npmjs.com/policies/terms",
+  "rateLimit": "合理使用,建议 <5 req/s",
+  "network": true,
+  "scaffoldedAt": "2026-08-17T04:57:42.658Z"
+}

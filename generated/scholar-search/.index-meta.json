@@ -1,0 +1,11 @@
+{
+  "id": "scholar-search",
+  "kind": "service",
+  "service": "https://api.crossref.org",
+  "provider": "Crossref + arXiv",
+  "license": "CC0-1.0 / arXiv terms",
+  "terms": "https://www.crossref.org/documentation/retrieve-metadata/rest-api/",
+  "rateLimit": "polite pool:带 UA 与联系方式",
+  "network": true,
+  "scaffoldedAt": "2026-08-17T04:57:42.559Z"
+}

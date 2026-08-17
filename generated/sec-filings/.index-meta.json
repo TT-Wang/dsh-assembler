@@ -1,0 +1,11 @@
+{
+  "id": "sec-filings",
+  "kind": "service",
+  "service": "https://data.sec.gov",
+  "provider": "U.S. SEC EDGAR",
+  "license": "Public-Domain-US-Gov",
+  "terms": "https://www.sec.gov/os/webmaster-faq#developers",
+  "rateLimit": "10 req/s,必须带含邮箱的 UA",
+  "network": true,
+  "scaffoldedAt": "2026-08-17T04:57:42.705Z"
+}

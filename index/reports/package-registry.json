@@ -1,0 +1,20 @@
+{
+  "id": "package-registry",
+  "verifiedAt": "2026-08-17T05:07:05.051Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "package-info",
+      "description": "查一个包在 npm 或 PyPI 上的公开元数据,两个生态返回**同一形状**:name / version(最新版)/ license / summary / homepage / repository / dependencyCount / deprecated。用于依赖尽调、许可证核对、确认包是否还在维护。包不存在时返回 found:false 的结构化说明(不是错误)。"
+    },
+    {
+      "name": "package-versions",
+      "description": "列出一个包最近发布的 N 个版本及其发布时间(按时间倒序),用于判断维护活跃度、定位某次改动落在哪个版本、核对版本节奏。返回 latest、总版本数与 versions 数组。limit 默认 10,上限 20。"
+    },
+    {
+      "name": "check-license",
+      "description": "批量核查一串包的许可证(同一生态,单次最多 10 个),供应链合规逐条过账用。每条返回 name / found / version / license。请求**串行**发出并自带节流,不并发扇出;未收录的包记 found:false 并继续核查其余包,不中断整批。"
+    }
+  ]
+}

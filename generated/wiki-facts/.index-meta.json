@@ -1,0 +1,11 @@
+{
+  "id": "wiki-facts",
+  "kind": "service",
+  "service": "https://en.wikipedia.org/api/rest_v1",
+  "provider": "Wikimedia (Wikipedia + Wikidata)",
+  "license": "CC-BY-SA-4.0",
+  "terms": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use",
+  "rateLimit": "200 req/s 上限,必须带 UA",
+  "network": true,
+  "scaffoldedAt": "2026-08-17T04:57:42.605Z"
+}

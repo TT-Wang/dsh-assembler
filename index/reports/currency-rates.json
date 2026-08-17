@@ -1,0 +1,20 @@
+{
+  "id": "currency-rates",
+  "verifiedAt": "2026-08-17T05:10:17.142Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "latest-rates",
+      "description": "取最新一期 ECB 参考汇率(Frankfurter)。输入基准货币与可选的目标货币列表,返回 { base, date, rates },其中 rates[X] 表示 1 单位 base 兑换多少 X,date 是该期汇率的实际生效日(ECB 只发布工作日,周末拿到的是上一个工作日的数据)。省略 symbols 则返回全部约 30 种币种。货币代码非法或不被 ECB 收录时返回错误。"
+    },
+    {
+      "name": "historical-rate",
+      "description": "取指定日期的 ECB 参考汇率(Frankfurter)。返回 { base, requestedDate, effectiveDate, rates }。因为 ECB 只发布工作日汇率,请求周末或节假日会自动回退到最近的工作日:effectiveDate 才是这组汇率真正对应的日期,两者不同时 note 字段会写明。ECB 数据自 1999-01-04 起;日期格式非法、超出范围或货币代码非法时返回错误。"
+    },
+    {
+      "name": "convert-amount",
+      "description": "按 ECB 参考汇率把一笔金额从一种货币换算成另一种(Frankfurter)。输入金额与 from/to 货币代码,可选指定日期(省略则用最新一期)。返回 { amount, from, to, rate, result, effectiveDate },rate 是 1 单位 from 兑换多少 to,result 是换算结果。effectiveDate 是这笔换算实际采用的汇率日期——ECB 只有工作日数据,周末/节假日会回退到最近的工作日,note 字段会写明。from 与 to 相同、金额为负、货币代码非法时返回错误。"
+    }
+  ]
+}

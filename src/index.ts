@@ -442,12 +442,24 @@ export function writePresetFile(path: string, content: string): void {
   writeFileSync(path, content)
 }
 
-/** Ambient env with only string values (process.env entries can be undefined). */
+/**
+ * Ambient env with only string values (process.env entries can be undefined).
+ *
+ * `NODE_USE_ENV_PROXY=1` is forced on when a proxy is configured: Node's
+ * global `fetch` IGNORES `HTTP(S)_PROXY` without it, so a service part behind
+ * a corporate or local proxy fails with a bare "fetch failed" while `curl`
+ * from the same shell succeeds — a failure that reads as a broken part and is
+ * really a broken network path (observed live: geocode's smoke, 16 red
+ * assertions, endpoint healthy). Setting it here fixes every network part at
+ * once instead of asking each one to remember.
+ */
 function scrubbedEnv(): Record<string, string> {
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env)) {
     if (typeof v === 'string') env[k] = v
   }
+  const proxied = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].some((k) => env[k] !== undefined && env[k] !== '')
+  if (proxied && env.NODE_USE_ENV_PROXY === undefined) env.NODE_USE_ENV_PROXY = '1'
   return env
 }
 
@@ -643,6 +655,14 @@ interface IndexRecord {
   rev?: string
   license?: string
   verified?: boolean
+  /** 'service' for parts that wrap a public HTTP API; absent for library parts. */
+  kind?: string
+  /** Service part: base URL, terms, rate limit — its provenance has no rev to pin. */
+  service?: string
+  provider?: string
+  terms?: string
+  rateLimit?: string
+  network?: boolean
 }
 
 /**
@@ -680,8 +700,20 @@ export function renderPartsLock(opts: {
       else part.plane = 'host'
       const rec = byId.get(server)
       if (rec !== undefined) {
-        if (rec.repo !== undefined) part.repo = rec.repo
-        if (rec.rev !== undefined) part.rev = rec.rev
+        // A service part has no rev to pin: its provenance IS the endpoint,
+        // the terms it is used under, and the rate limit it must respect —
+        // the three facts a client's compliance desk asks about.
+        if (rec.kind === 'service') {
+          part.kind = 'service'
+          if (rec.service !== undefined) part.service = rec.service
+          if (rec.provider !== undefined) part.provider = rec.provider
+          if (rec.terms !== undefined) part.terms = rec.terms
+          if (rec.rateLimit !== undefined) part.rateLimit = rec.rateLimit
+          part.network = true
+        } else {
+          if (rec.repo !== undefined) part.repo = rec.repo
+          if (rec.rev !== undefined) part.rev = rec.rev
+        }
         if (rec.license !== undefined) part.license = rec.license
         part.verified = rec.verified !== false
       }

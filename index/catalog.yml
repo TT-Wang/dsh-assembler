@@ -584,3 +584,53 @@
   tools:
     - { name: sanitize, description: "把任意字符串转成安全的文件名。会替换 Windows/Unix 保留字符 <>:\"/\\|?*、移除控制字符与双向控制符、归一化 Unicode 空白、去掉末尾的" }
     - { name: sanitize-path, description: "把完整路径里的文件名(最后一段)转成安全文件名,目录部分原样保留。输入路径经 path.resolve 解析(相对路径按进程工作目录解析),返回净化后的完整路径" }
+
+- id: package-registry
+  kind: service
+  service: https://registry.npmjs.org
+  provider: "npm + PyPI registries"
+  license: registry ToS
+  terms: "https://docs.npmjs.com/policies/terms"
+  rateLimit: "合理使用,建议 <5 req/s"
+  network: true
+  tools:
+    - { name: package-info, description: "查一个包在 npm 或 PyPI 上的公开元数据,两个生态返回**同一形状**:name / version(最新版)/ license / summary /" }
+    - { name: package-versions, description: "列出一个包最近发布的 N 个版本及其发布时间(按时间倒序),用于判断维护活跃度、定位某次改动落在哪个版本、核对版本节奏。返回 latest、总版本数与 vers" }
+    - { name: check-license, description: "批量核查一串包的许可证(同一生态,单次最多 10 个),供应链合规逐条过账用。每条返回 name / found / version / license。请求*" }
+
+- id: weather-forecast
+  kind: service
+  service: https://api.open-meteo.com/v1
+  provider: "Open-Meteo"
+  license: CC-BY-4.0
+  terms: "https://open-meteo.com/en/terms"
+  rateLimit: "免费非商用无限制;商用需订阅"
+  network: true
+  tools:
+    - { name: current-weather, description: "查询指定经纬度的当前天气实况(Open-Meteo)。返回当前温度(°C)、相对湿度(%)、10 米风速(km/h)、WMO 天气代码及其中文含义,并附观测时刻" }
+    - { name: daily-forecast, description: "查询指定经纬度未来 N 天(1-16)的逐日预报(Open-Meteo)。每天返回日期、最高温、最低温(均为 °C)与日累计降水量(mm),按当地时区切分自然日" }
+
+- id: currency-rates
+  kind: service
+  service: https://api.frankfurter.dev/v1
+  provider: "Frankfurter (ECB data)"
+  license: Public-Domain-ECB
+  terms: "https://frankfurter.dev"
+  rateLimit: "无硬限制,建议 <10 req/s"
+  network: true
+  tools:
+    - { name: latest-rates, description: "取最新一期 ECB 参考汇率(Frankfurter)。输入基准货币与可选的目标货币列表,返回 { base, date, rates },其中 rates[X" }
+    - { name: historical-rate, description: "取指定日期的 ECB 参考汇率(Frankfurter)。返回 { base, requestedDate, effectiveDate, rates }。因为" }
+    - { name: convert-amount, description: "按 ECB 参考汇率把一笔金额从一种货币换算成另一种(Frankfurter)。输入金额与 from/to 货币代码,可选指定日期(省略则用最新一期)。返回 {" }
+
+- id: geocode
+  kind: service
+  service: https://nominatim.openstreetmap.org
+  provider: "OpenStreetMap Nominatim"
+  license: ODbL-1.0
+  terms: "https://operations.osmfoundation.org/policies/nominatim/"
+  rateLimit: "严格 1 req/s,必须带 UA"
+  network: true
+  tools:
+    - { name: geocode-address, description: "正向地理编码:把地址或地名文本解析成坐标(OpenStreetMap Nominatim)。返回 results 数组,每条含规范化地名 displayName" }
+    - { name: reverse-geocode, description: "反向地理编码:把经纬度解析成最近的地址(OpenStreetMap Nominatim)。返回规范化地址 displayName 与拆解后的 address 结" }
