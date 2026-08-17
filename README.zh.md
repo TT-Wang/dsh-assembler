@@ -33,7 +33,7 @@
 - **零件物料清单(BOM)**:每次装配随 preset 发射 `parts.lock.yml`——每个零件的出处、许可、验证状态、实际挂载名、知识包来源版本、待配凭证清单
 - **联邦索引缓存**:零件工具清单按(连接配置 + 适配器文件指纹)缓存,冷 ~5s → 热 **0.002s**
 - **persona lint**:机械核查 persona(点名的工具必须在挂载面里、禁止"第 N 步"编舞句式、长度界)
-- **设计宪法**:[DESIGN.md](DESIGN.md)(设计宪法,中文)—— 三件本分、负面清单、三条边界判据。新功能先过判据
+- **设计文档**:[DESIGN.md](DESIGN.md)(中文)—— 装配器做什么、不做什么,以及边界在哪
 
 ---
 
@@ -139,7 +139,7 @@ dsh-assembler/
 | `mcp` | MCP 服务器工具(装配时自动联邦) | `mcp-weather-forecast-current-weather` 等 229 条 |
 | `knowledge` | 客户静态教材(装配时拷入 `kb/`) | `acme-policies-kb` |
 
-**78 个零件 / 215 个工具** —— 61 库型、13 服务型、4 第一方。这一节用 `npm run catalog:report` 重新生成。
+**78 个零件 / 215 个工具** —— 61 库型、13 服务型、4 第一方。
 
 ### 服务型零件 —— 实时数据与外部系统
 
@@ -341,11 +341,13 @@ dsh-assembler/
 
 </details>
 
-### 许可证分布
+### 许可证
 
-MIT 47 · Apache-2.0 7 · BSD-3-Clause 7 · ISC 2 · BSD-2-Clause 2 · CC-BY-4.0 2 · MIT AND Apache-2.0 1 · registry ToS 1 · Public-Domain-ECB 1 · ODbL-1.0 1 · Public-Domain-US-Gov 1 · CC0-1.0 / arXiv terms 1 · CC-BY-SA-4.0 1 · CC0-1.0 1 · Feishu API ToS 1 · Slack API ToS 1 · GitHub ToS 1
+**所包装代码**(库型 + 第一方零件):MIT 46 · Apache-2.0 7 · BSD-3-Clause 7 · ISC 2 · BSD-2-Clause 2 · MIT AND Apache-2.0 1
 
-全部宽松许可,代码侧零 copyleft 风险。服务型零件另记**数据许可**——那是另一种义务:Nominatim 是 ODbL、Wikipedia 是 CC-BY-SA(署名/共享要求),因此逐条进 BOM 供客户合规核查。
+**数据许可 / 服务条款**(服务型零件):CC-BY-4.0 2 · registry ToS 1 · Public-Domain-ECB 1 · ODbL-1.0 1 · MIT 1 · Public-Domain-US-Gov 1 · CC0-1.0 / arXiv terms 1 · CC-BY-SA-4.0 1 · CC0-1.0 1 · Feishu API ToS 1 · Slack API ToS 1 · GitHub ToS 1
+
+全部宽松许可,代码侧零 copyleft 风险。服务型零件另记**数据许可**——那是另一种义务:Nominatim 是 ODbL、Wikipedia 是 CC-BY-SA(署名/共享要求),因此逐条记录并随装配进入 BOM。
 
 完整机器可读清单(含每个零件的 `repo@rev`、许可、条款、速率限制与工具描述):[`index/catalog.yml`](index/catalog.yml)。
 
@@ -381,15 +383,15 @@ npm run index:check     # 全量回归:跑每个零件的冒烟(离线时网络�
 node scripts/index-add.mjs coverage   # 能力覆盖图:语义判重用
 ```
 
-**质检门在流水线里**:verify 不过,register 直接拒绝。**去重两层**——机械硬门(同 id / 同 npm 包 / 同上游 repo)+ coverage 覆盖图语义判重(记录在案的拒收:moment/cheerio/axios/fast-diff/papaparse 与既有零件同能力,convert-units 被 mathjs 覆盖,ua-parser-js v2 改 AGPL 许可证风险)。
+**质检门在流水线里**:verify 不过,register 直接拒绝。**去重两层**——机械硬门(同 id / 同 npm 包 / 同上游 repo),以及对着 `coverage` 覆盖图做能力级判重:目录收的是能力点,不是库。
 
 ---
 
-## 实测输出
+## 输出示例
 
 ### 装配即验证(多轮场景)
 
-需求"记账助手,把每笔收支记到本地账本,之后可以查询和汇总"——派生器**自主选择了 3 轮场景**:
+需求"记账助手,把每笔收支记到本地账本,之后可以查询和汇总"——派生器判定这是跨轮任务,出了一个 3 轮场景:
 
 ```
 自动验证:PASS — 多轮场景「证明记账助手能把收支持久化到 SQLite,并在后续轮次中查询和汇总」共 3 轮,逐轮通过
@@ -398,7 +400,7 @@ node scripts/index-add.mjs coverage   # 能力覆盖图:语义判重用
   第3轮 ✓ 「查询本地账本,列出所有记录并汇总收支」标记 [INV-7781, OFFICE-2201, 8899]
 ```
 
-第 3 轮查的是前两轮写入的状态——**这才是状态真的活过了轮次**。对照组"数学计算助手"正确地留在单轮(26s)。
+第 3 轮查的是前两轮写入的状态——这样验收才能证明状态真的活过了轮次。纯计算类需求则只出单轮题。
 
 ### 凭证的四种状态
 
@@ -412,10 +414,10 @@ node scripts/index-add.mjs coverage   # 能力覆盖图:语义判重用
 所需凭证:GITHUB_TOKEN(可选,未配则降级)
 ```
 
-### 零件物料清单(节选)
+### 零件物料清单 `parts.lock.yml`(节选)
 
 ```yaml
-preset: p2-bom-probe
+preset: currency-qr-assistant
 parts:
   - capability: mcp-qrcode-generate-qr-generate-png
     server: qrcode-generate
@@ -450,10 +452,10 @@ npm run bench      # 45 题装配基准
 
 改 `lib/` 后需重启 DSH web 进程生效;改 `capabilities.yml` 无需重启(装配时实时读取)。
 
-网络零件的环境要点(实测教训,写进了工单模板):Node 的 `fetch` 忽略 `HTTP(S)_PROXY` 除非 `NODE_USE_ENV_PROXY=1`,且 MCP SDK 的 `StdioClientTransport` **只透传白名单环境变量**——流水线已统一处理,自己写冒烟时记得传 `NETWORK_ENV`。
+写网络零件时的两个环境事实:Node 的 `fetch` 忽略 `HTTP(S)_PROXY`,除非设了 `NODE_USE_ENV_PROXY=1`;MCP SDK 的 `StdioClientTransport` **只透传白名单环境变量**,代理设置不会自动进入零件进程。流水线已统一处理这两点,手写冒烟时需要自己把环境传下去。
 
 ---
 
 ## 许可证
 
-BSD-3-Clause。零件适配的上游库许可证见 `index/catalog.yml` 各条目;服务型零件的数据许可与条款同样逐条记录在案。
+BSD-3-Clause。零件适配的上游库许可证见 `index/catalog.yml` 各条目;服务型零件的数据许可与条款同样逐条记录在目录条目里。

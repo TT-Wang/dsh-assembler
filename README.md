@@ -18,8 +18,6 @@ The catalog grows through an **induction pipeline**: open-source libraries, publ
 | Part mix | 61 library-backed + 13 service-backed + 4 first-party | same |
 | Assembly wall time | median **56s** (single-turn 52s / scenario 182s) | ledgers in `bench/results/` |
 
-Every row names the artifact that proves it. That is a house rule, not a flourish — see [DESIGN.md](DESIGN.md) (design charter, Chinese).
-
 ---
 
 ## What it does
@@ -35,6 +33,7 @@ Every row names the artifact that proves it. That is a house rule, not a flouris
 - **Parts BOM** — every assembly emits `parts.lock.yml` beside the preset: per part its origin, licence, verified status and the serverName actually mounted, plus knowledge sources with versions and the pending-credential list.
 - **Federation cache** — each part's tool list is cached under (connection config + adapter file fingerprint): cold ~5s, **warm 0.002s**.
 - **persona lint** — mechanical checks on the persona text: every tool it names must be in the mounted surface, step-numbered choreography is rejected, length is bounded.
+- **Design notes** — [DESIGN.md](DESIGN.md) (Chinese) states what the assembler does, what it deliberately does not, and where the boundary sits.
 
 ---
 
@@ -141,7 +140,7 @@ Four kinds of capability:
 | `mcp` | MCP server tools (federated at assembly time) | `mcp-weather-forecast-current-weather`, 229 of them |
 | `knowledge` | client teaching material (copied into `kb/`) | `acme-policies-kb` |
 
-**78 parts / 215 tools** — 61 library-backed, 13 service-backed, 4 first-party. Regenerate this section with `npm run catalog:report`.
+**78 parts / 215 tools** — 61 library-backed, 13 service-backed, 4 first-party.
 
 ### Service-backed parts — live data and external systems
 
@@ -343,11 +342,13 @@ Four kinds of capability:
 
 </details>
 
-### Licence mix
+### Licences
 
-MIT 47 · Apache-2.0 7 · BSD-3-Clause 7 · ISC 2 · BSD-2-Clause 2 · CC-BY-4.0 2 · MIT AND Apache-2.0 1 · registry ToS 1 · Public-Domain-ECB 1 · ODbL-1.0 1 · Public-Domain-US-Gov 1 · CC0-1.0 / arXiv terms 1 · CC-BY-SA-4.0 1 · CC0-1.0 1 · Feishu API ToS 1 · Slack API ToS 1 · GitHub ToS 1
+**Wrapped code** (library + first-party parts): MIT 46 · Apache-2.0 7 · BSD-3-Clause 7 · ISC 2 · BSD-2-Clause 2 · MIT AND Apache-2.0 1
 
-All permissive — no copyleft exposure in code. Service parts additionally record the **data** licence, which is a different obligation: Nominatim is ODbL and Wikipedia is CC-BY-SA (attribution / share-alike duties), so those travel into the BOM for a client's compliance review.
+**Data licence / terms** (service-backed parts): CC-BY-4.0 2 · registry ToS 1 · Public-Domain-ECB 1 · ODbL-1.0 1 · MIT 1 · Public-Domain-US-Gov 1 · CC0-1.0 / arXiv terms 1 · CC-BY-SA-4.0 1 · CC0-1.0 1 · Feishu API ToS 1 · Slack API ToS 1 · GitHub ToS 1
+
+All permissive — no copyleft exposure in code. Service parts additionally record the **data** licence, which is a different obligation: Nominatim is ODbL and Wikipedia is CC-BY-SA (attribution / share-alike duties), so both are recorded per entry and travel into each assembly's BOM.
 
 Machine-readable inventory with every `repo@rev`, licence, terms, rate limit and tool description: [`index/catalog.yml`](index/catalog.yml).
 
@@ -383,15 +384,15 @@ npm run index:check     # full regression: every part's smoke (network parts rec
 node scripts/index-add.mjs coverage   # capability map, for semantic dedup
 ```
 
-**The gate lives in the pipeline**: if verify fails, register refuses. **Dedup has two layers** — a mechanical gate (same id / same npm package / same upstream repo) and semantic judgement against the coverage map. Recorded rejections: moment/cheerio/axios/fast-diff/papaparse (same capability as an existing part), convert-units (subsumed by mathjs), ua-parser-js (v2 relicensed AGPL — licence risk).
+**The gate lives in the pipeline**: if verify fails, register refuses. **Dedup has two layers** — a mechanical gate (same id / same npm package / same upstream repo), and capability-level judgement against the `coverage` map: the catalog holds capabilities, not libraries.
 
 ---
 
-## Measured output
+## Sample output
 
 ### Assemble-then-verify, multi-turn
 
-For "a bookkeeping assistant that records income and expenses locally and can query and total them later", the deriver **chose a 3-turn scenario on its own**:
+For "a bookkeeping assistant that records income and expenses locally and can query and total them later", the deriver judged the work to outlive a turn and produced a 3-turn scenario:
 
 ```
 自动验证:PASS — 多轮场景「prove the assistant persists entries to SQLite and can query/total them in later turns」共 3 轮,逐轮通过
@@ -400,7 +401,7 @@ For "a bookkeeping assistant that records income and expenses locally and can qu
   turn 3 ✓ "query the ledger, list every entry and total them"        marks [INV-7781, OFFICE-2201, 8899]
 ```
 
-Turn 3 reads what turns 1 and 2 wrote — that is what makes state continuity *proven* rather than assumed. The control ("a maths assistant") correctly stayed single-turn at 26s.
+Turn 3 reads what turns 1 and 2 wrote, which is what makes state continuity provable rather than assumed. A pure-compute requirement gets a single-turn probe instead.
 
 ### The four credential states
 
@@ -415,10 +416,10 @@ Turn 3 reads what turns 1 and 2 wrote — that is what makes state continuity *p
 所需凭证:GITHUB_TOKEN(optional; degrades to anonymous when unset)
 ```
 
-### Parts BOM (excerpt)
+### Parts BOM — `parts.lock.yml` (excerpt)
 
 ```yaml
-preset: p2-bom-probe
+preset: currency-qr-assistant
 parts:
   - capability: mcp-qrcode-generate-qr-generate-png
     server: qrcode-generate
@@ -453,10 +454,10 @@ npm run bench      # 45-item assembly benchmark
 
 Changes under `lib/` need a DSH web restart; changes to `capabilities.yml` do not (the catalog is read at assembly time).
 
-Two environment facts network parts must respect (learned the hard way, now in the work-order template): Node's global `fetch` ignores `HTTP(S)_PROXY` unless `NODE_USE_ENV_PROXY=1`, and the MCP SDK's `StdioClientTransport` **only forwards a whitelist of environment variables** — so the flag never reaches the part process on its own. The pipeline handles both; if you write a smoke by hand, pass `NETWORK_ENV`.
+Two environment facts to know when writing a network part: Node's global `fetch` ignores `HTTP(S)_PROXY` unless `NODE_USE_ENV_PROXY=1`, and the MCP SDK's `StdioClientTransport` **only forwards a whitelist of environment variables**, so proxy settings do not reach a part process by themselves. The pipeline handles both; a hand-written smoke must pass the environment down itself.
 
 ---
 
 ## Licence
 
-BSD-3-Clause. Upstream licences for the wrapped libraries are recorded per entry in `index/catalog.yml`; service-backed parts record their data licence and terms the same way.
+BSD-3-Clause. Upstream licences for the wrapped libraries are recorded per entry in `index/catalog.yml`; service-backed parts record their data licence and terms in their catalog entry the same way.

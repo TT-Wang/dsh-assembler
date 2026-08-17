@@ -65,28 +65,32 @@ const secretsOf = (id) => {
 
 const L = lang === 'en'
   ? {
-    head: `**${catalog.length} parts / ${total} tools** — ${library.length} library-backed, ${service.length} service-backed, ${firstParty.length} first-party. Regenerate this section with \`npm run catalog:report\`.`,
+    head: `**${catalog.length} parts / ${total} tools** — ${library.length} library-backed, ${service.length} service-backed, ${firstParty.length} first-party.`,
     svc: '### Service-backed parts — live data and external systems',
     svcHead: '| Part | Tools | Source | Licence / terms | Credentials |',
     fp: '### First-party parts — thin shells over Node built-ins, zero third-party deps',
     lib: '### Library-backed parts, by domain',
     libHead: '| Domain | Parts (tool count) |',
     full: 'Full tool-level inventory',
-    lic: '### Licence mix',
-    licNote: 'All permissive — no copyleft exposure in code. Service parts additionally record the **data** licence, which is a different obligation: Nominatim is ODbL and Wikipedia is CC-BY-SA (attribution / share-alike duties), so those travel into the BOM for a client\'s compliance review.',
+    lic: '### Licences',
+    licCode: '**Wrapped code** (library + first-party parts): ',
+    licData: '**Data licence / terms** (service-backed parts): ',
+    licNote: 'All permissive — no copyleft exposure in code. Service parts additionally record the **data** licence, which is a different obligation: Nominatim is ODbL and Wikipedia is CC-BY-SA (attribution / share-alike duties), so both are recorded per entry and travel into each assembly\'s BOM.',
     other: 'Other',
     machine: 'Machine-readable inventory with every `repo@rev`, licence, terms, rate limit and tool description: [`index/catalog.yml`](index/catalog.yml).',
   }
   : {
-    head: `**${catalog.length} 个零件 / ${total} 个工具** —— ${library.length} 库型、${service.length} 服务型、${firstParty.length} 第一方。这一节用 \`npm run catalog:report\` 重新生成。`,
+    head: `**${catalog.length} 个零件 / ${total} 个工具** —— ${library.length} 库型、${service.length} 服务型、${firstParty.length} 第一方。`,
     svc: '### 服务型零件 —— 实时数据与外部系统',
     svcHead: '| 零件 | 工具 | 数据源 | 许可/条款 | 凭证 |',
     fp: '### 第一方零件 —— Node 内置薄壳,零第三方依赖',
     lib: '### 库型零件(按领域)',
     libHead: '| 领域 | 零件(工具数) |',
     full: '完整工具级清单',
-    lic: '### 许可证分布',
-    licNote: '全部宽松许可,代码侧零 copyleft 风险。服务型零件另记**数据许可**——那是另一种义务:Nominatim 是 ODbL、Wikipedia 是 CC-BY-SA(署名/共享要求),因此逐条进 BOM 供客户合规核查。',
+    lic: '### 许可证',
+    licCode: '**所包装代码**(库型 + 第一方零件):',
+    licData: '**数据许可 / 服务条款**(服务型零件):',
+    licNote: '全部宽松许可,代码侧零 copyleft 风险。服务型零件另记**数据许可**——那是另一种义务:Nominatim 是 ODbL、Wikipedia 是 CC-BY-SA(署名/共享要求),因此逐条记录并随装配进入 BOM。',
     other: '其他',
     machine: '完整机器可读清单(含每个零件的 `repo@rev`、许可、条款、速率限制与工具描述):[`index/catalog.yml`](index/catalog.yml)。',
   }
@@ -123,10 +127,21 @@ for (const x of catalog) {
 }
 lines.push('', '</details>', '')
 
-const licCount = new Map()
-for (const x of catalog) licCount.set(x.license ?? '?', (licCount.get(x.license ?? '?') ?? 0) + 1)
+// Code licences and service terms are different things and must not be
+// tallied in one list: an OSS licence governs the wrapped code, a service's
+// terms govern the DATA it returns.
+const codeLic = new Map()
+const dataLic = new Map()
+for (const x of catalog) {
+  const key = x.license ?? '?'
+  const bucket = x.kind === 'service' ? dataLic : codeLic
+  bucket.set(key, (bucket.get(key) ?? 0) + 1)
+}
+const fmt = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(' · ')
 lines.push(L.lic, '')
-lines.push([...licCount.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(' · '))
+lines.push(`${L.licCode}${fmt(codeLic)}`)
+lines.push('')
+lines.push(`${L.licData}${fmt(dataLic)}`)
 lines.push('', L.licNote, '', L.machine)
 
 process.stdout.write(lines.join('\n') + '\n')
