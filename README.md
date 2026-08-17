@@ -1,79 +1,83 @@
 # dsh-assembler — Vibe Assembly for DeepSeek Harness
 
-**把一句话需求装配成一个能干活的 AI agent,并且交得出去。**
+English | [中文](README.zh.md)
 
-`dsh-assembler` 是一个 DeepSeek Harness (DSH) 插件。用户用自然语言描述想要的 agent("帮我做一个能查订单、开工单、转人工的客服机器人"),装配器从**能力目录**匹配零件、发射 **agent preset**、然后**在真实会话里试跑验收**——新会话选中该 preset 即可使用。
+**Assemble a working AI agent from one sentence — and be able to hand it over.**
 
-能力目录由**索引流水线**自动生长:开源库、公开 API、客户自有接口、客户知识,都能一条命令收进目录,过质检门才入库。不写胶水代码,只写配置。
+`dsh-assembler` is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin. You describe the agent you want in plain language ("build me a support bot that can look up orders, open tickets, and hand off to a human"); the assembler matches parts from a **capability catalog**, emits an **agent preset**, and then **proves it works by running it in a real session**. New sessions pick that preset from the roster and go.
 
-**服务对象是 FDE(前线部署工程师)**:交付物不是一个 preset,是一个带客户知识、接客户系统、有完整供应链账本与验收报告的**方案包**——换个客户改参数换凭证即可重建。
+The catalog grows through an **induction pipeline**: open-source libraries, public APIs, a client's own HTTP interfaces, and a client's documents all enter through one command each — and only past a quality gate. No glue code, only configuration.
+
+**Built for FDEs (forward-deployed engineers).** The deliverable is not a preset; it is a **solution pack** — several agents plus the client's knowledge, deployment parameters, a credential checklist, a supply-chain BOM, and an acceptance record. Delivering to the next client means changing parameters and credentials, not forking anything.
 
 ---
 
-## 现在的规模与成绩
+## Where it stands
 
-| | 数字 | 证据 |
+| | Measured | Where to verify |
 |---|---|---|
-| 能力目录 | **79 个 MCP 服务器 / 215 个登记工具 / 237 个可装配条目**(联邦实探 229 条 mcp + 8 条静态) | `index/catalog.yml` |
-| 零件构成 | 65 库型 + 13 服务型 + 4 第一方 | 同上 |
-| 零件质检 | **80/80 冒烟通过**(含 2 个客户零件) | `npm run index:check` |
-| 装配质量 | **44/45 (98%)**;L3 多轮流程题 **5/5** | `bench/results/2026-08-17-*.json` |
-| 选型稳定性 | 目录 137 → 227 条目(+47%)基线题**零退化** | 三轮 bench 账本对照 |
-| 装配耗时 | 中位 **56 秒**(单轮 52s / 多轮场景 182s) | 同上 |
-| 单元测试 | 3 套全绿(命名代际 / 验收判定 / 联邦缓存) | `npm test` |
+| Catalog | **79 MCP servers / 215 registered tools / 237 assemblable entries** (229 federated + 8 static) | `index/catalog.yml` |
+| Part mix | 65 library-backed + 13 service-backed + 4 first-party | same |
+| Part gate | **80/80 smokes pass** (including 2 client parts) | `npm run index:check` |
+| Assembly quality | **44/45 (98%)**; multi-turn process items **5/5** | `bench/results/2026-08-17-*.json` |
+| Selection stability | catalog 137 → 227 entries (+47%), baseline items **did not degrade** | three bench ledgers |
+| Assembly wall time | median **56s** (single-turn 52s / scenario 182s) | same |
+| Unit tests | 3 suites green (generation invariants / verdicts + BOM / federation cache) | `npm test` |
+
+Every row names the artifact that proves it. That is a house rule, not a flourish — see [DESIGN.md](DESIGN.md) (design charter, Chinese).
 
 ---
 
-## 特性
+## What it does
 
-- **双入口**:`/assemble <需求>` 命令(人类快捷方式)+ `assemble` 工具(agent 原生路径,调用轨迹自动渲染)
-- **装配即验证**:装配完成后自动派生验收探针,在绑定新 preset 的**真实会话**里试跑,按内容型验收标记判 PASS/FAIL;FAIL 触发一次带失败反馈的重新选型再探(find → assemble → **verify** 闭环)
-- **多轮场景探针**:派生器自行决定探针形态——纯计算需求出单轮题,跨轮需求(记账/归档/追踪)出 2-4 轮场景脚本,**同一会话**里逐轮验收,后面的轮次查询前面轮次写入的状态。全程黑盒:只看回复,不看轨迹
-- **方案包(FDE 交付单元)**:`solutions/<name>/solution.yml` 声明一次交付的全部——几个 agent、用哪份目录、部署参数、客户知识。`solution apply` 一条命令按清单装配并逐个验收;`solution handover` 从每个 preset 的 BOM **自动长出**交付报告。多租户 = 换 `--param` 换凭证,不分叉清单
-- **知识包(`via: knowledge`)**:客户手册/SOP/产品目录作为**静态教材**进目录,过**检索命中门**(探针问题检不出预期片段就拒收),装配时**拷进 preset 的 `kb/`**——交付物自包含
-- **凭证契约(接口先就位,key 后补)**:零件只**声明**需要哪个环境变量及用途,**值永不进 preset**;未配时零件照常启动、`listTools` 成功、调用返回**可行动错误**;装配侧对应为"装配成功 + 探针 SKIPPED + 配置指引"。可选凭证(如 GitHub 公开读)走匿名降级不拦验证
-- **客户私有目录**:`catalogs/<client>/` 自带 `generated/`、`index/`、`capabilities.yml`——A 客户的零件**不会出现在** B 客户的装配里,隔离靠**分文件**而非过滤条件
-- **服务型零件**:13 个实时数据服务已接入(天气/汇率/地理编码/节假日/宏观数据/美股财报/学术检索/维基事实/研究图谱/包情报…)。库型锁 `repo@rev`,服务型锁**条款 + 速率限制 + 数据许可**,同样进 BOM
-- **零件物料清单(BOM)**:每次装配随 preset 发射 `parts.lock.yml`——每个零件的出处、许可、验证状态、实际挂载名、知识包来源版本、待配凭证清单
-- **联邦索引缓存**:零件工具清单按(连接配置 + 适配器文件指纹)缓存,冷 ~5s → 热 **0.002s**
-- **persona lint**:机械核查 persona(点名的工具必须在挂载面里、禁止"第 N 步"编舞句式、长度界)
-- **设计宪法**:[DESIGN.md](DESIGN.md) —— 三件本分、负面清单、三条边界判据。新功能先过判据
+- **Two entry points** — the `/assemble <requirement>` command (human shortcut) and an `assemble` tool (agent-native: the whole call renders in the conversation).
+- **Assemble-then-verify** — after emitting a preset, the assembler derives an acceptance probe, runs it in a **real session bound to that preset**, and judges the reply against content-bearing marks. A FAIL triggers one re-selection with the failure fed back, then re-probes. `find → assemble → **verify**`, on by default.
+- **Multi-turn scenario probes** — the deriver picks the probe shape itself: one turn for pure-compute agents, a 2–4 turn scenario when the requirement implies work that outlives a turn (bookkeeping, filing, tracking). Scenario turns run in **one session**, and a later turn queries what an earlier turn wrote. Judgement stays black-box: replies only, never the trajectory.
+- **Solution packs (the FDE unit of delivery)** — `solutions/<name>/solution.yml` declares an entire engagement: which agents, which catalog, deployment parameters, client knowledge. `solution apply` assembles them all, each through verification; `solution handover` **grows a delivery report out of the artifacts themselves**. Multi-tenant is `--param` plus a different credential set — never a forked manifest.
+- **Knowledge packs (`via: knowledge`)** — a client's manuals, SOPs and product catalogues enter as **static teaching material**, past a **retrieval-hit gate** (a probe question whose expected snippet cannot be found is refused), and are **copied into the preset's `kb/`** at assembly time. The handover is one self-contained directory.
+- **Credential contract (interface first, key later)** — parts **declare** the environment variable they need and what it is for; the **value never enters a preset**. Unconfigured, a part still starts, `listTools` still succeeds, and a call returns an **actionable error** (which variable, what for, where to get it). On the assembly side: assembly succeeds, the probe degrades to **SKIPPED** with configuration guidance. Optional credentials (GitHub public reads, polite-pool mailtos) take the anonymous path and do not hold verification back.
+- **Client-private catalogs** — `catalogs/<client>/` carries its own `generated/`, `index/`, `capabilities.yml` and `knowledge/`. One client's parts **cannot** surface in another's assembly, because isolation is by **separate files**, not by a filter someone can forget.
+- **Service-backed parts** — 13 live data services are wired in (weather, FX, geocoding, holidays, macro data, SEC filings, scholarly search, wiki facts, research graph, package intel, Feishu, Slack, GitHub Issues). A library part pins `repo@rev`; a service has no bytes to pin, so it pins **terms + rate limit + data licence** instead — and those travel into the BOM, because a client's compliance desk asks about them first.
+- **Parts BOM** — every assembly emits `parts.lock.yml` beside the preset: per part its origin, licence, verified status and the serverName actually mounted, plus knowledge sources with versions and the pending-credential list.
+- **Federation cache** — each part's tool list is cached under (connection config + adapter file fingerprint): cold ~5s, **warm 0.002s**.
+- **persona lint** — mechanical checks on the persona text: every tool it names must be in the mounted surface, step-numbered choreography is rejected, length is bounded.
 
 ---
 
-## 架构
+## Architecture
 
 ```
-┌───────── 索引流水线(供应链) ──────────────────────────────────────────┐
-│ 开源库 / 公开 API / 客户接口 spec / 客户知识                            │
-│   → 切能力点 → MCP 适配 → 质检门(冒烟 / 检索命中)→ 入目录             │
-└─────────────────────────────────────────────────────────────────────────┘
+┌───────── Induction pipeline (supply chain) ────────────────────────────┐
+│ OSS library / public API / client OpenAPI / client documents           │
+│   → slice capabilities → MCP adapter → gate (smoke / retrieval) → catalog │
+└───────────────────────────────────────────────────────────────────────┘
                               ↓
-┌───────── 装配(能力消费) ─────────────────────────────────────────────┐
-│ capabilities.yml(公共或客户目录) + 并行联邦 → LLM 选型                │
-│   → 发射 preset + BOM + 知识包拷入 kb/                                  │
-│   → 自动验证:派生探针(单轮或多轮场景)→ 真实会话试跑 → PASS/FAIL     │
-└─────────────────────────────────────────────────────────────────────────┘
+┌───────── Assembly (capability consumption) ───────────────────────────┐
+│ capabilities.yml (public or client) + parallel federation → LLM match  │
+│   → emit preset + BOM + copy knowledge into kb/                       │
+│   → verify: derive probe (single-turn or scenario) → real session → PASS/FAIL │
+└───────────────────────────────────────────────────────────────────────┘
                               ↓
-┌───────── 交付(FDE) ─────────────────────────────────────────────────┐
-│ solution apply(按清单装配全部 agent)                                  │
-│   → solution handover:交付报告(验收/参数/待配凭证/知识/BOM/重建命令) │
-└─────────────────────────────────────────────────────────────────────────┘
+┌───────── Delivery (FDE) ──────────────────────────────────────────────┐
+│ solution apply (assemble every agent in the manifest)                 │
+│   → solution handover: report (verdicts / params / pending secrets /  │
+│     knowledge / BOM / rebuild command)                                │
+└───────────────────────────────────────────────────────────────────────┘
                               ↓
-┌───────── 运行时(harness 的领土) ────────────────────────────────────┐
-│ 新会话选中 preset → DSH 按行挂载插件 → agent 真实调用零件工具          │
-└─────────────────────────────────────────────────────────────────────────┘
+┌───────── Runtime (the harness's territory) ───────────────────────────┐
+│ session picks the preset → DSH mounts each row → agent calls the parts │
+└───────────────────────────────────────────────────────────────────────┘
 ```
 
-装配器是 Cordis 插件,产物是 Cordis 插件组合清单(preset 每行 = 一个插件实例);零件是外部 MCP 服务器进程,通过 `@deepseek-ai/dsh-mcp-client` 桥接。**装配器只在装配时存在**——会话跑起来后它的进程死掉,一切照常。
+The assembler is a Cordis plugin and its output is a Cordis composition manifest (one preset row = one plugin instance); parts are external MCP server processes bridged by `@deepseek-ai/dsh-mcp-client`. **The assembler exists only at assembly time** — once a session is running its process is gone and nothing changes.
 
 ---
 
-## 快速开始
+## Quick start
 
-### 1. 安装
+### 1. Install
 
-加入 DSH profile 的 patch 层(示例 `~/.dsh/profiles/web/cordis.patch.yml`):
+Add the plugin to a DSH profile's patch layer (e.g. `~/.dsh/profiles/web/cordis.patch.yml`):
 
 ```yaml
 - insert:
@@ -81,141 +85,142 @@
       name: '@dsh-external/dsh-assembler'
 ```
 
-`package.json` 依赖:`"@dsh-external/dsh-assembler": "link:/path/to/dsh-assembler"`。
+Dependency: `"@dsh-external/dsh-assembler": "link:/path/to/dsh-assembler"`.
 
-服务型零件若需部署方联系方式(SEC 强制 UA、Crossref/OpenAlex polite pool),复制 `.env.example` 为 `.env` 并填自己的邮箱——**不是凭证,但也不该硬编码任何人的地址**。
+Some service parts need the operator's contact details (SEC mandates a contactable User-Agent; Crossref/OpenAlex polite pools want a mailto). Copy `.env.example` to `.env` and fill in your own — **not credentials, but not anyone else's address either**.
 
-### 2. 装配一个 agent
+### 2. Assemble one agent
 
 ```
-/assemble 帮我组装一个客服机器人,能查客户信息、创建工单、转人工 [--name customer-service-bot] [--param timezone=Asia/Shanghai]
+/assemble build a support bot that looks up customers, opens tickets, and hands off to a human [--name customer-service-bot] [--param timezone=Asia/Shanghai]
 ```
 
-或直接在任意会话里说"帮我组装一个能查订单、开工单、转人工的客服机器人"——agent 会自动调用 `assemble` 工具,思维链 + 工具卡片 + 结果全部渲染。
+Or simply say it in any session — the agent calls the `assemble` tool on its own, and reasoning, tool card and result all render inline.
 
-### 3. 交付一个方案(FDE 路径)
+### 3. Deliver a solution (the FDE path)
 
 ```bash
-npm run solution -- init acme-service --client acme     # 起清单
-# 编辑 solutions/acme-service/solution.yml 的 agents
+npm run solution -- init acme-service --client acme     # manifest skeleton
+# edit the agents list in solutions/acme-service/solution.yml
 npm run solution -- apply solutions/acme-service/solution.yml --port 3096
 npm run solution -- handover solutions/acme-service/solution.yml
 ```
 
-产出 `HANDOVER.md`:交付了哪些 agent 与验收结论、部署参数、**待配凭证清单**、知识包来源版本、供应链 BOM、重建命令。全部从工件里长出来,**没有一处靠人填写**。
+`HANDOVER.md` lists what was delivered with each verdict, the deployment parameters, the **pending-credential checklist**, knowledge packs with source and version, the supply-chain BOM, and the rebuild command — assembled from the artifacts, with **nothing hand-filled**. Anything that can be forgotten does not belong in a handover.
 
 ---
 
-## 目录结构
+## Layout
 
 ```
 dsh-assembler/
 ├── src/
-│   ├── index.ts            # 装配核心:目录加载/选型/发射/BOM/参数/凭证/知识
-│   ├── verify.ts           # 装配即验证:探针派生(单轮/多轮场景)+ 真实会话驱动
-│   ├── persona-lint.ts     # persona 机械核查
-│   └── assemble-tool.ts    # assemble agent 工具定义
-├── capabilities.yml        # ★ 公共组装目录:能力条目 + mcp-servers + requiredSecrets
-├── index/                  # ★ 公共零件索引(出处/许可/条款)+ 冒烟报告
-├── generated/              # ★ 零件库:78 个 MCP 适配服务器(每零件一目录)
-├── catalogs/<client>/      # ★ 客户私有目录:自带 generated/ index/ capabilities.yml knowledge/
-├── solutions/<name>/       # ★ 方案包:solution.yml + last-apply.json + HANDOVER.md
-├── bench/results/          # 装配质量基准账本(run-tagged,git 收录)
+│   ├── index.ts            # assembly core: catalog, matching, emission, BOM, params, secrets, knowledge
+│   ├── verify.ts           # assemble-then-verify: probe derivation (single/scenario) + real-session driver
+│   ├── persona-lint.ts     # mechanical persona checks
+│   └── assemble-tool.ts    # the assemble agent tool
+├── capabilities.yml        # ★ public catalog: capability entries + mcp-servers + requiredSecrets
+├── index/                  # ★ public part index (origin/licence/terms) + smoke reports
+├── generated/              # ★ part library: 78 MCP adapter servers, one directory each
+├── catalogs/<client>/      # ★ client-private catalog: its own generated/ index/ capabilities.yml knowledge/
+├── solutions/<name>/       # ★ solution pack: solution.yml + last-apply.json + HANDOVER.md
+├── bench/results/          # assembly-quality ledgers (run-tagged, committed)
 ├── presets/
-│   └── agent-template.yml  # preset 模板({{persona}}/{{packageRows}}/{{extraRows}}/{{param:k}})
+│   └── agent-template.yml  # preset template ({{persona}}/{{packageRows}}/{{extraRows}}/{{param:k}})
 └── scripts/
-    ├── index-add.mjs       # ★ 索引流水线 CLI
-    ├── solution.mjs        # ★ 方案包 CLI
-    ├── assembly-bench.mjs  # 45 题装配质量基准
-    └── link-dsh.mjs        # 链接 DSH peer 包
+    ├── index-add.mjs       # ★ induction pipeline CLI
+    ├── solution.mjs        # ★ solution pack CLI
+    ├── assembly-bench.mjs  # 45-item assembly benchmark
+    └── link-dsh.mjs        # link DSH peer packages
 ```
 
 ---
 
-## 能力目录
+## The capability catalog
 
-四种能力来源:
+Four kinds of capability:
 
-| `via` | 来源 | 例子 |
+| `via` | Source | Example |
 |---|---|---|
-| `package` | 本仓库/自有插件包的工具 | `crm-query` |
-| `harness` | DSH 内置工具 | `content-search` |
-| `mcp` | MCP 服务器工具(装配时自动联邦) | `mcp-weather-forecast-current-weather` 等 229 条 |
-| `knowledge` | 客户静态教材(装配时拷入 `kb/`) | `acme-policies-kb` |
+| `package` | a tool from this repo / an own plugin package | `crm-query` |
+| `harness` | a DSH built-in tool | `content-search` |
+| `mcp` | MCP server tools (federated at assembly time) | `mcp-weather-forecast-current-weather`, 229 of them |
+| `knowledge` | client teaching material (copied into `kb/`) | `acme-policies-kb` |
 
-当前覆盖:邮件收发、HTTP、HTML、CSV/YAML/TOML/XML、Excel、PDF 生成与提取、Word/PPT、ZIP、模糊搜索、模板渲染、图片处理、RSS、日历与 RRULE、SQLite/PostgreSQL/MySQL、GitHub API、Markdown、OCR、条码/二维码、货币精算、浏览器自动化、二进制落盘、文本 diff、数学与单位换算、cron、电话号码、semver、拼音/简繁/分词/中文大写、编码转换、哈希/HMAC/UUID、JMESPath、JSON Schema、字符串校验、测试数据、颜色、地理距离、EXIF、文件类型、JWT、IP/CIDR、转写 slug、gzip/brotli、DNS,以及 **13 个实时数据服务**(天气/汇率/地理编码/节假日/世界银行/SEC EDGAR/Crossref+arXiv/Wikipedia+Wikidata/OpenAlex/npm+PyPI/飞书/Slack/GitHub Issues)。
+Current coverage: email send/fetch, HTTP, HTML, CSV/YAML/TOML/XML, Excel, PDF generation and extraction, Word/PowerPoint, ZIP, fuzzy search, templating, image processing, RSS, calendars and RRULE, SQLite/PostgreSQL/MySQL, GitHub API, Markdown, OCR, barcodes and QR, decimal-safe currency maths, browser automation, binary-to-disk, text diff/patch, expression evaluation and unit conversion, cron, phone numbers, semver, Chinese pinyin/simplified-traditional/segmentation/numeral spelling, character encodings, hashing/HMAC/UUID, JMESPath, JSON Schema, string validation, fake data, colour conversion, geodistance, EXIF, file-type sniffing, JWT, IP/CIDR, transliteration slugs, gzip/brotli, DNS — plus **13 live data services** (Open-Meteo, ECB/Frankfurter, OSM Nominatim, Nager.Date, World Bank, SEC EDGAR, Crossref + arXiv, Wikipedia + Wikidata, OpenAlex, npm + PyPI, Feishu, Slack, GitHub Issues).
 
 ---
 
-## 索引流水线(收录 CLI)
+## Induction pipeline (the CLI)
 
-设计前提是**调用方就是 agent**:CLI 只做确定性环节(取源、出工单、装依赖、质检、登记),"切能力点 + 写适配代码"留给调用方。每个子命令末行输出 JSON 判定,机器可判读。
+The design premise is that **the caller is an agent**. The CLI does the deterministic half — fetch the source, inventory it, write a work order, install, gate, register — and leaves "which capabilities to slice, and how to write the adapter" to the caller. Every subcommand ends with one machine-readable JSON verdict.
 
 ```bash
-# 收开源库
+# an OSS library
 npm run index:add -- kpdecker/jsdiff --pkg diff --id text-diff
-npm run index:verify -- text-diff        # install → 冒烟(exit 0 必须)→ 独立 listTools → 报告
-npm run index:register -- text-diff      # 幂等登记;下次装配联邦自动看见
+npm run index:verify -- text-diff        # install → smoke (exit 0 required) → independent listTools → report
+npm run index:register -- text-diff      # idempotent; federation picks it up on the next assembly
 
-# 收公开 API(锁条款/速率/数据许可,而非版本)
+# a public API (pins terms/rate-limit/data-licence instead of a version)
 node scripts/index-add.mjs scaffold - --service https://api.open-meteo.com/v1 --id weather-forecast \
-  --provider 'Open-Meteo' --license CC-BY-4.0 --terms https://open-meteo.com/en/terms --rate-limit '免费非商用无限制'
+  --provider 'Open-Meteo' --license CC-BY-4.0 --terms https://open-meteo.com/en/terms --rate-limit 'free for non-commercial'
 
-# 接客户系统(FDE 日常):吃 OpenAPI → 端点清单工单 → 客户私有目录
+# a client's own system (the FDE day-one move): OpenAPI → endpoint work order → client catalog
 node scripts/index-add.mjs from-spec <spec-url|file> --id <id> --client acme \
-  --requires-secret "TOKEN:用途说明,可含逗号;OTHER:第二个"
+  --requires-secret "TOKEN:what it is for, commas allowed;OTHER:second one"
 
-# 收客户知识(过检索命中门)
-node scripts/index-add.mjs knowledge <文档目录> --id acme-policies --client acme --version 2026-08
-# 写 probes.json(问题 + 预期片段)后:
+# a client's documents (past the retrieval gate)
+node scripts/index-add.mjs knowledge <docs-dir> --id acme-policies --client acme --version 2026-08
+# write probes.json (questions + expected snippets), then:
 node scripts/index-add.mjs knowledge-verify acme-policies --client acme
 
-# 全自动:一条命令收录(需要在跑的 web profile)
+# hands-free: one command, start to finish (needs a running web profile)
 npm run index:auto -- sindresorhus/slugify --pkg @sindresorhus/slugify --id url-slugify
 
-npm run index:check     # 全量回归:跑每个零件的冒烟(离线时网络零件记 SKIPPED 并单独计数)
-node scripts/index-add.mjs coverage   # 能力覆盖图:语义判重用
+npm run index:check     # full regression: every part's smoke (network parts recorded SKIPPED when offline)
+node scripts/index-add.mjs coverage   # capability map, for semantic dedup
 ```
 
-**质检门在流水线里**:verify 不过,register 直接拒绝。**去重两层**——机械硬门(同 id / 同 npm 包 / 同上游 repo)+ coverage 覆盖图语义判重(记录在案的拒收:moment/cheerio/axios/fast-diff/papaparse 与既有零件同能力,convert-units 被 mathjs 覆盖,ua-parser-js v2 改 AGPL 许可证风险)。
+**The gate lives in the pipeline**: if verify fails, register refuses. **Dedup has two layers** — a mechanical gate (same id / same npm package / same upstream repo) and semantic judgement against the coverage map. Recorded rejections: moment/cheerio/axios/fast-diff/papaparse (same capability as an existing part), convert-units (subsumed by mathjs), ua-parser-js (v2 relicensed AGPL — licence risk).
 
 ---
 
-## 实测输出
+## Measured output
 
-### 装配即验证(多轮场景)
+### Assemble-then-verify, multi-turn
 
-需求"记账助手,把每笔收支记到本地账本,之后可以查询和汇总"——派生器**自主选择了 3 轮场景**:
-
-```
-自动验证:PASS — 多轮场景「证明记账助手能把收支持久化到 SQLite,并在后续轮次中查询和汇总」共 3 轮,逐轮通过
-  第1轮 ✓ 「记一笔收入:项目款 8899 元,备注 INV-7781…」标记 [INV-7781, 8899]
-  第2轮 ✓ 「再记一笔支出:办公用品 1200 元,备注 OFFICE-2201…」标记 [OFFICE-2201, 1200]
-  第3轮 ✓ 「查询本地账本,列出所有记录并汇总收支」标记 [INV-7781, OFFICE-2201, 8899]
-```
-
-第 3 轮查的是前两轮写入的状态——**这才是状态真的活过了轮次**。对照组"数学计算助手"正确地留在单轮(26s)。
-
-### 凭证的四种状态
+For "a bookkeeping assistant that records income and expenses locally and can query and total them later", the deriver **chose a 3-turn scenario on its own**:
 
 ```
-# 缺必需凭证:装配成功,探针 SKIPPED,给出配置指引
-自动验证:跳过(待配置凭证:SLACK_BOT_TOKEN——装配正确但无法实调外部服务,配好后重跑装配即可验证)
-所需凭证:SLACK_BOT_TOKEN(待配置) — Slack Bot User OAuth Token(xoxb- 开头)
-
-# 可选凭证:走匿名路径照常验证通过
-自动验证:PASS — 探针「对公开仓库 octocat/Hello-World 做一次巡检…」通过
-所需凭证:GITHUB_TOKEN(可选,未配则降级)
+自动验证:PASS — 多轮场景「prove the assistant persists entries to SQLite and can query/total them in later turns」共 3 轮,逐轮通过
+  turn 1 ✓ "record income: project payment 8899, memo INV-7781…"      marks [INV-7781, 8899]
+  turn 2 ✓ "record expense: office supplies 1200, memo OFFICE-2201…"  marks [OFFICE-2201, 1200]
+  turn 3 ✓ "query the ledger, list every entry and total them"        marks [INV-7781, OFFICE-2201, 8899]
 ```
 
-### 零件物料清单(节选)
+Turn 3 reads what turns 1 and 2 wrote — that is what makes state continuity *proven* rather than assumed. The control ("a maths assistant") correctly stayed single-turn at 26s.
+
+### The four credential states
+
+```
+# required credential missing: assembly succeeds, probe SKIPPED, guidance given
+自动验证:跳过(pending credential: SLACK_BOT_TOKEN — the assembly is correct but cannot reach the service;
+              configure it and re-run the assembly to verify)
+所需凭证:SLACK_BOT_TOKEN(pending) — Slack Bot User OAuth Token (xoxb-…)
+
+# optional credential: the anonymous path is exercised and verification PASSes
+自动验证:PASS — probe "inspect the public repo octocat/Hello-World…" passed
+所需凭证:GITHUB_TOKEN(optional; degrades to anonymous when unset)
+```
+
+### Parts BOM (excerpt)
 
 ```yaml
 preset: p2-bom-probe
 parts:
   - capability: mcp-qrcode-generate-qr-generate-png
     server: qrcode-generate
-    serverName: qrcode-generate-d0fb25cc   # 从 preset 字节读回,永远与实际挂载一致
+    serverName: qrcode-generate-d0fb25cc   # read back from the preset bytes, always matches what mounts
     repo: soldair/node-qrcode
     rev: v1.5.3
     license: MIT
@@ -224,63 +229,63 @@ parts:
     kind: service
     service: https://api.open-meteo.com/v1
     terms: https://open-meteo.com/en/terms
-    rateLimit: 免费非商用无限制;商用需订阅
+    rateLimit: free for non-commercial; commercial needs a subscription
 knowledge:
   - id: acme-policies
     docs: 2
-    source: ACME 客服中心知识库导出
+    source: ACME support knowledge base export
     version: 2026-08
 ```
 
 ---
 
-## 基准:assembly-bench
+## Benchmark: assembly-bench
 
 ```bash
-npm run bench     # 45 题全闭环(需要在跑的 web profile),标准 PASS ≥ 80%,结果落 bench/results/
+npm run bench     # 45 items end to end (needs a running web profile); criterion PASS ≥ 80%; ledger in bench/results/
 ```
 
-**三轮账本(全部 git 收录,可复算)**:
+**Three ledgers, all committed and recomputable:**
 
-| 轮次 | 题量 | 结果 | 目录规模 |
+| Run | Items | Result | Catalog size |
 |---|---|---|---|
-| 08-16 | 20 | 19/20 (95%) | 137 条目 |
-| 08-17 一轮 | 40 | 35/40 (88%) | 196 条目 |
-| **08-17 二轮** | **45** | **44/45 (98%)** | **227 条目** |
+| 08-16 | 20 | 19/20 (95%) | 137 entries |
+| 08-17 #1 | 40 | 35/40 (88%) | 196 entries |
+| **08-17 #2** | **45** | **44/45 (98%)** | **227 entries** |
 
-- **基线题 1-20 全程 19-20/20**:目录扩大 47% 选型零退化(两个数据点),按域分层的触发条件未满足
-- **L3 流程题 5/5**,且 5/5 由派生器自主判为多轮场景
-- 记分纪律:**首跑不改**;修因后的复验单独入账。首轮 5 个 FAIL 逐个验尸后全部转 PASS——3 个是探针设计噪声(标记过精 / deriver 用了过时世界知识 / 大 payload 超时),1 个是零件设计类缺陷(二进制内联返回让 agent 逐字搬运 base64,720s → 76s),1 个是误诊的自我更正
-
----
-
-## 已知限制
-
-1. **陌生人措辞未验证**:所有 bench 题由维护者书写,天然贴合目录用语。真实用户的模糊表达("搞个处理投诉的东西")尚未成套测过——这是最可能暴露问题的方向
-2. **L3 样本量小**:多轮流程题只有 5 道,且都是记账级复杂度。企业级流程(跨系统 + 领域规则 + 多步判断)复杂度高一个数量级,尚无证据
-3. **目录规模外推未验证**:到 227 条目选型不退化有实测,再翻倍(400+)是推断
-4. **自动验证依赖 webServer**:headless 装配时探针无处可跑,降级为"跳过",装配本身不受影响
-5. **preset 手工编辑后同进程冲突**:host 在进程存活期内不释放被取代代际的 serverName。装配器自己的重发已根治(文件字节哈希入 serverName + 字节相同跳写盘),但手工改文件后需重启 host
-6. **结构性天花板**:装配器管能力获取与验收,**判断力永远归模型**——装得出"必然留下工单的退款助手",装不出"知道该不该退款的助手"
+- **Baseline items 1–20 scored 19–20/20 throughout**: a 47% larger catalog cost no selection accuracy, so the trigger for domain tiering stays unmet — on two data points, stated as such.
+- **Process items 5/5**, and all five were judged multi-turn by the deriver itself.
+- Scoring discipline: **the first run's score is never edited**; re-verification after a fix is recorded separately. All 5 first-run failures were root-caused and turned PASS — three were probe-design noise (over-precise marks, the deriver embedding stale world knowledge, a large payload blowing the time budget), one was a genuine part-design class (binary returned inline as base64 made the agent retype it between calls: 720s → 76s), and one was a misdiagnosis I corrected in the ledger.
 
 ---
 
-## 开发
+## Known limits
+
+1. **Unfamiliar phrasing is untested.** Every bench item was written by the maintainer and therefore leans on the catalog's own vocabulary. Real users' vaguer asks ("make me something to handle complaints") have not been tested as a set — the likeliest place for problems to surface.
+2. **The L3 sample is small**: five multi-turn process items, all at bookkeeping complexity. Enterprise processes (cross-system, domain rules, multi-step judgement) are an order of magnitude harder and there is no evidence yet.
+3. **Catalog scale beyond 227 entries is extrapolation.** No degradation up to 227 is measured; 400+ is an inference.
+4. **Verification needs the webServer.** In a headless assembly the probe has nowhere to run, so it degrades to "skipped"; the assembly itself is unaffected.
+5. **Hand-editing a preset can collide within one host process.** The host never releases a superseded generation's serverNames while it lives. The assembler's own re-emission is fixed at the root (serverName suffix hashes the file bytes; byte-identical re-emits skip the write), but a manual edit needs a host restart.
+6. **A structural ceiling.** The assembler handles capability acquisition and verification; **judgement always belongs to the model**. It can guarantee "a refund always leaves a ticket". It cannot guarantee "the refund decision was wise" — and claiming otherwise would be a lie.
+
+---
+
+## Development
 
 ```bash
-npm run link:dsh   # 链接 DSH peer 包(需要 DSH_SOURCE 或 ~/.dsh/source/current)
-npm run build      # tsc 构建到 lib/
-npm test           # 构建 + 三套单测(命名代际不变式 / 验收判定与 BOM / 联邦缓存)
-npm run index:check   # 全量零件冒烟回归
-npm run bench      # 45 题装配基准
+npm run link:dsh   # link DSH peer packages (needs DSH_SOURCE or ~/.dsh/source/current)
+npm run build      # tsc → lib/
+npm test           # build + three suites (generation invariants / verdicts & BOM / federation cache)
+npm run index:check   # full part-smoke regression
+npm run bench      # 45-item assembly benchmark
 ```
 
-改 `lib/` 后需重启 DSH web 进程生效;改 `capabilities.yml` 无需重启(装配时实时读取)。
+Changes under `lib/` need a DSH web restart; changes to `capabilities.yml` do not (the catalog is read at assembly time).
 
-网络零件的环境要点(实测教训,写进了工单模板):Node 的 `fetch` 忽略 `HTTP(S)_PROXY` 除非 `NODE_USE_ENV_PROXY=1`,且 MCP SDK 的 `StdioClientTransport` **只透传白名单环境变量**——流水线已统一处理,自己写冒烟时记得传 `NETWORK_ENV`。
+Two environment facts network parts must respect (learned the hard way, now in the work-order template): Node's global `fetch` ignores `HTTP(S)_PROXY` unless `NODE_USE_ENV_PROXY=1`, and the MCP SDK's `StdioClientTransport` **only forwards a whitelist of environment variables** — so the flag never reaches the part process on its own. The pipeline handles both; if you write a smoke by hand, pass `NETWORK_ENV`.
 
 ---
 
-## 许可证
+## Licence
 
-BSD-3-Clause。零件适配的上游库许可证见 `index/catalog.yml` 各条目;服务型零件的数据许可与条款同样逐条记录在案。
+BSD-3-Clause. Upstream licences for the wrapped libraries are recorded per entry in `index/catalog.yml`; service-backed parts record their data licence and terms the same way.
