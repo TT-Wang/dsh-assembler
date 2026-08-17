@@ -3,7 +3,7 @@
  * 命名功能单测：直接 import 编译产物 lib/index.js（peers 已 symlink 到 node_modules）。
  * 验证 sanitizePresetName / presetNameSuffix / resolvePresetId / emitPreset 的命名行为。
  */
-import { sanitizePresetName, presetNameSuffix, resolvePresetId, emitPreset, screenParams, applyParams } from './lib/index.js'
+import { sanitizePresetName, presetNameSuffix, resolvePresetId, emitPreset, screenParams, applyParams, reconcileCapabilityIds } from './lib/index.js'
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -95,6 +95,20 @@ const outP2 = emitPreset({ ...req, params: { timezone: 'Asia/Shanghai' } }, cata
 check('参数进入渲染文本', outP1.includes('tz: UTC') && outP2.includes('tz: Asia/Shanghai'))
 const nameOfP = (t) => yaml.load(t.split('\n').slice(1).join('\n')).find((r) => r && r.name === '@deepseek-ai/dsh-mcp-client').config.serverName
 check('参数变则 serverName 换代(字节决定名字)', nameOfP(outP1) !== nameOfP(outP2), `${nameOfP(outP1)} vs ${nameOfP(outP2)}`)
+
+// 7. 能力 id 调和:机械前缀漏写可修,语义错的丢弃,全错才失败。
+// 实测来源:选型 LLM 答 semver-check-compare(真实 id 带 mcp- 前缀),整次装配硬失败。
+const CAT = ['mcp-semver-check-compare', 'mcp-semver-check-satisfies', 'web-lookup']
+check('精确命中原样保留', reconcileCapabilityIds(['web-lookup'], CAT)[0] === 'web-lookup')
+check('漏 mcp- 前缀可修', reconcileCapabilityIds(['semver-check-compare'], CAT)[0] === 'mcp-semver-check-compare')
+check('大小写/分隔符归一', reconcileCapabilityIds(['MCP_Semver_Check_Satisfies'], CAT)[0] === 'mcp-semver-check-satisfies')
+const mixed = reconcileCapabilityIds(['semver-check-compare', 'totally-made-up', 'web-lookup'], CAT)
+check('未知 id 丢弃而非拖垮整次装配', mixed.length === 2 && mixed.includes('mcp-semver-check-compare') && mixed.includes('web-lookup'), JSON.stringify(mixed))
+check('结果去重', reconcileCapabilityIds(['web-lookup', 'web-lookup'], CAT).length === 1)
+let threw = false
+try { reconcileCapabilityIds(['nope-1', 'nope-2'], CAT) } catch { threw = true }
+check('全部不匹配才硬失败', threw)
+check('空选择不报错', reconcileCapabilityIds([], CAT).length === 0)
 
 console.log(`\n==== 命名功能测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)
 process.exit(failures === 0 ? 0 : 1)

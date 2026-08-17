@@ -174,12 +174,58 @@ export async function llmMapRequirement(
     if (block.type === 'text') text += block.text
   }
   const parsed = JSON.parse(text) as AssembleRequest
-  const known = new Set(ids)
-  const bogus = (parsed.capabilityIds ?? []).filter((id) => !known.has(id))
-  if (bogus.length > 0) {
-    throw new Error(`assemble: LLM returned unknown capability ids: ${bogus.join(', ')} — catalog changed?`)
-  }
+  parsed.capabilityIds = reconcileCapabilityIds(parsed.capabilityIds ?? [], ids)
   return parsed
+}
+
+/**
+ * Map the matcher's ids onto real catalog ids, repairing mechanical near-misses.
+ *
+ * Catalog ids for federated parts carry a bookkeeping prefix
+ * (`mcp-<server>-<tool>`) that says nothing about the capability, and the
+ * matcher occasionally drops or mangles it — observed live: it answered
+ * `semver-check-compare` for `mcp-semver-check-compare` and the whole
+ * assembly failed on ids that were, semantically, exactly right.
+ *
+ * Repair is deterministic (prefix and separator normalization only, never a
+ * fuzzy guess at meaning) and reported. An id that still matches nothing is
+ * dropped rather than fatal: a selection of five parts should not be lost
+ * because the sixth name was mistyped — the probe is what decides whether the
+ * assembled agent actually works.
+ */
+export function reconcileCapabilityIds(requested: readonly string[], catalogIds: readonly string[]): string[] {
+  const known = new Set(catalogIds)
+  // Separators are normalized BEFORE the prefix is stripped: an id written
+  // as `MCP_Semver_Check_Satisfies` only reveals its `mcp-` prefix after
+  // underscores become hyphens.
+  const norm = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^mcp-/, '')
+  const byNorm = new Map<string, string>()
+  for (const id of catalogIds) {
+    const key = norm(id)
+    if (!byNorm.has(key)) byNorm.set(key, id)
+  }
+  const resolved: string[] = []
+  const dropped: string[] = []
+  for (const id of requested) {
+    if (known.has(id)) {
+      resolved.push(id)
+      continue
+    }
+    const hit = byNorm.get(norm(id))
+    if (hit !== undefined) {
+      console.error(`[assembler] capability id repaired: "${id}" → "${hit}"`)
+      resolved.push(hit)
+    } else {
+      dropped.push(id)
+    }
+  }
+  if (dropped.length > 0) {
+    console.error(`[assembler] unknown capability ids dropped: ${dropped.join(', ')}`)
+  }
+  if (resolved.length === 0 && requested.length > 0) {
+    throw new Error(`assemble: none of the selected capability ids exist: ${requested.join(', ')} — catalog changed?`)
+  }
+  return [...new Set(resolved)]
 }
 
 function renderYamlValue(value: unknown): string {
