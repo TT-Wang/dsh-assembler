@@ -1,0 +1,20 @@
+{
+  "id": "geo-distance",
+  "verifiedAt": "2026-08-17T01:50:14.724Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "distance",
+      "description": "计算两个地理坐标之间的大圆距离。输入起点/终点 { lat, lon }(十进制度);返回 JSON { meters, kilometers }。precise=true 用 Vincenty 椭球公式(长距离更准但更慢),默认用快速球面公式;accuracy 为结果取整粒度(米,默认 1,如 100 表示取整到百米)。坐标越界返回错误。"
+    },
+    {
+      "name": "bearing",
+      "description": "计算从起点到终点的初始方位角与罗盘方向。输入起点/终点 { lat, lon };返回 JSON { bearingDeg(0~360,正北为 0、顺时针,保留两位小数), compass(16 向罗盘方向,如 NE/SSE), method }。method 可选 'great-circle'(大圆初始方位角,默认)或 'rhumb-line'(等角航线恒定方位角)。坐标越界返回错误。"
+    },
+    {
+      "name": "center-and-bounds",
+      "description": "计算一组地理坐标的几何中心点与外接经纬度框。输入坐标数组 [{ lat, lon }, ...](至少 1 个);返回 JSON { count, center: { lat, lon }, bounds: { minLat, maxLat, minLon, maxLon } }。中心点为球面几何中心(点分布不均时偏向密集侧);任一坐标越界返回错误并指明下标。"
+    }
+  ]
+}

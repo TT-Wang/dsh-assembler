@@ -1,0 +1,8 @@
+{
+  "id": "fake-data",
+  "pkg": "@faker-js/faker",
+  "version": "10.6.0",
+  "repo": "faker-js/faker",
+  "license": "MIT",
+  "scaffoldedAt": "2026-08-17T01:39:02.341Z"
+}

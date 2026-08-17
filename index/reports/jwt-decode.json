@@ -1,0 +1,16 @@
+{
+  "id": "jwt-decode",
+  "verifiedAt": "2026-08-17T01:48:11.749Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "decode-jwt",
+      "description": "解码 JWT 字符串,返回 header 与 payload 的 JSON,并把 exp/iat/nbf 对照当前时间给出人话说明(是否过期/是否生效)。**只解码不验签**:未验证签名,内容可被伪造,不可信作授权依据;要验签用 verify-jwt-hs256。格式非法(不是三段 base64url 的 JWS)返回错误。"
+    },
+    {
+      "name": "verify-jwt-hs256",
+      "description": "用共享密钥(HS256 对称算法)验证 JWT 签名,返回验签结果与 payload 的 JSON。签名不匹配/已过期等验证失败返回结构化 { valid: false, reason } 而不是错误;alg 不是 HS256 的 token 会说明不支持;token 本身格式非法才返回错误。仅支持 HS256。"
+    }
+  ]
+}

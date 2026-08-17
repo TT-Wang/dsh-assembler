@@ -1,0 +1,12 @@
+{
+  "id": "exif-read",
+  "verifiedAt": "2026-08-17T01:49:32.441Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "read-exif",
+      "description": "读取图片的 EXIF/GPS/基本元数据。输入 base64 图片字节或工作区内路径(二选一,恰好给一个);支持 jpg/tiff/heic/png 等。返回 JSON:summary 挑常用字段(Make/Model/DateTimeOriginal/ISO/FNumber/GPS latitude+longitude 等,存在才给),raw 是全量解析结果(超长截断)。图片合法但无 EXIF 时返回 hasExif:false 的结构化说明(非错误);字节不是可解析的图片格式、路径越出工作区、base64 非法时返回错误。"
+    }
+  ]
+}

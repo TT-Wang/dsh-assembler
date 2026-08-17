@@ -409,3 +409,161 @@
   tools:
     - { name: parse-phone, description: "解析电话号码,返回结构化 JSON:country(ISO 两位国家码,判不出为 null)、countryCallingCode(国家区号)、e164(标准 " }
     - { name: format-phone, description: "把电话号码一次转成四种标准写法,返回 JSON:e164(+8613800138000)、international(+86 138 0013 8000)、na" }
+
+- id: compress-gzip
+  repo: first-party
+  rev: v-
+  license: BSD-3-Clause
+  tools:
+    - { name: compress, description: "压缩内容返回 base64 字节。algorithm:gzip 或 brotli;inputKind=text 按 UTF-8 处理,inputKind=bas" }
+    - { name: decompress, description: "解压 base64 字节。algorithm:gzip 或 brotli;outputKind=text 按 UTF-8 解释输出,outputKind=bas" }
+
+- id: dns-lookup
+  repo: first-party
+  rev: v-
+  license: BSD-3-Clause
+  tools:
+    - { name: resolve-domain, description: "解析域名的 DNS 记录。type 支持 A/AAAA/MX/TXT/NS/CNAME;返回记录列表 JSON。域名不存在或该类型无记录时返回结构化说明(不是硬" }
+    - { name: reverse-lookup, description: "IP 反查主机名(PTR 记录)。查不到返回空列表说明,IP 格式非法报错。" }
+
+- id: json-query
+  repo: jmespath/jmespath.js
+  rev: v0.16.0
+  license: Apache-2.0
+  tools:
+    - { name: query, description: "对 JSON 文档执行一条 JMESPath 表达式,返回查询结果的 JSON 文本。输入:json(JSON 字符串)+ expression(JMESPat" }
+    - { name: query-multi, description: "对同一份 JSON 文档批量执行多条 JMESPath 表达式,一次拿回全部结果。输入:json(JSON 字符串)+ expressions(表达式数组,至少" }
+
+- id: json-schema-validate
+  repo: ajv-validator/ajv
+  rev: v8.20.0
+  license: MIT
+  tools:
+    - { name: validate, description: "用 JSON Schema 校验一份 JSON 数据。输入:data(JSON 字符串)+ schema(JSON Schema,JSON 字符串)。输出:{\"" }
+    - { name: check-schema, description: "只检查一份 JSON Schema 自身是否合法(能否通过所选方言的元模式校验并编译),不校验任何数据。输入:schema(JSON 字符串)。输出:{\"val" }
+
+- id: toml-parse
+  repo: squirrelchat/smol-toml
+  rev: v1.8.0
+  license: BSD-3-Clause
+  tools:
+    - { name: toml-to-json, description: "把 TOML 文本解析成 JSON。输入:toml(TOML 文本)。输出:等价 JSON(2 空格缩进);日期/时间值转成 TOML 语义的 ISO 字符串(" }
+    - { name: json-to-toml, description: "把 JSON 数据序列化成 TOML 文本。输入:json(JSON 字符串,顶层必须是对象——TOML 文档天然是一张表)。输出:TOML 文本。边界(smo" }
+
+- id: docx-extract
+  repo: mwilliamson/mammoth.js
+  rev: v1.12.1
+  license: BSD-2-Clause
+  tools:
+    - { name: docx-to-text, description: "提取 .docx 文档的纯文本(忽略全部格式,每个段落后跟两个换行)。输入 base64 的 docx 字节或工作区内路径二选一;路径禁止越出工作区。字节不是合" }
+    - { name: docx-to-html, description: "把 .docx 文档转换成语义化 HTML 片段(Heading 1→h1、列表→ul/ol、表格→table,图片内联为 data URI)。输入 base6" }
+
+- id: pptx-generate
+  repo: gitbrent/pptxgenjs
+  rev: v4.0.1
+  license: MIT
+  tools:
+    - { name: create-pptx, description: "根据 slides 数组生成 PowerPoint(.pptx,16:9)。每页 { title 标题, bullets 要点列表(可空), notes 演讲者" }
+
+- id: barcode-generate
+  repo: metafloor/bwip-js
+  rev: v4.11.2
+  license: MIT
+  tools:
+    - { name: barcode-png, description: "生成条码/二维码 PNG 图片。输入 bcid 码制 + 待编码文本,可选 scale(整体放大倍数,默认 3)与 height(一维码条高毫米,默认 10,二" }
+    - { name: barcode-types, description: "列出 barcode-png 支持的码制(bcid)及各自适用场景,静态说明,无输入。" }
+
+- id: string-validate
+  repo: validatorjs/validator.js
+  rev: v13.15.35
+  license: MIT
+  tools:
+    - { name: validate-string, description: "校验一段文本是否符合指定格式,返回 JSON:{ type, input, valid }。支持的 type:email / url / uuid / cred" }
+    - { name: sanitize-string, description: "对文本执行一种清洗操作,返回清洗后的字符串。支持的 op:escape / unescape / trim / ltrim / rtrim / normaliz" }
+
+- id: fake-data
+  repo: faker-js/faker
+  rev: v10.6.0
+  license: MIT
+  tools:
+    - { name: fake-records, description: "按 schema 批量生成假记录,返回 JSON 数组。schema 是 {字段名: faker 方法路径} 映射,如 {\"name\":\"person.full" }
+    - { name: fake-text, description: "生成 lorem 占位文本。kind 取 sentences(句子,空格连接)/ paragraphs(段落,空行连接)/ words(单词,空格连接),cou" }
+
+- id: num-to-chinese
+  repo: cnwhy/nzh
+  rev: v1.0.14
+  license: BSD-2-Clause
+  tools:
+    - { name: to-chinese, description: "阿拉伯数字转中文。mode 取 lower(小写,如 10203 → 一万零二百零三)/ upper(大写,如 1234 → 壹仟贰佰叁拾肆)/ money(人" }
+    - { name: from-chinese, description: "中文数字转阿拉伯数字,返回数字字符串(超大数不走科学记数法)。支持小写(一万零二百零三 → 10203)与大写(壹仟贰佰叁拾肆 → 1234),含\"负\"与小数\"" }
+
+- id: jwt-decode
+  repo: panva/jose
+  rev: v6.2.9
+  license: MIT
+  tools:
+    - { name: decode-jwt, description: "解码 JWT 字符串,返回 header 与 payload 的 JSON,并把 exp/iat/nbf 对照当前时间给出人话说明(是否过期/是否生效)。**只" }
+    - { name: verify-jwt-hs256, description: "用共享密钥(HS256 对称算法)验证 JWT 签名,返回验签结果与 payload 的 JSON。签名不匹配/已过期等验证失败返回结构化 { valid: f" }
+
+- id: ip-utils
+  repo: whitequark/ipaddr.js
+  rev: v2.5.0
+  license: MIT
+  tools:
+    - { name: parse-ip, description: "解析 IPv4/IPv6 地址字符串,返回 JSON:版本(ipv4/ipv6)、规范形式、范围分类(private/loopback/multicast/li" }
+    - { name: cidr-match, description: "判断 IP 地址是否落在 CIDR 网段内(如 192.168.0.0/16),返回 JSON { ip, cidr, match }。IP 或 CIDR 非法" }
+
+- id: transliterate
+  repo: dzcpy/transliteration
+  rev: v2.6.1
+  license: MIT
+  tools:
+    - { name: transliterate-text, description: "把任意文字(中文/希腊文/韩文等各种书写系统)按 Unicode 码点转写成拉丁字母,如 transliterate(\"你好\") → \"Ni Hao\"。逐码点 " }
+    - { name: make-slug, description: "把文本转成 URL/文件名安全的 slug:先拉丁转写,再小写、用分隔符连接、去掉特殊字符,如 \"北京 Hello World!\" → \"bei-jing-he" }
+
+- id: rrule-expand
+  repo: jkbrzt/rrule
+  rev: v2.8.1
+  license: BSD-3-Clause
+  tools:
+    - { name: expand-rrule, description: "把 RRULE 重复规则展开成具体发生时间(ISO 8601 列表)。输入 RRULE 字符串与起始时间 dtstart;规则里的 COUNT/UNTIL 会被" }
+    - { name: describe-rrule, description: "把 RRULE 重复规则翻译成人话(英文,如 \"every week on Monday for 5 times\"),并附规范化后的 RRULE 字符串(含 D" }
+
+- id: exif-read
+  repo: MikeKovarik/exifr
+  rev: v7.1.3
+  license: MIT
+  tools:
+    - { name: read-exif, description: "读取图片的 EXIF/GPS/基本元数据。输入 base64 图片字节或工作区内路径(二选一,恰好给一个);支持 jpg/tiff/heic/png 等。返回 " }
+
+- id: file-type-detect
+  repo: sindresorhus/file-type
+  rev: v22.0.2
+  license: MIT
+  tools:
+    - { name: detect-file-type, description: "按魔数(magic number)探测一段字节的文件类型。输入 base64 编码的文件字节(开头几 KB 即可);识别出时返回 { recognized:tr" }
+
+- id: color-convert
+  repo: Evercoder/culori
+  rev: v4.0.2
+  license: MIT
+  tools:
+    - { name: convert-color, description: "把一个颜色转换成指定颜色空间的表示。输入任意 CSS 写法的颜色字符串(hex 如 #ff0000、rgb()/hsl()/oklch() 函数式、CSS 命名" }
+    - { name: contrast-check, description: "计算两个颜色之间的 WCAG 2.x 相对亮度对比度,并判定各级达标情况。输入两个颜色字符串(任意 CSS 写法);返回 JSON:{ ratio, aaNor" }
+
+- id: word-segment
+  repo: linonetwo/segmentit
+  rev: v2.0.3
+  license: MIT
+  tools:
+    - { name: segment-text, description: "对中文文本分词。输入文本(≤10000 字符);默认返回 JSON 字符串数组(按原文顺序的词序列,含标点)。withPos=true 时返回 JSON 对象数" }
+    - { name: extract-keywords, description: "从中文文本提取高频关键词:先分词,再用库自带停用词表去停用词、去标点,按词频降序取前 topN。输入文本(≤10000 字符)与可选 topN(默认 10,上限" }
+
+- id: geo-distance
+  repo: manuelbieh/geolib
+  rev: v3.3.14
+  license: MIT
+  tools:
+    - { name: distance, description: "计算两个地理坐标之间的大圆距离。输入起点/终点 { lat, lon }(十进制度);返回 JSON { meters, kilometers }。precis" }
+    - { name: bearing, description: "计算从起点到终点的初始方位角与罗盘方向。输入起点/终点 { lat, lon };返回 JSON { bearingDeg(0~360,正北为 0、顺时针,保留" }
+    - { name: center-and-bounds, description: "计算一组地理坐标的几何中心点与外接经纬度框。输入坐标数组 [{ lat, lon }, ...](至少 1 个);返回 JSON { count, center" }

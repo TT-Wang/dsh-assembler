@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/pptx-generate",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "description": "MCP stdio server exposing pptxgenjs tools",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0",
+    "pptxgenjs": "4.0.1"
+  }
+}

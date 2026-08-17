@@ -1,0 +1,12 @@
+{
+  "id": "file-type-detect",
+  "verifiedAt": "2026-08-17T01:49:35.610Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "detect-file-type",
+      "description": "按魔数(magic number)探测一段字节的文件类型。输入 base64 编码的文件字节(开头几 KB 即可);识别出时返回 { recognized:true, ext, mime };识别不出返回 recognized:false 的结构化说明(注意:txt/csv/svg/json 等纯文本格式没有魔数,识别不出是正常结果,不是错误);base64 非法或内容为空时返回错误。"
+    }
+  ]
+}

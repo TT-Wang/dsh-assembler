@@ -1,0 +1,8 @@
+{
+  "id": "transliterate",
+  "pkg": "transliteration",
+  "version": "2.6.1",
+  "repo": "dzcpy/transliteration",
+  "license": "MIT",
+  "scaffoldedAt": "2026-08-17T01:41:25.412Z"
+}

@@ -1,0 +1,16 @@
+{
+  "id": "compress-gzip",
+  "verifiedAt": "2026-08-17T01:42:46.149Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "compress",
+      "description": "压缩内容返回 base64 字节。algorithm:gzip 或 brotli;inputKind=text 按 UTF-8 处理,inputKind=base64 先解码为字节再压缩。返回 base64 与压缩前后字节数。"
+    },
+    {
+      "name": "decompress",
+      "description": "解压 base64 字节。algorithm:gzip 或 brotli;outputKind=text 按 UTF-8 解释输出,outputKind=base64 返回原始字节的 base64(内容是二进制时用)。数据损坏或算法不匹配报错。"
+    }
+  ]
+}

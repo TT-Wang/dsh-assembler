@@ -1,0 +1,16 @@
+{
+  "id": "json-schema-validate",
+  "verifiedAt": "2026-08-17T01:45:42.585Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "validate",
+      "description": "用 JSON Schema 校验一份 JSON 数据。输入:data(JSON 字符串)+ schema(JSON Schema,JSON 字符串)。输出:{\"valid\":true} 或 {\"valid\":false,\"errors\":[{instancePath,keyword,message},...]}——数据不合 schema 是正常返回的校验结论,不是 isError。方言:schema 的 $schema 含 2020-12 时用 2020-12 方言,否则用默认 draft-07。边界:data/schema 不是合法 JSON、或 schema 本身不是合法的 JSON Schema(编译失败),才返回 isError。"
+    },
+    {
+      "name": "check-schema",
+      "description": "只检查一份 JSON Schema 自身是否合法(能否通过所选方言的元模式校验并编译),不校验任何数据。输入:schema(JSON 字符串)。输出:{\"valid\":true,\"dialect\":...} 或 {\"valid\":false,\"reason\":...}——schema 不合法是本工具的正常结论,不是 isError。方言选择同 validate($schema 含 2020-12 走 2020-12,否则 draft-07)。边界:输入不是合法 JSON 才返回 isError。"
+    }
+  ]
+}

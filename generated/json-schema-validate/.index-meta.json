@@ -1,0 +1,8 @@
+{
+  "id": "json-schema-validate",
+  "pkg": "ajv",
+  "version": "8.20.0",
+  "repo": "ajv-validator/ajv",
+  "license": "MIT",
+  "scaffoldedAt": "2026-08-17T01:38:52.051Z"
+}

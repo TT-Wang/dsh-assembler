@@ -1,0 +1,8 @@
+{
+  "id": "jwt-decode",
+  "pkg": "jose",
+  "version": "6.2.9",
+  "repo": "panva/jose",
+  "license": "MIT",
+  "scaffoldedAt": "2026-08-17T01:41:20.704Z"
+}

@@ -1,0 +1,8 @@
+{
+  "id": "json-query",
+  "pkg": "jmespath",
+  "version": "0.16.0",
+  "repo": "jmespath/jmespath.js",
+  "license": "Apache-2.0",
+  "scaffoldedAt": "2026-08-17T01:38:48.702Z"
+}

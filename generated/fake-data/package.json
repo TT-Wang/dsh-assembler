@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/fake-data",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "description": "MCP stdio server exposing @faker-js/faker tools",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0",
+    "@faker-js/faker": "10.6.0"
+  }
+}

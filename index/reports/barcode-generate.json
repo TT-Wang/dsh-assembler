@@ -1,0 +1,16 @@
+{
+  "id": "barcode-generate",
+  "verifiedAt": "2026-08-17T01:45:58.909Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "barcode-png",
+      "description": "生成条码/二维码 PNG 图片。输入 bcid 码制 + 待编码文本,可选 scale(整体放大倍数,默认 3)与 height(一维码条高毫米,默认 10,二维码忽略);一维码自动在条下附人读文本。返回首行 \"PNG 宽x高, 字节数\",次行 PNG 的 base64(可交给 write-binary-file 落盘)。文本不符合码制规则(如 ean13 位数或校验位不对)时报错。"
+    },
+    {
+      "name": "barcode-types",
+      "description": "列出 barcode-png 支持的码制(bcid)及各自适用场景,静态说明,无输入。"
+    }
+  ]
+}

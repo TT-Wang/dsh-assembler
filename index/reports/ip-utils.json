@@ -1,0 +1,16 @@
+{
+  "id": "ip-utils",
+  "verifiedAt": "2026-08-17T01:48:13.593Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "parse-ip",
+      "description": "解析 IPv4/IPv6 地址字符串,返回 JSON:版本(ipv4/ipv6)、规范形式、范围分类(private/loopback/multicast/linkLocal/uniqueLocal/reserved 等,无特殊范围则 unicast)。IPv4 附八位组数组;IPv6 附全展开形式(8 组 4 位十六进制)与 zone ID,IPv4-mapped 地址(::ffff:x.x.x.x)附对应的 IPv4。非法地址返回错误。"
+    },
+    {
+      "name": "cidr-match",
+      "description": "判断 IP 地址是否落在 CIDR 网段内(如 192.168.0.0/16),返回 JSON { ip, cidr, match }。IP 或 CIDR 非法、或两者 IP 版本不一致(IPv4 地址对 IPv6 网段)时返回错误。"
+    }
+  ]
+}

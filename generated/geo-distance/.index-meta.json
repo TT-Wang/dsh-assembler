@@ -1,0 +1,8 @@
+{
+  "id": "geo-distance",
+  "pkg": "geolib",
+  "version": "3.3.14",
+  "repo": "manuelbieh/geolib",
+  "license": "MIT",
+  "scaffoldedAt": "2026-08-17T01:39:23.070Z"
+}

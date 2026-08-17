@@ -1,0 +1,8 @@
+{
+  "id": "ip-utils",
+  "pkg": "ipaddr.js",
+  "version": "2.5.0",
+  "repo": "whitequark/ipaddr.js",
+  "license": "MIT",
+  "scaffoldedAt": "2026-08-17T01:41:22.860Z"
+}

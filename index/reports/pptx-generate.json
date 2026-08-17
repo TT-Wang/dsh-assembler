@@ -1,0 +1,12 @@
+{
+  "id": "pptx-generate",
+  "verifiedAt": "2026-08-17T01:45:56.630Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "create-pptx",
+      "description": "根据 slides 数组生成 PowerPoint(.pptx,16:9)。每页 { title 标题, bullets 要点列表(可空), notes 演讲者备注(可选) },页序即数组顺序;可选 themeColor(6 位十六进制,如 0B5394,默认 1F3864)用于标题着色。返回首行 \"字节数 bytes, 页数 slides\",次行整个文件的 base64(可交给 write-binary-file 落盘)。slides 为空数组时报错。"
+    }
+  ]
+}

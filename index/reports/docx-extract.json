@@ -1,0 +1,16 @@
+{
+  "id": "docx-extract",
+  "verifiedAt": "2026-08-17T01:45:53.735Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "docx-to-text",
+      "description": "提取 .docx 文档的纯文本(忽略全部格式,每个段落后跟两个换行)。输入 base64 的 docx 字节或工作区内路径二选一;路径禁止越出工作区。字节不是合法 docx(不是 zip 包或缺文档主体)时报错而不是产出空结果。"
+    },
+    {
+      "name": "docx-to-html",
+      "description": "把 .docx 文档转换成语义化 HTML 片段(Heading 1→h1、列表→ul/ol、表格→table,图片内联为 data URI)。输入 base64 的 docx 字节或工作区内路径二选一;路径禁止越出工作区。转换过程中 mammoth 产生的警告(如无法映射的样式)附在 HTML 之后的 [messages] 段;字节不是合法 docx 时报错。"
+    }
+  ]
+}

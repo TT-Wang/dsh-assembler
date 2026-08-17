@@ -1,0 +1,8 @@
+{
+  "id": "file-type-detect",
+  "pkg": "file-type",
+  "version": "22.0.2",
+  "repo": "sindresorhus/file-type",
+  "license": "MIT",
+  "scaffoldedAt": "2026-08-17T01:41:18.173Z"
+}

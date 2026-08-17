@@ -1,0 +1,16 @@
+{
+  "id": "toml-parse",
+  "verifiedAt": "2026-08-17T01:45:44.939Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "toml-to-json",
+      "description": "把 TOML 文本解析成 JSON。输入:toml(TOML 文本)。输出:等价 JSON(2 空格缩进);日期/时间值转成 TOML 语义的 ISO 字符串(本地日期如 \"1979-05-27\",带时区如 \"1979-05-27T07:32:00.000Z\")。边界:TOML 语法错误返回 isError,错误信息带行列号与出错位置的代码片段。"
+    },
+    {
+      "name": "json-to-toml",
+      "description": "把 JSON 数据序列化成 TOML 文本。输入:json(JSON 字符串,顶层必须是对象——TOML 文档天然是一张表)。输出:TOML 文本。边界(smol-toml 语义):对象里值为 null 的键被忽略(不产出键值对);数组里的 null、以及函数/类等不可表示值会被拒绝,返回 isError;json 不是合法 JSON、或顶层不是对象,也返回 isError。"
+    }
+  ]
+}

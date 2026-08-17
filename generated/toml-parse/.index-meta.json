@@ -1,0 +1,8 @@
+{
+  "id": "toml-parse",
+  "pkg": "smol-toml",
+  "version": "1.8.0",
+  "repo": "squirrelchat/smol-toml",
+  "license": "BSD-3-Clause",
+  "scaffoldedAt": "2026-08-17T01:38:55.068Z"
+}

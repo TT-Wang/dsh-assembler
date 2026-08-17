@@ -1,0 +1,16 @@
+{
+  "id": "rrule-expand",
+  "verifiedAt": "2026-08-17T01:49:30.094Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "expand-rrule",
+      "description": "把 RRULE 重复规则展开成具体发生时间(ISO 8601 列表)。输入 RRULE 字符串与起始时间 dtstart;规则里的 COUNT/UNTIL 会被尊重,无终止条件的规则按 limit(默认 100)截断,truncated 字段标明是否截断。非法规则(FREQ 拼错、未知属性等)返回错误。"
+    },
+    {
+      "name": "describe-rrule",
+      "description": "把 RRULE 重复规则翻译成人话(英文,如 \"every week on Monday for 5 times\"),并附规范化后的 RRULE 字符串(含 DTSTART,若提供)。规则过于复杂无法完整转文字时,text 字段会说明;非法规则返回错误。"
+    }
+  ]
+}

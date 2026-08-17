@@ -1,0 +1,16 @@
+{
+  "id": "fake-data",
+  "verifiedAt": "2026-08-17T01:46:39.087Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "fake-records",
+      "description": "按 schema 批量生成假记录,返回 JSON 数组。schema 是 {字段名: faker 方法路径} 映射,如 {\"name\":\"person.fullName\",\"email\":\"internet.email\",\"city\":\"location.city\"};n 为条数(1~100);locale 可选 en(默认)或 zh_CN(中文姓名/地址等);seed 可选,给定后结果可复现(同参数同 seed 两次调用输出一致)。非法的 faker 路径返回错误并列出可用顶级模块。生成方法一律无参调用。"
+    },
+    {
+      "name": "fake-text",
+      "description": "生成 lorem 占位文本。kind 取 sentences(句子,空格连接)/ paragraphs(段落,空行连接)/ words(单词,空格连接),count 为数量(1~50,默认 3);seed 可选,给定后结果可复现。返回纯文本。"
+    }
+  ]
+}

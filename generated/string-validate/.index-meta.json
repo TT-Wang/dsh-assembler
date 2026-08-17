@@ -1,0 +1,8 @@
+{
+  "id": "string-validate",
+  "pkg": "validator",
+  "version": "13.15.35",
+  "repo": "validatorjs/validator.js",
+  "license": "MIT",
+  "scaffoldedAt": "2026-08-17T01:38:58.079Z"
+}

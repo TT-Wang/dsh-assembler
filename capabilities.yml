@@ -224,6 +224,106 @@ mcp-servers:
     command: node
     args: ['/Users/tongtao/code/dsh-assembler/generated/phone-parse/index.js']
 
+  compress-gzip:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/compress-gzip/index.js']
+
+  dns-lookup:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/dns-lookup/index.js']
+
+  json-query:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/json-query/index.js']
+
+  json-schema-validate:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/json-schema-validate/index.js']
+
+  toml-parse:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/toml-parse/index.js']
+
+  docx-extract:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/docx-extract/index.js']
+
+  pptx-generate:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/pptx-generate/index.js']
+
+  barcode-generate:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/barcode-generate/index.js']
+
+  string-validate:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/string-validate/index.js']
+
+  fake-data:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/fake-data/index.js']
+
+  num-to-chinese:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/num-to-chinese/index.js']
+
+  jwt-decode:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/jwt-decode/index.js']
+
+  ip-utils:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/ip-utils/index.js']
+
+  transliterate:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/transliterate/index.js']
+
+  rrule-expand:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/rrule-expand/index.js']
+
+  exif-read:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/exif-read/index.js']
+
+  file-type-detect:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/file-type-detect/index.js']
+
+  color-convert:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/color-convert/index.js']
+
+  word-segment:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/word-segment/index.js']
+
+  geo-distance:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/geo-distance/index.js']
+
 capabilities:
   # ── customer-service domain tools (this package) ──────────────────────────
   - id: crm-query

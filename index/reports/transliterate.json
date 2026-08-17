@@ -1,0 +1,16 @@
+{
+  "id": "transliterate",
+  "verifiedAt": "2026-08-17T01:48:15.795Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "transliterate-text",
+      "description": "把任意文字(中文/希腊文/韩文等各种书写系统)按 Unicode 码点转写成拉丁字母,如 transliterate(\"你好\") → \"Ni Hao\"。逐码点 1:1 映射:中文多音字可能不准,日文汉字会按中文拼音转。无法识别的字符被移除。空文本原样返回空串。"
+    },
+    {
+      "name": "make-slug",
+      "description": "把文本转成 URL/文件名安全的 slug:先拉丁转写,再小写、用分隔符连接、去掉特殊字符,如 \"北京 Hello World!\" → \"bei-jing-hello-world\"。可选自定义分隔符(默认 -)。文本为空或转写后不剩任何合法字符(如纯符号)时返回错误。"
+    }
+  ]
+}

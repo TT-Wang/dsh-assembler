@@ -1,0 +1,16 @@
+{
+  "id": "string-validate",
+  "verifiedAt": "2026-08-17T01:47:50.592Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "validate-string",
+      "description": "校验一段文本是否符合指定格式,返回 JSON:{ type, input, valid }。支持的 type:email / url / uuid / credit-card / ip / isbn / json / base64 / hex-color / jwt。仅校验不改写;email 校验通过时额外返回 normalized 字段(normalizeEmail 规范化建议,如去 gmail 点号与 +tag 子地址、小写化)。不认识的 type 返回错误并列出支持的类型。"
+    },
+    {
+      "name": "sanitize-string",
+      "description": "对文本执行一种清洗操作,返回清洗后的字符串。支持的 op:escape / unescape / trim / ltrim / rtrim / normalize-email。escape/unescape 做 HTML 实体转义与还原;trim/ltrim/rtrim 默认去空白,可用 chars 指定要去除的字符集;normalize-email 规范化邮箱(输入不是合法邮箱时返回错误)。不认识的 op 返回错误。"
+    }
+  ]
+}

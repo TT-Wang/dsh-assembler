@@ -1,0 +1,16 @@
+{
+  "id": "json-query",
+  "verifiedAt": "2026-08-17T01:45:40.991Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "query",
+      "description": "对 JSON 文档执行一条 JMESPath 表达式,返回查询结果的 JSON 文本。输入:json(JSON 字符串)+ expression(JMESPath 表达式,如 a.b[1]、foo[?age>`30`]、foo[*].name)。输出:结果值的 JSON 序列化;表达式没匹配到任何东西时返回 null(这是正常结果不是错误)。边界:json 不是合法 JSON、或表达式语法错误,各自返回 isError 与具体原因。"
+    },
+    {
+      "name": "query-multi",
+      "description": "对同一份 JSON 文档批量执行多条 JMESPath 表达式,一次拿回全部结果。输入:json(JSON 字符串)+ expressions(表达式数组,至少一条)。输出:{表达式: 结果} 的 JSON 映射,键为原表达式文本,值为该表达式的查询结果(没匹配到为 null)。边界:json 非法、或任何一条表达式语法错误,整体返回 isError并指出是哪一条表达式出的错(不产出半套结果)。"
+    }
+  ]
+}

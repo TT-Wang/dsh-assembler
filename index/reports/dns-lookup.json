@@ -1,0 +1,16 @@
+{
+  "id": "dns-lookup",
+  "verifiedAt": "2026-08-17T01:42:47.926Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "resolve-domain",
+      "description": "解析域名的 DNS 记录。type 支持 A/AAAA/MX/TXT/NS/CNAME;返回记录列表 JSON。域名不存在或该类型无记录时返回结构化说明(不是硬错误);输入不是域名(带协议/路径)才报错。"
+    },
+    {
+      "name": "reverse-lookup",
+      "description": "IP 反查主机名(PTR 记录)。查不到返回空列表说明,IP 格式非法报错。"
+    }
+  ]
+}

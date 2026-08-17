@@ -1,0 +1,8 @@
+{
+  "id": "compress-gzip",
+  "pkg": "node:zlib",
+  "version": "-",
+  "repo": "first-party",
+  "license": "BSD-3-Clause",
+  "scaffoldedAt": "2026-08-17T02:10:00.000Z"
+}
