@@ -80,12 +80,20 @@ function coverage() {
 
 // ── scaffold ───────────────────────────────────────────────────────────────
 function scaffold() {
-  const repoSlug = target
+  out(scaffoldCore(target, flags))
+}
+
+/**
+ * Fetch metadata, shallow-clone upstream, write the skeleton + work order.
+ * Returns the result rather than printing it, so `auto` can chain on it.
+ */
+function scaffoldCore(repoSlugArg, opts) {
+  const repoSlug = repoSlugArg
   if (!repoSlug?.includes('/')) die('scaffold 需要 <owner/repo>,如 kpdecker/jsdiff')
-  const pkg = flags.pkg ?? repoSlug.split('/')[1]
-  const id = (flags.id ?? pkg).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '')
+  const pkg = opts.pkg ?? repoSlug.split('/')[1]
+  const id = (opts.id ?? pkg).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '')
   const dup = dedupGate({ id, pkg, repoSlug })
-  if (dup !== null && flags.force !== 'yes') die(`去重门:${dup}(确认要重复收录用 --force yes)`)
+  if (dup !== null && opts.force !== 'yes') die(`去重门:${dup}(确认要重复收录用 --force yes)`)
 
   let meta
   try {
@@ -150,12 +158,21 @@ ${meta.description ? `简介:${meta.description}` : ''}
    node scripts/index-add.mjs verify ${id}     # 质检(不过不入库)
    node scripts/index-add.mjs register ${id}   # 登记两个目录文件
 `)
-  out({ id, pkg, version: meta.version, license: meta.license ?? 'UNKNOWN', workOrder: `generated/${id}/WORK-ORDER.md`, upstream: existsSync(upstream) ? `.cache/upstream/${id}` : null, next: `写 generated/${id}/{index.js,smoke.mjs},然后 verify` })
+  return { id, pkg, version: meta.version, license: meta.license ?? 'UNKNOWN', workOrder: `generated/${id}/WORK-ORDER.md`, upstream: existsSync(upstream) ? `.cache/upstream/${id}` : null, next: `写 generated/${id}/{index.js,smoke.mjs},然后 verify` }
 }
 
 // ── verify ─────────────────────────────────────────────────────────────────
 async function verify() {
-  const id = target
+  out(await verifyCore(target))
+}
+
+/**
+ * The quality gate: install, smoke (exit 0 required), independent listTools
+ * probe, report. Throws with the smoke output on failure — `auto` feeds that
+ * text back to the agent so it can repair its own part.
+ */
+async function verifyCore(idArg) {
+  const id = idArg
   const dir = join(REPO, 'generated', id ?? '')
   if (!id || !existsSync(dir)) die(`generated/${id} 不存在——先 scaffold`)
   for (const f of ['index.js', 'smoke.mjs', 'package.json']) {
@@ -165,7 +182,11 @@ async function verify() {
   if (install.status !== 0) die(`npm install 失败:${(install.stderr ?? '').slice(-400)}`)
   const smoke = spawnSync('node', ['smoke.mjs'], { cwd: dir, encoding: 'utf8', timeout: 120_000 })
   process.stderr.write(smoke.stdout ?? '')
-  if (smoke.status !== 0) die(`smoke.mjs 退出码 ${smoke.status}——冒烟未过,不入库`)
+  if (smoke.status !== 0) {
+    const err = new Error(`smoke.mjs 退出码 ${smoke.status}——冒烟未过,不入库`)
+    err.smokeOutput = `${smoke.stdout ?? ''}\n${smoke.stderr ?? ''}`.slice(-1500)
+    throw err
+  }
 
   // 独立实探:不信 smoke 自报,从装配器自身依赖直接 listTools
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
@@ -181,12 +202,17 @@ async function verify() {
     id, verifiedAt: new Date().toISOString(), node: process.version,
     smoke: 'pass', tools,
   }, null, 2) + '\n')
-  out({ id, tools: tools.map((t) => t.name), report: `index/reports/${id}.json`, next: `register ${id}` })
+  return { id, tools: tools.map((t) => t.name), report: `index/reports/${id}.json`, next: `register ${id}` }
 }
 
 // ── register ───────────────────────────────────────────────────────────────
 function register() {
-  const id = target
+  out(registerCore(target))
+}
+
+/** Idempotent catalog registration; refuses without a passing verify report. */
+function registerCore(idArg) {
+  const id = idArg
   const dir = join(REPO, 'generated', id ?? '')
   const metaPath = join(dir, '.index-meta.json')
   const reportPath = join(REPO, 'index', 'reports', `${id}.json`)
@@ -223,7 +249,122 @@ ${toolLines}
     writeFileSync(capsPath, caps.replace(/^capabilities:$/m, entry + 'capabilities:'))
     changed.push('capabilities.yml')
   }
-  out({ id, registered: changed, note: changed.length > 0 ? 'git diff 后提交即完成收录;联邦缓存无此 server 键,下次装配自动实探' : '已登记过,无改动' })
+  return { id, registered: changed, note: changed.length > 0 ? 'git diff 后提交即完成收录;联邦缓存无此 server 键,下次装配自动实探' : '已登记过,无改动' }
+}
+
+// ── auto ───────────────────────────────────────────────────────────────────
+// 全自动收录:CLI 调 agent(不内嵌 LLM——调用方本来就是 LLM 的这条设计在
+// 这里推到极致:让 harness 里的真 agent 拿文件工具照工单写零件),写完过同
+// 一道质检门;冒烟不过就把输出喂回同一会话让它自己修(零件自愈),仍不过则
+// 拒绝入库。产出依旧是静态零件 + 目录条目,收录完 CLI 退出——过三判据。
+
+/** One prompt to a fresh-or-existing session; resolves with the turn's reply. */
+async function agentTurn(port, session, text, timeoutMs = 900_000) {
+  const endsBefore = session.frames.filter((e) => e.type === 'turn/end').length
+  const start = session.frames.length
+  await session.rpc('session.prompt', { sessionId: session.sessionId, mode: 'queue', content: [{ type: 'text', text }] })
+  const t0 = Date.now()
+  while (Date.now() - t0 < timeoutMs) {
+    if (session.frames.filter((e) => e.type === 'turn/end').length > endsBefore) {
+      return session.frames.slice(start)
+        .filter((e) => e.type === 'assistant/message')
+        .map((e) => {
+          const c = e.data?.message?.content ?? e.data?.content
+          return Array.isArray(c) ? c.map((b) => (b?.type === 'text' ? b.text : '')).join('') : String(c ?? '')
+        }).join('\n')
+    }
+    await new Promise((r) => setTimeout(r, 2000))
+  }
+  return null
+}
+
+async function openSession(port, cwd) {
+  const rpc = async (method, payload) => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/${method}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'client-request', rpcId: `auto-${Date.now()}-${Math.random().toString(36).slice(2)}`, method, payload }),
+    })
+    const j = await res.json()
+    if (!j.result?.ok) throw new Error(`${method}: ${JSON.stringify(j.result?.error ?? j).slice(0, 400)}`)
+    return j.result.value
+  }
+  const { sessionId } = await rpc('session.create', { cwd })
+  const frames = []
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/api/events.mux`)
+  ws.onmessage = (m) => {
+    try {
+      const f = JSON.parse(String(m.data))
+      if (f.payload?.type === 'session/event' && f.payload.sessionId === sessionId) frames.push(f.payload.event)
+    } catch { /* non-JSON frame */ }
+  }
+  await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('events.mux 连接失败')) })
+  return { sessionId, frames, rpc, close: () => ws.close() }
+}
+
+async function auto() {
+  const port = Number(flags.port ?? 3096)
+  try {
+    const probe = await fetch(`http://127.0.0.1:${port}/`)
+    if (!probe.ok) throw new Error(String(probe.status))
+  } catch {
+    die(`auto 需要一个在跑的 DSH web profile(端口 ${port});先启动:dsh --profile web`)
+  }
+
+  const sc = scaffoldCore(target, flags)
+  console.error(`[auto] scaffold ok: ${sc.id} (${sc.pkg}@${sc.version}, ${sc.license})`)
+  // The work order ends with the operator's own next steps (verify / register).
+  // Handing those lines to the agent invites it to run the gates itself —
+  // observed live: it did, and the pipeline's own run then hit the idempotent
+  // no-op, making the report read as "nothing registered". The pipeline owns
+  // the gates; the agent owns the two files.
+  const workOrder = readFileSync(join(REPO, 'generated', sc.id, 'WORK-ORDER.md'), 'utf8')
+    .replace(/\n## 完成后[\s\S]*$/, '\n')
+  const session = await openSession(port, REPO)
+  try {
+    const brief = [
+      `请按下面的工单,为零件 ${sc.id} 写两个文件:generated/${sc.id}/index.js 和 generated/${sc.id}/smoke.mjs。`,
+      '写之前先读 generated/text-diff/{index.js,smoke.mjs} 学户型规范,再读上游源码/README 确认真实 API 与 ESM/CJS 导入方式(不要凭记忆写 API)。',
+      '只写这两个文件,不要运行 npm install、不要跑 verify/register(质检与登记由流水线负责)、不要改其他文件。写完用 node --check 做语法检查。',
+      '',
+      '=== 工单 ===',
+      workOrder,
+    ].join('\n')
+    const first = await agentTurn(port, session, brief)
+    if (first === null) die('agent 写零件超时')
+    console.error('[auto] agent 交付,进质检门…')
+
+    let report
+    try {
+      report = await verifyCore(sc.id)
+    } catch (error) {
+      // 零件自愈:把冒烟原文喂回同一会话,让它自己定位并修,再过一次门。
+      console.error('[auto] 冒烟未过,喂回失败输出让 agent 修复…')
+      const repair = await agentTurn(port, session, [
+        `质检未过:${error.message}`,
+        '冒烟输出如下,请定位并修复(可以改 index.js 或 smoke.mjs,以真实行为为准;不要放宽断言来掩盖真实缺陷):',
+        '```',
+        error.smokeOutput ?? '(无输出)',
+        '```',
+        '修完只回复"已修复"。',
+      ].join('\n'))
+      if (repair === null) die('agent 修复超时')
+      report = await verifyCore(sc.id)
+    }
+    const reg = registerCore(sc.id)
+    // Report the catalog's STATE, not just what this call happened to write:
+    // registration is idempotent, so an empty `wroteNow` means "already there",
+    // which reads like failure unless the state is reported beside it.
+    const inCatalog = new RegExp(`^- id: ${sc.id}$`, 'm').test(readFileSync(join(REPO, 'index', 'catalog.yml'), 'utf8'))
+    out({
+      id: sc.id, pkg: sc.pkg, version: sc.version, license: sc.license,
+      tools: report.tools,
+      catalogued: inCatalog,
+      wroteNow: reg.registered,
+      note: '全自动收录完成;git diff 后提交',
+    })
+  } finally {
+    session.close()
+  }
 }
 
 // ── check-all ──────────────────────────────────────────────────────────────
@@ -246,4 +387,5 @@ else if (cmd === 'verify') await verify()
 else if (cmd === 'register') register()
 else if (cmd === 'check-all') checkAll()
 else if (cmd === 'coverage') coverage()
-else die('用法:index-add.mjs scaffold <owner/repo> --pkg <npm名> | verify <id> | register <id> | check-all | coverage')
+else if (cmd === 'auto') await auto()
+else die('用法:index-add.mjs scaffold <owner/repo> --pkg <npm名> | verify <id> | register <id> | check-all | coverage | auto <owner/repo> --pkg <npm名> [--id <id>] [--port 3096]')

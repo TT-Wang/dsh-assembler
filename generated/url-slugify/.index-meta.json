@@ -1,0 +1,8 @@
+{
+  "id": "url-slugify",
+  "pkg": "@sindresorhus/slugify",
+  "version": "3.0.0",
+  "repo": "sindresorhus/slugify",
+  "license": "MIT",
+  "scaffoldedAt": "2026-08-17T03:52:15.558Z"
+}

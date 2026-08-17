@@ -1,0 +1,20 @@
+{
+  "id": "url-slugify",
+  "verifiedAt": "2026-08-17T03:57:37.617Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "slugify",
+      "description": "把单条文本转成 URL/文件名/ID 安全的 slug:小写、空格与标点换成连接符、驼峰分词、Unicode 音译成 ASCII(♥→love、Déjà→deja,支持西里尔/阿拉伯/德越土等主要语言)。输入 text(必填);可选 separator/lowercase/decamelize/locale/transliterate。返回 slug 字符串;locale 非法或参数组合冲突时返回错误。"
+    },
+    {
+      "name": "slugify-unique",
+      "description": "把一组标题/条目批量转成互不重复的 slug 列表(典型场景:markdown 标题生成唯一锚点 id、同名文件去重)。重复项自动追加 -2、-3……(第一次出现不加后缀),顺序与输入一致。输入 texts(必填,至少 1 条);可选 separator/lowercase/decamelize/locale/transliterate。每次调用使用全新计数器,结果只取决于本次输入、可重复复现;空字符串条目返回 \"\"。返回 JSON 字符串数组。"
+    },
+    {
+      "name": "slugify-custom",
+      "description": "定制化转写:自定义替换表(先于内置 ♥/&/🦄 替换执行,同名键覆盖内置;目标串带空格会自动分词)、保留指定字符(如 URL 锚点 \"#\"、点号)、保留前导下划线/尾随连字符(隐藏文件名、slug 输入校验场景)。输入 text(必填);可选 customReplacements([[源串, 目标串], …])、preserveCharacters(字符数组,不能包含 separator)、preserveLeadingUnderscore、preserveTrailingDash、separator。返回 slug 字符串;preserveCharacters 与 separator 冲突时返回错误。"
+    }
+  ]
+}

@@ -324,6 +324,16 @@ mcp-servers:
     command: node
     args: ['/Users/tongtao/code/dsh-assembler/generated/geo-distance/index.js']
 
+  url-slugify:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/url-slugify/index.js']
+
+  safe-filename:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/safe-filename/index.js']
+
 capabilities:
   # ── customer-service domain tools (this package) ──────────────────────────
   - id: crm-query

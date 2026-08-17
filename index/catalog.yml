@@ -567,3 +567,20 @@
     - { name: distance, description: "计算两个地理坐标之间的大圆距离。输入起点/终点 { lat, lon }(十进制度);返回 JSON { meters, kilometers }。precis" }
     - { name: bearing, description: "计算从起点到终点的初始方位角与罗盘方向。输入起点/终点 { lat, lon };返回 JSON { bearingDeg(0~360,正北为 0、顺时针,保留" }
     - { name: center-and-bounds, description: "计算一组地理坐标的几何中心点与外接经纬度框。输入坐标数组 [{ lat, lon }, ...](至少 1 个);返回 JSON { count, center" }
+
+- id: url-slugify
+  repo: sindresorhus/slugify
+  rev: v3.0.0
+  license: MIT
+  tools:
+    - { name: slugify, description: "把单条文本转成 URL/文件名/ID 安全的 slug:小写、空格与标点换成连接符、驼峰分词、Unicode 音译成 ASCII(♥→love、Déjà→dej" }
+    - { name: slugify-unique, description: "把一组标题/条目批量转成互不重复的 slug 列表(典型场景:markdown 标题生成唯一锚点 id、同名文件去重)。重复项自动追加 -2、-3……(第一次出" }
+    - { name: slugify-custom, description: "定制化转写:自定义替换表(先于内置 ♥/&/🦄 替换执行,同名键覆盖内置;目标串带空格会自动分词)、保留指定字符(如 URL 锚点 \"#\"、点号)、保留前导下" }
+
+- id: safe-filename
+  repo: sindresorhus/filenamify
+  rev: v7.0.2
+  license: MIT
+  tools:
+    - { name: sanitize, description: "把任意字符串转成安全的文件名。会替换 Windows/Unix 保留字符 <>:\"/\\|?*、移除控制字符与双向控制符、归一化 Unicode 空白、去掉末尾的" }
+    - { name: sanitize-path, description: "把完整路径里的文件名(最后一段)转成安全文件名,目录部分原样保留。输入路径经 path.resolve 解析(相对路径按进程工作目录解析),返回净化后的完整路径" }

@@ -28,7 +28,8 @@
     "index:add": "node scripts/index-add.mjs scaffold",
     "index:verify": "node scripts/index-add.mjs verify",
     "index:register": "node scripts/index-add.mjs register",
-    "index:check": "node scripts/index-add.mjs check-all"
+    "index:check": "node scripts/index-add.mjs check-all",
+    "index:auto": "node scripts/index-add.mjs auto"
   },
   "license": "BSD-3-Clause",
   "peerDependencies": {

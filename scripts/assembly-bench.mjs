@@ -1,9 +1,9 @@
 /**
  * assembly-bench:装配质量基准。
  *
- * 40 条自然语言需求 → 每条走一遍完整 find → assemble → verify 闭环
+ * 45 条自然语言需求 → 每条走一遍完整 find → assemble → verify 闭环
  * (/assemble 命令,装配即验证默认开启),统计自动验证 PASS 率。
- * 通过标准:≥80%(32/40)。
+ * 通过标准:≥80%(36/45)。
  *
  * 跑法:
  *   1. 起一个挂了 assembler 的 web profile:dsh --profile web [--patch <port.yml>]
@@ -21,7 +21,7 @@ const PORT = Number(process.argv[2] ?? 3096)
 const BASE = `http://127.0.0.1:${PORT}`
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-/** 40 题:29 单件 + 11 组合;1-20 为初版基线题(保持不变以便跨目录规模对比),21-40 覆盖扩容批次。 */
+/** 45 题:29 单件 + 11 组合 + 5 个 L3 流程型;1-20 为初版基线题(保持不变以便跨目录规模对比),21-40 覆盖扩容批次,41-45 考多轮状态连续性。 */
 const REQUIREMENTS = [
   // —— 单件 ——
   { slug: 'currency', req: '我要一个货币汇率换算助手,能解析金额、按汇率换算并格式化输出' },
@@ -67,6 +67,15 @@ const REQUIREMENTS = [
   { slug: 'docx-roundtrip', req: '生成一个 Word 文档,再把它的正文提取回纯文本' },
   { slug: 'slug-qr', req: '把一个中文标题转成 URL slug,再把 slug 生成二维码' },
   { slug: 'dns-ip', req: '解析一个域名的 IP,再判断这个 IP 是公网还是内网地址' },
+
+  // —— L3 流程型(41-45):需求隐含跨轮状态,派生器应自行出多轮场景 ——
+  // 这些题不预设步骤,只描述"活儿要活过一轮";验收由派生器出的场景脚本
+  // 逐轮判定(见 DESIGN.md:给工位不给剧本)。
+  { slug: 'ledger', req: '记账助手,把每笔收支记到本地账本,之后可以查询和汇总' },
+  { slug: 'notes', req: '笔记助手,保存我给的笔记,之后能按关键字找回来' },
+  { slug: 'inventory', req: '库存助手,记录物品出入库,随时能查当前库存数量' },
+  { slug: 'contacts', req: '通讯录助手,存联系人信息,之后能按名字查电话' },
+  { slug: 'tasklog', req: '工作日志助手,逐条记录我完成的任务,之后能汇总统计' },
 ]
 
 const rpc = async (method, payload) => {
@@ -116,8 +125,9 @@ async function runOne(item, index) {
       : toolText.includes('自动验证:跳过') ? 'SKIPPED'
         : finished ? 'UNKNOWN' : 'TIMEOUT'
   const line = (toolText.match(/自动验证[^\\"]*/) ?? [''])[0].slice(0, 300)
+  const shape = line.includes('多轮场景') ? 'scenario' : line.includes('探针「') ? 'single' : 'unknown'
   console.log(`[${index + 1}/${REQUIREMENTS.length}] ${name}: ${verdict}  ${line.slice(0, 120)}`)
-  return { name, requirement: item.req, verdict, verifyLine: line, wallSeconds: Math.round((Date.now() - t0) / 1000) }
+  return { name, requirement: item.req, verdict, shape, verifyLine: line, wallSeconds: Math.round((Date.now() - t0) / 1000) }
 }
 
 const startedAt = new Date().toISOString()
@@ -139,12 +149,13 @@ await Promise.all(Array.from({ length: LANES }, () => lane()))
 
 const passes = results.filter((r) => r.verdict === 'PASS').length
 const rate = Math.round((passes / REQUIREMENTS.length) * 100)
-const summary = { startedAt, finishedAt: new Date().toISOString(), port: PORT, total: REQUIREMENTS.length, passes, rate, criterion: 'PASS ≥ 80%', met: rate >= 80, results }
+const scenarios = results.filter((r) => r?.shape === 'scenario').length
+const summary = { startedAt, finishedAt: new Date().toISOString(), port: PORT, total: REQUIREMENTS.length, passes, rate, criterion: 'PASS ≥ 80%', met: rate >= 80, scenarioProbes: scenarios, results }
 
 const outDir = join(REPO, 'bench', 'results')
 mkdirSync(outDir, { recursive: true })
 const outPath = join(outDir, `${startedAt.slice(0, 10)}-assembly-bench-${Date.now().toString(36)}.json`)
 writeFileSync(outPath, JSON.stringify(summary, null, 2))
-console.log(`\n==== assembly-bench: ${passes}/${REQUIREMENTS.length} PASS (${rate}%) — 标准 ≥80% ${rate >= 80 ? '达标 ✅' : '未达标 ❌'} ====`)
+console.log(`\n==== assembly-bench: ${passes}/${REQUIREMENTS.length} PASS (${rate}%) — 标准 ≥80% ${rate >= 80 ? '达标 ✅' : '未达标 ❌'};多轮场景探针 ${scenarios} 题 ====`)
 console.log(`结果已落盘:${outPath}`)
 process.exit(rate >= 80 ? 0 : 1)
