@@ -35,6 +35,24 @@ check('首行含页数 2 slides', head.includes('2 slides'), head.trim());
 const r2 = await client.callTool({ name: 'create-pptx', arguments: { slides: [] } });
 check('空 slides 被拒', r2.isError === true && text(r2).includes('空'), text(r2).slice(0, 80));
 
+
+// savePath 模式:落盘不回传 base64
+{
+  const _os = await import('node:os'); const _p = await import('node:path'); const _fs = await import('node:fs');
+  const wd = _fs.mkdtempSync(_p.join(_os.tmpdir(), 'pptx-save-'));
+  const t2 = new StdioClientTransport({ command: 'node', args: [new URL('./index.js', import.meta.url).pathname], cwd: wd });
+  const c2 = new Client({ name: 'smoke2', version: '0.0.1' });
+  await c2.connect(t2);
+  const rs = await c2.callTool({ name: 'create-pptx', arguments: { slides: [{ title: 'Save', bullets: ['a'] }], savePath: 'out/d.pptx' } });
+  const st = rs.content.map((b) => b.text ?? '').join('');
+  check('savePath 返回路径且不含 base64', st.includes('→') && st.length < 300, String(st.length));
+  const head = _fs.readFileSync(_p.join(wd, 'out/d.pptx')).subarray(0, 2).toString();
+  check('savePath 落盘 PK 魔数', head === 'PK');
+  const resc = await c2.callTool({ name: 'create-pptx', arguments: { slides: [{ title: 'x' }], savePath: '../esc.pptx' } });
+  check('savePath 越界被拒', JSON.stringify(resc).includes('越出工作区'));
+  await c2.close();
+}
+
 await client.close();
 console.log(failures === 0 ? '\nsmoke: ALL PASS' : `\nsmoke: ${failures} FAIL`);
 process.exit(failures);

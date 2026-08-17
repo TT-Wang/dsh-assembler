@@ -7,6 +7,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { resolve, dirname, sep } from 'node:path';
 import bwipjs from 'bwip-js';
 
 const server = new McpServer({ name: 'barcode-generate', version: '0.0.1' });
@@ -26,15 +28,17 @@ server.registerTool('barcode-png', {
   description:
     '生成条码/二维码 PNG 图片。输入 bcid 码制 + 待编码文本,可选 scale(整体放大倍数,默认 3)'
     + '与 height(一维码条高毫米,默认 10,二维码忽略);一维码自动在条下附人读文本。'
-    + '返回首行 "PNG 宽x高, 字节数",次行 PNG 的 base64(可交给 write-binary-file 落盘)。'
+    + '推荐给 savePath(工作区内相对路径):PNG 直接落盘,只返回 "PNG 宽x高, 字节数 → 绝对路径"——'
+    + '二进制不过对话上下文。不给 savePath 才内联返回 base64(体积大,仅在确需内联时用)。'
     + '文本不符合码制规则(如 ean13 位数或校验位不对)时报错。',
   inputSchema: {
     bcid: z.enum(['code128', 'ean13', 'upca', 'qrcode', 'pdf417', 'datamatrix']).describe('码制类型(用 barcode-types 查看适用场景)'),
     text: z.string().min(1).describe('要编码的文本'),
     scale: z.number().int().min(1).max(10).optional().describe('放大倍数(默认 3)'),
     height: z.number().min(1).max(60).optional().describe('一维码条高,毫米(默认 10;二维码忽略)'),
+    savePath: z.string().optional().describe('落盘路径(相对工作区,如 out/code.png);给了就写文件不回传 base64——推荐'),
   },
-}, async ({ bcid, text, scale, height }) => {
+}, async ({ bcid, text, scale, height, savePath }) => {
   const opts = { bcid, text, scale: scale ?? 3 };
   if (LINEAR.has(bcid)) {
     opts.height = height ?? 10;
@@ -45,6 +49,16 @@ server.registerTool('barcode-png', {
     const png = await bwipjs.toBuffer(opts);
     const w = png.readUInt32BE(16);
     const h = png.readUInt32BE(20);
+    if (savePath !== undefined) {
+      const root = process.cwd();
+      const target = resolve(root, savePath);
+      if (target !== root && !target.startsWith(root + sep)) {
+        return { isError: true, content: [{ type: 'text', text: `barcode-png: savePath 越出工作区: ${savePath}` }] };
+      }
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, png);
+      return { content: [{ type: 'text', text: `PNG ${w}x${h}, ${png.length} bytes → ${target}` }] };
+    }
     return { content: [{ type: 'text', text: `PNG ${w}x${h}, ${png.length} bytes\n${png.toString('base64')}` }] };
   } catch (err) {
     // bwip-js 的错误可能是字符串也可能是 Error 对象

@@ -159,7 +159,28 @@ try {
     const badPatchRes = await decodeToolResult(badPatchResp.content);
     record("invalid patch key returns error text", badPatchRes.ok === false, badPatchRes.error?.slice(0, 80));
 
-    await client.close();
+    
+// savePath / inputPath 模式:二进制走文件不过上下文
+{
+  const _os = await import('node:os'); const _p = await import('node:path'); const _fs = await import('node:fs');
+  const wd = _fs.mkdtempSync(_p.join(_os.tmpdir(), 'docx-save-'));
+  const t2 = new StdioClientTransport({ command: 'node', args: [new URL('./index.js', import.meta.url).pathname], cwd: wd });
+  const c2 = new Client({ name: 'smoke2', version: '0.0.1' });
+  await c2.connect(t2);
+  const rs = await c2.callTool({ name: 'docx-generate-text', arguments: { title: 'SaveTest', paragraphs: [{ type: 'body', text: 'roundtrip-mark-9To2' }], savePath: 'out/a.docx' } });
+  const js = JSON.parse(rs.content.map((b) => b.text ?? '').join(''));
+  record('savePath 返回 savedTo 无 base64', js.ok === true && js.savedTo !== undefined && js.base64 === undefined, JSON.stringify(js).slice(0, 120));
+  const head = _fs.readFileSync(_p.join(wd, 'out/a.docx')).subarray(0, 2).toString();
+  record('savePath 落盘 PK 魔数', head === 'PK');
+  const rp = await c2.callTool({ name: 'docx-patch-document', arguments: { inputPath: 'out/a.docx', patches: { addendum: { type: 'document', children: [{ type: 'body', text: 'patched-mark' }] } }, savePath: 'out/b.docx' } });
+  const jp = JSON.parse(rp.content.map((b) => b.text ?? '').join(''));
+  record('inputPath→savePath 修补链路(零 base64)', jp.ok === true && jp.savedTo !== undefined, JSON.stringify(jp).slice(0, 120));
+  const resc = await c2.callTool({ name: 'docx-generate-text', arguments: { paragraphs: [{ type: 'body', text: 'x' }], savePath: '../esc.docx' } });
+  record('savePath 越界被拒', JSON.stringify(resc).includes('越出工作区'));
+  await c2.close();
+}
+
+await client.close();
 } catch (err) {
     failures++;
     record("smoke run (fatal)", false, String(err && err.message ? err.message : err));

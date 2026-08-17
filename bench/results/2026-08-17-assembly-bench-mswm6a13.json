@@ -300,5 +300,16 @@
       "bench-38-docx-roundtrip": "探针轮 180s 超时:docx 生成+提取链较重"
     },
     "verdict": "88% 达标;5 个 FAIL 中 3 个是探针设计噪声(标记过精/世界知识标记/超时预算),1 个真实零件缺口(calendar timed event),1 个链路偏重。装配-选型环节本身零退化。"
+  },
+  "reverification": {
+    "note": "首跑记分不改(35/40);5 个 FAIL 逐个修因后单题复验,全部转 PASS",
+    "items": {
+      "bench-11-ics": "PASS(deriver 新规则:题面内嵌逐字标记 SUMMARY:SMOKE-A-TIMED 等;186s)",
+      "bench-33-geo": "PASS(标记宽容化:111 + 罗盘 E;220s)",
+      "bench-40-dns-ip": "PASS(题面内嵌数据:deriver 自选 10.10.10.1.nip.io——域名本身携带答案,零世界知识;110s)",
+      "bench-32-barcode": "PASS(零件修复 savePath:PNG 落盘不回传 base64;720s 超时 → 76s)",
+      "bench-38-docx-roundtrip": "PASS(docx 三工具 savePath/inputPath:生成→修补→提取全程文件通道零 base64;720s 超时 → 48s)"
+    },
+    "design_lesson": "零件间二进制必须走工作区文件,不走模型上下文——base64 内联让 agent 逐字搬运 10-15KB,一步数分钟;已修 barcode/docx/pptx 三个同类零件并写入户型规范"
   }
 }

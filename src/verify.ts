@@ -65,7 +65,7 @@ export async function deriveProbe(
     "- mustInclude: 1-3 content-bearing strings that will appear in the reply IFF the task truly succeeded (a computed value, a verbatim token from the task input). Never accept generic words like \"done\" or \"success\".",
     "- mustInclude values MUST be derivable from data embedded in the task text itself. NEVER use remembered world facts (a domain's IP, a live exchange rate, today's date) — live data changes and remembered values go stale.",
     "- Avoid over-precise numeric marks: a mark like \"111.195\" fails when the tool legitimately prints 111.1949. Prefer a verbatim echo token, an integer, or the leading digits of a number (e.g. \"111.1\").",
-    "- Budget: the probe agent has ~3 minutes. Avoid tasks whose replies embed large payloads (full base64 images) — ask for byte counts or short prefixes instead.",
+    "- Budget: the probe agent has ~4 minutes. Avoid tasks whose replies embed large payloads (full base64 images) — ask for byte counts or short prefixes instead.",
   ].join("\n");
   const assembler = new BlockAssembler();
   // Same fast-model + provider-resolution discipline as llmMapRequirement:
@@ -99,7 +99,7 @@ export async function runProbe(
   port: number,
   presetId: string,
   probe: ProbeSpec,
-  timeoutMs = 180_000,
+  timeoutMs = 300_000,
 ): Promise<ProbeResult> {
   const base = `http://127.0.0.1:${port}`;
   const rpc = async (method: string, payload: unknown): Promise<any> => {

@@ -1,29 +1,20 @@
 {
   "id": "docx-generate",
-  "repo": "dolanmiu/docx",
-  "rev": "8.5.0 @ 7570fc2bf59bd4b8a71403b1bb1d25decde532c7",
-  "license": "MIT",
-  "verified": true,
+  "verifiedAt": "2026-08-17T03:00:04.794Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
   "tools": [
     {
       "name": "docx-generate-text",
-      "description": "生成纯文本型 Word 文档（.docx）。输入声明式的段落列表：支持文档标题(title)、一级/二级/三级标题、正文段落、项目符号列表、编号列表；每段可设加粗(bold)、斜体(italic)、对齐(alignment: left/center/right/justified)、字号(sizePt, pt)、颜色(color, 十六进制)、字体(font)。返回 JSON，base64 字段为 .docx 文件内容。适合报告、笔记、信函等。"
+      "description": "生成纯文本型 Word 文档（.docx）。输入声明式的段落列表：支持文档标题(title)、一级/二级/三级标题、正文段落、项目符号列表、编号列表；每段可设加粗(bold)、斜体(italic)、对齐(alignment)、字号(sizePt, pt)、颜色(color, 十六进制)、字体(font)。返回 JSON，其中 base64 字段为 .docx 文件内容（可直接解码保存或用 docx-patch-document / 其他工具落盘）。适合：报告、笔记、说明文档、信函、简历等。"
     },
     {
       "name": "docx-generate-table",
-      "description": "生成以表格为主的 Word 文档（.docx）。输入二维字符串数据（可选表头行 headerRow + 数据行 rows），可选每列宽度百分比 columnWidths 与单元格对齐 alignment；表头自动加粗并标记为 tableHeader（跨页重复）。返回 JSON，base64 字段为 .docx 文件内容。适合数据报表、对比表、结构化清单。"
+      "description": "生成以表格为主的 Word 文档（.docx）。输入二维字符串数据（可选表头行 + 数据行），可选每列宽度百分比与单元格对齐方式；表头自动加粗并标记为表格表头（跨页重复）。返回 JSON，其中 base64 字段为 .docx 文件内容。适合：数据报表、对比表、结构化清单、批量数据展示。"
     },
     {
       "name": "docx-patch-document",
-      "description": "就地修补已有 .docx（模板填充/邮件合并）：输入 base64 编码的 .docx，patches 映射中每个 key 对应文档内 {{key}} 占位符（key 不带花括号）；type=paragraph 用指定段落替换占位符，type=document 在文档末尾追加段落。返回修补后的 base64 .docx。适合用真实数据填充 Word 模板。"
+      "description": "就地修补一个已有的 .docx（模板填充 / 邮件合并）：输入 base64 编码的 .docx，给出 patches 映射——每个 key 对应文档中的占位符 token（形如 {{key}}，key 不带花括号）；type=paragraph 时用指定段落替换文档中的该 token；type=document 时把指定段落追加到文档末尾。返回修补后的 base64 .docx。典型用途：用真实数据填充 Word 模板中的 {{name}}、{{date}} 等占位符。"
     }
-  ],
-  "smoke": "13/13 checks PASS (exit 0). listTools 返回 3 个工具；docx-generate-text / docx-generate-table / docx-patch-document 各真实调用一次，输出均为合法 docx（ZIP 魔数 PK + word/document.xml 等 OOXML 条目存在，document.xml 内含预期中文文本）；docx-patch-document 以 text 生成结果做 base64 往返修补成功；缺参调用被服务器以 isError=true + 'MCP error -32602: Input validation error: Required at paragraphs' 拒绝；非法 patch key 返回明确错误文本。冒烟产物写入临时目录 /var/folders/*/T/docx-smoke-*/{text,table,patched}.docx。server 启动正常、stdin 关闭后干净退出。",
-  "issues": [
-    "上游 tag 名为 '8.5.0'（无 v 前缀），任务描述中的 'v8.5.0' 不存在；已按实际 tag 8.5.0 克隆并以其 commit 7570fc2 为准。",
-    "上游仓库为源码形态（无 build/ 产物），API 以 npm 发布包 docx@8.5.0（MIT）为准核验：Document/Packer.toBuffer/Paragraph/Table/TableRow/TableCell/TextRun/HeadingLevel/AlignmentType/WidthType/patchDocument/PatchType 等 ESM 命名导出全部可用。",
-    "MCP SDK 1.3x 下工具参数校验失败以 isError=true 的错误响应返回（非客户端抛异常），冒烟脚本已按此断言。",
-    "docx 库无内置 .docx 读取/解析器：docx-patch-document 需要调用方提供 base64 输入；且占位符 token 须位于同一文本 run 内（上游 patchDocument 的限制，跨 run 拆分的 token 无法匹配）。",
-    "工具返回的 base64 直接嵌入 MCP 文本内容，大型文档（含图片）时消息体较大，属预期行为。"
   ]
 }

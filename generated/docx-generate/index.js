@@ -27,6 +27,8 @@ import {
     patchDocument,
 } from "docx";
 
+import { writeFileSync, mkdirSync, readFileSync as readFileSyncFs } from "node:fs";
+import * as nodePath from "node:path";
 const log = (...args) => console.error("[docx-generate]", ...args);
 
 const ALIGNMENTS = {
@@ -112,8 +114,23 @@ function buildParagraph(item) {
     });
 }
 
-/** Serialize a generated docx Buffer to a tool result JSON string. */
-function okResult(buffer, fileName) {
+/**
+ * Serialize a generated docx Buffer to a tool result JSON string.
+ * savePath given → write inside the workspace and return the path WITHOUT
+ * base64: binary must travel between parts as files, not through the model
+ * context (a 15KB base64 the agent retypes into the next call costs minutes).
+ */
+function okResult(buffer, fileName, savePath) {
+    if (savePath !== undefined) {
+        const root = process.cwd();
+        const target = nodePath.resolve(root, savePath);
+        if (target !== root && !target.startsWith(root + nodePath.sep)) {
+            throw new Error(`savePath 越出工作区: ${savePath}`);
+        }
+        mkdirSync(nodePath.dirname(target), { recursive: true });
+        writeFileSync(target, buffer);
+        return JSON.stringify({ ok: true, format: "docx", fileName, byteLength: buffer.length, savedTo: target });
+    }
     return JSON.stringify({
         ok: true,
         format: "docx",
@@ -157,6 +174,7 @@ server.tool(
     "docx-generate-text",
     "生成纯文本型 Word 文档（.docx）。输入声明式的段落列表：支持文档标题(title)、一级/二级/三级标题、正文段落、项目符号列表、编号列表；每段可设加粗(bold)、斜体(italic)、对齐(alignment)、字号(sizePt, pt)、颜色(color, 十六进制)、字体(font)。返回 JSON，其中 base64 字段为 .docx 文件内容（可直接解码保存或用 docx-patch-document / 其他工具落盘）。适合：报告、笔记、说明文档、信函、简历等。",
     {
+        savePath: z.string().optional().describe("落盘路径(相对工作区,如 out/doc.docx);给了就写文件、返回 savedTo 且不回传 base64——推荐,二进制不过对话上下文"),
         title: z
             .string()
             .optional()
@@ -223,7 +241,7 @@ server.tool(
                 sections: [{ children }],
             });
             const buf = await Packer.toBuffer(doc);
-            return { content: [{ type: "text", text: okResult(buf, "document.docx") }] };
+            return { content: [{ type: "text", text: okResult(buf, "document.docx", params.savePath) }] };
         }),
 );
 
@@ -231,6 +249,7 @@ server.tool(
     "docx-generate-table",
     "生成以表格为主的 Word 文档（.docx）。输入二维字符串数据（可选表头行 + 数据行），可选每列宽度百分比与单元格对齐方式；表头自动加粗并标记为表格表头（跨页重复）。返回 JSON，其中 base64 字段为 .docx 文件内容。适合：数据报表、对比表、结构化清单、批量数据展示。",
     {
+        savePath: z.string().optional().describe("落盘路径(相对工作区,如 out/doc.docx);给了就写文件、返回 savedTo 且不回传 base64——推荐,二进制不过对话上下文"),
         title: z
             .string()
             .optional()
@@ -351,7 +370,7 @@ server.tool(
                 sections: [{ children }],
             });
             const buf = await Packer.toBuffer(doc);
-            return { content: [{ type: "text", text: okResult(buf, "table.docx") }] };
+            return { content: [{ type: "text", text: okResult(buf, "table.docx", params.savePath) }] };
         }),
 );
 
@@ -359,7 +378,9 @@ server.tool(
     "docx-patch-document",
     "就地修补一个已有的 .docx（模板填充 / 邮件合并）：输入 base64 编码的 .docx，给出 patches 映射——每个 key 对应文档中的占位符 token（形如 {{key}}，key 不带花括号）；type=paragraph 时用指定段落替换文档中的该 token；type=document 时把指定段落追加到文档末尾。返回修补后的 base64 .docx。典型用途：用真实数据填充 Word 模板中的 {{name}}、{{date}} 等占位符。",
     {
-        inputBase64: z.string().describe("要修补的 .docx 文件的 base64 编码内容。"),
+        inputBase64: z.string().optional().describe("要修补的 .docx 的 base64(与 inputPath 二选一;体积大,优先用 inputPath)。"),
+        inputPath: z.string().optional().describe("要修补的 .docx 的工作区内路径(与 inputBase64 二选一,推荐)。"),
+        savePath: z.string().optional().describe("落盘路径(相对工作区,如 out/doc.docx);给了就写文件、返回 savedTo 且不回传 base64——推荐,二进制不过对话上下文"),
         patches: z
             .record(
                 z.object({
@@ -395,11 +416,21 @@ server.tool(
     },
     async (params) =>
         safe(async () => {
-            const { inputBase64, patches, keepOriginalStyles } = params;
+            const { inputBase64, inputPath, patches, keepOriginalStyles } = params;
+            if ((inputBase64 === undefined) === (inputPath === undefined)) {
+                throw new Error("inputBase64 与 inputPath 必须且只能给一个");
+            }
 
             let inputBuffer;
             try {
-                inputBuffer = Buffer.from(inputBase64, "base64");
+                inputBuffer = inputPath !== undefined
+                    ? (() => {
+                        const root = process.cwd();
+                        const t = nodePath.resolve(root, inputPath);
+                        if (t !== root && !t.startsWith(root + nodePath.sep)) throw new Error(`inputPath 越出工作区: ${inputPath}`);
+                        return readFileSyncFs(t);
+                    })()
+                    : Buffer.from(inputBase64, "base64");
             } catch {
                 return {
                     content: [{ type: "text", text: errResult("inputBase64 不是合法的 base64 字符串") }],
@@ -438,7 +469,7 @@ server.tool(
             });
 
             const buf = Buffer.from(patched);
-            return { content: [{ type: "text", text: okResult(buf, "patched.docx") }] };
+            return { content: [{ type: "text", text: okResult(buf, "patched.docx", params.savePath) }] };
         }),
 );
 

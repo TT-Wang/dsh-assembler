@@ -52,6 +52,25 @@ check('非法 bcid 被拒', badBcidRejected);
 const r6 = await client.callTool({ name: 'barcode-png', arguments: { bcid: 'ean13', text: '1234' } });
 check('ean13 位数不对被拒', r6.isError === true, text(r6).slice(0, 80));
 
+
+// savePath 模式:落盘不回传 base64(二进制不过上下文)
+import { mkdtempSync as _mk, readFileSync as _rf } from 'node:fs';
+const _os = await import('node:os'); const _path = await import('node:path');
+{
+  const wd = _mk(_path.join(_os.tmpdir(), 'barcode-save-'));
+  const t2 = new StdioClientTransport({ command: 'node', args: [new URL('./index.js', import.meta.url).pathname], cwd: wd });
+  const c2 = new Client({ name: 'smoke2', version: '0.0.1' });
+  await c2.connect(t2);
+  const rs = await c2.callTool({ name: 'barcode-png', arguments: { bcid: 'code128', text: 'SAVE-42', savePath: 'out/c.png' } });
+  const st = JSON.stringify(rs);
+  check('savePath 返回路径且不含 base64 长串', st.includes('→') && st.length < 600, String(st.length));
+  const bytes = _rf(_path.join(wd, 'out/c.png'));
+  check('savePath 落盘 PNG 魔数', bytes.subarray(0, 4).toString('hex') === '89504e47');
+  const rout = await c2.callTool({ name: 'barcode-png', arguments: { bcid: 'code128', text: 'X', savePath: '../esc.png' } });
+  check('savePath 越界被拒', JSON.stringify(rout).includes('越出工作区'));
+  await c2.close();
+}
+
 await client.close();
 console.log(failures === 0 ? '\nsmoke: ALL PASS' : `\nsmoke: ${failures} FAIL`);
 process.exit(failures);

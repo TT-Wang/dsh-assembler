@@ -38,7 +38,7 @@ const MAX_PRESET_ID_LENGTH = 48
 export interface Config {
   /** Run the assemble-then-verify probe after emitting (default true). */
   verify?: boolean
-  /** Probe turn timeout in ms (default 180000). */
+  /** Probe turn timeout in ms (default 300000). */
   verifyTimeoutMs?: number
   /** Catalog path (default: this package's capabilities.yml). */
   catalogPath?: string

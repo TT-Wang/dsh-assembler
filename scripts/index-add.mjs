@@ -70,7 +70,7 @@ function coverage() {
   const blocks = text.split(/^- id: /m).slice(1)
   const map = blocks.map((b) => {
     const id = b.split('\n')[0].trim()
-    const tools = [...b.matchAll(/- \{ name: ([^,]+), description: ("[^"]*"|[^}]*) \}/g)]
+    const tools = [...b.matchAll(/- \{ name: ([^,]+), description: ("[^"]*"|[^}]*?)\s*\}/g)]
       .map((m) => `${m[1].trim()}(${m[2].replace(/^"|"$/g, '').slice(0, 36)})`)
     return { id, tools }
   })
