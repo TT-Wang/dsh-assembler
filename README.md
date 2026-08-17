@@ -12,17 +12,13 @@ The catalog grows through an **induction pipeline**: open-source libraries, publ
 
 ---
 
-## Where it stands
+## Scale today
 
 | | Measured | Where to verify |
 |---|---|---|
 | Catalog | **79 MCP servers / 215 registered tools / 237 assemblable entries** (229 federated + 8 static) | `index/catalog.yml` |
 | Part mix | 61 library-backed + 13 service-backed + 4 first-party | same |
-| Part gate | **80/80 smokes pass** (including 2 client parts) | `npm run index:check` |
-| Assembly quality | **44/45 (98%)**; multi-turn process items **5/5** | `bench/results/2026-08-17-*.json` |
-| Selection stability | catalog 137 → 227 entries (+47%), baseline items **did not degrade** | three bench ledgers |
-| Assembly wall time | median **56s** (single-turn 52s / scenario 182s) | same |
-| Unit tests | 3 suites green (generation invariants / verdicts + BOM / federation cache) | `npm test` |
+| Assembly wall time | median **56s** (single-turn 52s / scenario 182s) | ledgers in `bench/results/` |
 
 Every row names the artifact that proves it. That is a house rule, not a flourish — see [DESIGN.md](DESIGN.md) (design charter, Chinese).
 
@@ -444,37 +440,6 @@ knowledge:
     source: ACME support knowledge base export
     version: 2026-08
 ```
-
----
-
-## Benchmark: assembly-bench
-
-```bash
-npm run bench     # 45 items end to end (needs a running web profile); criterion PASS ≥ 80%; ledger in bench/results/
-```
-
-**Three ledgers, all committed and recomputable:**
-
-| Run | Items | Result | Catalog size |
-|---|---|---|---|
-| 08-16 | 20 | 19/20 (95%) | 137 entries |
-| 08-17 #1 | 40 | 35/40 (88%) | 196 entries |
-| **08-17 #2** | **45** | **44/45 (98%)** | **227 entries** |
-
-- **Baseline items 1–20 scored 19–20/20 throughout**: a 47% larger catalog cost no selection accuracy, so the trigger for domain tiering stays unmet — on two data points, stated as such.
-- **Process items 5/5**, and all five were judged multi-turn by the deriver itself.
-- Scoring discipline: **the first run's score is never edited**; re-verification after a fix is recorded separately. All 5 first-run failures were root-caused and turned PASS — three were probe-design noise (over-precise marks, the deriver embedding stale world knowledge, a large payload blowing the time budget), one was a genuine part-design class (binary returned inline as base64 made the agent retype it between calls: 720s → 76s), and one was a misdiagnosis I corrected in the ledger.
-
----
-
-## Known limits
-
-1. **Unfamiliar phrasing is untested.** Every bench item was written by the maintainer and therefore leans on the catalog's own vocabulary. Real users' vaguer asks ("make me something to handle complaints") have not been tested as a set — the likeliest place for problems to surface.
-2. **The L3 sample is small**: five multi-turn process items, all at bookkeeping complexity. Enterprise processes (cross-system, domain rules, multi-step judgement) are an order of magnitude harder and there is no evidence yet.
-3. **Catalog scale beyond 227 entries is extrapolation.** No degradation up to 227 is measured; 400+ is an inference.
-4. **Verification needs the webServer.** In a headless assembly the probe has nowhere to run, so it degrades to "skipped"; the assembly itself is unaffected.
-5. **Hand-editing a preset can collide within one host process.** The host never releases a superseded generation's serverNames while it lives. The assembler's own re-emission is fixed at the root (serverName suffix hashes the file bytes; byte-identical re-emits skip the write), but a manual edit needs a host restart.
-6. **A structural ceiling.** The assembler handles capability acquisition and verification; **judgement always belongs to the model**. It can guarantee "a refund always leaves a ticket". It cannot guarantee "the refund decision was wise" — and claiming otherwise would be a lie.
 
 ---
 
