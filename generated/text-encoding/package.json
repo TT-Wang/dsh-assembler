@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/text-encoding",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "description": "MCP stdio server exposing iconv-lite tools",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0",
+    "iconv-lite": "0.7.3"
+  }
+}

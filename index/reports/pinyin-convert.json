@@ -1,0 +1,16 @@
+{
+  "id": "pinyin-convert",
+  "verifiedAt": "2026-08-17T01:28:47.207Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "to-pinyin",
+      "description": "把汉字文本转成拼音,字与字之间用空格分隔。mode 三选一:tone(带声调符号,默认,如 zhōng guó)/none(不带声调,如 zhong guo)/first(仅首字母,如 z g)。自动识别多音字取最常用读音;非汉字字符原样保留。空文本返回错误。"
+    },
+    {
+      "name": "multi-tone",
+      "description": "查一个汉字的全部多音字读音,返回带声调的读音列表(如 好: hǎo / hào)。输入必须是单个汉字;多个字符或非汉字输入返回错误。"
+    }
+  ]
+}

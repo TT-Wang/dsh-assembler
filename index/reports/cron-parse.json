@@ -1,0 +1,16 @@
+{
+  "id": "cron-parse",
+  "verifiedAt": "2026-08-17T01:28:29.800Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "next-runs",
+      "description": "解析 cron 表达式,返回接下来 n 次执行时间(ISO 8601,每行一条)。支持 5 或 6 段表达式与 @daily 等别名;可选 tz 指定 IANA 时区,可选 from 指定起算时间(结果为该时刻之后的执行时间,默认从现在起算)。表达式或参数非法时返回错误而不是抛异常。"
+    },
+    {
+      "name": "describe-fields",
+      "description": "解析 cron 表达式,返回规范化形式(含秒的 6 段写法)与各字段展开后的具体取值(second/minute/hour/dayOfMonth/month/dayOfWeek 各一行,通配字段列出全部取值)。用于核对一条 cron 到底覆盖哪些时间点。表达式非法时返回错误。"
+    }
+  ]
+}

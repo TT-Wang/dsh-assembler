@@ -1,0 +1,8 @@
+{
+  "id": "semver-check",
+  "pkg": "semver",
+  "version": "7.8.5",
+  "repo": "npm/node-semver",
+  "license": "ISC",
+  "scaffoldedAt": "2026-08-17T01:23:01.862Z"
+}

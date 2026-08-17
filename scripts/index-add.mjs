@@ -41,12 +41,51 @@ const out = (obj) => {
   console.log(JSON.stringify({ ok: true, ...obj }))
 }
 
+// ── dedup gate ─────────────────────────────────────────────────────────────
+// 目录是能力目录不是库目录:同一上游库/同一 npm 包不允许收两次。这里挡的是
+// 机械重复(同库换个 id 再收);能力级重叠(不同库、同能力点)由调用方对着
+// `coverage` 子命令的覆盖图判定——那是语义判断,属于智能环节。
+function dedupGate({ id, pkg, repoSlug }) {
+  const gen = join(REPO, 'generated')
+  if (existsSync(join(gen, id, '.index-meta.json'))) return `id "${id}" 已存在(generated/${id})`
+  for (const d of existsSync(gen) ? readdirSync(gen) : []) {
+    const pj = join(gen, d, 'package.json')
+    if (!existsSync(pj)) continue
+    const deps = JSON.parse(readFileSync(pj, 'utf8')).dependencies ?? {}
+    if (pkg in deps) return `npm 包 "${pkg}" 已被零件 "${d}" 收录`
+  }
+  const catalogPath = join(REPO, 'index', 'catalog.yml')
+  if (existsSync(catalogPath) && new RegExp(`^  repo: ${repoSlug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm').test(readFileSync(catalogPath, 'utf8'))) {
+    return `上游 repo "${repoSlug}" 已在 index/catalog.yml`
+  }
+  return null
+}
+
+// ── coverage ───────────────────────────────────────────────────────────────
+// 现有能力覆盖图:每个 server 一行(工具名 + tags 并集),给调用方做语义判重
+// ——候选库先对着这张图判 NEW / OVERLAP,重叠能力点不收。
+function coverage() {
+  const catalogPath = join(REPO, 'index', 'catalog.yml')
+  const text = readFileSync(catalogPath, 'utf8')
+  const blocks = text.split(/^- id: /m).slice(1)
+  const map = blocks.map((b) => {
+    const id = b.split('\n')[0].trim()
+    const tools = [...b.matchAll(/- \{ name: ([^,]+), description: ("[^"]*"|[^}]*) \}/g)]
+      .map((m) => `${m[1].trim()}(${m[2].replace(/^"|"$/g, '').slice(0, 36)})`)
+    return { id, tools }
+  })
+  for (const s of map) console.error(`${s.id}: ${s.tools.join(' | ')}`)
+  console.log(JSON.stringify({ ok: true, servers: map.length, tools: map.reduce((n, s) => n + s.tools.length, 0) }))
+}
+
 // ── scaffold ───────────────────────────────────────────────────────────────
 function scaffold() {
   const repoSlug = target
   if (!repoSlug?.includes('/')) die('scaffold 需要 <owner/repo>,如 kpdecker/jsdiff')
   const pkg = flags.pkg ?? repoSlug.split('/')[1]
   const id = (flags.id ?? pkg).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '')
+  const dup = dedupGate({ id, pkg, repoSlug })
+  if (dup !== null && flags.force !== 'yes') die(`去重门:${dup}(确认要重复收录用 --force yes)`)
 
   let meta
   try {
@@ -206,4 +245,5 @@ if (cmd === 'scaffold') scaffold()
 else if (cmd === 'verify') await verify()
 else if (cmd === 'register') register()
 else if (cmd === 'check-all') checkAll()
-else die('用法:index-add.mjs scaffold <owner/repo> --pkg <npm名> | verify <id> | register <id> | check-all')
+else if (cmd === 'coverage') coverage()
+else die('用法:index-add.mjs scaffold <owner/repo> --pkg <npm名> | verify <id> | register <id> | check-all | coverage')

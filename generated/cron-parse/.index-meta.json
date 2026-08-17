@@ -1,0 +1,8 @@
+{
+  "id": "cron-parse",
+  "pkg": "cron-parser",
+  "version": "5.10.0",
+  "repo": "harrisiirak/cron-parser",
+  "license": "MIT",
+  "scaffoldedAt": "2026-08-17T01:22:56.654Z"
+}

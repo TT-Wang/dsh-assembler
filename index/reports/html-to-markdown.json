@@ -1,0 +1,12 @@
+{
+  "id": "html-to-markdown",
+  "verifiedAt": "2026-08-17T01:29:46.880Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "html-to-markdown",
+      "description": "把 HTML 片段或整页转换为 Markdown 文本。输入 HTML 字符串与可选风格参数:headingStyle(atx=「# 标题」式 / setext=下划线式,默认 atx)、bulletListMarker(-、+ 或 *,默认 -)。容忍不闭合标签等不规范 HTML;<script>/<style>/<noscript> 整块丢弃,不进正文。空白输入返回错误而不是空结果。"
+    }
+  ]
+}

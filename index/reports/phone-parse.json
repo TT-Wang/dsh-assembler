@@ -1,0 +1,16 @@
+{
+  "id": "phone-parse",
+  "verifiedAt": "2026-08-17T01:29:17.852Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "parse-phone",
+      "description": "解析电话号码,返回结构化 JSON:country(ISO 两位国家码,判不出为 null)、countryCallingCode(国家区号)、e164(标准 +区号号码)、valid(严格校验是否有效)、possible(仅长度校验)、type(号码类型如 MOBILE/FIXED_LINE/TOLL_FREE,判不出为 null)、national(国内书写格式)。号码不带 + 前缀时必须给 defaultCountry;号码过短或国家无法确定时返回错误。注意:号码解析得出但校验不过时不报错,返回 valid:false 的结构化结果。"
+    },
+    {
+      "name": "format-phone",
+      "description": "把电话号码一次转成四种标准写法,返回 JSON:e164(+8613800138000)、international(+86 138 0013 8000)、national(138 0013 8000)、uri(tel: 链接),并附 valid 标志供调用方判断是否可信。号码不带 + 前缀时必须给 defaultCountry;完全无法解析时返回错误。"
+    }
+  ]
+}

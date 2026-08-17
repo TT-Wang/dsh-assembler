@@ -1,0 +1,16 @@
+{
+  "id": "text-encoding",
+  "verifiedAt": "2026-08-17T01:29:15.489Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "decode-base64",
+      "description": "把 base64 表示的字节按指定源编码解码为 UTF-8 文本。输入 base64 字符串(内部空白自动忽略)与源编码名(如 gbk/big5/shift_jis/win1251/utf16-le,大小写与连字符不敏感)。不认识的编码名或不合法的 base64 返回错误;无法映射的字节替换为 �,不抛异常。"
+    },
+    {
+      "name": "encode-to-base64",
+      "description": "把 UTF-8 文本按目标编码转成字节,返回字节的 base64 表示。输入文本与目标编码名(如 gbk/big5/shift_jis,大小写与连字符不敏感)。不认识的编码名返回错误;目标编码表示不了的字符替换为 ?,不抛异常。"
+    }
+  ]
+}

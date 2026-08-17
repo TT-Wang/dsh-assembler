@@ -1,0 +1,16 @@
+{
+  "id": "yaml-convert",
+  "verifiedAt": "2026-08-17T01:28:44.902Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "yaml-to-json",
+      "description": "把 YAML 文本解析为 JSON 字符串(默认缩进 2 空格,compact=true 时单行)。只处理单文档 YAML;解析失败时返回带行号/列号定位的错误信息而不是产出半截结果。"
+    },
+    {
+      "name": "json-to-yaml",
+      "description": "把 JSON 字符串序列化为 YAML 文本(块风格,缩进 2 空格)。输入必须是合法 JSON;解析失败时返回错误信息而不是产出损坏结果。"
+    }
+  ]
+}

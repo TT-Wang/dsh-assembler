@@ -1,0 +1,20 @@
+{
+  "id": "crypto-hash",
+  "verifiedAt": "2026-08-17T01:25:17.063Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "hash-text",
+      "description": "计算文本或 base64 字节的哈希摘要。algorithm 支持 sha256/sha512/sha1/md5;inputKind=text 按 UTF-8 处理,inputKind=base64 先解码为字节再哈希(用于核对文件指纹)。返回 hex 摘要。"
+    },
+    {
+      "name": "hmac-sign",
+      "description": "用密钥对文本做 HMAC 签名(webhook 校验、API 签名场景)。algorithm 支持 sha256/sha512/sha1;返回 hex 签名。verify 模式下额外传 expected,返回是否匹配(恒定时间比较)。"
+    },
+    {
+      "name": "generate-uuid",
+      "description": "生成 UUID v4。count 可选(1-100,默认 1),每行一个。"
+    }
+  ]
+}

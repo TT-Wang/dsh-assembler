@@ -1,0 +1,8 @@
+{
+  "id": "text-encoding",
+  "pkg": "iconv-lite",
+  "version": "0.7.3",
+  "repo": "ashtuchkin/iconv-lite",
+  "license": "MIT",
+  "scaffoldedAt": "2026-08-17T01:23:15.375Z"
+}

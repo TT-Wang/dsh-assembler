@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/cron-parse",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "description": "MCP stdio server exposing cron-parser tools",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0",
+    "cron-parser": "5.10.0"
+  }
+}

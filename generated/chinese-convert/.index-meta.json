@@ -1,0 +1,8 @@
+{
+  "id": "chinese-convert",
+  "pkg": "opencc-js",
+  "version": "1.4.1",
+  "repo": "nk2028/opencc-js",
+  "license": "MIT AND Apache-2.0",
+  "scaffoldedAt": "2026-08-17T01:23:10.533Z"
+}

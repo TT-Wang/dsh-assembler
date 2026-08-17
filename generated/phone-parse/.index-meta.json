@@ -1,0 +1,8 @@
+{
+  "id": "phone-parse",
+  "pkg": "libphonenumber-js",
+  "version": "1.13.11",
+  "repo": "catamphetamine/libphonenumber-js",
+  "license": "MIT",
+  "scaffoldedAt": "2026-08-17T01:22:59.543Z"
+}

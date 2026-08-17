@@ -1,0 +1,16 @@
+{
+  "id": "math-eval",
+  "verifiedAt": "2026-08-17T01:28:27.290Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "evaluate",
+      "description": "安全求值一个数学表达式,返回结果文本。支持算术('2+3*4')、函数('sqrt(16)'、'sin(45 deg)')、常量(pi、e)、复数与矩阵。求值在 mathjs 沙箱内进行,不接触 JS 运行时;表达式语法错误或无法求值时返回错误而不是抛异常。"
+    },
+    {
+      "name": "unit-convert",
+      "description": "单位换算:把带单位的量换算到目标单位,如 value='12.7 cm' + target='inch' → '5 inch'。支持 mathjs 全部内置单位(长度/质量/时间/温度/数据量等)。单位不认识或量纲不兼容(如 cm 转 kg)时返回错误。"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "crypto-hash",
+  "pkg": "node:crypto",
+  "version": "-",
+  "repo": "first-party",
+  "license": "BSD-3-Clause",
+  "scaffoldedAt": "2026-08-17T01:20:00.000Z"
+}
