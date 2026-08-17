@@ -1,0 +1,21 @@
+{
+  "id": "feishu-messaging",
+  "kind": "service",
+  "service": "https://open.feishu.cn/open-apis",
+  "requiredSecrets": [
+    {
+      "env": "FEISHU_APP_ID",
+      "purpose": "飞书自建应用 App ID"
+    },
+    {
+      "env": "FEISHU_APP_SECRET",
+      "purpose": "飞书自建应用 App Secret"
+    }
+  ],
+  "provider": "飞书开放平台",
+  "license": "Feishu API ToS",
+  "terms": "https://open.feishu.cn/document/",
+  "rateLimit": "按应用配额,建议 <20 req/s",
+  "network": true,
+  "scaffoldedAt": "2026-08-17T05:34:56.699Z"
+}

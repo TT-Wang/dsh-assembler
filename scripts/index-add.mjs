@@ -137,10 +137,20 @@ function scaffoldService(id, opts) {
       dependencies: { '@modelcontextprotocol/sdk': '^1.0.0', zod: '^3.23.0' },
     }, null, 2) + '\n')
   }
+  // requiredSecrets: "ENV:用途,ENV2:用途" — declared here, valued nowhere.
+  const requiredSecrets = (opts['requires-secret'] ?? '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter((x) => x !== '')
+    .map((x) => {
+      const i = x.indexOf(':')
+      return i === -1 ? { env: x } : { env: x.slice(0, i).trim(), purpose: x.slice(i + 1).trim() }
+    })
   const meta = {
     id,
     kind: 'service',
     service: opts.service,
+    ...(requiredSecrets.length > 0 ? { requiredSecrets } : {}),
     provider: opts.provider ?? '(未填)',
     license: opts.license ?? 'UNKNOWN',
     terms: opts.terms ?? '(未填:服务条款 URL)',
@@ -167,6 +177,11 @@ function scaffoldService(id, opts) {
      * 尊重速率限制(${meta.rateLimit});不做并发扇出
      * 只读:不调用任何写端点
    - 返回体裁剪成 agent 用得上的字段(别把整个 JSON 倒回上下文)
+   - **需要凭证时的零凭证降级(硬规范)**:凭证从**自己进程的环境变量**读(如
+     process.env.FEISHU_APP_ID),绝不写进代码、绝不接受工具参数传入。未配置时:
+     * listTools 必须照常成功(接口先就位,key 后补——FDE 交付的常态)
+     * 调用返回 isError 且**说清缺哪个变量、去哪配**,不崩溃、不静默假装成功
+     * 冒烟必须覆盖这条路径:未配凭证时断言"能启动 + listTools 成功 + 调用给出可行动错误"
 2. **smoke.mjs** — 冒烟(check() 计数,最后 process.exit(failures))
    - listTools 数量断言 → 每个工具**真实网络调用**并断言内容型结果 → 至少一条错误路径(非法参数或不存在的资源)
    - 断言要抗数据漂移:天气/汇率/行情这类值天天变,断言**结构与量纲**(字段存在、数值在合理区间、单位正确),不断言具体数值
@@ -341,9 +356,12 @@ function registerCore(idArg) {
       .join('\n')
     // A service part pins terms + rate limit where a library part pins a rev:
     // that IS its supply-chain provenance, and the BOM carries it to the client.
+    const secretRows = Array.isArray(meta.requiredSecrets) && meta.requiredSecrets.length > 0
+      ? `  requiredSecrets:\n${meta.requiredSecrets.map((x) => `    - { env: ${x.env}, purpose: ${JSON.stringify(x.purpose ?? '')} }`).join('\n')}\n`
+      : ''
     const provenance = meta.kind === 'service'
-      ? `  kind: service\n  service: ${meta.service}\n  provider: ${JSON.stringify(meta.provider ?? '')}\n  license: ${meta.license}\n  terms: ${JSON.stringify(meta.terms ?? '')}\n  rateLimit: ${JSON.stringify(meta.rateLimit ?? '')}\n  network: true\n`
-      : `  repo: ${meta.repo}\n  rev: v${meta.version}\n  license: ${meta.license}\n`
+      ? `  kind: service\n  service: ${meta.service}\n  provider: ${JSON.stringify(meta.provider ?? '')}\n  license: ${meta.license}\n  terms: ${JSON.stringify(meta.terms ?? '')}\n  rateLimit: ${JSON.stringify(meta.rateLimit ?? '')}\n  network: true\n${secretRows}`
+      : `  repo: ${meta.repo}\n  rev: v${meta.version}\n  license: ${meta.license}\n${secretRows}`
     writeFileSync(catalogPath, catalog.replace(/\n*$/, '\n') + `
 - id: ${id}
 ${provenance}  tools:
@@ -355,7 +373,13 @@ ${toolLines}
   const capsPath = join(REPO, 'capabilities.yml')
   const caps = readFileSync(capsPath, 'utf8')
   if (!new RegExp(`^  ${id}:$`, 'm').test(caps)) {
-    const entry = `  ${id}:\n    transport: stdio\n    command: node\n    args: ['${join(REPO, 'generated', id, 'index.js')}']\n\n`
+    // requiredSecrets travels into capabilities.yml too: that is where the
+    // assembler reads it to tell an operator what still needs configuring.
+    // Names only — a value never appears in either catalog file.
+    const secretDecl = Array.isArray(meta.requiredSecrets) && meta.requiredSecrets.length > 0
+      ? `    requiredSecrets:\n${meta.requiredSecrets.map((x) => `      - { env: ${x.env}, purpose: ${JSON.stringify(x.purpose ?? '')} }`).join('\n')}\n`
+      : ''
+    const entry = `  ${id}:\n    transport: stdio\n    command: node\n    args: ['${join(REPO, 'generated', id, 'index.js')}']\n${secretDecl}\n`
     if (!/^capabilities:$/m.test(caps)) die('capabilities.yml 缺 capabilities: 键,无法定位 mcp-servers 段尾')
     writeFileSync(capsPath, caps.replace(/^capabilities:$/m, entry + 'capabilities:'))
     changed.push('capabilities.yml')

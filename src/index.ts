@@ -299,7 +299,9 @@ export function emitPreset(req: AssembleRequest, catalog: Catalog, template: str
   const mcpRows = selectedServers
     .map((server) => {
       const cfg = mcpServers[server]
-      const lines = Object.entries(cfg).filter(([k]) => k !== 'hostMounted')
+      const lines = Object.entries(cfg)
+        .filter(([k]) => k !== 'hostMounted' && k !== 'requiredSecrets')
+        .map(([k, v]) => [k, k === 'env' ? stripSecretEnv(v) : v] as [string, unknown])
         .map(([k, v]) => `\n    ${k}: ${renderYamlValue(v)}`).join('')
       const serverName = `${server}-${SUFFIX_SLOT}`
       return `- id: mcp-${server}\n  name: '@deepseek-ai/dsh-mcp-client'\n  config:\n    serverName: ${renderYamlValue(serverName)}${lines}`
@@ -317,6 +319,69 @@ export function emitPreset(req: AssembleRequest, catalog: Catalog, template: str
     req.params ?? {},
   )
   return rendered.replaceAll(SUFFIX_SLOT, presetNameSuffix(presetId, rendered))
+}
+
+/**
+ * Drop secret-shaped entries from a server's `env` before it is written into
+ * a preset.
+ *
+ * `dsh-mcp-client` takes `env` as literal strings — there is no reference
+ * syntax — so a token placed there would be plaintext in a file that lands in
+ * git and in the roster UI. The part reads its credential from its OWN
+ * process environment at run time (supplied by the host or the operator's
+ * shell); the preset only records that the part NEEDS one. Charter negative
+ * list #4, enforced by code rather than by documentation.
+ */
+export function stripSecretEnv(env: unknown): Record<string, string> {
+  if (env === null || typeof env !== 'object') return {}
+  const kept: Record<string, string> = {}
+  for (const [k, v] of Object.entries(env as Record<string, unknown>)) {
+    if (SECRET_KEY_RE.test(k)) continue
+    if (typeof v === 'string') kept[k] = v
+  }
+  return kept
+}
+
+/** One credential a part needs before it can do real work. */
+export interface RequiredSecret {
+  /** Environment variable the part reads at run time. */
+  env: string
+  /** What it is for, shown in the assemble result and the BOM. */
+  purpose?: string
+}
+
+/**
+ * Credentials the selected parts declare, deduplicated by env name, each
+ * marked with whether the assembling host currently has it configured.
+ *
+ * "Configured" is read from the assembler's own environment, which is where
+ * the host puts what it forwards to part processes. An unconfigured secret is
+ * NOT an assembly error: the preset is still correct and mountable, it simply
+ * cannot do external work until the operator supplies the value — which is
+ * exactly the state an FDE ships in when the interface is ready and the key
+ * comes later.
+ */
+export function collectRequiredSecrets(
+  selected: CapabilityEntry[],
+  mcpServers: Record<string, Record<string, unknown>>,
+): Array<RequiredSecret & { server: string; configured: boolean }> {
+  const out = new Map<string, RequiredSecret & { server: string; configured: boolean }>()
+  for (const c of selected) {
+    const server = (c.config?.server as string | undefined) ?? ''
+    const decl = server !== '' ? mcpServers[server]?.requiredSecrets : undefined
+    if (!Array.isArray(decl)) continue
+    for (const item of decl as Array<Record<string, unknown>>) {
+      const envName = typeof item.env === 'string' ? item.env : ''
+      if (envName === '' || out.has(envName)) continue
+      out.set(envName, {
+        env: envName,
+        ...(typeof item.purpose === 'string' ? { purpose: item.purpose } : {}),
+        server,
+        configured: typeof process.env[envName] === 'string' && process.env[envName] !== '',
+      })
+    }
+  }
+  return [...out.values()]
 }
 
 /** One-shot fallback id for when no usable name exists: stable, short, collision-free enough. */
@@ -683,6 +748,7 @@ export function renderPartsLock(opts: {
   index: IndexRecord[]
   personaFindings?: PersonaLintFinding[]
   params?: Record<string, string>
+  requiredSecrets?: Array<RequiredSecret & { server: string; configured: boolean }>
 }): string {
   const byId = new Map(opts.index.map((r) => [r.id, r]))
   const serverNames = [...opts.presetText.matchAll(/serverName: "([^"]+)"/g)].map((m) => m[1])
@@ -735,6 +801,14 @@ export function renderPartsLock(opts: {
   // Parameters are part of the build record: the same preset id emitted with
   // different parameters is a different artifact, and the lock says which.
   if (opts.params !== undefined && Object.keys(opts.params).length > 0) doc.params = opts.params
+  // Credentials are NAMED here, never valued: the lock tells an operator what
+  // to configure and where it is used, and stays safe to commit.
+  if (opts.requiredSecrets !== undefined && opts.requiredSecrets.length > 0) {
+    doc.requiredSecrets = opts.requiredSecrets.map((sec) => ({
+      env: sec.env, server: sec.server, configured: sec.configured,
+      ...(sec.purpose !== undefined ? { purpose: sec.purpose } : {}),
+    }))
+  }
   return '# 零件物料清单(BOM)— dsh-assembler 自动生成;记录每个能力的供应链出处。\n'
     + '# 审计:repo@rev 为上游锁定版本,license 为上游许可证,serverName 为本 preset 实际挂载名。\n'
     + yaml.dump(doc, { lineWidth: -1 })
@@ -789,6 +863,7 @@ export async function assemble(
   personaLint: PersonaLintFinding[]
   params: Record<string, string>
   paramsRejected: ParamRejection[]
+  requiredSecrets: Array<RequiredSecret & { server: string; configured: boolean }>
 }> {
   const catalogPath = config.catalogPath ?? join(REPO, 'capabilities.yml')
   const templatePath = config.templatePath ?? join(REPO, 'presets', 'agent-template.yml')
@@ -811,6 +886,8 @@ export async function assemble(
   const description = requirement.replace(/\s+/g, ' ').trim().slice(0, 140)
   writeFileSync(join(dir, 'preset.yml'), yaml.dump({ name: id, description }, { lineWidth: -1 }))
   const drafts = (req.missingEntries ?? []).map(renderMissingDraft)
+  // Declared here because both the BOM block and the verify block read it.
+  let requiredSecrets: Array<RequiredSecret & { server: string; configured: boolean }> = []
 
   // ── Assemble-then-verify ─────────────────────────────────────────────
   // vibe assembly's promise is find → assemble → VERIFY. Default-on probe:
@@ -819,12 +896,30 @@ export async function assemble(
   // replies. One FAIL triggers a re-selection (the matcher is told what
   // failed) and a single re-emit under the same id — failure changes the
   // ROOM (which parts are mounted), never the model's head.
+  // Credentials the chosen parts need, and whether this host has them.
+  // Computed before verification because an unconfigured secret changes what
+  // the probe can prove — not whether the assembly is correct.
+  {
+    const byIdSel = new Map(catalog.capabilities.map((c) => [c.id, c]))
+    const selectedNow = req.capabilityIds.map((cid) => byIdSel.get(cid)).filter((c): c is CapabilityEntry => c !== undefined)
+    requiredSecrets = collectRequiredSecrets(selectedNow, catalog['mcp-servers'] ?? {})
+  }
   let verification: ProbeResult = { status: 'SKIPPED', reason: 'verify disabled' }
   let personaFindings: PersonaLintFinding[] = []
   if (config.verify !== false) {
     const port = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
+    const missingSecrets = requiredSecrets.filter((sec) => !sec.configured)
     if (port === undefined) {
       verification = { status: 'SKIPPED', reason: 'webServer port unavailable (headless run?)' }
+    } else if (missingSecrets.length > 0) {
+      // The interface is in place and the preset is mountable; what is absent
+      // is the operator's key. Calling that a FAILED assembly would be a lie
+      // about whose problem it is (DESIGN.md: probes prove the assembly, not
+      // the deployment).
+      verification = {
+        status: 'SKIPPED',
+        reason: `待配置凭证:${missingSecrets.map((sec) => sec.env).join(', ')}——装配正确但无法实调外部服务,配好后重跑装配即可验证`,
+      }
     } else {
       const byId = new Map(catalog.capabilities.map((c) => [c.id, c]))
       const selected = req.capabilityIds.map((cid) => byId.get(cid)).filter((c): c is CapabilityEntry => c !== undefined)
@@ -892,6 +987,7 @@ export async function assemble(
       index,
       personaFindings,
       params: screened.accepted,
+      requiredSecrets,
     }))
   } catch (error: unknown) {
     // The lock is provenance metadata: failing to write it must not fail
@@ -899,7 +995,7 @@ export async function assemble(
     console.error(`[assembler] parts.lock.yml write failed: ${error instanceof Error ? error.message : String(error)}`)
   }
 
-  return { id, capabilityIds: req.capabilityIds, missing: req.missing, presetPath: join(dir, 'agent.cordis.yml'), drafts, verification, personaLint: personaFindings, params: screened.accepted, paramsRejected: screened.rejected }
+  return { id, capabilityIds: req.capabilityIds, missing: req.missing, presetPath: join(dir, 'agent.cordis.yml'), drafts, verification, personaLint: personaFindings, params: screened.accepted, paramsRejected: screened.rejected, requiredSecrets }
 }
 
 /** Shared human-facing result text for the command and the tool. */
@@ -940,10 +1036,16 @@ export function assembleResultText(result: Awaited<ReturnType<typeof assemble>>)
   const rejectLine = result.paramsRejected.length > 0
     ? `\n参数被拒:${result.paramsRejected.map((r) => `${r.key}(${r.reason})`).join(';')}`
     : ''
+  const secretLines = result.requiredSecrets.length > 0
+    ? `\n所需凭证:${result.requiredSecrets.map((sec) => `${sec.env}${sec.configured ? '(已配置)' : '(待配置)'}${sec.purpose !== undefined ? ` — ${sec.purpose}` : ''}`).join(';')}`
+      + (result.requiredSecrets.some((sec) => !sec.configured)
+        ? '\n  配置方式:把待配置的变量写进 host 环境或部署的 .env(值不会写进 preset 文件),配好后重跑装配即可完成验证'
+        : '')
+    : ''
   const lint = result.personaLint.length > 0
     ? `\npersona 检查:${String(result.personaLint.length)} 条提示 — ${result.personaLint.map((f) => f.detail).join(';')}`
     : ''
-  return `assembled preset "${result.id}" with: ${result.capabilityIds.join(', ')}${missing}${drafts}${verifyLine}${paramLine}${rejectLine}${lint}\n`
+  return `assembled preset "${result.id}" with: ${result.capabilityIds.join(', ')}${missing}${drafts}${verifyLine}${secretLines}${paramLine}${rejectLine}${lint}\n`
     + `preset file: ${result.presetPath}\n`
     + `start a new session and select preset ${result.id} to use it.`
 }

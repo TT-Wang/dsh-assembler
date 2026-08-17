@@ -1,0 +1,17 @@
+{
+  "id": "github-issues",
+  "kind": "service",
+  "service": "https://api.github.com",
+  "requiredSecrets": [
+    {
+      "env": "GITHUB_TOKEN",
+      "purpose": "GitHub Personal Access Token(仓库读写)"
+    }
+  ],
+  "provider": "GitHub REST API",
+  "license": "GitHub ToS",
+  "terms": "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service",
+  "rateLimit": "已认证 5000 req/h",
+  "network": true,
+  "scaffoldedAt": "2026-08-17T05:34:56.792Z"
+}

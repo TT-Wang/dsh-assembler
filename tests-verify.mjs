@@ -92,5 +92,34 @@ check('解析链:目录 persona 优先', resolvePersonaText('generated text', [{
 check('解析链:生成兜底', resolvePersonaText('generated text', SEL) === 'generated text')
 check('解析链:默认殿后', resolvePersonaText(undefined, SEL).includes('helpful assistant'))
 
+// 5. 凭证契约:秘密永不进 preset;声明可读;配置状态如实报告
+const { stripSecretEnv, collectRequiredSecrets } = await import('./lib/index.js')
+const envIn = { LANG: 'zh_CN', SLACK_BOT_TOKEN: 'xoxb-real-secret', API_KEY: 'k', TIMEOUT_MS: '5000', DB_PASSWORD: 'p' }
+const kept = stripSecretEnv(envIn)
+check('非秘密 env 保留', kept.LANG === 'zh_CN' && kept.TIMEOUT_MS === '5000')
+check('秘密形状的 env 一律剥离', kept.SLACK_BOT_TOKEN === undefined && kept.API_KEY === undefined && kept.DB_PASSWORD === undefined, JSON.stringify(kept))
+check('秘密值零字节残留', !JSON.stringify(kept).includes('xoxb-real-secret'))
+check('非对象输入安全', Object.keys(stripSecretEnv(undefined)).length === 0 && Object.keys(stripSecretEnv('x')).length === 0)
+
+const SECRET_SERVERS = {
+  'slack-messaging': { requiredSecrets: [{ env: 'SLACK_BOT_TOKEN', purpose: 'Bot token' }] },
+  'feishu-messaging': { requiredSecrets: [{ env: 'FEISHU_APP_ID' }, { env: 'FEISHU_APP_SECRET' }] },
+  'weather-forecast': {},
+}
+const SECRET_SEL = [
+  { id: 'a', via: 'mcp', description: '', tags: [], config: { server: 'slack-messaging' } },
+  { id: 'b', via: 'mcp', description: '', tags: [], config: { server: 'feishu-messaging' } },
+  { id: 'c', via: 'mcp', description: '', tags: [], config: { server: 'weather-forecast' } },
+]
+process.env.SLACK_BOT_TOKEN = 'configured-for-test'
+const secrets = collectRequiredSecrets(SECRET_SEL, SECRET_SERVERS)
+delete process.env.SLACK_BOT_TOKEN
+check('收集到三个声明(两个零件)', secrets.length === 3, JSON.stringify(secrets.map((x) => x.env)))
+check('已配置的标 configured', secrets.find((x) => x.env === 'SLACK_BOT_TOKEN').configured === true)
+check('未配置的标 待配置', secrets.find((x) => x.env === 'FEISHU_APP_SECRET').configured === false)
+check('purpose 透传', secrets.find((x) => x.env === 'SLACK_BOT_TOKEN').purpose === 'Bot token')
+check('无声明的零件不产生条目', !secrets.some((x) => x.server === 'weather-forecast'))
+check('声明里只有名字没有值', !JSON.stringify(secrets).includes('configured-for-test'))
+
 console.log(`\n==== verify 单元测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)
 process.exit(failures === 0 ? 0 : 1)

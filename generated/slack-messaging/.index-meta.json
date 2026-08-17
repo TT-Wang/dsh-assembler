@@ -1,0 +1,17 @@
+{
+  "id": "slack-messaging",
+  "kind": "service",
+  "service": "https://slack.com/api",
+  "requiredSecrets": [
+    {
+      "env": "SLACK_BOT_TOKEN",
+      "purpose": "Slack Bot User OAuth Token(xoxb- 开头)"
+    }
+  ],
+  "provider": "Slack API",
+  "license": "Slack API ToS",
+  "terms": "https://api.slack.com/terms-of-service",
+  "rateLimit": "Tier-based,建议 <1 req/s per method",
+  "network": true,
+  "scaffoldedAt": "2026-08-17T05:34:56.747Z"
+}
