@@ -1,0 +1,16 @@
+{
+  "id": "sec-filings",
+  "verifiedAt": "2026-08-17T05:22:13.833Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "lookup-cik",
+      "description": "把股票代码(ticker)查成 SEC 的 CIK 编号与公司法定名称,例如 AAPL → CIK 320193 / Apple Inc.。CIK 是 EDGAR 里公司的唯一主键,拿到后可用于 company-filings 或任何 EDGAR 链接。只覆盖在美国有活跃申报的上市公司;查不到时返回结构化的\"未找到\"说明(不算错误)。"
+    },
+    {
+      "name": "company-filings",
+      "description": "按 ticker 或 CIK 拉某公司在 EDGAR 上最近的申报文件清单:返回公司名、CIK、交易所/代码、行业(SIC),以及一份文件列表(表单类型 form、申报日 filingDate、报告期 reportDate、受理号 accessionNumber、可直接打开的主文档链接 documentUrl 与索引页 filingIndexUrl)。可用 form 参数过滤表单类型,如 10-K(年报)、10-Q(季报)、8-K(重大事项)、4(内部人交易)、DEF 14A(股东会材料)。公司不存在时返回结构化的\"未找到\"说明(不算错误);参数非法则报错。注意:只覆盖 EDGAR 最近约 1000 份申报(更早的历史归档不在本工具范围)。"
+    }
+  ]
+}

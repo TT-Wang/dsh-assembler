@@ -225,7 +225,12 @@ const exitInfo = await new Promise((resolve) => {
 });
 console.log(`  退出: code=${exitInfo.code} timedOut=${exitInfo.timedOut} stderr=${JSON.stringify(stderrText.trim().slice(0, 200))}`);
 check('stdin 关闭后干净退出（exit=0）', exitInfo.timedOut === false && exitInfo.code === 0, `code=${exitInfo.code}`);
-check('退出过程无 stderr 报错', stderrText.trim() === '');
+// 只判零件自身的报错:Node 的实验性功能警告(如 NODE_USE_ENV_PROXY 触发的
+// UNDICI-EHPA)也走 stderr,那是运行环境的噪音,不是零件的缺陷。
+const partErrors = stderrText
+  .split('\n')
+  .filter((l) => l.trim() !== '' && !/^\(node:\d+\)|ExperimentalWarning|--trace-warnings/.test(l.trim()));
+check('退出过程无零件报错', partErrors.length === 0, partErrors.join(' | ').slice(0, 160));
 
 console.log(`\n===== 冒烟结果: ${failures === 0 ? '全部通过' : failures + ' 项失败'} =====`);
 process.exit(failures === 0 ? 0 : 1);

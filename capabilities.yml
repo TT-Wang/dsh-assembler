@@ -354,6 +354,36 @@ mcp-servers:
     command: node
     args: ['/Users/tongtao/code/dsh-assembler/generated/geocode/index.js']
 
+  public-holidays:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/public-holidays/index.js']
+
+  worldbank-data:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/worldbank-data/index.js']
+
+  sec-filings:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/sec-filings/index.js']
+
+  scholar-search:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/scholar-search/index.js']
+
+  wiki-facts:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/wiki-facts/index.js']
+
+  research-graph:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/research-graph/index.js']
+
 capabilities:
   # ── customer-service domain tools (this package) ──────────────────────────
   - id: crm-query

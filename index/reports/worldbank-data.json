@@ -1,0 +1,16 @@
+{
+  "id": "worldbank-data",
+  "verifiedAt": "2026-08-17T05:22:09.933Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "country-indicator",
+      "description": "拉取某个国家(或地区/聚合体)某个指标的年度时间序列,如中国 GDP、印度人口、美国通胀率。返回指标名、国家名、单位提示、数据点数组([{year, value}],按年份倒序)与最新一个有值年份。国家码必须是 ISO 3166-1 alpha-3 三位码(中国是 CHN 不是 CN),也支持世行聚合体(如 WLD 全球、EUU 欧盟)。指标码不确定时先调 common-indicators。该国该指标没有数据时返回结构化说明(不算错误);国家码/指标码非法则报错。"
+    },
+    {
+      "name": "common-indicators",
+      "description": "列出世界银行常用指标码及中英文说明与单位(GDP、人均 GDP、人口、通胀、失业率、预期寿命、进出口占比、外资流入、碳排放、互联网普及率等)。纯静态速查表,不发起网络请求,用于在调用 country-indicator 前把\"人话需求\"翻成正确的指标码。"
+    }
+  ]
+}

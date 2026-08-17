@@ -17,7 +17,10 @@ import { z } from 'zod';
 const server = new McpServer({ name: 'research-graph', version: '0.0.1' });
 
 const UA = 'dsh-assembler/0.1 (+https://github.com/TT-Wang/dsh-assembler)';
-const MAILTO = 'tongtao.wang@gmail.com'; // OpenAlex polite pool 联系方式
+// OpenAlex polite pool 联系方式:部署者用 OPENALEX_MAILTO 填自己的邮箱。
+// 不硬编码任何人的私人邮箱——公开仓库里那等于把地址广播出去,而且
+// polite pool 的意义是服务方能联系到**实际调用者**,不是包的作者。
+const MAILTO = process.env.OPENALEX_MAILTO || '';
 const TIMEOUT_MS = 15000;
 const API = 'https://api.openalex.org';
 

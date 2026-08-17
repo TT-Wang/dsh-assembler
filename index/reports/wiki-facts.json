@@ -1,0 +1,20 @@
+{
+  "id": "wiki-facts",
+  "verifiedAt": "2026-08-17T05:22:37.258Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "page-summary",
+      "description": "取 Wikipedia 词条摘要(REST /page/summary)。输入词条名与语言码(en/zh/ja/de… 默认 en);返回标题、一句话描述、正文摘要(截断)、词条类型、对应 Wikidata QID、桌面版链接与配图地址。语言码非法返回错误;词条不存在(HTTP 404)是正常情况,返回结构化的\"未找到\"说明并给出改用 search-entity 消歧的建议。"
+    },
+    {
+      "name": "search-entity",
+      "description": "按关键词搜 Wikidata 实体候选(action=wbsearchentities),用于**实体消歧**:同名的公司/产品/人物会各自返回一个 QID + 标签 + 描述,拿到 QID 后可交给 entity-facts 查结构化属性。输入关键词与可选条数、语言;关键词为空、条数越界或语言码非法返回错误;搜不到返回结构化\"无候选\"说明。"
+    },
+    {
+      "name": "entity-facts",
+      "description": "按 QID 取 Wikidata 实体的关键结构化属性(action=wbgetentities)。原始 claims 极大(单个实体可达数百 KB / 上百个属性),这里只保留常用属性:P31 instance-of、P17 country、P571 inception、P159 总部、P452 行业、P1082 人口、P625 坐标、P569/P570 生卒、P106 职业、P856 官网等,每个属性最多 3 个值;并把属性 ID 与实体值 QID 都额外解析成人类可读标签。QID 格式非法返回错误;Wikidata 查无此实体返回结构化\"未找到\"说明。"
+    }
+  ]
+}

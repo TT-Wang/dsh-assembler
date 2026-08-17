@@ -12,11 +12,12 @@
 - **装配即验证**：装配完成后自动派生验收探针,在绑定新 preset 的**真实会话**里试跑,按内容型验收标记判 PASS/FAIL;FAIL 触发一次带失败反馈的重新选型再探(find → assemble → **verify** 闭环,默认开启,`config.verify: false` 关闭)
 - **多轮场景探针**:派生器自行决定探针形态——纯计算需求出单轮题,跨轮需求(记账/归档/追踪)出 2-4 轮场景脚本,**在同一会话里**逐轮验收,后面的轮次查询前面轮次写入的状态,证明状态真的活过了轮次。全程黑盒:只看每轮回复,不看轨迹、不查步骤
 - **装配参数**:`--param k=v`(或工具的 `params`)注入非秘密部署参数(时区/语言/目录)填充 preset 的 `{{param:key}}` 槽,参数进 BOM;**疑似凭证的键机械拒绝**(password/token/api-key…),秘密只走 host env 通道——这是设计红线,不靠自觉
-- **能力目录**：196 个目录条目 = 8 条静态 + 188 条 MCP 联邦（64 个 MCP 服务器 / 174 个零件工具），组装时实时并行联邦
+- **能力目录**：227 个目录条目 = 8 条静态 + 219 条 MCP 联邦（76 个 MCP 服务器 / 205 个零件工具），组装时实时并行联邦
 - **联邦索引缓存**：每个零件的工具清单按（连接配置 + 适配器文件指纹）缓存,命中零连接——冷 ~5s,热 **<0.01s**;适配器重新生成自动失效,7 天 TTL 兜底远程服务器
 - **零件物料清单（BOM）**：每次装配随 preset 发射 `parts.lock.yml`——每个零件的上游 repo@rev、许可证、验证状态、实际挂载 serverName,装出的 agent 像依赖锁文件一样可审计
+- **服务型零件(实时数据)**:10 个免 key 公开服务已接入——天气(Open-Meteo)、汇率(ECB/Frankfurter)、地理编码(OSM Nominatim)、节假日(Nager.Date)、宏观数据(World Bank)、美股财报(SEC EDGAR)、学术检索(Crossref+arXiv)、维基事实(Wikipedia+Wikidata)、研究图谱(OpenAlex)、包情报(npm+PyPI)。库型零件锁 `repo@rev`,服务型零件锁**条款 + 速率限制 + 数据许可**,同样进 BOM(见 [DESIGN.md](DESIGN.md) 的《外部服务零件的供应链纪律》)
 - **零代码扩展**：往 `mcp-servers` 加一段配置 = 整组新能力（MCP 服务器自动联邦）
-- **索引流水线**：AI 切分开源库 → 生成 MCP 适配 → 冒烟验证（`verified`）→ 入库，63 个库全部通过（59 个上游 + 4 个第一方 `binary-write`/`crypto-hash`/`compress-gzip`/`dns-lookup`）
+- **索引流水线**：AI 切分开源库 → 生成 MCP 适配 → 冒烟验证（`verified`）→ 入库，75 个零件全部通过（61 个库型 + 10 个服务型 + 4 个第一方）
 - **设计宪法**:[DESIGN.md](DESIGN.md) 定义三件本分(给对工具/给对纪律/验收结果)、负面清单、三条边界判据;新功能先过判据再动手
 - **persona lint**：流水线里最后一个无门工件也有门了——机械核查 persona 文本(点名的工具必须在挂载面里、禁止"第 N 步"编舞句式、长度界),提示进装配结果与 parts.lock;约束靠结构与检查,不靠自觉
 - **补件闭环**：需求超出目录时，返回可复制的 YAML 补件草案 + missing 报告
@@ -107,11 +108,11 @@ dsh-assembler/
 |---|---|---|
 | `package` | 本仓库/自有插件包的工具 | `crm-query`（dsh-cs-tools）|
 | `harness` | DSH 内置工具 | `content-search`（dsh-tool-fs-search）|
-| `mcp` | MCP 服务器工具（组装时自动联邦）| `mcp-email-send-send-email` 等 188 个 |
+| `mcp` | MCP 服务器工具（组装时自动联邦）| `mcp-email-send-send-email` 等 219 个 |
 
 `mcp-servers` 段声明连接配置；`hostMounted: true` 表示服务器已在 host 平面挂载（工具全局可见，preset 不重复生成 mcp-client 行）。
 
-当前规模：**63 个库（59 上游 + 4 第一方）/ 174 个零件工具 / 196 个目录条目**，覆盖：邮件收发、HTTP、HTML、CSV、Excel、PDF 生成与提取、Word、ZIP、模糊搜索、模板渲染、XML、图片处理、RSS、日历解析与生成、SQLite/PostgreSQL/MySQL、GitHub API、Markdown、OCR、二维码、货币、浏览器自动化、二进制落盘、文本 diff/补丁、数学表达式求值与单位换算、cron 解析、电话号码、semver、YAML、TOML、拼音、简繁转换、HTML→Markdown、字符编码、哈希/HMAC/UUID、JSON 查询(JMESPath)、JSON Schema 校验、字符串校验清洗、测试数据生成、数字中文大写、docx 提取、PPTX 生成、条形码、颜色转换与对比度、中文分词、地理距离方位、RRULE 重复规则、EXIF、文件类型识别、JWT、IP/CIDR、拉丁转写 slug、gzip/brotli、DNS 解析。
+当前规模：**75 个零件（61 库型 + 10 服务型 + 4 第一方）/ 205 个零件工具 / 227 个目录条目**，覆盖：邮件收发、HTTP、HTML、CSV、Excel、PDF 生成与提取、Word、ZIP、模糊搜索、模板渲染、XML、图片处理、RSS、日历解析与生成、SQLite/PostgreSQL/MySQL、GitHub API、Markdown、OCR、二维码、货币、浏览器自动化、二进制落盘、文本 diff/补丁、数学表达式求值与单位换算、cron 解析、电话号码、semver、YAML、TOML、拼音、简繁转换、HTML→Markdown、字符编码、哈希/HMAC/UUID、JSON 查询(JMESPath)、JSON Schema 校验、字符串校验清洗、测试数据生成、数字中文大写、docx 提取、PPTX 生成、条形码、颜色转换与对比度、中文分词、地理距离方位、RRULE 重复规则、EXIF、文件类型识别、JWT、IP/CIDR、拉丁转写 slug、gzip/brotli、DNS 解析,以及 10 个实时数据服务(天气/汇率/地理编码/节假日/宏观数据/美股财报/学术检索/维基事实/研究图谱/包情报)。
 
 ## 索引流水线（零件生产,CLI 化）
 
@@ -211,7 +212,7 @@ parts:
 
 1. **同 preset 并发会话没有问题**（旧版此处的"并发撞名"限制是误判，已实证纠正）：harness 对每个 preset 文件代际只挂载一次 standing 组合，并发会话通过 scope parenting 共用同一实例——两个会话同时跑同一个装配 preset 各自完成，无 serverName 冲突。真正的残余限制是：**host 进程存活期内不释放被取代代际的 serverName**，所以手工编辑 preset 文件（字节变了、serverName 没变）后，同一 host 进程里的新会话会撞旧代际，重启 host 恢复。组装器自身的重发已按"文件字节哈希入 serverName 后缀 + 字节相同跳写盘"根治（任何字节差异自动换名，字节相同不换代）
 2. **联邦耗时**：已解决——并行化（16 车道，`DSH_ASSEMBLER_FED_LANES` 可调）+ 索引缓存后,冷跑约 5s,**缓存命中 <0.01s**(实测 0.002s,33 服务器零连接)。失效键 = 连接配置哈希 + 适配器文件指纹(只 stamp 常规文件,目录参数如 `/tmp` 的 mtime 抖动不会假失效);`DSH_ASSEMBLER_FED_CACHE=0` 强制全实探,`DSH_ASSEMBLER_FED_TTL_MS` 调 TTL(默认 7 天,兜底远程服务器工具集漂移)
-3. **目录选型压力**：196 条目下 LLM 选型仍准确，但更大规模需要按域分层
+3. **目录选型压力**：227 条目下 LLM 选型仍准确，但更大规模需要按域分层
 4. **组装映射调用默认使用 fast 模型**（`deepseek-v4-flash`，可经插件 `config.model` 覆盖），不继承会话的重模型配置（重模型曾导致单次组装约 10 分钟）
 5. **自动验证依赖 webServer**：headless（无 web 面板）装配时探针无处可跑，自动验证降级为"跳过"，装配本身不受影响
 

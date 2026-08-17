@@ -45,6 +45,24 @@ function partEnv() {
   const env = { ...process.env }
   const proxied = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].some((k) => env[k])
   if (proxied && env.NODE_USE_ENV_PROXY === undefined) env.NODE_USE_ENV_PROXY = '1'
+  // Silence the experimental-proxy warning: it lands on stderr of every part
+  // we spawn, where it reads as part output and can trip a smoke that checks
+  // its own process's stderr (observed: rss-parse).
+  if (env.NODE_USE_ENV_PROXY === '1' && env.NODE_NO_WARNINGS === undefined) env.NODE_NO_WARNINGS = '1'
+  // Local, gitignored .env supplies deployment contact facts some services
+  // demand (SEC's UA, Crossref/OpenAlex polite-pool mailtos). Not credentials
+  // — no permissions attach — but still per-deployment, so they live outside
+  // the source. Ambient values win: an explicit export beats the file.
+  const envFile = join(REPO, '.env')
+  if (existsSync(envFile)) {
+    for (const line of readFileSync(envFile, 'utf8').split('\n')) {
+      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/)
+      if (m === null || line.trimStart().startsWith('#')) continue
+      const key = m[1]
+      if (env[key] !== undefined) continue
+      env[key] = m[2].trim().replace(/^["']|["']$/g, '')
+    }
+  }
   return env
 }
 

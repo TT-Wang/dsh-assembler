@@ -634,3 +634,79 @@
   tools:
     - { name: geocode-address, description: "正向地理编码:把地址或地名文本解析成坐标(OpenStreetMap Nominatim)。返回 results 数组,每条含规范化地名 displayName" }
     - { name: reverse-geocode, description: "反向地理编码:把经纬度解析成最近的地址(OpenStreetMap Nominatim)。返回规范化地址 displayName 与拆解后的 address 结" }
+
+- id: public-holidays
+  kind: service
+  service: https://date.nager.at/api/v3
+  provider: "Nager.Date"
+  license: MIT
+  terms: "https://date.nager.at/Home/Terms"
+  rateLimit: "免费,建议 <10 req/s"
+  network: true
+  tools:
+    - { name: list-holidays, description: "查询某个国家某一年的法定节假日清单(Nager.Date)。返回每个节日的日期、本地名称(如\"春节\")与英文名、是否全国通用(global)、适用行政区(cou" }
+    - { name: is-workday, description: "判断某个日期在某国是不是工作日:综合\"周末\"与\"法定节假日\"两条规则本地计算(先拉该年节假日清单,再叠加星期判断)。返回是否工作日、星期几、命中的节日名(若有)" }
+    - { name: available-countries, description: "列出 Nager.Date 支持查询节假日的所有国家(ISO 3166-1 alpha-2 码 + 英文名)。用于在调用 list-holidays / is-" }
+
+- id: worldbank-data
+  kind: service
+  service: https://api.worldbank.org/v2
+  provider: "World Bank Open Data"
+  license: CC-BY-4.0
+  terms: "https://datacatalog.worldbank.org/public-licenses"
+  rateLimit: "无公开硬限制"
+  network: true
+  tools:
+    - { name: country-indicator, description: "拉取某个国家(或地区/聚合体)某个指标的年度时间序列,如中国 GDP、印度人口、美国通胀率。返回指标名、国家名、单位提示、数据点数组([{year, value" }
+    - { name: common-indicators, description: "列出世界银行常用指标码及中英文说明与单位(GDP、人均 GDP、人口、通胀、失业率、预期寿命、进出口占比、外资流入、碳排放、互联网普及率等)。纯静态速查表,不发" }
+
+- id: sec-filings
+  kind: service
+  service: https://data.sec.gov
+  provider: "U.S. SEC EDGAR"
+  license: Public-Domain-US-Gov
+  terms: "https://www.sec.gov/os/webmaster-faq#developers"
+  rateLimit: "10 req/s,必须带含邮箱的 UA"
+  network: true
+  tools:
+    - { name: lookup-cik, description: "把股票代码(ticker)查成 SEC 的 CIK 编号与公司法定名称,例如 AAPL → CIK 320193 / Apple Inc.。CIK 是 EDGA" }
+    - { name: company-filings, description: "按 ticker 或 CIK 拉某公司在 EDGAR 上最近的申报文件清单:返回公司名、CIK、交易所/代码、行业(SIC),以及一份文件列表(表单类型 for" }
+
+- id: scholar-search
+  kind: service
+  service: https://api.crossref.org
+  provider: "Crossref + arXiv"
+  license: CC0-1.0 / arXiv terms
+  terms: "https://www.crossref.org/documentation/retrieve-metadata/rest-api/"
+  rateLimit: "polite pool:带 UA 与联系方式"
+  network: true
+  tools:
+    - { name: search-published, description: "检索**已发表**文献(Crossref,覆盖期刊论文/会议论文/书章节等有 DOI 的正式出版物)。输入自然语言查询词与可选返回条数;返回裁剪后的列表:标题、" }
+    - { name: search-preprints, description: "检索 **arXiv 预印本**(物理/数学/CS/生物等,含尚未正式发表的最新工作)。输入查询词与可选返回条数;返回裁剪后的列表:标题、作者、提交日期、arX" }
+    - { name: doi-lookup, description: "按 DOI 取 Crossref 权威元数据(核对引用、补全书目信息的首选)。输入 DOI(可带 https://doi.org/ 或 doi: 前缀,会自动归" }
+
+- id: wiki-facts
+  kind: service
+  service: https://en.wikipedia.org/api/rest_v1
+  provider: "Wikimedia (Wikipedia + Wikidata)"
+  license: CC-BY-SA-4.0
+  terms: "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use"
+  rateLimit: "200 req/s 上限,必须带 UA"
+  network: true
+  tools:
+    - { name: page-summary, description: "取 Wikipedia 词条摘要(REST /page/summary)。输入词条名与语言码(en/zh/ja/de… 默认 en);返回标题、一句话描述、正文" }
+    - { name: search-entity, description: "按关键词搜 Wikidata 实体候选(action=wbsearchentities),用于**实体消歧**:同名的公司/产品/人物会各自返回一个 QID +" }
+    - { name: entity-facts, description: "按 QID 取 Wikidata 实体的关键结构化属性(action=wbgetentities)。原始 claims 极大(单个实体可达数百 KB / 上百个" }
+
+- id: research-graph
+  kind: service
+  service: https://api.openalex.org
+  provider: "OpenAlex"
+  license: CC0-1.0
+  terms: "https://docs.openalex.org/how-to-use-the-api/rate-limits-and-authentication"
+  rateLimit: "10 req/s;polite pool 带邮箱"
+  network: true
+  tools:
+    - { name: search-works, description: "按主题检索 OpenAlex 论文,**结果带引用量**,可用来判断某个方向的代表作与热度。输入查询词与可选条数;返回裁剪后的列表:标题、作者(最多 6 人)、" }
+    - { name: work-citations, description: "查单篇论文的被引情况与关键元数据。输入 OpenAlex work id(形如 W2949676527)**或** DOI(裸 DOI 或 https://do" }
+    - { name: author-works, description: "按作者名查该作者的画像与代表作:先在 OpenAlex 作者库里匹配到最相关的作者(返回 ORCID、总论文数、总被引、h-index、最近所属机构),再取该作" }

@@ -13,7 +13,9 @@ import { z } from 'zod';
 const server = new McpServer({ name: 'scholar-search', version: '0.0.1' });
 
 const UA = 'dsh-assembler/0.1 (+https://github.com/TT-Wang/dsh-assembler)';
-const MAILTO = 'tongtao.wang@gmail.com'; // Crossref polite pool 联系方式
+// Crossref polite pool 联系方式:部署者用 CROSSREF_MAILTO 填自己的邮箱。
+// 同上,不硬编码私人邮箱;未设置时走匿名池(速率略低,功能不受影响)。
+const MAILTO = process.env.CROSSREF_MAILTO || '';
 const TIMEOUT_MS = 15000;
 const ABSTRACT_CHARS = 300;
 

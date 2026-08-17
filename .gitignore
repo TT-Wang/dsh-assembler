@@ -11,3 +11,6 @@ lib/
 # smoke test scratch files
 generated/*/smoke-*
 .cache/
+
+# 本机联系方式/凭证(.env.example 是模板)
+.env
