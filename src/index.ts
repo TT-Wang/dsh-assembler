@@ -106,7 +106,15 @@ interface AssembleRequest {
 }
 
 export function loadCatalog(path: string): Catalog {
-  return yaml.load(readFileSync(path, 'utf8')) as Catalog
+  const raw = (yaml.load(readFileSync(path, 'utf8')) ?? {}) as Partial<Catalog>
+  // An empty `capabilities:` section parses to null, which is the NORMAL
+  // state of a freshly created client catalog (parts registered, no static
+  // entries yet). Normalizing here keeps every downstream `.map`/`.filter`
+  // honest instead of crashing federation on a legitimately empty catalog.
+  return {
+    capabilities: Array.isArray(raw.capabilities) ? raw.capabilities : [],
+    'mcp-servers': (raw['mcp-servers'] ?? {}) as Record<string, Record<string, unknown>>,
+  }
 }
 
 export async function llmMapRequirement(

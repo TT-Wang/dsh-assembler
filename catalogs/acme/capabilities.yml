@@ -1,0 +1,17 @@
+# acme 能力目录(由 index-add 维护)
+mcp-servers:
+
+  petstore-demo:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/catalogs/acme/generated/petstore-demo/index.js']
+
+  apisguru-directory:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/catalogs/acme/generated/apisguru-directory/index.js']
+    requiredSecrets:
+      - { env: APISGURU_TOKEN, purpose: "可选凭证,匿名亦可用(实测匿名可用,未配则走匿名路径)" }
+      - { env: EXTRA_TOKEN, purpose: "第二个,测试分号分隔(实测匿名可用,未配则走匿名路径)" }
+
+capabilities:

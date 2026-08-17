@@ -1,0 +1,30 @@
+# acme 零件索引(由 index-add 维护)
+
+- id: petstore-demo
+  kind: service
+  service: /api/v3
+  provider: "Swagger Petstore - OpenAPI 3.0"
+  license: Apache 2.0
+  terms: "https://swagger.io/terms/"
+  rateLimit: "(未声明)"
+  network: true
+  tools:
+    - { name: find-pets-by-status, description: "按上架状态找宠物(Swagger Petstore)。status 只能是 available(可领养)/ pending(处理中)/ sold(已售出)三者之" }
+    - { name: get-pet, description: "按 id 取单只宠物的详情(Swagger Petstore)。返回 { found: true, pet } —— pet 含 id、name、status、" }
+    - { name: get-inventory, description: "取全店库存计数(Swagger Petstore)。返回 { statuses, totalCount } —— statuses 是\"上架状态 → 该状态下的" }
+
+- id: apisguru-directory
+  kind: service
+  service: https://api.apis.guru/v2
+  provider: "APIs.guru"
+  license: CC0 1.0
+  terms: "(客户自有接口:条款以合同为准)"
+  rateLimit: "(未声明)"
+  network: true
+  requiredSecrets:
+    - { env: APISGURU_TOKEN, purpose: "可选凭证,匿名亦可用(实测匿名可用,未配则走匿名路径)" }
+    - { env: EXTRA_TOKEN, purpose: "第二个,测试分号分隔(实测匿名可用,未配则走匿名路径)" }
+  tools:
+    - { name: search-apis, description: "在 APIs.guru 目录里按关键词搜 OpenAPI 接口(目前收录约 2500 个 API / 677 个提供方)。关键词会在目录键名、标题、描述、提供方" }
+    - { name: get-api-info, description: "查某个提供方在 APIs.guru 目录里收录的接口元数据。provider 是域名形式的提供方标识(如 \"github.com\"、\"stripe.com\"、\"" }
+    - { name: list-providers, description: "列出 APIs.guru 目录收录的提供方(实测约 677 个,域名形式,如 \"github.com\"、\"azure.com\")。拿到的标识可直接喂给 get-" }

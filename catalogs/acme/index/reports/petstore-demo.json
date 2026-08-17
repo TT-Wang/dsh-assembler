@@ -1,0 +1,20 @@
+{
+  "id": "petstore-demo",
+  "verifiedAt": "2026-08-17T06:24:18.598Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "find-pets-by-status",
+      "description": "按上架状态找宠物(Swagger Petstore)。status 只能是 available(可领养)/ pending(处理中)/ sold(已售出)三者之一。返回 { status, count, truncated, pets },每条含 id、name、status、category(品类名)、tags、photoCount —— 拿到 id 后可交给 get-pet 查详情。结果条数默认最多 20 条(limit 可调 1..50):该端点一次会吐出全店同状态的宠物,不截断会淹掉上下文。注意:这是公开可写的公共演示库,宠物数据随时被别人增删改,同样的查询两次结果不同是正常的。实测 2026-08-17 该端点在服务端整体 500(有人写入脏数据所致),此时返回可行动的错误说明。"
+    },
+    {
+      "name": "get-pet",
+      "description": "按 id 取单只宠物的详情(Swagger Petstore)。返回 { found: true, pet } —— pet 含 id、name、status、category、tags、photoCount/photoSample。宠物不存在时返回 { found: false } 这种**结构化结果(不是错误)**;petId 不是正整数才算参数错误,且不会发出请求。注意:这是公开可写的公共演示库,别人随时可能删掉或改掉你要查的宠物——不要硬编码 id,先用 find-pets-by-status 拿到真实存在的 id 再查。另:实测该部署对\"不存在的 id\"回的是 500 而不是 404,且个别脏记录(如 id 2、id 6)本身就 500,所以拿到 5xx 错误时先换个 id 试,多半不是你的参数问题。"
+    },
+    {
+      "name": "get-inventory",
+      "description": "取全店库存计数(Swagger Petstore)。返回 { statuses, totalCount } —— statuses 是\"上架状态 → 该状态下的宠物数量\"的映射(如 { available: 12, pending: 3, sold: 7 }),totalCount 是各状态之和。用来回答\"店里还有多少存货\"\"可领养的还剩几只\"这类总量问题,不需要先把宠物列表拉下来自己数。无需参数。注意:公共演示库的数据随时被别人改动,计数会变;实测 2026-08-17 该端点在服务端整体 500,此时返回可行动的错误说明。"
+    }
+  ]
+}

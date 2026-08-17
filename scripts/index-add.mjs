@@ -417,7 +417,10 @@ ${toolLines}
   // capabilities.yml:mcp-servers 段插入连接配置(段尾 = capabilities: 键之前;幂等)
   const capsPath = join(root, 'capabilities.yml')
   if (!existsSync(capsPath)) {
-    writeFileSync(capsPath, `# ${client ?? 'public'} 能力目录(由 index-add 维护)\nmcp-servers:\n\ncapabilities: []\n`)
+    // `capabilities:` must be its OWN line: the insertion point below anchors
+    // on /^capabilities:$/ (a fresh client catalog written as `capabilities: []`
+    // silently failed every register).
+    writeFileSync(capsPath, `# ${client ?? 'public'} 能力目录(由 index-add 维护)\nmcp-servers:\n\ncapabilities:\n`)
   }
   const caps = readFileSync(capsPath, 'utf8')
   if (!new RegExp(`^  ${id}:$`, 'm').test(caps)) {

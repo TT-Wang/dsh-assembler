@@ -1,0 +1,20 @@
+{
+  "id": "apisguru-directory",
+  "verifiedAt": "2026-08-17T06:24:24.495Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "search-apis",
+      "description": "在 APIs.guru 目录里按关键词搜 OpenAPI 接口(目前收录约 2500 个 API / 677 个提供方)。关键词会在目录键名、标题、描述、提供方、分类里做不分大小写的子串匹配,命中优先级:键名 > 标题 > 分类/提供方 > 描述。返回 { query, totalMatched, count, results },每条含 name(目录唯一键,可直接喂给 get-api-info)、title、description(已截断)、version、provider、categories、swaggerUrl(可直接下载的 OpenAPI 文档地址)。结果默认最多 10 条(limit 可调 1..25):全量目录约 8.8MB,不裁剪会淹掉上下文;totalMatched 会告诉你一共命中多少条,便于判断要不要换更具体的关键词。搜不到时返回 { totalMatched: 0, results: [] } 这种结构化结果(不是错误)。"
+    },
+    {
+      "name": "get-api-info",
+      "description": "查某个提供方在 APIs.guru 目录里收录的接口元数据。provider 是域名形式的提供方标识(如 \"github.com\"、\"stripe.com\"、\"googleapis.com\"),可用 list-providers 或 search-apis 的结果拿到。可选的 api 参数用来在该提供方下筛某一个接口(填 search-apis 返回的 name 全键如 \"github.com:api.github.com\",或冒号后的服务名如 \"api.github.com\" 均可)。返回 { provider, totalApis, count, apis },每条含 title、description、version、categories、swaggerUrl(可直接下载的 OpenAPI 文档地址)、openapiVer、updated。注意单个提供方的接口数差异极大(github.com 20 个,azure.com 1829 个),所以结果默认最多 25 条(limit 可调 1..100),totalApis 给出真实总数。提供方不存在、或该提供方下没有匹配的 api 时,返回 { found: false } 这种结构化结果(不是错误)。"
+    },
+    {
+      "name": "list-providers",
+      "description": "列出 APIs.guru 目录收录的提供方(实测约 677 个,域名形式,如 \"github.com\"、\"azure.com\")。拿到的标识可直接喂给 get-api-info 查该提供方收录了哪些接口。可选的 filter 参数按子串筛选(不分大小写),比如 filter=\"google\" 只看 Google 系。返回 { totalProviders, matched, count, providers }:totalProviders 是目录里的总数,matched 是筛选后命中数,providers 是本次返回的名单。结果默认最多 50 条(limit 可调 1..200)——677 个全吐出来对上下文不划算,要找特定提供方请用 filter 而不是调大 limit。收录数天天在涨,不要把某个具体数量当常量。"
+    }
+  ]
+}

@@ -13,11 +13,13 @@
   "requiredSecrets": [
     {
       "env": "APISGURU_TOKEN",
-      "purpose": "可选凭证,匿名亦可用"
+      "purpose": "可选凭证,匿名亦可用(实测匿名可用,未配则走匿名路径)",
+      "optional": true
     },
     {
       "env": "EXTRA_TOKEN",
-      "purpose": "第二个,测试分号分隔"
+      "purpose": "第二个,测试分号分隔(实测匿名可用,未配则走匿名路径)",
+      "optional": true
     }
   ],
   "scaffoldedAt": "2026-08-17T06:01:26.693Z"

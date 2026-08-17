@@ -26,13 +26,39 @@ const clip = (s, n) => {
 };
 const snippet = (body) => (body ? clip(body, 200) : '(空响应体)');
 
+/**
+ * 传输层韧性:瞬时抖动重试一次,再失败绕开代理重试。
+ *
+ * Wikimedia 在本机偶发 ECONNRESET(实测 check-all 单次红、单跑复现不了)。
+ * 这类失败与服务的答复无关,属于环境;HTTP 状态码一律不重试(404 是答复)。
+ */
+async function resilientFetch(url, init) {
+  const attempt = (dispatcher) => fetch(url, {
+    ...init,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+    ...(dispatcher === undefined ? {} : { dispatcher }),
+  });
+  try {
+    return await attempt(undefined);
+  } catch (first) {
+    await new Promise((r) => setTimeout(r, 400));
+    try {
+      return await attempt(undefined);
+    } catch {
+      const proxied = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+      if (!proxied) throw first;
+      const { Agent } = await import('undici');
+      return await attempt(new Agent());
+    }
+  }
+}
+
 /** 统一网络出口:超时 + UA;返回 { data, status } 或 { error, status?, body? },绝不抛裸异常。 */
 async function httpJson(service, url) {
   let res;
   try {
-    res = await fetch(url, {
+    res = await resilientFetch(url, {
       headers: { 'User-Agent': UA, Accept: 'application/json' },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
       redirect: 'follow',
     });
   } catch (err) {
