@@ -298,7 +298,7 @@ function renderYamlValue(value: unknown): string {
   return JSON.stringify(value)
 }
 
-export function emitPreset(req: AssembleRequest, catalog: Catalog, template: string, presetId: string): string {
+export function emitPreset(req: AssembleRequest, catalog: Catalog, template: string, presetId: string, personaSuffix = ''): string {
   const byId = new Map(catalog.capabilities.map((c) => [c.id, c]))
   // Enabled-only: `enabled: false` entries are excluded from the LLM's
   // choice set by llmMapRequirement below; this is the second gate for the
@@ -311,7 +311,7 @@ export function emitPreset(req: AssembleRequest, catalog: Catalog, template: str
   // outside every catalog domain gets a GENERATED persona — no more
   // "helpful assistant" placeholders for file managers, recruiters, etc.
   // (Shared with the assemble-time lint so the checked text is the emitted text.)
-  const persona = resolvePersonaText(req.persona, selected)
+  const persona = `${resolvePersonaText(req.persona, selected)}${personaSuffix}`
   // Tool surface: LLM-selected package tools. When the selected set includes
   // a persona (a domain agent, e.g. customer service), the persona's implied
   // baseline tools are force-included — the LLM only sees the requirement,
@@ -459,6 +459,37 @@ export function collectRequiredSecrets(
   return [...out.values()]
 }
 
+/** An installed knowledge pack: what it is, and WHERE it landed. */
+export interface InstalledPack {
+  id: string
+  docs: number
+  /** Absolute directory the docs were copied to. */
+  dir: string
+  /** Document filenames, in directory order. */
+  files: string[]
+  source?: string
+  version?: string
+}
+
+/**
+ * The lines that tell the agent where its knowledge is.
+ *
+ * Shipping the pack is not enough. Measured on a real delivery: the preset
+ * carried the docs into kb/ and said only "follow the nw-governance-kb
+ * documents", naming the pack but not its path — so the agent opened its first
+ * turn with 18 discovery calls (glob, search_files, directory_tree,
+ * list_directory, get_file_info, grep) hunting for files that were sitting at a
+ * known absolute path the whole time. That is a third of the turn spent
+ * rediscovering what assembly already knew.
+ *
+ * Naming the directory and the filenames turns that hunt into one read.
+ */
+export function knowledgeLocatorText(packs: readonly InstalledPack[]): string {
+  if (packs.length === 0) return ''
+  const lines = packs.map((p) => `- ${p.id}${p.version === undefined ? '' : `(版本 ${p.version})`}:${p.dir}/ —— ${p.files.join('、')}`)
+  return `\n\n你的知识资料已经随 preset 装好,就在下面这些路径,直接读文件即可,不要去搜索或遍历目录找它们:\n${lines.join('\n')}`
+}
+
 /**
  * Copy the selected knowledge packs into the preset's `kb/` and report what
  * landed there.
@@ -473,8 +504,8 @@ export function installKnowledgePacks(
   selected: CapabilityEntry[],
   presetDir: string,
   catalogRoot: string,
-): Array<{ id: string; docs: number; source?: string; version?: string }> {
-  const installed: Array<{ id: string; docs: number; source?: string; version?: string }> = []
+): InstalledPack[] {
+  const installed: InstalledPack[] = []
   for (const cap of selected.filter((c) => c.via === 'knowledge')) {
     const packId = (cap.config?.pack as string | undefined) ?? cap.id
     const packDir = join(catalogRoot, 'knowledge', packId)
@@ -482,11 +513,12 @@ export function installKnowledgePacks(
     if (!existsSync(docsDir)) continue
     const targetDir = join(presetDir, 'kb', packId)
     mkdirSync(targetDir, { recursive: true })
-    let docs = 0
+    const files: string[] = []
     for (const f of readdirSync(docsDir)) {
       writeFileSync(join(targetDir, f), readFileSync(join(docsDir, f)))
-      docs += 1
+      files.push(f)
     }
+    const docs = files.length
     let meta: Record<string, unknown> = {}
     try {
       meta = JSON.parse(readFileSync(join(packDir, '.knowledge-meta.json'), 'utf8')) as Record<string, unknown>
@@ -494,6 +526,8 @@ export function installKnowledgePacks(
     installed.push({
       id: packId,
       docs,
+      dir: targetDir,
+      files,
       ...(typeof meta.source === 'string' ? { source: meta.source } : {}),
       ...(typeof meta.version === 'string' ? { version: meta.version } : {}),
     })
@@ -999,9 +1033,24 @@ export async function assemble(
   const template = readFileSync(templatePath, 'utf8')
   const presetRoot = config.presetRoot ?? join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), '.agent-presets')
   const id = resolvePresetId(options.name, req.name, presetRoot)
-  const preset = emitPreset(req, catalog, template, id)
   const dir = join(presetRoot, id)
   mkdirSync(dir, { recursive: true })
+  // Knowledge packs travel WITH the preset (copied into kb/), so the handover is
+  // one self-contained directory rather than a pointer back to this machine.
+  // Installed BEFORE emission because the persona has to name where they landed
+  // — an agent that has to go looking for its own documents pays for the search
+  // every single session.
+  const knowledgeInstalled = (() => {
+    try {
+      const byIdK = new Map(catalog.capabilities.map((c) => [c.id, c]))
+      const selK = req.capabilityIds.map((cid) => byIdK.get(cid)).filter((c): c is CapabilityEntry => c !== undefined)
+      return installKnowledgePacks(selK, dir, dirname(catalogPath))
+    } catch (error: unknown) {
+      console.error(`[assembler] knowledge install failed: ${error instanceof Error ? error.message : String(error)}`)
+      return []
+    }
+  })()
+  const preset = emitPreset(req, catalog, template, id, knowledgeLocatorText(knowledgeInstalled))
   writePresetFile(join(dir, 'agent.cordis.yml'), preset)
   // Display metadata beside the composition: the roster picker shows the name
   // and a one-line description (harness dsh-agent-presets reads preset.yml).
@@ -1068,7 +1117,7 @@ export async function assemble(
               { provider: config.provider, model: config.model },
               config,
             )
-            const retryPreset = emitPreset(retryReq, catalog, template, id)
+            const retryPreset = emitPreset(retryReq, catalog, template, id, knowledgeLocatorText(knowledgeInstalled))
             writePresetFile(join(dir, 'agent.cordis.yml'), retryPreset)
             const retryPlan = await deriveProbePlan(ctx, requirement, retryReq.capabilityIds.map((cid) => byId.get(cid)).filter((c): c is CapabilityEntry => c !== undefined), { provider: config.provider, model: config.model })
             verification = await runPlan(retryPlan)
@@ -1089,19 +1138,6 @@ export async function assemble(
       }
     }
   }
-
-  // Knowledge packs travel WITH the preset (copied into kb/), so the handover
-  // is one self-contained directory rather than a pointer back to this machine.
-  const knowledgeInstalled = (() => {
-    try {
-      const byIdK = new Map(catalog.capabilities.map((c) => [c.id, c]))
-      const selK = req.capabilityIds.map((cid) => byIdK.get(cid)).filter((c): c is CapabilityEntry => c !== undefined)
-      return installKnowledgePacks(selK, dir, dirname(catalogPath))
-    } catch (error: unknown) {
-      console.error(`[assembler] knowledge install failed: ${error instanceof Error ? error.message : String(error)}`)
-      return []
-    }
-  })()
 
   // Parts BOM — written LAST so it reflects the final generation: after a
   // verify-retry re-selection, req.capabilityIds and the preset bytes on

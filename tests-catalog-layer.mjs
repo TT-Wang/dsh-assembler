@@ -13,7 +13,7 @@
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { loadCatalog, dedupeRowsById } from './lib/index.js'
+import { loadCatalog, dedupeRowsById, knowledgeLocatorText } from './lib/index.js'
 
 let failed = 0
 const ok = (name, cond, extra = '') => {
@@ -150,6 +150,25 @@ ok('顺序保持不变', JSON.stringify(deduped.map((r) => r.id)) === JSON.strin
 ok('空数组安全', dedupeRowsById([]).length === 0)
 ok('全同 id 折成一条', dedupeRowsById([{ id: 'x' }, { id: 'x' }, { id: 'x' }]).length === 1)
 ok('不改动入参数组', rows.length === 3)
+
+// ── 知识定位:装好了还得说在哪 ─────────────────────────────────────────────
+// 实测代价:preset 把文档拷进 kb/ 却只说"以 xx 口径文档为准",不给路径,
+// agent 第一轮就花了 18 次调用(glob / search_files / directory_tree /
+// list_directory / get_file_info / grep)去找一直待在固定路径上的文件。
+const loc = knowledgeLocatorText([
+  { id: 'nw-oss-governance', docs: 2, dir: '/p/kb/nw-oss-governance', files: ['01-a.md', '02-b.md'], version: '2026-08-17' },
+])
+ok('给出绝对目录', loc.includes('/p/kb/nw-oss-governance'))
+ok('列出文件名', loc.includes('01-a.md') && loc.includes('02-b.md'))
+ok('带版本', loc.includes('2026-08-17'))
+ok('明确叫它别去搜', /不要去搜索|不要.*遍历/.test(loc))
+ok('没有知识包时是空串(不往 persona 里塞空话)', knowledgeLocatorText([]) === '')
+const two = knowledgeLocatorText([
+  { id: 'a', docs: 1, dir: '/p/kb/a', files: ['x.md'] },
+  { id: 'b', docs: 1, dir: '/p/kb/b', files: ['y.md'] },
+])
+ok('多个知识包各占一行', two.split('\n').filter((l) => l.startsWith('- ')).length === 2)
+ok('缺版本时不写"版本 undefined"', !two.includes('undefined'))
 
 console.log(`\n==== 目录分层单元测试: ${failed === 0 ? '全部通过 ✅' : `${failed} 条失败 ❌`} ====`)
 process.exit(failed === 0 ? 0 : 1)

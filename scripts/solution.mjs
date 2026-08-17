@@ -21,6 +21,7 @@ import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { homedir } from 'node:os'
 import yaml from 'js-yaml'
+import { ASSEMBLE_WORST_CASE_MS } from '../lib/verify.js'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const [cmd, target, ...rest] = process.argv.slice(2)
@@ -115,10 +116,16 @@ async function apply() {
   if (file === undefined || !existsSync(file)) die('用法:solution.mjs apply <solution.yml> [--port 3096] [--wait-minutes 30] [--param k=v]')
   const doc = yaml.load(readFileSync(file, 'utf8'))
   const port = Number(flags.port ?? 3096)
-  // 等待上限必须**大于**被调方的最坏情况,否则复杂 agent 永远等不到判定:
-  // assemble 的多轮场景探针每轮各有 5 分钟预算,四轮就是 20 分钟。原来这里写死
-  // 12 分钟,于是治理台那个 agent 在 721 秒被判 UNKNOWN——它其实还在跑。
-  const waitMs = Number(flags['wait-minutes'] ?? 30) * 60_000
+  // 等待上限从**被调方自己声明的最坏情况**推出来,不自己猜。猜的代价一个下午
+  // 付了三次:apply 死等 12 分钟把还在跑的 agent 判成 UNKNOWN、一个一次性脚本
+  // 等 9 分钟判成 TIMEOUT、探针自己的单轮预算把能干活的 agent 判成 FAIL——
+  // 三次都是外层的墙比内层的最坏情况短。显式给的 --wait-minutes 只能往上抬,
+  // 抬不下来:一个比被调方最坏情况还短的墙,量的是我的耐心不是 agent 的能力。
+  const asked = flags['wait-minutes'] === undefined ? 0 : Number(flags['wait-minutes']) * 60_000
+  const waitMs = Math.max(asked, ASSEMBLE_WORST_CASE_MS)
+  if (asked > 0 && asked < ASSEMBLE_WORST_CASE_MS) {
+    process.stderr.write(`[solution] --wait-minutes ${flags['wait-minutes']} 比被调方最坏情况(${Math.round(ASSEMBLE_WORST_CASE_MS / 60_000)} 分钟)短,已抬到后者\n`)
+  }
   try {
     const probe = await fetch(`http://127.0.0.1:${port}/`)
     if (!probe.ok) throw new Error(String(probe.status))

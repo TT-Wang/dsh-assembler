@@ -1,5 +1,5 @@
 {
-  "appliedAt": "2026-08-17T17:12:21.945Z",
+  "appliedAt": "2026-08-17T18:04:43.547Z",
   "port": 3080,
   "params": {
     "timezone": "Asia/Shanghai",
@@ -9,20 +9,20 @@
     {
       "id": "nw-dep-triage",
       "verdict": "FAIL",
-      "line": "自动验证:FAIL — 多轮场景「证明 agent 能把多轮治理扫描持久化到 SQLite，并在不重述批次输入的情况下读取历史批次、比较漏洞变化并生成带出」共 3 轮;第 1 轮未在 300s 内完成",
-      "wallSeconds": 1177
+      "line": "自动验证:FAIL — 多轮场景「证明代理能在同一会话内完成依赖治理扫描、SQLite 留痕、跨轮次读取对比并生成按口径留痕的 Markdown 报告」共 3 轮;第 1 轮未在 600s 内完成",
+      "wallSeconds": 1520
     },
     {
       "id": "nw-upgrade-advisor",
       "verdict": "PASS",
-      "line": "自动验证:PASS — 多轮场景「证明依赖升级评估报告能落盘，且后续轮次能独立读取并使用该报告中的编号和修复版本完成核验与留痕。」共 2 轮,逐轮通过",
-      "wallSeconds": 386
+      "line": "自动验证:PASS — 多轮场景「验证 agent 能按治理口径完成漏洞核查、修复版本确认与报告留痕，并在后续轮次取用留痕结论。」共 2 轮,逐轮通过",
+      "wallSeconds": 441
     },
     {
       "id": "nw-policy-desk",
       "verdict": "PASS",
-      "line": "自动验证:PASS — 探针「请只依据 Northwind 治理口径文档回答下面两个问题，文档没写的就回答“文档未写明”，不要补充其他规定。",
-      "wallSeconds": 747
+      "line": "自动验证:PASS — 探针「只依据 nw-governance-kb 的文档回答：一个 CVSS 分数为 9.8 的漏洞，如果修复截止日正好是法定节假日，修复时限是否顺延？请先查阅 kb/」通过;验收标记 [NOT_SPECIFIED_9_8_HOLIDAY]",
+      "wallSeconds": 306
     }
   ]
 }

@@ -105,6 +105,24 @@ export interface ProbeResult {
  */
 export const DEFAULT_TURN_BUDGET_MS = 600_000;
 
+/** Most turns a derived scenario may have (the deriver is told "2-4 turns"). */
+export const MAX_SCENARIO_TURNS = 4;
+
+/**
+ * How long a CALLER must be willing to wait for one `assemble` call, worst case.
+ *
+ * Exported so no outer layer has to guess. Guessing has already cost three
+ * false verdicts in one afternoon: `solution apply` waited 12 minutes and
+ * declared a still-running agent UNKNOWN, a one-off driver waited 9 and called
+ * it TIMEOUT, and the probe's own per-turn budget accused a working agent of
+ * failing. Every one of them was an outer wait shorter than the inner worst
+ * case. Deriving the figure means raising the turn budget moves all of them.
+ *
+ * The margin covers what surrounds the turns themselves: the matcher call, part
+ * federation, preset emission, probe derivation, and the session handshake.
+ */
+export const ASSEMBLE_WORST_CASE_MS = DEFAULT_TURN_BUDGET_MS * MAX_SCENARIO_TURNS + 10 * 60_000;
+
 /** Pure mark check: every mark present, case-insensitive. Unit-tested. */
 export function marksPresent(marks: readonly string[], reply: string): boolean {
   const hay = reply.toLowerCase();
