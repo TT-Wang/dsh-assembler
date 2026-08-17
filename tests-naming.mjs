@@ -3,7 +3,7 @@
  * 命名功能单测：直接 import 编译产物 lib/index.js（peers 已 symlink 到 node_modules）。
  * 验证 sanitizePresetName / presetNameSuffix / resolvePresetId / emitPreset 的命名行为。
  */
-import { sanitizePresetName, presetNameSuffix, resolvePresetId, emitPreset } from './lib/index.js'
+import { sanitizePresetName, presetNameSuffix, resolvePresetId, emitPreset, screenParams, applyParams } from './lib/index.js'
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -78,5 +78,23 @@ const outV2 = emitPreset({ ...req, persona: '网页研究助手 persona v2' }, c
 check('字节变则 serverName 变', nameOf(outV2) !== nameOf(outV1), `${nameOf(outV1)} vs ${nameOf(outV2)}`)
 
 rmSync(root, { recursive: true, force: true })
+// 6. 参数化:秘密键机械拒绝(宪法红线 4)+ 槽位替换 + 参数进代际哈希
+const scr = screenParams({ timezone: 'Asia/Shanghai', apiKey: 'sk-xxx', DB_PASSWORD: 'p', 'bad key!': 'v', longv: 'x'.repeat(201), auth_token: 't' })
+check('非秘密键通过', scr.accepted.timezone === 'Asia/Shanghai' && Object.keys(scr.accepted).length === 1, JSON.stringify(scr.accepted))
+const rejectedKeys = scr.rejected.map((r) => r.key)
+check('apiKey 被拒', rejectedKeys.includes('apiKey'))
+check('DB_PASSWORD 被拒', rejectedKeys.includes('DB_PASSWORD'))
+check('auth_token 被拒', rejectedKeys.includes('auth_token'))
+check('非法键名被拒', rejectedKeys.includes('bad key!'))
+check('超长值被拒', rejectedKeys.includes('longv'))
+check('槽位替换', applyParams('tz={{param:timezone}}|x', { timezone: 'UTC' }) === 'tz=UTC|x')
+check('未提供的槽位置空(不留字面量)', applyParams('tz={{param:missing}}!', {}) === 'tz=!')
+const pTpl = '# tz: {{param:timezone}}\n{{extraRows}}'
+const outP1 = emitPreset({ ...req, params: { timezone: 'UTC' } }, catalog, pTpl, 'web-research')
+const outP2 = emitPreset({ ...req, params: { timezone: 'Asia/Shanghai' } }, catalog, pTpl, 'web-research')
+check('参数进入渲染文本', outP1.includes('tz: UTC') && outP2.includes('tz: Asia/Shanghai'))
+const nameOfP = (t) => yaml.load(t.split('\n').slice(1).join('\n')).find((r) => r && r.name === '@deepseek-ai/dsh-mcp-client').config.serverName
+check('参数变则 serverName 换代(字节决定名字)', nameOfP(outP1) !== nameOfP(outP2), `${nameOfP(outP1)} vs ${nameOfP(outP2)}`)
+
 console.log(`\n==== 命名功能测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)
 process.exit(failures === 0 ? 0 : 1)

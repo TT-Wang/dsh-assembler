@@ -29,44 +29,87 @@ export interface ProbeSpec {
   mustInclude: string[];
 }
 
+/**
+ * One turn of a multi-turn scenario probe: a prompt plus the marks its OWN
+ * reply must carry. A later turn's marks are how state continuity is tested
+ * from the outside — "the invoice you filed in turn 1, what was its number?"
+ * asserts persistence without inspecting the trajectory.
+ */
+export interface ScenarioTurn {
+  prompt: string;
+  mustInclude: string[];
+}
+
+/** A scenario probe: several turns in ONE session, judged turn by turn. */
+export interface ScenarioSpec {
+  /** What this scenario proves (one line, for the ledger). */
+  goal: string;
+  turns: ScenarioTurn[];
+}
+
+/** Per-turn outcome of a scenario run. */
+export interface TurnResult {
+  index: number;
+  prompt: string;
+  mustInclude: string[];
+  pass: boolean;
+  /** Truncated reply — the evidence this turn's verdict judged. */
+  reply: string;
+}
+
 export interface ProbeResult {
   status: "PASS" | "FAIL" | "SKIPPED";
+  /** Single-turn probe (kind: 'single'). */
   probe?: ProbeSpec;
+  /** Scenario probe (kind: 'scenario'). */
+  scenario?: ScenarioSpec;
+  /** Which probe shape ran. */
+  kind?: "single" | "scenario";
   /** Final assistant reply (truncated) — the evidence the verdict judged. */
   reply?: string;
+  /** Per-turn results for a scenario run. */
+  turns?: TurnResult[];
   /** Why the run degraded to SKIPPED, when it did. */
   reason?: string;
 }
 
-/** Pure verdict: every mark present, case-insensitive. Unit-tested. */
-export function evaluateProbe(spec: ProbeSpec, reply: string): boolean {
+/** Pure mark check: every mark present, case-insensitive. Unit-tested. */
+export function marksPresent(marks: readonly string[], reply: string): boolean {
   const hay = reply.toLowerCase();
-  return spec.mustInclude.length > 0 && spec.mustInclude.every((m) => hay.includes(m.toLowerCase()));
+  return marks.length > 0 && marks.every((m) => hay.includes(m.toLowerCase()));
 }
 
-/** Ask the fast model for a probe task tailored to the selected parts. */
-export async function deriveProbe(
+/** Pure verdict for a single-turn probe. */
+export function evaluateProbe(spec: ProbeSpec, reply: string): boolean {
+  return marksPresent(spec.mustInclude, reply);
+}
+
+/**
+ * Pure verdict for a scenario: EVERY turn must pass.
+ *
+ * All-or-nothing rather than a score, deliberately: a scenario is a contract
+ * ("after three turns the books still add up"), and a partially honored
+ * contract is a broken one. Scoring turns would also drift toward grading the
+ * trajectory, which the charter forbids.
+ */
+export function evaluateScenario(turns: readonly TurnResult[], expected: number): boolean {
+  return turns.length === expected && expected > 0 && turns.every((t) => t.pass);
+}
+
+/** Shared mark-design rules — the same discipline governs single and scenario probes. */
+const MARK_RULES = [
+  "- mustInclude: 1-3 content-bearing strings that will appear in the reply IFF the task truly succeeded (a computed value, a verbatim token from the task input). Never accept generic words like \"done\" or \"success\".",
+  "- mustInclude values MUST be derivable from data embedded in the task text itself. NEVER use remembered world facts (a domain's IP, a live exchange rate, today's date) — live data changes and remembered values go stale.",
+  "- Avoid over-precise numeric marks: a mark like \"111.195\" fails when the tool legitimately prints 111.1949. Prefer a verbatim echo token, an integer, or the leading digits of a number (e.g. \"111.1\").",
+  "- Budget: the probe agent has ~4 minutes per turn. Avoid tasks whose replies embed large payloads (full base64 images) — ask for byte counts or short prefixes instead.",
+];
+
+/** One fast-model JSON call with the deriver's provider/model discipline. */
+async function callDeriver(
   ctx: Context,
-  requirement: string,
-  selected: CapabilityEntry[],
+  prompt: string,
   llm: { provider?: string; model?: string },
-): Promise<ProbeSpec> {
-  const tools = selected.map((c) => `- ${c.tool ?? c.id}: ${c.description.slice(0, 120)}`).join("\n");
-  const prompt = [
-    "You design a ONE-TURN smoke probe for a freshly assembled agent.",
-    `The agent was assembled for this requirement: ${requirement}`,
-    "Its tools:",
-    tools,
-    "",
-    "Rules:",
-    '- Respond with JSON only: {"task": "...", "mustInclude": ["...", "..."]}',
-    "- task: a single instruction the agent can finish in one turn (< 2 minutes) using ONLY the tools above; write it in the requirement's language.",
-    "- Prefer self-contained work (compute, transform, generate). Use the network only when the agent's parts are network tools.",
-    "- mustInclude: 1-3 content-bearing strings that will appear in the reply IFF the task truly succeeded (a computed value, a verbatim token from the task input). Never accept generic words like \"done\" or \"success\".",
-    "- mustInclude values MUST be derivable from data embedded in the task text itself. NEVER use remembered world facts (a domain's IP, a live exchange rate, today's date) — live data changes and remembered values go stale.",
-    "- Avoid over-precise numeric marks: a mark like \"111.195\" fails when the tool legitimately prints 111.1949. Prefer a verbatim echo token, an integer, or the leading digits of a number (e.g. \"111.1\").",
-    "- Budget: the probe agent has ~4 minutes. Avoid tasks whose replies embed large payloads (full base64 images) — ask for byte counts or short prefixes instead.",
-  ].join("\n");
+): Promise<Record<string, unknown>> {
   const assembler = new BlockAssembler();
   // Same fast-model + provider-resolution discipline as llmMapRequirement:
   // provider follows host selection, model pins flash unless config overrides.
@@ -87,26 +130,142 @@ export async function deriveProbe(
   }
   const m = text.match(/\{[\s\S]*\}/);
   if (!m) throw new Error(`probe deriver returned no JSON: ${text.slice(0, 120)}`);
-  const parsed = JSON.parse(m[0]) as ProbeSpec;
+  return JSON.parse(m[0]) as Record<string, unknown>;
+}
+
+/** Ask the fast model for a probe task tailored to the selected parts. */
+export async function deriveProbe(
+  ctx: Context,
+  requirement: string,
+  selected: CapabilityEntry[],
+  llm: { provider?: string; model?: string },
+): Promise<ProbeSpec> {
+  const tools = selected.map((c) => `- ${c.tool ?? c.id}: ${c.description.slice(0, 120)}`).join("\n");
+  const prompt = [
+    "You design a ONE-TURN smoke probe for a freshly assembled agent.",
+    `The agent was assembled for this requirement: ${requirement}`,
+    "Its tools:",
+    tools,
+    "",
+    "Rules:",
+    '- Respond with JSON only: {"task": "...", "mustInclude": ["...", "..."]}',
+    "- task: a single instruction the agent can finish in one turn (< 2 minutes) using ONLY the tools above; write it in the requirement's language.",
+    "- Prefer self-contained work (compute, transform, generate). Use the network only when the agent's parts are network tools.",
+    ...MARK_RULES,
+  ].join("\n");
+  const parsed = await callDeriver(ctx, prompt, llm) as unknown as ProbeSpec;
   if (typeof parsed.task !== "string" || !Array.isArray(parsed.mustInclude)) {
     throw new Error("probe deriver JSON missing task/mustInclude");
   }
   return { task: parsed.task, mustInclude: parsed.mustInclude.map(String).slice(0, 3) };
 }
 
-/** Run the probe in a real session bound to the preset, over the local wire. */
-export async function runProbe(
-  port: number,
-  presetId: string,
-  probe: ProbeSpec,
-  timeoutMs = 300_000,
-): Promise<ProbeResult> {
+/** What the deriver decided to run: one turn, or a multi-turn scenario. */
+export type ProbePlan =
+  | { kind: "single"; probe: ProbeSpec }
+  | { kind: "scenario"; scenario: ScenarioSpec };
+
+/**
+ * Ask the fast model for a probe PLAN: it decides whether one turn suffices
+ * or the requirement deserves a multi-turn scenario.
+ *
+ * The choice is the model's, not a keyword heuristic on our side — the same
+ * task-agnostic discipline the matcher follows. A scenario is only worth
+ * running when the agent can actually carry state across turns (its parts
+ * write files or rows); a pure calculator has nothing to remember, and a
+ * multi-turn probe of one would test the model's short-term memory rather
+ * than the assembly.
+ *
+ * Falls back to the single-turn deriver when the model returns a malformed
+ * or empty scenario: verification degrading to a weaker probe beats failing
+ * an assembly that is probably fine.
+ */
+export async function deriveProbePlan(
+  ctx: Context,
+  requirement: string,
+  selected: CapabilityEntry[],
+  llm: { provider?: string; model?: string },
+): Promise<ProbePlan> {
+  const tools = selected.map((c) => `- ${c.tool ?? c.id}: ${c.description.slice(0, 120)}`).join("\n");
+  const prompt = [
+    "You design an acceptance probe for a freshly assembled agent.",
+    `The agent was assembled for this requirement: ${requirement}`,
+    "Its tools:",
+    tools,
+    "",
+    "First DECIDE the probe shape:",
+    '- "single" — one turn is enough to prove the agent works (pure compute/transform/generate agents).',
+    '- "scenario" — 2-4 turns in ONE session, when the requirement implies work that OUTLIVES a turn (filing, bookkeeping, tracking, archiving) AND the tools can actually persist it (files, databases). A later turn then asks about what an earlier turn produced, which proves continuity.',
+    "",
+    "Then respond with JSON only, in ONE of these two shapes:",
+    '{"kind": "single", "task": "...", "mustInclude": ["..."]}',
+    '{"kind": "scenario", "goal": "one line: what this proves", "turns": [{"prompt": "...", "mustInclude": ["..."]}, ...]}',
+    "",
+    "Rules:",
+    "- Write prompts in the requirement's language.",
+    "- Each turn is one instruction the agent can finish in one turn using ONLY the tools above.",
+    "- SCENARIO SHAPE: turn 1 creates state with a distinctive token you invent (e.g. INV-7781); a LATER turn must ask the agent to retrieve or use that state WITHOUT restating it — its marks are how state continuity is judged. Never make a later turn merely repeat turn 1's work.",
+    "- Judging is black-box: only each turn's reply text is inspected. Never require the agent to follow specific steps or announce its plan.",
+    ...MARK_RULES,
+  ].join("\n");
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = await callDeriver(ctx, prompt, llm);
+  } catch (error) {
+    // A malformed plan is not a reason to skip verification entirely.
+    return { kind: "single", probe: await deriveProbe(ctx, requirement, selected, llm) };
+  }
+
+  if (parsed.kind === "scenario" && Array.isArray(parsed.turns)) {
+    const turns: ScenarioTurn[] = (parsed.turns as Array<Record<string, unknown>>)
+      .filter((t) => typeof t.prompt === "string" && Array.isArray(t.mustInclude) && t.mustInclude.length > 0)
+      .slice(0, 4)
+      .map((t) => ({ prompt: String(t.prompt), mustInclude: (t.mustInclude as unknown[]).map(String).slice(0, 3) }));
+    // A one-turn "scenario" is a single probe wearing a costume; two turns is
+    // the minimum that can prove anything about continuity.
+    if (turns.length >= 2) {
+      return { kind: "scenario", scenario: { goal: typeof parsed.goal === "string" ? parsed.goal : "多轮场景验收", turns } };
+    }
+  }
+  if (typeof parsed.task === "string" && Array.isArray(parsed.mustInclude) && parsed.mustInclude.length > 0) {
+    return { kind: "single", probe: { task: parsed.task, mustInclude: (parsed.mustInclude as unknown[]).map(String).slice(0, 3) } };
+  }
+  return { kind: "single", probe: await deriveProbe(ctx, requirement, selected, llm) };
+}
+
+/**
+ * Text an assistant/message frame delivered to the user.
+ *
+ * Wire shape: {type:'assistant/message', data:{turn, step, message:{role, content:[blocks]}}}.
+ * TEXT blocks only — reasoning text is the model talking to itself, and a
+ * mark that appears there but not in the reply did not reach the user.
+ */
+function frameText(e: any): string {
+  const c = e.data?.message?.content ?? e.data?.content;
+  if (typeof c === "string") return c;
+  if (Array.isArray(c)) {
+    return c.map((b: any) => (b?.type === "text" && typeof b.text === "string" ? b.text : "")).join("");
+  }
+  return "";
+}
+
+/** A live probe session: one preset, one workdir, many turns. */
+interface ProbeSession {
+  sessionId: string;
+  frames: any[];
+  rpc: (method: string, payload: unknown) => Promise<any>;
+  close: () => void;
+}
+
+/** Open a session bound to the preset and subscribe to its event stream. */
+async function openProbeSession(port: number, presetId: string): Promise<ProbeSession> {
   const base = `http://127.0.0.1:${port}`;
   const rpc = async (method: string, payload: unknown): Promise<any> => {
     const res = await fetch(`${base}/api/${method}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "client-request", rpcId: `probe-${Date.now()}`, method, payload }),
+      body: JSON.stringify({ type: "client-request", rpcId: `probe-${Date.now()}-${Math.round(performance.now())}`, method, payload }),
     });
     const j = (await res.json()) as any;
     if (!j.result?.ok) throw new Error(`${method}: ${JSON.stringify(j.result?.error ?? j).slice(0, 800)}`);
@@ -128,38 +287,104 @@ export async function runProbe(
     ws.onopen = () => res();
     ws.onerror = () => rej(new Error("events.mux websocket failed"));
   });
+  return { sessionId, frames, rpc, close: () => { ws.close(); } };
+}
 
+/**
+ * Send one prompt and return the reply text of THAT turn.
+ *
+ * Turn boundaries come from counting `turn/end` events rather than from the
+ * frame index: a turn's frames arrive after the prompt is accepted, and the
+ * count is what distinguishes "this turn finished" from "an earlier one did"
+ * when several turns share the session.
+ * @returns the turn's reply, or undefined when it never finished in time.
+ */
+async function sendTurn(session: ProbeSession, prompt: string, timeoutMs: number): Promise<string | undefined> {
+  const endsBefore = session.frames.filter((e) => e.type === "turn/end").length;
+  const startIndex = session.frames.length;
+  await session.rpc("session.prompt", {
+    sessionId: session.sessionId,
+    mode: "queue",
+    content: [{ type: "text", text: prompt }],
+  });
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    if (session.frames.filter((e) => e.type === "turn/end").length > endsBefore) {
+      return session.frames
+        .slice(startIndex)
+        .filter((e) => e.type === "assistant/message")
+        .map(frameText)
+        .join("\n");
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return undefined;
+}
+
+/** Run a single-turn probe in a real session bound to the preset. */
+export async function runProbe(
+  port: number,
+  presetId: string,
+  probe: ProbeSpec,
+  timeoutMs = 300_000,
+): Promise<ProbeResult> {
+  const session = await openProbeSession(port, presetId);
   try {
-    await rpc("session.prompt", {
-      sessionId,
-      mode: "queue",
-      content: [{ type: "text", text: probe.task }],
-    });
-    const t0 = Date.now();
-    while (Date.now() - t0 < timeoutMs) {
-      if (frames.some((e) => e.type === "turn/end")) break;
-      await new Promise((r) => setTimeout(r, 1000));
+    const reply = await sendTurn(session, probe.task, timeoutMs);
+    if (reply === undefined) {
+      return { status: "FAIL", kind: "single", probe, reason: `probe turn did not finish within ${Math.round(timeoutMs / 1000)}s` };
     }
-    if (!frames.some((e) => e.type === "turn/end")) {
-      return { status: "FAIL", probe, reason: `probe turn did not finish within ${Math.round(timeoutMs / 1000)}s` };
-    }
-    // Wire shape: {type:'assistant/message', data:{turn, step, message:{role, content:[blocks]}}}.
-    // Judge TEXT blocks only — reasoning text is the model talking to itself,
-    // and a mark that appears there but not in the reply did not reach the user.
-    const reply = frames
-      .filter((e) => e.type === "assistant/message")
-      .map((e) => {
-        const c = e.data?.message?.content ?? e.data?.content;
-        if (typeof c === "string") return c;
-        if (Array.isArray(c)) {
-          return c.map((b: any) => (b?.type === "text" && typeof b.text === "string" ? b.text : "")).join("");
-        }
-        return "";
-      })
-      .join("\n");
     const pass = evaluateProbe(probe, reply);
-    return { status: pass ? "PASS" : "FAIL", probe, reply: reply.slice(0, 400) };
+    return { status: pass ? "PASS" : "FAIL", kind: "single", probe, reply: reply.slice(0, 400) };
   } finally {
-    ws.close();
+    session.close();
+  }
+}
+
+/**
+ * Run a multi-turn scenario in ONE session — the same session is what makes
+ * continuity testable: a later turn asking about turn 1's work can only
+ * succeed if the state really outlived the turn.
+ *
+ * Every turn is judged by its own marks and ALL must pass; the run stops at
+ * the first failure (later turns build on the failed one, so their verdicts
+ * would be noise rather than evidence).
+ */
+export async function runScenario(
+  port: number,
+  presetId: string,
+  scenario: ScenarioSpec,
+  timeoutMs = 300_000,
+): Promise<ProbeResult> {
+  const session = await openProbeSession(port, presetId);
+  const turns: TurnResult[] = [];
+  try {
+    for (const [i, turn] of scenario.turns.entries()) {
+      const reply = await sendTurn(session, turn.prompt, timeoutMs);
+      if (reply === undefined) {
+        return {
+          status: "FAIL",
+          kind: "scenario",
+          scenario,
+          turns,
+          reason: `第 ${String(i + 1)} 轮未在 ${String(Math.round(timeoutMs / 1000))}s 内完成`,
+        };
+      }
+      const pass = marksPresent(turn.mustInclude, reply);
+      turns.push({ index: i + 1, prompt: turn.prompt, mustInclude: turn.mustInclude, pass, reply: reply.slice(0, 300) });
+      if (!pass) {
+        return {
+          status: "FAIL",
+          kind: "scenario",
+          scenario,
+          turns,
+          reason: `第 ${String(i + 1)} 轮未含验收标记 [${turn.mustInclude.join(", ")}]`,
+        };
+      }
+    }
+    const pass = evaluateScenario(turns, scenario.turns.length);
+    return { status: pass ? "PASS" : "FAIL", kind: "scenario", scenario, turns };
+  } finally {
+    session.close();
   }
 }

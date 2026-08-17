@@ -62,6 +62,17 @@ check('BOM host 平面零件标注 plane', fsp.plane === 'host' && fsp.serverNam
 const web = parsed2.parts.find((p) => p.capability === 'web-lookup')
 check('BOM harness 零件 mounts', Array.isArray(web.mounts) && web.mounts[0] === '@deepseek-ai/dsh-tool-web')
 
+// 3b. 场景判定:全轮通过才算过;轮数不符/空场景一律不过
+const { marksPresent, evaluateScenario } = await import('./lib/verify.js')
+check('marksPresent 全中才真', marksPresent(['a', 'B'], 'x A y b z'))
+check('marksPresent 缺一即假', !marksPresent(['a', 'zz'], 'only a here'))
+check('marksPresent 空标记恒假', !marksPresent([], '任何回复'))
+const T = (i, pass) => ({ index: i, prompt: 'p', mustInclude: ['m'], pass, reply: 'r' })
+check('场景全过才 PASS', evaluateScenario([T(1, true), T(2, true), T(3, true)], 3))
+check('任一轮挂即 FAIL', !evaluateScenario([T(1, true), T(2, false), T(3, true)], 3))
+check('轮数不足即 FAIL(中途中断)', !evaluateScenario([T(1, true)], 3))
+check('空场景恒 FAIL', !evaluateScenario([], 0))
+
 // 4. persona lint:约束不编舞、工具面对齐、长度界
 const { lintPersona, resolvePersonaText } = await import('./lib/index.js')
 const SEL = [

@@ -25,7 +25,7 @@ import { BlockAssembler, type GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { createUserMessage } from '@deepseek-ai/dsh-llm/message'
 import yaml from 'js-yaml'
 import { assembleToolDefinition } from './assemble-tool.js'
-import { deriveProbe, runProbe, type ProbeResult } from './verify.js'
+import { deriveProbePlan, runProbe, runScenario, type ProbePlan, type ProbeResult } from './verify.js'
 import { lintPersona, resolvePersonaText, type PersonaLintFinding } from './persona-lint.js'
 
 export { lintPersona, resolvePersonaText, type PersonaLintFinding } from './persona-lint.js'
@@ -89,6 +89,8 @@ export interface MissingDraft {
 
 interface AssembleRequest {
   capabilityIds: string[]
+  /** Non-secret deployment parameters filling `{{param:key}}` slots. */
+  params?: Record<string, string>
   missing: string[]
   rationale: string
   /** Generated persona text, used only when the catalog offers no persona. */
@@ -129,6 +131,12 @@ export async function llmMapRequirement(
     `- capabilityIds must ONLY use ids from this exact set: ${ids.join(', ')}`,
     '- If the requirement asks for something the catalog cannot provide, list it in "missing" (e.g. "phone support", "payment").',
     '- Include capabilities that are implied (a support agent needs a persona).',
+    // A workstation, not a script: work that outlives a turn (bookkeeping,
+    // filing, tracking, archiving) needs somewhere to PUT state. Selecting the
+    // storage part is a capability decision; how and when to write is the
+    // model\'s. See DESIGN.md — give the desk, never the choreography.
+    '- When the requirement implies work that OUTLIVES one turn (bookkeeping, filing, tracking, archiving, "later I can query it"), also select a state-keeping capability (a file-writing or database part) — an agent with no place to put state cannot honor such a requirement.',
+    '- When you select a state-keeping capability, the persona MUST carry a durability constraint, e.g. "跨轮事实必须写入账本/文件,不依赖记忆" — a constraint judgeable at any point, NEVER a numbered procedure ("第一步…第二步…" is forbidden in personas).',
     '- When NO catalog persona matches the requirement, write a "persona" string: a concise assistant persona for the assembled agent (role, tone, answer in the user\'s language, tool-use discipline). Omit it when a catalog persona IS selected — the catalog text wins.',
     '- Write a "name" for the assembled preset: a short kebab-case slug naming what the agent IS (2-5 words, lowercase letters, digits and hyphens only, e.g. "customer-service-bot", "web-research-assistant"). It becomes the preset id users pick in the roster.',
     '- For every item in "missing", add one matching entry to "missingEntries": {id, via, description, tags, tool?, mount?} — id is kebab-case; via is "package" | "harness" | "mcp"; when you know a harness plugin package that provides the capability, set mount.name to it (e.g. "@deepseek-ai/dsh-tool-fs-search"), else omit mount; set tool only for via: "package". Omit "missingEntries" entirely when nothing is missing.',
@@ -252,10 +260,16 @@ export function emitPreset(req: AssembleRequest, catalog: Catalog, template: str
     })
     .join('\n\n')
   const allRows = [extraRows, mcpRows].filter((s) => s !== '').join('\n\n')
-  const rendered = template
-    .replace('{{persona}}', JSON.stringify(persona))
-    .replace('{{packageRows}}', packageRows)
-    .replace('{{extraRows}}', allRows)
+  // Parameters are substituted BEFORE the serverName suffix is hashed: a
+  // parameter change alters the file's bytes, and the generation invariant
+  // (bytes decide names) must see the final text.
+  const rendered = applyParams(
+    template
+      .replace('{{persona}}', JSON.stringify(persona))
+      .replace('{{packageRows}}', packageRows)
+      .replace('{{extraRows}}', allRows),
+    req.params ?? {},
+  )
   return rendered.replaceAll(SUFFIX_SLOT, presetNameSuffix(presetId, rendered))
 }
 
@@ -300,6 +314,56 @@ export function resolvePresetId(
     id = `${desired}-${n}`
   }
   return id
+}
+
+/**
+ * Parameter keys that smell like secrets — refused, never rendered.
+ *
+ * The parameter channel exists for deployment facts (timezone, language, a
+ * working directory), and preset files are plain text that lands in git and
+ * in the roster UI. A credential arriving here would be a plaintext leak with
+ * an innocent-looking door, so the door is machine-locked rather than
+ * documented shut (DESIGN.md negative list #4: secrets are declared, never
+ * embedded).
+ */
+const SECRET_KEY_RE = /(password|passwd|secret|token|api[-_]?key|access[-_]?key|credential|private[-_]?key|auth)/i
+
+export interface ParamRejection { key: string; reason: string }
+
+/**
+ * Split caller-supplied parameters into the accepted set and the refused ones.
+ * Values are never inspected — a key that looks like a secret is refused even
+ * when its value is harmless, because the SHAPE is what invites misuse later.
+ */
+export function screenParams(params: Record<string, string>): {
+  accepted: Record<string, string>
+  rejected: ParamRejection[]
+} {
+  const accepted: Record<string, string> = {}
+  const rejected: ParamRejection[] = []
+  for (const [k, v] of Object.entries(params)) {
+    if (SECRET_KEY_RE.test(k)) {
+      rejected.push({ key: k, reason: '疑似凭证:秘密不进 preset 文件,请走 host 的 env/settings 通道' })
+    } else if (!/^[A-Za-z][A-Za-z0-9_-]{0,39}$/.test(k)) {
+      rejected.push({ key: k, reason: '键名非法(字母开头,字母/数字/-/_,≤40 字符)' })
+    } else if (v.length > 200) {
+      rejected.push({ key: k, reason: `值过长(${String(v.length)} 字符 > 200)` })
+    } else {
+      accepted[k] = v
+    }
+  }
+  return { accepted, rejected }
+}
+
+/**
+ * Fill `{{param:key}}` slots in a rendered composition.
+ *
+ * An unfilled slot renders as the empty string rather than staying literal:
+ * a preset carrying `{{param:timezone}}` into a session would hand the model
+ * a placeholder as if it were a value.
+ */
+export function applyParams(text: string, params: Record<string, string>): string {
+  return text.replace(/\{\{param:([A-Za-z][A-Za-z0-9_-]{0,39})\}\}/g, (_m, key: string) => params[key] ?? '')
 }
 
 /**
@@ -552,6 +616,7 @@ export function renderPartsLock(opts: {
   presetText: string
   index: IndexRecord[]
   personaFindings?: PersonaLintFinding[]
+  params?: Record<string, string>
 }): string {
   const byId = new Map(opts.index.map((r) => [r.id, r]))
   const serverNames = [...opts.presetText.matchAll(/serverName: "([^"]+)"/g)].map((m) => m[1])
@@ -589,6 +654,9 @@ export function renderPartsLock(opts: {
   if (opts.personaFindings !== undefined && opts.personaFindings.length > 0) {
     doc.personaLint = opts.personaFindings.map((f) => `${f.kind}: ${f.detail}`)
   }
+  // Parameters are part of the build record: the same preset id emitted with
+  // different parameters is a different artifact, and the lock says which.
+  if (opts.params !== undefined && Object.keys(opts.params).length > 0) doc.params = opts.params
   return '# 零件物料清单(BOM)— dsh-assembler 自动生成;记录每个能力的供应链出处。\n'
     + '# 审计:repo@rev 为上游锁定版本,license 为上游许可证,serverName 为本 preset 实际挂载名。\n'
     + yaml.dump(doc, { lineWidth: -1 })
@@ -632,7 +700,7 @@ export async function assemble(
   ctx: Context,
   requirement: string,
   config: Config,
-  options: { name?: string } = {},
+  options: { name?: string; params?: Record<string, string> } = {},
 ): Promise<{
   id: string
   capabilityIds: string[]
@@ -641,12 +709,18 @@ export async function assemble(
   drafts: string[]
   verification: ProbeResult
   personaLint: PersonaLintFinding[]
+  params: Record<string, string>
+  paramsRejected: ParamRejection[]
 }> {
   const catalogPath = config.catalogPath ?? join(REPO, 'capabilities.yml')
   const templatePath = config.templatePath ?? join(REPO, 'presets', 'agent-template.yml')
   const staticCatalog = loadCatalog(catalogPath)
   const catalog = await federateMcpTools(staticCatalog)
   const req = await llmMapRequirement(ctx, requirement, catalog, { provider: config.provider, model: config.model }, config)
+  // Parameter screening happens before emission so a refused key can never
+  // reach the file; rejections are reported, not silently dropped.
+  const screened = screenParams(options.params ?? {})
+  req.params = screened.accepted
   const template = readFileSync(templatePath, 'utf8')
   const presetRoot = config.presetRoot ?? join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), '.agent-presets')
   const id = resolvePresetId(options.name, req.name, presetRoot)
@@ -662,9 +736,11 @@ export async function assemble(
 
   // ── Assemble-then-verify ─────────────────────────────────────────────
   // vibe assembly's promise is find → assemble → VERIFY. Default-on probe:
-  // derive a one-turn task, run it in a real session bound to this preset,
-  // judge the reply. One FAIL triggers a re-selection (the matcher is told
-  // what failed) and a single re-emit under the same id.
+  // derive an acceptance probe (the deriver picks one turn or a multi-turn
+  // scenario), run it in a real session bound to this preset, judge the
+  // replies. One FAIL triggers a re-selection (the matcher is told what
+  // failed) and a single re-emit under the same id — failure changes the
+  // ROOM (which parts are mounted), never the model's head.
   let verification: ProbeResult = { status: 'SKIPPED', reason: 'verify disabled' }
   let personaFindings: PersonaLintFinding[] = []
   if (config.verify !== false) {
@@ -674,9 +750,14 @@ export async function assemble(
     } else {
       const byId = new Map(catalog.capabilities.map((c) => [c.id, c]))
       const selected = req.capabilityIds.map((cid) => byId.get(cid)).filter((c): c is CapabilityEntry => c !== undefined)
+      const runPlan = async (plan: ProbePlan): Promise<ProbeResult> => (
+        plan.kind === 'scenario'
+          ? await runScenario(port, id, plan.scenario, config.verifyTimeoutMs)
+          : await runProbe(port, id, plan.probe, config.verifyTimeoutMs)
+      )
       try {
-        const probe = await deriveProbe(ctx, requirement, selected, { provider: config.provider, model: config.model })
-        verification = await runProbe(port, id, probe, config.verifyTimeoutMs)
+        const plan = await deriveProbePlan(ctx, requirement, selected, { provider: config.provider, model: config.model })
+        verification = await runPlan(plan)
         if (verification.status === 'FAIL') {
           // One re-selection with failure feedback, re-emit under the same id.
           // Its own catch: a transient failure INSIDE the retry (a flaky model
@@ -692,8 +773,8 @@ export async function assemble(
             )
             const retryPreset = emitPreset(retryReq, catalog, template, id)
             writePresetFile(join(dir, 'agent.cordis.yml'), retryPreset)
-            const retryProbe = await deriveProbe(ctx, requirement, retryReq.capabilityIds.map((cid) => byId.get(cid)).filter((c): c is CapabilityEntry => c !== undefined), { provider: config.provider, model: config.model })
-            verification = await runProbe(port, id, retryProbe, config.verifyTimeoutMs)
+            const retryPlan = await deriveProbePlan(ctx, requirement, retryReq.capabilityIds.map((cid) => byId.get(cid)).filter((c): c is CapabilityEntry => c !== undefined), { provider: config.provider, model: config.model })
+            verification = await runPlan(retryPlan)
             if (verification.status === 'PASS') {
               req.capabilityIds = retryReq.capabilityIds
             }
@@ -732,6 +813,7 @@ export async function assemble(
       presetText: readFileSync(join(dir, 'agent.cordis.yml'), 'utf8'),
       index,
       personaFindings,
+      params: screened.accepted,
     }))
   } catch (error: unknown) {
     // The lock is provenance metadata: failing to write it must not fail
@@ -739,7 +821,7 @@ export async function assemble(
     console.error(`[assembler] parts.lock.yml write failed: ${error instanceof Error ? error.message : String(error)}`)
   }
 
-  return { id, capabilityIds: req.capabilityIds, missing: req.missing, presetPath: join(dir, 'agent.cordis.yml'), drafts, verification, personaLint: personaFindings }
+  return { id, capabilityIds: req.capabilityIds, missing: req.missing, presetPath: join(dir, 'agent.cordis.yml'), drafts, verification, personaLint: personaFindings, params: screened.accepted, paramsRejected: screened.rejected }
 }
 
 /** Shared human-facing result text for the command and the tool. */
@@ -751,17 +833,39 @@ export function assembleResultText(result: Awaited<ReturnType<typeof assemble>>)
     ? `\n\n补件草案 (append to the "capabilities:" section of capabilities.yml):\n${result.drafts.join('\n')}`
     : ''
   const v = result.verification
-  const marks = v.probe !== undefined ? `;验收标记 [${v.probe.mustInclude.join(', ')}]` : ''
-  const verifyLine = v.status === 'PASS'
-    ? `\n自动验证:PASS — 探针「${v.probe?.task.slice(0, 80) ?? ''}」通过${marks}`
-    : v.status === 'FAIL'
-      ? `\n自动验证:FAIL — ${v.reason ?? '探针回复未含验收标记'}${marks};探针「${v.probe?.task.slice(0, 80) ?? ''}」`
-        + `${v.reply !== undefined && v.reply !== '' ? `;回复摘录「${v.reply.slice(0, 120)}」` : ''}(preset 已生成,建议人工试用)`
-      : `\n自动验证:跳过(${v.reason ?? ''})`
+  // Two probe shapes render differently: a single probe reports its task and
+  // marks; a scenario reports the turn ladder, which is the evidence that
+  // state survived across turns.
+  let verifyLine: string
+  if (v.kind === 'scenario' && v.scenario !== undefined) {
+    const ladder = (v.turns ?? [])
+      .map((t) => `  第${String(t.index)}轮 ${t.pass ? '✓' : '✗'} 「${t.prompt.slice(0, 50)}」标记 [${t.mustInclude.join(', ')}]`)
+      .join('\n')
+    const head = `场景「${v.scenario.goal.slice(0, 60)}」共 ${String(v.scenario.turns.length)} 轮`
+    verifyLine = v.status === 'PASS'
+      ? `\n自动验证:PASS — 多轮${head},逐轮通过\n${ladder}`
+      : v.status === 'FAIL'
+        ? `\n自动验证:FAIL — 多轮${head};${v.reason ?? ''}\n${ladder}(preset 已生成,建议人工试用)`
+        : `\n自动验证:跳过(${v.reason ?? ''})`
+  } else {
+    const marks = v.probe !== undefined ? `;验收标记 [${v.probe.mustInclude.join(', ')}]` : ''
+    verifyLine = v.status === 'PASS'
+      ? `\n自动验证:PASS — 探针「${v.probe?.task.slice(0, 80) ?? ''}」通过${marks}`
+      : v.status === 'FAIL'
+        ? `\n自动验证:FAIL — ${v.reason ?? '探针回复未含验收标记'}${marks};探针「${v.probe?.task.slice(0, 80) ?? ''}」`
+          + `${v.reply !== undefined && v.reply !== '' ? `;回复摘录「${v.reply.slice(0, 120)}」` : ''}(preset 已生成,建议人工试用)`
+        : `\n自动验证:跳过(${v.reason ?? ''})`
+  }
+  const paramLine = Object.keys(result.params).length > 0
+    ? `\n装配参数:${Object.entries(result.params).map(([k, v]) => `${k}=${v}`).join(', ')}`
+    : ''
+  const rejectLine = result.paramsRejected.length > 0
+    ? `\n参数被拒:${result.paramsRejected.map((r) => `${r.key}(${r.reason})`).join(';')}`
+    : ''
   const lint = result.personaLint.length > 0
     ? `\npersona 检查:${String(result.personaLint.length)} 条提示 — ${result.personaLint.map((f) => f.detail).join(';')}`
     : ''
-  return `assembled preset "${result.id}" with: ${result.capabilityIds.join(', ')}${missing}${drafts}${verifyLine}${lint}\n`
+  return `assembled preset "${result.id}" with: ${result.capabilityIds.join(', ')}${missing}${drafts}${verifyLine}${paramLine}${rejectLine}${lint}\n`
     + `preset file: ${result.presetPath}\n`
     + `start a new session and select preset ${result.id} to use it.`
 }
@@ -781,7 +885,7 @@ export function apply(ctx: Context, config: Config = {}): void {
 
   ctx.commands.register({
     name: 'assemble',
-    description: 'Assemble an agent from a natural-language requirement (vibe assembly). Usage: /assemble <requirement> [--name <kebab-case-preset-name>]',
+    description: 'Assemble an agent from a natural-language requirement (vibe assembly). Usage: /assemble <requirement> [--name <kebab-case-preset-name>] [--param key=value ...]',
     // input.hint is REQUIRED for the web client's slash pipeline to claim
     // the token and route "/assemble <args>" to command.execute. Without it,
     // an argued line falls through to the default chat sink (the LLM gets
@@ -797,15 +901,25 @@ export function apply(ctx: Context, config: Config = {}): void {
           text: 'usage: /assemble <what you want the agent to do> [--name <kebab-case-preset-name>]',
         }
       }
-      // Optional trailing "--name <slug>" / "--name=<slug>": names the preset
-      // id directly (e.g. web-research); without it the matcher suggests one.
-      const nameMatch = raw.match(/^(.*?)\s+--name(?:=|\s+)([a-zA-Z0-9][a-zA-Z0-9-]{0,63})\s*$/)
-      const requirement = (nameMatch ? nameMatch[1] : raw).trim()
+      // Optional flags, any order after the requirement:
+      //   --name <slug>        name the preset id directly
+      //   --param k=v          non-secret deployment parameter (repeatable)
+      // Parsed off the tail so the requirement itself keeps its own wording.
+      const params: Record<string, string> = {}
+      let rest = raw
+      for (;;) {
+        const paramMatch = rest.match(/\s--param(?:=|\s+)([A-Za-z][A-Za-z0-9_-]{0,39})=(\S+)\s*$/)
+        if (paramMatch === null) break
+        params[paramMatch[1]] = paramMatch[2]
+        rest = rest.slice(0, paramMatch.index).trimEnd()
+      }
+      const nameMatch = rest.match(/^(.*?)\s+--name(?:=|\s+)([a-zA-Z0-9][a-zA-Z0-9-]{0,63})\s*$/)
+      const requirement = (nameMatch ? nameMatch[1] : rest).trim()
       if (requirement === '') {
         return { kind: 'error', text: 'usage: /assemble <what you want the agent to do> [--name <kebab-case-preset-name>]' }
       }
       try {
-        const result = await assemble(ctx, requirement, config, { name: nameMatch?.[2] })
+        const result = await assemble(ctx, requirement, config, { name: nameMatch?.[2], params })
         return { kind: 'success', text: assembleResultText(result) }
       } catch (error: unknown) {
         return {
