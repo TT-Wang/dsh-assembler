@@ -105,15 +105,48 @@ interface AssembleRequest {
   name?: string
 }
 
-export function loadCatalog(path: string): Catalog {
-  const raw = (yaml.load(readFileSync(path, 'utf8')) ?? {}) as Partial<Catalog>
+/** Depth limit for `extends` chains: a cycle would otherwise recurse forever. */
+const MAX_CATALOG_LAYERS = 8
+
+/**
+ * Read a catalog, applying its `extends:` base underneath it.
+ *
+ * A client catalog LAYERS over the public one rather than replacing it, the
+ * same way a dsh profile stacks patches over its bundles. Without this, a
+ * client whose own parts are public infrastructure could not be assembled at
+ * all: pointing the assembler at `catalogs/<client>/capabilities.yml` showed
+ * the client's policy and none of the shared parts, and the only way out was
+ * to re-wrap the same public API once per client — exactly what the dedup gate
+ * exists to prevent.
+ *
+ * The client layer wins on id collisions, so a client can override a shared
+ * entry (a stricter persona, a different server command) by declaring the same
+ * id. `extends` is relative to the file that declares it.
+ */
+export function loadCatalog(path: string, seen: readonly string[] = []): Catalog {
+  const here = resolve(path)
+  if (seen.includes(here)) {
+    throw new Error(`catalog extends cycle: ${[...seen, here].map((p) => p.replace(REPO + '/', '')).join(' -> ')}`)
+  }
+  if (seen.length >= MAX_CATALOG_LAYERS) {
+    throw new Error(`catalog extends chain deeper than ${MAX_CATALOG_LAYERS} layers — likely a mistake`)
+  }
+  const raw = (yaml.load(readFileSync(here, 'utf8')) ?? {}) as Partial<Catalog> & { extends?: unknown }
   // An empty `capabilities:` section parses to null, which is the NORMAL
   // state of a freshly created client catalog (parts registered, no static
   // entries yet). Normalizing here keeps every downstream `.map`/`.filter`
   // honest instead of crashing federation on a legitimately empty catalog.
-  return {
+  const own: Catalog = {
     capabilities: Array.isArray(raw.capabilities) ? raw.capabilities : [],
     'mcp-servers': (raw['mcp-servers'] ?? {}) as Record<string, Record<string, unknown>>,
+  }
+  if (typeof raw.extends !== 'string' || raw.extends === '') return own
+
+  const base = loadCatalog(resolve(dirname(here), raw.extends), [...seen, here])
+  const overridden = new Set(own.capabilities.map((c) => c.id))
+  return {
+    capabilities: [...base.capabilities.filter((c) => !overridden.has(c.id)), ...own.capabilities],
+    'mcp-servers': { ...base['mcp-servers'], ...own['mcp-servers'] },
   }
 }
 

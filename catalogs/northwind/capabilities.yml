@@ -1,0 +1,23 @@
+# northwind 能力目录
+#
+# 这一层只放**属于这个客户的东西**:治理口径知识包。漏洞查询(osv-vulns)与
+# 包元数据(deps-graph)是公共基础设施,留在公共目录里由所有客户共享——
+# 每个客户各包一遍同一个公开 API,正是去重门要挡的事。
+#
+# extends 把公共目录垫在下面,同 id 时本层覆盖。
+extends: ../../capabilities.yml
+
+mcp-servers:
+
+capabilities:
+  - id: nw-governance-kb
+    via: knowledge
+    description: Northwind 开源治理口径 + 两个上游(OSV.dev / deps.dev)的字段口径实测差异——装配时拷入 preset 的 kb/,agent 用文件检索工具查阅。严重度分级、许可证清单、无可用修复时的处置顺序、报告留痕要求都在里面。
+    tags: [知识库, 治理, 合规, 开源, 依赖, 漏洞, 许可证, 严重度, 分级, waiver, 豁免, 报告, sbom, osv, deps.dev, ecosystem, cvss, governance, licence, license, policy, kb, knowledge, northwind]
+    config:
+      pack: nw-oss-governance
+      presetRows:
+        - id: tool-fs-search
+          name: '@deepseek-ai/dsh-tool-fs-search'
+          config:
+            sampleOverCapGlobResults: false

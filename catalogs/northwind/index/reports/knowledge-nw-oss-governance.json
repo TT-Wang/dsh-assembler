@@ -1,0 +1,315 @@
+{
+  "id": "nw-oss-governance",
+  "kind": "knowledge",
+  "verifiedAt": "2026-08-17T15:56:22.321Z",
+  "probes": [
+    {
+      "question": "给 OSV 查一个 Python 包时,ecosystem 该怎么拼?给 deps.dev 呢?",
+      "marks": [
+        "invalid ecosystem",
+        "PYPI",
+        "PyPI"
+      ],
+      "hits": [
+        {
+          "mark": "invalid ecosystem",
+          "found": true,
+          "in": "01-两个上游的字段口径.md"
+        },
+        {
+          "mark": "PYPI",
+          "found": true,
+          "in": "01-两个上游的字段口径.md"
+        },
+        {
+          "mark": "PyPI",
+          "found": true,
+          "in": "01-两个上游的字段口径.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "Rust 包在两个上游分别叫什么?",
+      "marks": [
+        "crates.io",
+        "CARGO"
+      ],
+      "hits": [
+        {
+          "mark": "crates.io",
+          "found": true,
+          "in": "01-两个上游的字段口径.md"
+        },
+        {
+          "mark": "CARGO",
+          "found": true,
+          "in": "01-两个上游的字段口径.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "为什么不能只跑一次批量查询就出治理结论?",
+      "marks": [
+        "querybatch",
+        "只回 id",
+        "分诊"
+      ],
+      "hits": [
+        {
+          "mark": "querybatch",
+          "found": true,
+          "in": "01-两个上游的字段口径.md"
+        },
+        {
+          "mark": "只回 id",
+          "found": true,
+          "in": "01-两个上游的字段口径.md"
+        },
+        {
+          "mark": "分诊",
+          "found": true,
+          "in": "01-两个上游的字段口径.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "批量查询里某个包没有漏洞,返回的是什么?怎么读?",
+      "marks": [
+        "按输入顺序位置对齐",
+        "空对象"
+      ],
+      "hits": [
+        {
+          "mark": "按输入顺序位置对齐",
+          "found": true,
+          "in": "01-两个上游的字段口径.md"
+        },
+        {
+          "mark": "空对象",
+          "found": true,
+          "in": "01-两个上游的字段口径.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "修复版本从 OSV 记录的哪个字段取?哪种区间类型不能直接当升级目标?",
+      "marks": [
+        "affected[].ranges[].events[].fixed",
+        "commit 哈希"
+      ],
+      "hits": [
+        {
+          "mark": "affected[].ranges[].events[].fixed",
+          "found": true,
+          "in": "01-两个上游的字段口径.md"
+        },
+        {
+          "mark": "commit 哈希",
+          "found": true,
+          "in": "01-两个上游的字段口径.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "一条漏洞没有定性严重度标签,能不能当低危处理?",
+      "marks": [
+        "不要因为缺定性标签就当成低危",
+        "待评估"
+      ],
+      "hits": [
+        {
+          "mark": "不要因为缺定性标签就当成低危",
+          "found": true,
+          "in": "01-两个上游的字段口径.md"
+        },
+        {
+          "mark": "待评估",
+          "found": true,
+          "in": "02-治理判定口径.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "CVSS 8.0 的漏洞属于哪一级,多久要修完?",
+      "marks": [
+        "HIGH",
+        "5 个工作日"
+      ],
+      "hits": [
+        {
+          "mark": "HIGH",
+          "found": true,
+          "in": "01-两个上游的字段口径.md"
+        },
+        {
+          "mark": "5 个工作日",
+          "found": true,
+          "in": "02-治理判定口径.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "许可证字段是空的,该放行还是拦下?",
+      "marks": [
+        "空的许可证字段按禁止处理"
+      ],
+      "hits": [
+        {
+          "mark": "空的许可证字段按禁止处理",
+          "found": true,
+          "in": "02-治理判定口径.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "AGPL-3.0 的依赖怎么处置?MPL-2.0 呢?",
+      "marks": [
+        "AGPL-3.0",
+        "禁止引入",
+        "MPL-2.0",
+        "法务审批"
+      ],
+      "hits": [
+        {
+          "mark": "AGPL-3.0",
+          "found": true,
+          "in": "02-治理判定口径.md"
+        },
+        {
+          "mark": "禁止引入",
+          "found": true,
+          "in": "02-治理判定口径.md"
+        },
+        {
+          "mark": "MPL-2.0",
+          "found": true,
+          "in": "02-治理判定口径.md"
+        },
+        {
+          "mark": "法务审批",
+          "found": true,
+          "in": "02-治理判定口径.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "命中漏洞但上游没有修复版本,按什么顺序找出路?",
+      "marks": [
+        "不可达豁免",
+        "复查日期"
+      ],
+      "hits": [
+        {
+          "mark": "不可达豁免",
+          "found": true,
+          "in": "02-治理判定口径.md"
+        },
+        {
+          "mark": "复查日期",
+          "found": true,
+          "in": "02-治理判定口径.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "一条 waiver 缺了批准人,agent 应该怎么做?",
+      "marks": [
+        "拒绝生成而不是补全空缺"
+      ],
+      "hits": [
+        {
+          "mark": "拒绝生成而不是补全空缺",
+          "found": true,
+          "in": "02-治理判定口径.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "报告里为什么要写上零命中的包?",
+      "marks": [
+        "零命中也要出现在报告里"
+      ],
+      "hits": [
+        {
+          "mark": "零命中也要出现在报告里",
+          "found": true,
+          "in": "02-治理判定口径.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "deps.dev 的许可证字段能不能直接当合规结论?",
+      "marks": [
+        "参考信息不是法律结论"
+      ],
+      "hits": [
+        {
+          "mark": "参考信息不是法律结论",
+          "found": true,
+          "in": "02-治理判定口径.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "取 deps.dev 的最近发布版本,为什么不能直接取 versions 数组尾部?",
+      "marks": [
+        "版本字符串",
+        "publishedAt"
+      ],
+      "hits": [
+        {
+          "mark": "版本字符串",
+          "found": true,
+          "in": "01-两个上游的字段口径.md"
+        },
+        {
+          "mark": "publishedAt",
+          "found": true,
+          "in": "01-两个上游的字段口径.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "统计一个包的直接依赖数量时要排除什么?",
+      "marks": [
+        "SELF"
+      ],
+      "hits": [
+        {
+          "mark": "SELF",
+          "found": true,
+          "in": "01-两个上游的字段口径.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "这份治理口径是客户的真实规定吗?",
+      "marks": [
+        "示例策略,不是 Northwind 的真实内部规定"
+      ],
+      "hits": [
+        {
+          "mark": "示例策略,不是 Northwind 的真实内部规定",
+          "found": true,
+          "in": "02-治理判定口径.md"
+        }
+      ],
+      "pass": true
+    }
+  ]
+}
