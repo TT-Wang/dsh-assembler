@@ -1,0 +1,22 @@
+{
+  "appliedAt": "2026-08-17T07:05:17.461Z",
+  "port": 3097,
+  "params": {
+    "timezone": "Asia/Shanghai",
+    "language": "zh"
+  },
+  "results": [
+    {
+      "id": "acme-support-bot",
+      "verdict": "PASS",
+      "line": "自动验证:PASS — 探针「客户发来消息：“订单 ACME-7781 里的商品我要退货，而且我还会去网上曝光你们。”请按公司政策判断该情况应按《退换货政策》还是《客诉升级 SOP》处理，并」通过;验收标记 [ACME-7781, 客诉升级 SOP]",
+      "wallSeconds": 194
+    },
+    {
+      "id": "acme-catalog-inspector",
+      "verdict": "PASS",
+      "line": "自动验证:PASS — 探针「巡检任务：请使用 mcp__petstore-demo__find-pets-by-status 查询状态为 available 的在售商品，并使用 mcp__」通过;验收标记 [INV-7781, available, totalCount]",
+      "wallSeconds": 62
+    }
+  ]
+}

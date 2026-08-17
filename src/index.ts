@@ -1048,7 +1048,11 @@ export async function assemble(
   // verify-retry re-selection, req.capabilityIds and the preset bytes on
   // disk are both the retry's, and the lock reads them from there.
   try {
-    const indexPath = join(REPO, 'index', 'catalog.yml')
+    // The index lives BESIDE the catalog in use: a client catalog
+    // (catalogs/<client>/capabilities.yml) has its own index/catalog.yml, and
+    // reading the public one instead produced BOM rows with no provenance at
+    // all for client parts — the one thing a handover document exists to show.
+    const indexPath = join(dirname(catalogPath), 'index', 'catalog.yml')
     const index = existsSync(indexPath) ? (yaml.load(readFileSync(indexPath, 'utf8')) as IndexRecord[]) : []
     const byIdAll = new Map(catalog.capabilities.map((c) => [c.id, c]))
     const finalSelected = req.capabilityIds

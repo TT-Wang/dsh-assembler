@@ -1,0 +1,14 @@
+# acme-service —— 方案包清单(FDE 交付单元)
+# apply 会按 agents 逐个装配;凭证只声明不落值,验收结果写进 handover 报告。
+name: acme-service
+client: acme
+version: 1.0.0
+catalog: catalogs/acme/capabilities.yml
+params:
+  timezone: Asia/Shanghai
+  language: zh
+agents:
+- id: acme-support-bot
+  requirement: ACME 客服助手,按公司退换货政策和客诉升级 SOP 回答客户问题
+- id: acme-catalog-inspector
+  requirement: 商品目录巡检助手,按状态查询在售商品并统计各状态库存

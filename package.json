@@ -29,7 +29,8 @@
     "index:verify": "node scripts/index-add.mjs verify",
     "index:register": "node scripts/index-add.mjs register",
     "index:check": "node scripts/index-add.mjs check-all",
-    "index:auto": "node scripts/index-add.mjs auto"
+    "index:auto": "node scripts/index-add.mjs auto",
+    "solution": "node scripts/solution.mjs"
   },
   "license": "BSD-3-Clause",
   "peerDependencies": {
