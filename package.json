@@ -30,7 +30,9 @@
     "index:register": "node scripts/index-add.mjs register",
     "index:check": "node scripts/index-add.mjs check-all",
     "index:auto": "node scripts/index-add.mjs auto",
-    "solution": "node scripts/solution.mjs"
+    "solution": "node scripts/solution.mjs",
+    "catalog:report": "node scripts/catalog-report.mjs",
+    "catalog:check": "node scripts/catalog-report.mjs --check"
   },
   "license": "BSD-3-Clause",
   "peerDependencies": {

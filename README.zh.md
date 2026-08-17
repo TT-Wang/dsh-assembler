@@ -17,7 +17,7 @@
 | | 数字 | 证据 |
 |---|---|---|
 | 能力目录 | **79 个 MCP 服务器 / 215 个登记工具 / 237 个可装配条目**(联邦实探 229 条 mcp + 8 条静态) | `index/catalog.yml` |
-| 零件构成 | 65 库型 + 13 服务型 + 4 第一方 | 同上 |
+| 零件构成 | 61 库型 + 13 服务型 + 4 第一方 | 同上 |
 | 零件质检 | **80/80 冒烟通过**(含 2 个客户零件) | `npm run index:check` |
 | 装配质量 | **44/45 (98%)**;L3 多轮流程题 **5/5** | `bench/results/2026-08-17-*.json` |
 | 选型稳定性 | 目录 137 → 227 条目(+47%)基线题**零退化** | 三轮 bench 账本对照 |
@@ -145,7 +145,215 @@ dsh-assembler/
 | `mcp` | MCP 服务器工具(装配时自动联邦) | `mcp-weather-forecast-current-weather` 等 229 条 |
 | `knowledge` | 客户静态教材(装配时拷入 `kb/`) | `acme-policies-kb` |
 
-当前覆盖:邮件收发、HTTP、HTML、CSV/YAML/TOML/XML、Excel、PDF 生成与提取、Word/PPT、ZIP、模糊搜索、模板渲染、图片处理、RSS、日历与 RRULE、SQLite/PostgreSQL/MySQL、GitHub API、Markdown、OCR、条码/二维码、货币精算、浏览器自动化、二进制落盘、文本 diff、数学与单位换算、cron、电话号码、semver、拼音/简繁/分词/中文大写、编码转换、哈希/HMAC/UUID、JMESPath、JSON Schema、字符串校验、测试数据、颜色、地理距离、EXIF、文件类型、JWT、IP/CIDR、转写 slug、gzip/brotli、DNS,以及 **13 个实时数据服务**(天气/汇率/地理编码/节假日/世界银行/SEC EDGAR/Crossref+arXiv/Wikipedia+Wikidata/OpenAlex/npm+PyPI/飞书/Slack/GitHub Issues)。
+**78 个零件 / 215 个工具** —— 61 库型、13 服务型、4 第一方。这一节用 `npm run catalog:report` 重新生成。
+
+### 服务型零件 —— 实时数据与外部系统
+
+| 零件 | 工具 | 数据源 | 许可/条款 | 凭证 |
+|---|---|---|---|---|
+| **package-registry** | `package-info` `package-versions` `check-license` | npm + PyPI registries | registry ToS | 免 |
+| **weather-forecast** | `current-weather` `daily-forecast` | Open-Meteo | CC-BY-4.0 | 免 |
+| **currency-rates** | `latest-rates` `historical-rate` `convert-amount` | Frankfurter (ECB data) | Public-Domain-ECB | 免 |
+| **geocode** | `geocode-address` `reverse-geocode` | OpenStreetMap Nominatim | ODbL-1.0 | 免 |
+| **public-holidays** | `list-holidays` `is-workday` `available-countries` | Nager.Date | MIT | 免 |
+| **worldbank-data** | `country-indicator` `common-indicators` | World Bank Open Data | CC-BY-4.0 | 免 |
+| **sec-filings** | `lookup-cik` `company-filings` | U.S. SEC EDGAR | Public-Domain-US-Gov | 免 |
+| **scholar-search** | `search-published` `search-preprints` `doi-lookup` | Crossref + arXiv | CC0-1.0 / arXiv terms | 免 |
+| **wiki-facts** | `page-summary` `search-entity` `entity-facts` | Wikimedia (Wikipedia + Wikidata) | CC-BY-SA-4.0 | 免 |
+| **research-graph** | `search-works` `work-citations` `author-works` | OpenAlex | CC0-1.0 | 免 |
+| **feishu-messaging** | `send-message` `list-chats` `feishu-capabilities` | 飞书开放平台 | Feishu API ToS | `FEISHU_APP_ID` `FEISHU_APP_SECRET` |
+| **slack-messaging** | `post-message` `list-channels` `slack-capabilities` | Slack API | Slack API ToS | `SLACK_BOT_TOKEN` |
+| **github-issues** | `list-issues` `get-issue` `create-issue` `github-capabilities` | GitHub REST API | GitHub ToS | `GITHUB_TOKEN`(可选) |
+
+### 第一方零件 —— Node 内置薄壳,零第三方依赖
+
+`binary-write`(write-binary-file) · `crypto-hash`(hash-text, hmac-sign, generate-uuid) · `compress-gzip`(compress, decompress) · `dns-lookup`(resolve-domain, reverse-lookup)
+
+### 库型零件(按领域)
+
+| 领域 | 零件(工具数) |
+|---|---|
+| **文档办公** | `pdf-generate`(4) · `pdf-extract`(3) · `pdf-report`(1) · `docx-generate`(3) · `docx-extract`(2) · `pptx-generate`(1) · `excel-read-write`(4) · `zip-archive`(4) |
+| **数据格式** | `csv-parse`(3) · `yaml-convert`(2) · `toml-parse`(2) · `xml-parse`(3) · `json-query`(2) · `json-schema-validate`(2) · `html-parse`(4) · `html-to-text`(4) |
+| **文本处理** | `markdown-render`(3) · `html-to-markdown`(1) · `readability-extract`(2) · `text-diff`(3) · `template-render`(4) · `fuzzy-search`(4) · `text-encoding`(2) |
+| **中文专项** | `pinyin-convert`(2) · `chinese-convert`(2) · `word-segment`(2) · `num-to-chinese`(2) |
+| **计算** | `math-eval`(2) · `currency-calc`(4) · `number-format`(4) · `semver-check`(3) · `geo-distance`(3) · `color-convert`(2) |
+| **时间日历** | `date-format`(4) · `cron-parse`(2) · `calendar-parse`(3) · `calendar-generate`(4) · `rrule-expand`(2) |
+| **数据库** | `sqlite-query`(3) · `mysql-query`(4) · `postgres-query`(4) |
+| **网络通信** | `http-request`(4) · `email-send`(4) · `email-fetch`(4) · `rss-parse`(4) |
+| **媒体识别** | `image-process`(4) · `ocr-parse`(3) · `qrcode-generate`(4) · `barcode-generate`(2) · `exif-read`(1) · `file-type-detect`(1) |
+| **安全校验** | `jwt-decode`(2) · `ip-utils`(2) · `string-validate`(2) · `fake-data`(2) · `phone-parse`(2) |
+| **工程工具** | `github-api`(4) · `browser-automate`(4) · `url-slugify`(3) · `transliterate`(2) · `safe-filename`(2) |
+
+<details>
+<summary><b>完整工具级清单</b></summary>
+
+- **email-send** — `send-email`, `verify-smtp-config`, `parse-email-addresses`, `create-test-account`
+  <br/><sub>nodemailer/nodemailer@v6.9.13 · MIT</sub>
+- **email-fetch** — `list-mailboxes`, `search-messages`, `fetch-message`, `list-message-summaries`
+  <br/><sub>postalsys/imapflow@v1.0.162 · MIT</sub>
+- **http-request** — `http-request`, `http-get`, `http-post`, `build-url`
+  <br/><sub>axios/axios@v1.7.2 · MIT</sub>
+- **html-parse** — `extract-text`, `extract-attributes`, `query-elements`, `serialize-html`
+  <br/><sub>cheeriojs/cheerio@v1.0.0-rc.12 · MIT</sub>
+- **csv-parse** — `parse-csv`, `unparse-csv`, `validate-csv`
+  <br/><sub>papaparse/papaparse@5.4.1 · MIT</sub>
+- **pdf-generate** — `create-pdf`, `merge-pdfs`, `extract-pages`, `pdf-info`
+  <br/><sub>Hopding/pdf-lib@v1.17.1 · MIT</sub>
+- **date-format** — `format-date`, `parse-date`, `date-diff`, `date-manipulate`
+  <br/><sub>iamkun/dayjs@v1.11.11 · MIT</sub>
+- **sqlite-query** — `query`, `execute`, `list-tables`
+  <br/><sub>WiseLibs/better-sqlite3@v11.1.2 · MIT</sub>
+- **github-api** — `get-user`, `get-repo`, `list-org-repos`, `search-repositories`
+  <br/><sub>octokit/rest.js@v20.1.1 · MIT</sub>
+- **markdown-render** — `render-markdown`, `render-markdown-inline`, `tokenize-markdown`
+  <br/><sub>markedjs/marked@v12.0.2 · MIT</sub>
+- **pdf-extract** — `get-pdf-text`, `get-pdf-info`, `search-pdf-text`
+  <br/><sub>pdf-parse/pdf-parse@1.1.1 · MIT</sub>
+- **excel-read-write** — `read-xlsx-file`, `write-xlsx-file`, `read-csv-file`, `write-csv-file`
+  <br/><sub>exceljs/exceljs@v4.4.0 · MIT</sub>
+- **docx-generate** — `docx-generate-text`, `docx-generate-table`, `docx-patch-document`
+  <br/><sub>dolanmiu/docx@8.5.0 · MIT</sub>
+- **zip-archive** — `zip-list-entries`, `zip-read-file`, `zip-create-archive`, `zip-update-archive`
+  <br/><sub>cthackers/adm-zip@v0.5.12 · MIT</sub>
+- **fuzzy-search** — `fuzzy-search`, `fuse-create-index`, `fuse-search-with-index`, `fuse-config`
+  <br/><sub>krisk/Fuse@v7.0.0 · Apache-2.0</sub>
+- **template-render** — `render-template`, `precompile-template`, `render-precompiled`, `validate-template`
+  <br/><sub>handlebars-lang/handlebars.js@v4.7.8 · MIT</sub>
+- **html-to-text** — `html-to-text`, `html-to-text-batch`, `html-to-text-table`, `html-to-text-links`
+  <br/><sub>html-to-text/node-html-to-text@9.0.5 · MIT</sub>
+- **xml-parse** — `xml-validate`, `xml-parse`, `xml-build`
+  <br/><sub>NaturalIntelligence/fast-xml-parser@v4.4.0 · MIT</sub>
+- **image-process** — `image-info`, `image-resize`, `image-convert`, `image-thumbnail`
+  <br/><sub>lovell/sharp@v0.33.4 · Apache-2.0</sub>
+- **rss-parse** — `parse-rss-string`, `parse-rss-url`, `extract-feed-items`, `parse-feed-metadata`
+  <br/><sub>rbren/rss-parser@v3.13.0 · MIT</sub>
+- **calendar-parse** — `parse-ics`, `parse-ics-file`, `fetch-ics-url`
+  <br/><sub>jens-maus/node-ical@0.19.0 · Apache-2.0</sub>
+- **calendar-generate** — `create-calendar`, `create-event`, `create-all-day-event`, `create-recurring-event`
+  <br/><sub>sebbo2002/ical-generator@v7.1.0 · MIT</sub>
+- **mysql-query** — `mysql-query`, `mysql-list-tables`, `mysql-describe-table`, `mysql-test-connection`
+  <br/><sub>sidorares/node-mysql2@v3.10.0 · MIT</sub>
+- **number-format** — `format-number`, `unformat-number`, `arithmetic`, `validate-number`
+  <br/><sub>adamwdraper/Numeral-js@2.0.6 · MIT</sub>
+- **qrcode-generate** — `qr-generate-png`, `qr-generate-data-url`, `qr-generate-svg`, `qr-generate-terminal`
+  <br/><sub>soldair/node-qrcode@v1.5.3 · MIT</sub>
+- **postgres-query** — `postgres-test-connection`, `postgres-list-tables`, `postgres-describe-table`, `postgres-query`
+  <br/><sub>brianc/node-postgres@pg@8.12.0 · MIT</sub>
+- **browser-automate** — `browser-open`, `browser-extract`, `browser-click`, `browser-screenshot`
+  <br/><sub>microsoft/playwright@v1.45.0 · Apache-2.0</sub>
+- **ocr-parse** — `ocr-languages`, `ocr-psm-modes`, `ocr-recognize`
+  <br/><sub>naptha/tesseract.js@v5.1.0 · Apache-2.0</sub>
+- **currency-calc** — `currency-calc`, `currency-format`, `currency-distribute`, `currency-parse`
+  <br/><sub>scurker/currency.js@v2.0.4 · MIT</sub>
+- **readability-extract** — `extract-article`, `extract-batch`
+  <br/><sub>mozilla/readability@0.5.0 · MIT</sub>
+- **pdf-report** — `create-report-pdf`
+  <br/><sub>Hopding/pdf-lib@v1.17.1 · MIT</sub>
+- **binary-write** — `write-binary-file`
+  <br/><sub>first-party@- · BSD-3-Clause</sub>
+- **text-diff** — `create-patch`, `apply-patch`, `diff-words`
+  <br/><sub>kpdecker/jsdiff@v9.0.0 · BSD-3-Clause</sub>
+- **crypto-hash** — `hash-text`, `hmac-sign`, `generate-uuid`
+  <br/><sub>first-party@v- · BSD-3-Clause</sub>
+- **math-eval** — `evaluate`, `unit-convert`
+  <br/><sub>josdejong/mathjs@v15.2.0 · Apache-2.0</sub>
+- **cron-parse** — `next-runs`, `describe-fields`
+  <br/><sub>harrisiirak/cron-parser@v5.10.0 · MIT</sub>
+- **semver-check** — `compare`, `satisfies`, `coerce-valid`
+  <br/><sub>npm/node-semver@v7.8.5 · ISC</sub>
+- **yaml-convert** — `yaml-to-json`, `json-to-yaml`
+  <br/><sub>eemeli/yaml@v2.9.0 · ISC</sub>
+- **pinyin-convert** — `to-pinyin`, `multi-tone`
+  <br/><sub>zh-lx/pinyin-pro@v3.29.2 · MIT</sub>
+- **chinese-convert** — `s2t`, `t2s`
+  <br/><sub>nk2028/opencc-js@v1.4.1 · MIT AND Apache-2.0</sub>
+- **html-to-markdown** — `html-to-markdown`
+  <br/><sub>mixmark-io/turndown@v7.2.4 · MIT</sub>
+- **text-encoding** — `decode-base64`, `encode-to-base64`
+  <br/><sub>ashtuchkin/iconv-lite@v0.7.3 · MIT</sub>
+- **phone-parse** — `parse-phone`, `format-phone`
+  <br/><sub>catamphetamine/libphonenumber-js@v1.13.11 · MIT</sub>
+- **compress-gzip** — `compress`, `decompress`
+  <br/><sub>first-party@v- · BSD-3-Clause</sub>
+- **dns-lookup** — `resolve-domain`, `reverse-lookup`
+  <br/><sub>first-party@v- · BSD-3-Clause</sub>
+- **json-query** — `query`, `query-multi`
+  <br/><sub>jmespath/jmespath.js@v0.16.0 · Apache-2.0</sub>
+- **json-schema-validate** — `validate`, `check-schema`
+  <br/><sub>ajv-validator/ajv@v8.20.0 · MIT</sub>
+- **toml-parse** — `toml-to-json`, `json-to-toml`
+  <br/><sub>squirrelchat/smol-toml@v1.8.0 · BSD-3-Clause</sub>
+- **docx-extract** — `docx-to-text`, `docx-to-html`
+  <br/><sub>mwilliamson/mammoth.js@v1.12.1 · BSD-2-Clause</sub>
+- **pptx-generate** — `create-pptx`
+  <br/><sub>gitbrent/pptxgenjs@v4.0.1 · MIT</sub>
+- **barcode-generate** — `barcode-png`, `barcode-types`
+  <br/><sub>metafloor/bwip-js@v4.11.2 · MIT</sub>
+- **string-validate** — `validate-string`, `sanitize-string`
+  <br/><sub>validatorjs/validator.js@v13.15.35 · MIT</sub>
+- **fake-data** — `fake-records`, `fake-text`
+  <br/><sub>faker-js/faker@v10.6.0 · MIT</sub>
+- **num-to-chinese** — `to-chinese`, `from-chinese`
+  <br/><sub>cnwhy/nzh@v1.0.14 · BSD-2-Clause</sub>
+- **jwt-decode** — `decode-jwt`, `verify-jwt-hs256`
+  <br/><sub>panva/jose@v6.2.9 · MIT</sub>
+- **ip-utils** — `parse-ip`, `cidr-match`
+  <br/><sub>whitequark/ipaddr.js@v2.5.0 · MIT</sub>
+- **transliterate** — `transliterate-text`, `make-slug`
+  <br/><sub>dzcpy/transliteration@v2.6.1 · MIT</sub>
+- **rrule-expand** — `expand-rrule`, `describe-rrule`
+  <br/><sub>jkbrzt/rrule@v2.8.1 · BSD-3-Clause</sub>
+- **exif-read** — `read-exif`
+  <br/><sub>MikeKovarik/exifr@v7.1.3 · MIT</sub>
+- **file-type-detect** — `detect-file-type`
+  <br/><sub>sindresorhus/file-type@v22.0.2 · MIT</sub>
+- **color-convert** — `convert-color`, `contrast-check`
+  <br/><sub>Evercoder/culori@v4.0.2 · MIT</sub>
+- **word-segment** — `segment-text`, `extract-keywords`
+  <br/><sub>linonetwo/segmentit@v2.0.3 · MIT</sub>
+- **geo-distance** — `distance`, `bearing`, `center-and-bounds`
+  <br/><sub>manuelbieh/geolib@v3.3.14 · MIT</sub>
+- **url-slugify** — `slugify`, `slugify-unique`, `slugify-custom`
+  <br/><sub>sindresorhus/slugify@v3.0.0 · MIT</sub>
+- **safe-filename** — `sanitize`, `sanitize-path`
+  <br/><sub>sindresorhus/filenamify@v7.0.2 · MIT</sub>
+- **package-registry** — `package-info`, `package-versions`, `check-license`
+  <br/><sub>https://registry.npmjs.org · registry ToS</sub>
+- **weather-forecast** — `current-weather`, `daily-forecast`
+  <br/><sub>https://api.open-meteo.com/v1 · CC-BY-4.0</sub>
+- **currency-rates** — `latest-rates`, `historical-rate`, `convert-amount`
+  <br/><sub>https://api.frankfurter.dev/v1 · Public-Domain-ECB</sub>
+- **geocode** — `geocode-address`, `reverse-geocode`
+  <br/><sub>https://nominatim.openstreetmap.org · ODbL-1.0</sub>
+- **public-holidays** — `list-holidays`, `is-workday`, `available-countries`
+  <br/><sub>https://date.nager.at/api/v3 · MIT</sub>
+- **worldbank-data** — `country-indicator`, `common-indicators`
+  <br/><sub>https://api.worldbank.org/v2 · CC-BY-4.0</sub>
+- **sec-filings** — `lookup-cik`, `company-filings`
+  <br/><sub>https://data.sec.gov · Public-Domain-US-Gov</sub>
+- **scholar-search** — `search-published`, `search-preprints`, `doi-lookup`
+  <br/><sub>https://api.crossref.org · CC0-1.0 / arXiv terms</sub>
+- **wiki-facts** — `page-summary`, `search-entity`, `entity-facts`
+  <br/><sub>https://en.wikipedia.org/api/rest_v1 · CC-BY-SA-4.0</sub>
+- **research-graph** — `search-works`, `work-citations`, `author-works`
+  <br/><sub>https://api.openalex.org · CC0-1.0</sub>
+- **feishu-messaging** — `send-message`, `list-chats`, `feishu-capabilities`
+  <br/><sub>https://open.feishu.cn/open-apis · Feishu API ToS</sub>
+- **slack-messaging** — `post-message`, `list-channels`, `slack-capabilities`
+  <br/><sub>https://slack.com/api · Slack API ToS</sub>
+- **github-issues** — `list-issues`, `get-issue`, `create-issue`, `github-capabilities`
+  <br/><sub>https://api.github.com · GitHub ToS</sub>
+
+</details>
+
+### 许可证分布
+
+MIT 47 · Apache-2.0 7 · BSD-3-Clause 7 · ISC 2 · BSD-2-Clause 2 · CC-BY-4.0 2 · MIT AND Apache-2.0 1 · registry ToS 1 · Public-Domain-ECB 1 · ODbL-1.0 1 · Public-Domain-US-Gov 1 · CC0-1.0 / arXiv terms 1 · CC-BY-SA-4.0 1 · CC0-1.0 1 · Feishu API ToS 1 · Slack API ToS 1 · GitHub ToS 1
+
+全部宽松许可,代码侧零 copyleft 风险。服务型零件另记**数据许可**——那是另一种义务:Nominatim 是 ODbL、Wikipedia 是 CC-BY-SA(署名/共享要求),因此逐条进 BOM 供客户合规核查。
+
+完整机器可读清单(含每个零件的 `repo@rev`、许可、条款、速率限制与工具描述):[`index/catalog.yml`](index/catalog.yml)。
 
 ---
 
