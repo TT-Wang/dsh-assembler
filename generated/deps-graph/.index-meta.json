@@ -1,0 +1,11 @@
+{
+  "id": "deps-graph",
+  "kind": "service",
+  "service": "https://api.deps.dev/v3",
+  "provider": "deps.dev (Google)",
+  "license": "Apache-2.0 (deps.dev; licence data mirrored from upstream registries)",
+  "terms": "https://deps.dev/ — public, no API key",
+  "rateLimit": "no key, no documented hard limit; keep calls serial",
+  "network": true,
+  "scaffoldedAt": "2026-08-17T15:44:43.137Z"
+}

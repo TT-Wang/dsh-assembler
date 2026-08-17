@@ -409,7 +409,12 @@ mcp-servers:
   osv-vulns:
     transport: stdio
     command: node
-    args: ['/Users/tongtao/code/dsh-assembler/generated/osv-vulns/index.js']
+    args: ["/Users/tongtao/code/dsh-assembler/generated/osv-vulns/index.js"]
+
+  deps-graph:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/deps-graph/index.js"]
 
 capabilities:
   # ── customer-service domain tools (this package) ──────────────────────────

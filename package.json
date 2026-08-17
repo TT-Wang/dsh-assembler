@@ -23,7 +23,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "link:dsh": "node scripts/link-dsh.mjs",
     "parts:install": "for d in generated/*/; do (cd \"$d\" && npm install --no-audit --no-fund); done",
-    "test": "npm run build && node scripts/lock-check.mjs && node tests-naming.mjs && node tests-verify.mjs && node tests-federation.mjs && node tests-spec-intake.mjs",
+    "test": "npm run build && node scripts/lock-check.mjs && node scripts/catalog-report.mjs --check && node tests-naming.mjs && node tests-verify.mjs && node tests-federation.mjs && node tests-spec-intake.mjs && node tests-yaml-write.mjs",
     "lock:check": "node scripts/lock-check.mjs",
     "bench": "node scripts/assembly-bench.mjs",
     "index:add": "node scripts/index-add.mjs scaffold",

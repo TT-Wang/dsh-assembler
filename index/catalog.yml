@@ -760,13 +760,26 @@
 
 - id: osv-vulns
   kind: service
-  service: https://api.osv.dev
+  service: "https://api.osv.dev"
   provider: "OSV"
-  license: Apache-2.0 (OSV data: per-source, CC-BY-4.0 for OSV-prefixed records)
+  license: "Apache-2.0 (OSV data: per-source, CC-BY-4.0 for OSV-prefixed records)"
   terms: "https://google.github.io/osv.dev/faq/ — public, no key; OSV data is open, per-record licence follows its source database"
   rateLimit: "no API key; batch through querybatch, max 1000 queries per call"
   network: true
   tools:
-    - { name: scan-package, description: "查一个包的某个具体版本命中哪些已知漏洞，返回每条漏洞的严重度、CWE 与**应升到的修复版本**。只读，不需要凭证。" }
-    - { name: scan-dependencies, description: "一次过一批包版本做分诊：逐包给出命中漏洞的条数与 id 列表。上游批量端点只回 id 不回详情，所以这里是**分诊层**——要某条漏洞的严重度和修复版本，再用 " }
-    - { name: get-vulnerability, description: "按 OSV / GHSA / CVE-别名 id 取一条漏洞的完整判定材料：严重度、CWE、受影响范围、修复版本与参考链接。只读，不需要凭证。" }
+    - { name: "scan-package", description: "查一个包的某个具体版本命中哪些已知漏洞，返回每条漏洞的严重度、CWE 与**应升到的修复版本**。只读，不需要凭证。" }
+    - { name: "scan-dependencies", description: "一次过一批包版本做分诊：逐包给出命中漏洞的条数与 id 列表。上游批量端点只回 id 不回详情，所以这里是**分诊层**——要某条漏洞的严重度和修复版本，再用 " }
+    - { name: "get-vulnerability", description: "按 OSV / GHSA / CVE-别名 id 取一条漏洞的完整判定材料：严重度、CWE、受影响范围、修复版本与参考链接。只读，不需要凭证。" }
+
+- id: deps-graph
+  kind: service
+  service: "https://api.deps.dev/v3"
+  provider: "deps.dev (Google)"
+  license: "Apache-2.0 (deps.dev; licence data mirrored from upstream registries)"
+  terms: "https://deps.dev/ — public, no API key"
+  rateLimit: "no key, no documented hard limit; keep calls serial"
+  network: true
+  tools:
+    - { name: "package-licence", description: "查一个包版本的许可证与元数据：licences、是否已弃用（及原因）、发布时间、上游公告 id、主页/仓库链接。许可证字段来自上游注册表的镜像，是**参考信息不" }
+    - { name: "resolved-dependencies", description: "解析一个包版本的依赖闭包：直接依赖与间接依赖分别计数，并列出节点（默认最多 60 个）。这是把\"一条直接依赖\"展开成\"实际装进产物的那一堆\"的动作——治理要管的" }
+    - { name: "list-versions", description: "列一个包有哪些版本：总数、默认（latest）版本、最近 15 个版本及其发布时间与弃用状态。用来确认\"该升到哪个版本\"那个版本真的存在且没被弃用。只读，不需要" }

@@ -27,6 +27,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSy
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { inventoryEndpoints, specBaseUrl } from './spec-intake.mjs'
+import { assertYaml, s } from './yaml-write.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const [cmd, target, ...rest] = process.argv.slice(2)
@@ -128,28 +129,38 @@ function dedupGate({ id, pkg, repoSlug }) {
     const deps = JSON.parse(readFileSync(pj, 'utf8')).dependencies ?? {}
     if (pkg in deps) return `npm 包 "${pkg}" 已被零件 "${d}" 收录`
   }
-  const catalogPath = join(REPO, 'index', 'catalog.yml')
-  if (existsSync(catalogPath) && new RegExp(`^  repo: ${repoSlug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm').test(readFileSync(catalogPath, 'utf8'))) {
-    return `上游 repo "${repoSlug}" 已在 index/catalog.yml`
+  // Parse, don't grep: catalog.yml quotes its scalars, so `^  repo: owner/name$`
+  // matched the entries written before quoting and silently missed every one
+  // written after — a dedup gate that only guards history is not a gate.
+  if (loadCatalogEntries().some((e) => e.repo === repoSlug || e.service === repoSlug)) {
+    return `上游 repo/服务 "${repoSlug}" 已在 index/catalog.yml`
   }
   return null
+}
+
+/** index/catalog.yml as data. Missing file is normal (a fresh catalog). */
+function loadCatalogEntries(root = REPO) {
+  const path = join(root, 'index', 'catalog.yml')
+  if (!existsSync(path)) return []
+  const parsed = yaml.load(readFileSync(path, 'utf8'))
+  return Array.isArray(parsed) ? parsed : []
 }
 
 // ── coverage ───────────────────────────────────────────────────────────────
 // 现有能力覆盖图:每个 server 一行(工具名 + tags 并集),给调用方做语义判重
 // ——候选库先对着这张图判 NEW / OVERLAP,重叠能力点不收。
 function coverage() {
-  const catalogPath = join(REPO, 'index', 'catalog.yml')
-  const text = readFileSync(catalogPath, 'utf8')
-  const blocks = text.split(/^- id: /m).slice(1)
-  const map = blocks.map((b) => {
-    const id = b.split('\n')[0].trim()
-    const tools = [...b.matchAll(/- \{ name: ([^,]+), description: ("[^"]*"|[^}]*?)\s*\}/g)]
-      .map((m) => `${m[1].trim()}(${m[2].replace(/^"|"$/g, '').slice(0, 36)})`)
-    return { id, tools }
-  })
-  for (const s of map) console.error(`${s.id}: ${s.tools.join(' | ')}`)
-  console.log(JSON.stringify({ ok: true, servers: map.length, tools: map.reduce((n, s) => n + s.tools.length, 0) }))
+  // Parse, don't grep. The hand-rolled regex here has now cost twice: once a
+  // trailing full-width paren hid a tool and led to a wrong diagnosis about a
+  // missing capability, and once an escaped quote inside a description made the
+  // `"[^"]*"` branch stop early and under-count. The file is YAML; read it as
+  // YAML and the whole class goes away.
+  const map = loadCatalogEntries().map((e) => ({
+    id: e.id,
+    tools: (e.tools ?? []).map((t) => `${t.name}(${String(t.description ?? '').slice(0, 36)})`),
+  }))
+  for (const row of map) console.error(`${row.id}: ${row.tools.join(' | ')}`)
+  console.log(JSON.stringify({ ok: true, servers: map.length, tools: map.reduce((n, row) => n + row.tools.length, 0) }))
 }
 
 // ── scaffold ───────────────────────────────────────────────────────────────
@@ -375,6 +386,19 @@ function register() {
   out(registerCore(target, flags.client))
 }
 
+/**
+ * Write a catalog file only if it still parses as YAML afterwards.
+ * See scripts/yaml-write.mjs for why both halves of this exist.
+ */
+function writeYaml(path, text, label) {
+  try {
+    assertYaml(text, label)
+  } catch (error) {
+    die(`拒绝写入 ${label}:${error.message}。这是 index-add 的 bug,请连同 .index-meta.json 一起报告,文件未被改动。`)
+  }
+  writeFileSync(path, text)
+}
+
 /** Idempotent catalog registration; refuses without a passing verify report. */
 function registerCore(idArg, client) {
   const id = idArg
@@ -398,21 +422,21 @@ function registerCore(idArg, client) {
   const catalog = readFileSync(catalogPath, 'utf8')
   if (!new RegExp(`^- id: ${id}$`, 'm').test(catalog)) {
     const toolLines = report.tools
-      .map((t) => `    - { name: ${t.name}, description: ${JSON.stringify(t.description.replace(/\n[\s\S]*/, '').slice(0, 80))} }`)
+      .map((t) => `    - { name: ${s(t.name)}, description: ${s(t.description.replace(/\n[\s\S]*/, '').slice(0, 80))} }`)
       .join('\n')
     // A service part pins terms + rate limit where a library part pins a rev:
     // that IS its supply-chain provenance, and the BOM carries it to the client.
     const secretRows = Array.isArray(meta.requiredSecrets) && meta.requiredSecrets.length > 0
-      ? `  requiredSecrets:\n${meta.requiredSecrets.map((x) => `    - { env: ${x.env}, purpose: ${JSON.stringify(x.purpose ?? '')} }`).join('\n')}\n`
+      ? `  requiredSecrets:\n${meta.requiredSecrets.map((x) => `    - { env: ${s(x.env)}, purpose: ${s(x.purpose ?? '')} }`).join('\n')}\n`
       : ''
     const provenance = meta.kind === 'service'
-      ? `  kind: service\n  service: ${meta.service}\n  provider: ${JSON.stringify(meta.provider ?? '')}\n  license: ${meta.license}\n  terms: ${JSON.stringify(meta.terms ?? '')}\n  rateLimit: ${JSON.stringify(meta.rateLimit ?? '')}\n  network: true\n${secretRows}`
-      : `  repo: ${meta.repo}\n  rev: v${meta.version}\n  license: ${meta.license}\n${secretRows}`
-    writeFileSync(catalogPath, catalog.replace(/\n*$/, '\n') + `
+      ? `  kind: service\n  service: ${s(meta.service)}\n  provider: ${s(meta.provider ?? '')}\n  license: ${s(meta.license)}\n  terms: ${s(meta.terms ?? '')}\n  rateLimit: ${s(meta.rateLimit ?? '')}\n  network: true\n${secretRows}`
+      : `  repo: ${s(meta.repo)}\n  rev: ${s(`v${meta.version}`)}\n  license: ${s(meta.license)}\n${secretRows}`
+    writeYaml(catalogPath, catalog.replace(/\n*$/, '\n') + `
 - id: ${id}
 ${provenance}  tools:
 ${toolLines}
-`)
+`, 'index/catalog.yml')
     changed.push('index/catalog.yml')
   }
   // capabilities.yml:mcp-servers 段插入连接配置(段尾 = capabilities: 键之前;幂等)
@@ -429,11 +453,11 @@ ${toolLines}
     // assembler reads it to tell an operator what still needs configuring.
     // Names only — a value never appears in either catalog file.
     const secretDecl = Array.isArray(meta.requiredSecrets) && meta.requiredSecrets.length > 0
-      ? `    requiredSecrets:\n${meta.requiredSecrets.map((x) => `      - { env: ${x.env}, purpose: ${JSON.stringify(x.purpose ?? '')} }`).join('\n')}\n`
+      ? `    requiredSecrets:\n${meta.requiredSecrets.map((x) => `      - { env: ${s(x.env)}, purpose: ${s(x.purpose ?? '')} }`).join('\n')}\n`
       : ''
-    const entry = `  ${id}:\n    transport: stdio\n    command: node\n    args: ['${join(root, 'generated', id, 'index.js')}']\n${secretDecl}\n`
+    const entry = `  ${id}:\n    transport: stdio\n    command: node\n    args: [${s(join(root, 'generated', id, 'index.js'))}]\n${secretDecl}\n`
     if (!/^capabilities:$/m.test(caps)) die('capabilities.yml 缺 capabilities: 键,无法定位 mcp-servers 段尾')
-    writeFileSync(capsPath, caps.replace(/^capabilities:$/m, entry + 'capabilities:'))
+    writeYaml(capsPath, caps.replace(/^capabilities:$/m, entry + 'capabilities:'), 'capabilities.yml')
     changed.push('capabilities.yml')
   }
   return { id, registered: changed, note: changed.length > 0 ? 'git diff 后提交即完成收录;联邦缓存无此 server 键,下次装配自动实探' : '已登记过,无改动' }
