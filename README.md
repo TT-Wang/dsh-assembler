@@ -8,8 +8,6 @@ English | [中文](README.zh.md)
 
 The catalog grows through an **induction pipeline**: open-source libraries, public APIs, a client's own HTTP interfaces, and a client's documents all enter through one command each — and only past a quality gate. No glue code, only configuration.
 
-**Built for FDEs (forward-deployed engineers).** The deliverable is not a preset; it is a **solution pack** — several agents plus the client's knowledge, deployment parameters, a credential checklist, a supply-chain BOM, and an acceptance record. Delivering to the next client means changing parameters and credentials, not forking anything.
-
 ---
 
 ## Scale today
