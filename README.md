@@ -11,6 +11,8 @@
 - **双入口**：`/assemble <需求>` 命令（人类快捷方式）+ `assemble` 工具（agent 原生路径，调用轨迹自动渲染）
 - **装配即验证**：装配完成后自动派生一条冒烟探针任务，在绑定新 preset 的**真实会话**里跑一轮，按内容型验收标记判 PASS/FAIL；FAIL 触发一次带失败反馈的重新选型再探（find → assemble → **verify** 闭环，默认开启，`config.verify: false` 关闭）
 - **能力目录**：134 个目录条目 = 8 条静态 + 126 条 MCP 联邦（33 个 MCP 服务器 / 112 个零件工具），组装时实时并行联邦
+- **联邦索引缓存**：每个零件的工具清单按（连接配置 + 适配器文件指纹）缓存,命中零连接——冷 ~5s,热 **<0.01s**;适配器重新生成自动失效,7 天 TTL 兜底远程服务器
+- **零件物料清单（BOM）**：每次装配随 preset 发射 `parts.lock.yml`——每个零件的上游 repo@rev、许可证、验证状态、实际挂载 serverName,装出的 agent 像依赖锁文件一样可审计
 - **零代码扩展**：往 `mcp-servers` 加一段配置 = 整组新能力（MCP 服务器自动联邦）
 - **索引流水线**：AI 切分开源库 → 生成 MCP 适配 → 冒烟验证（`verified`）→ 入库，32 个库全部通过（31 个上游 + 1 个第一方 `binary-write`）
 - **补件闭环**：需求超出目录时，返回可复制的 YAML 补件草案 + missing 报告
@@ -149,12 +151,37 @@ vibe assembly 的承诺是 find → assemble → **verify**：装出来的 agent
 
 探针 agent 实际执行了:http-get 取实时汇率 → currency-calc 乘法 → currency-format 格式化(¥676.06) → qr-generate-data-url 生成二维码——四个零件、一次组合调用链,全部真实往返。FAIL 时组装器把失败原因喂回选型 LLM 重选一次零件再探;探针基础设施故障(如 headless 无 webServer)降级为"跳过",不拦装配。
 
+## 零件物料清单（parts.lock.yml,实测输出节选）
+
+装配不只发射 preset,还发射供应链账本——每个零件从哪来、锁在哪个版本、什么许可证、这个 preset 实际挂载成什么名字:
+
+```yaml
+preset: p2-bom-probe
+requirement: 能生成二维码、也能做日期加减的助手
+parts:
+  - capability: mcp-qrcode-generate-qr-generate-png
+    via: mcp
+    server: qrcode-generate
+    serverName: qrcode-generate-d0fb25cc   # 从 preset 字节读回,永远与实际挂载一致
+    repo: soldair/node-qrcode
+    rev: v1.5.3
+    license: MIT
+    verified: true
+  - capability: mcp-date-format-date-manipulate
+    repo: iamkun/dayjs
+    rev: v1.11.11
+    license: MIT
+    ...
+```
+
+`hostMounted` 零件标注 `plane: host`(host 平面挂载,preset 不发行);harness 零件列出 `mounts`(插件包名)。写在验证环之后:重试换过零件时,锁文件记录的是**最终代际**。
+
 基准:`npm run bench`(assembly-bench,20 条需求全闭环,标准 PASS ≥ 80%,结果落盘 `bench/results/`)。**实测(2026-08-16,15 单件 + 5 组合):首跑 19/20 PASS(95%),达标**;唯一非 PASS 是目录数据债——fs-search 零件的 presetRow 缺 rc 版新必填配置(与验证环无关),补配后该题复验 PASS(账本含复验记录)。探针任务全部由 fast 模型自主设计,含逐字回显标记(`SMOKE-2847-QR`)、欧式小数解析(`€2.573.693,75`)、跨零件组合链(CSV→SQLite 汇总、汇率→二维码)等真实验收。
 
 ## 已知限制
 
 1. **同 preset 并发会话没有问题**（旧版此处的"并发撞名"限制是误判，已实证纠正）：harness 对每个 preset 文件代际只挂载一次 standing 组合，并发会话通过 scope parenting 共用同一实例——两个会话同时跑同一个装配 preset 各自完成，无 serverName 冲突。真正的残余限制是：**host 进程存活期内不释放被取代代际的 serverName**，所以手工编辑 preset 文件（字节变了、serverName 没变）后，同一 host 进程里的新会话会撞旧代际，重启 host 恢复。组装器自身的重发已按"文件字节哈希入 serverName 后缀 + 字节相同跳写盘"根治（任何字节差异自动换名，字节相同不换代）
-2. **联邦耗时下限**：已并行化（默认 16 车道，`DSH_ASSEMBLER_FED_LANES` 可调），33 个服务器实测 11.2s（串行基线）→ 约 4.7s；地板是每个 stdio 零件的进程冷启动，再降需要索引缓存增量探测（规划中）
+2. **联邦耗时**：已解决——并行化（16 车道，`DSH_ASSEMBLER_FED_LANES` 可调）+ 索引缓存后,冷跑约 5s,**缓存命中 <0.01s**(实测 0.002s,33 服务器零连接)。失效键 = 连接配置哈希 + 适配器文件指纹(只 stamp 常规文件,目录参数如 `/tmp` 的 mtime 抖动不会假失效);`DSH_ASSEMBLER_FED_CACHE=0` 强制全实探,`DSH_ASSEMBLER_FED_TTL_MS` 调 TTL(默认 7 天,兜底远程服务器工具集漂移)
 3. **目录选型压力**：134 条目下 LLM 选型仍准确，但更大规模需要按域分层
 4. **组装映射调用默认使用 fast 模型**（`deepseek-v4-flash`，可经插件 `config.model` 覆盖），不继承会话的重模型配置（重模型曾导致单次组装约 10 分钟）
 5. **自动验证依赖 webServer**：headless（无 web 面板）装配时探针无处可跑，自动验证降级为"跳过"，装配本身不受影响

@@ -14,7 +14,7 @@
  * later sessions. Unlike the CLI prototype, model calls go through the host's
  * `ctx.llm` (provider/key from the host config), not a private fetch.
  */
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -339,6 +339,91 @@ function scrubbedEnv(): Record<string, string> {
   return env
 }
 
+// ── Federation cache (P2.1) ────────────────────────────────────────────────
+// Connecting all catalog servers costs one process cold-start each (~4.7s
+// wall for 33 stdio servers even at 16 lanes). The tool LIST of a part
+// changes only when its adapter or connection config changes, so the list is
+// cached per server under a key derived from exactly those inputs; a warm
+// assemble skips every connection. A TTL backstops remote (streamable-http)
+// servers whose toolset can change server-side without any local trace.
+
+/** Raw tool descriptor as cached — the minimal input `toolsToEntries` needs. */
+interface CachedTool { name: string; description?: string }
+
+interface FedCacheEntry { key: string; fetchedAt: number; tools: CachedTool[] }
+interface FedCache { version: number; servers: Record<string, FedCacheEntry> }
+
+const FED_CACHE_VERSION = 1
+const FED_CACHE_PATH = join(REPO, '.cache', 'federation.json')
+const FED_CACHE_TTL_MS = 7 * 24 * 3600 * 1000
+
+/**
+ * Invalidation key for one server's cached tool list: the connection config
+ * plus a stamp (mtime+size) of every local file its args reference —
+ * regenerating an adapter under generated/ must invalidate its entry even
+ * when the config text is unchanged. Relative arg paths resolve against the
+ * assembler repo, where generated/ adapters live.
+ */
+export function serverCacheKey(cfg: Record<string, unknown>): string {
+  const h = createHash('sha256').update(JSON.stringify(cfg))
+  for (const arg of Array.isArray(cfg.args) ? (cfg.args as string[]) : []) {
+    const p = isAbsolutePath(arg) ? arg : join(REPO, arg)
+    try {
+      const st = statSync(p)
+      // Regular files only: a file arg is adapter CODE, whose change must
+      // re-probe. A directory arg (a data root like /tmp) has an mtime that
+      // flaps on every unrelated temp file — stamping it made the
+      // npx-resolved filesystem server re-probe ~3s on most runs.
+      if (st.isFile()) h.update(`\n${arg}:${String(st.mtimeMs)}:${String(st.size)}`)
+    } catch { /* not a local path (flag, package name) — config text covers it */ }
+  }
+  return h.digest('hex').slice(0, 16)
+}
+
+/** Crude absolute-path check that also covers Windows drive letters. */
+function isAbsolutePath(p: string): boolean {
+  return p.startsWith('/') || /^[A-Za-z]:[\\/]/.test(p)
+}
+
+function loadFedCache(): FedCache {
+  try {
+    const parsed = JSON.parse(readFileSync(FED_CACHE_PATH, 'utf8')) as FedCache
+    if (parsed.version === FED_CACHE_VERSION && typeof parsed.servers === 'object') return parsed
+  } catch { /* absent or corrupt — start empty */ }
+  return { version: FED_CACHE_VERSION, servers: {} }
+}
+
+function saveFedCache(cache: FedCache): void {
+  try {
+    mkdirSync(dirname(FED_CACHE_PATH), { recursive: true })
+    writeFileSync(FED_CACHE_PATH, JSON.stringify(cache))
+  } catch (error: unknown) {
+    console.error(`[assembler] federation cache write failed: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+/**
+ * Deterministic mapping from a server's raw tool list to catalog entries —
+ * the single code path for both live-probed and cache-served tools, so a
+ * cache hit can never drift from what a live probe would have produced.
+ */
+export function toolsToEntries(server: string, tools: CachedTool[]): CapabilityEntry[] {
+  return tools.map((tool) => {
+    const description = typeof tool.description === 'string' && tool.description !== ''
+      ? tool.description
+      : `MCP tool ${tool.name} from server ${server}`
+    const words = description.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 4)
+    return {
+      id: `mcp-${server}-${tool.name.replace(/[^a-z0-9-]/gi, '-').toLowerCase()}`,
+      via: 'mcp' as const,
+      tool: `mcp__${server}__${tool.name}`,
+      description,
+      tags: [...new Set([server.toLowerCase(), ...words.slice(0, 8)])],
+      config: { server },
+    }
+  })
+}
+
 /**
  * Federated catalog: merge MCP server tools into the static catalog.
  *
@@ -359,58 +444,71 @@ export async function federateMcpTools(catalog: Catalog): Promise<Catalog> {
   const servers = catalog['mcp-servers'] ?? {}
   const serverNames = Object.keys(servers)
   if (serverNames.length === 0) return catalog
-  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
-  const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js')
-  const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js')
   const mcpEntries: CapabilityEntry[] = []
-  // Parallel federation with a bounded pool: 30+ stdio spawns at once would
-  // be a fork storm; a pool keeps wall-clock near max(server) while staying
-  // polite. Wall-clock floor is per-server process cold-start (~0.5s each),
-  // so 33 servers land around 5s. Env-tunable for measurement and CI.
-  const CONCURRENCY = Math.max(1, Number(process.env.DSH_ASSEMBLER_FED_LANES ?? 16) || 16)
-  const queue = [...serverNames]
   const collected = new Map<string, CapabilityEntry[]>()
-  const worker = async (): Promise<void> => {
-    for (let server = queue.shift(); server !== undefined; server = queue.shift()) {
-      const cfg = servers[server]
-      const entries: CapabilityEntry[] = []
-      try {
-        const transport = cfg.transport === 'streamable-http'
-          ? new StreamableHTTPClientTransport(new URL(cfg.url as string))
-          : new StdioClientTransport({
-              command: cfg.command as string,
-              args: cfg.args as string[],
-              ...(cfg.env !== undefined
-                ? { env: { ...scrubbedEnv(), ...(cfg.env as Record<string, string>) } }
-                : { env: scrubbedEnv() }),
-            })
-        const client = new Client({ name: 'dsh-assembler', version: '0.0.1' })
-        await client.connect(transport)
-        const tools = await client.listTools()
-        for (const tool of tools.tools) {
-          const description = typeof tool.description === 'string' && tool.description !== ''
-            ? tool.description
-            : `MCP tool ${tool.name} from server ${server}`
-          const id = `mcp-${server}-${tool.name.replace(/[^a-z0-9-]/gi, '-').toLowerCase()}`
-          const words = description.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 4)
-          const tags = [...new Set([server.toLowerCase(), ...words.slice(0, 8)])]
-          entries.push({
-            id,
-            via: 'mcp',
-            tool: `mcp__${server}__${tool.name}`,
-            description,
-            tags,
-            config: { server },
-          })
-        }
-        await client.close()
-        collected.set(server, entries)
-      } catch (error: unknown) {
-        console.error(`[assembler] federateMcpTools: server "${server}" unreachable: ${error instanceof Error ? error.message : String(error)}`)
-      }
+
+  // Cache first: a server whose key matches and whose entry is younger than
+  // the TTL is served from disk without spawning anything. DSH_ASSEMBLER_FED_CACHE=0
+  // forces every server live; DSH_ASSEMBLER_FED_TTL_MS tunes the backstop.
+  const cacheOn = process.env.DSH_ASSEMBLER_FED_CACHE !== '0'
+  const ttlMs = Number(process.env.DSH_ASSEMBLER_FED_TTL_MS ?? FED_CACHE_TTL_MS) || FED_CACHE_TTL_MS
+  const cache = cacheOn ? loadFedCache() : { version: FED_CACHE_VERSION, servers: {} }
+  const keys = new Map(serverNames.map((s) => [s, serverCacheKey(servers[s])]))
+  const misses: string[] = []
+  for (const server of serverNames) {
+    const hit = cache.servers[server]
+    if (cacheOn && hit !== undefined && hit.key === keys.get(server) && Date.now() - hit.fetchedAt < ttlMs) {
+      collected.set(server, toolsToEntries(server, hit.tools))
+    } else {
+      misses.push(server)
     }
   }
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, serverNames.length) }, () => worker()))
+
+  if (misses.length > 0) {
+    const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
+    const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js')
+    const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js')
+    // Parallel probing with a bounded pool: 30+ stdio spawns at once would
+    // be a fork storm; a pool keeps wall-clock near max(server) while
+    // staying polite. Wall-clock floor is per-server process cold-start
+    // (~0.5s each) — which is exactly what the cache exists to skip.
+    const CONCURRENCY = Math.max(1, Number(process.env.DSH_ASSEMBLER_FED_LANES ?? 16) || 16)
+    const queue = [...misses]
+    let cacheDirty = false
+    const worker = async (): Promise<void> => {
+      for (let server = queue.shift(); server !== undefined; server = queue.shift()) {
+        const cfg = servers[server]
+        try {
+          const transport = cfg.transport === 'streamable-http'
+            ? new StreamableHTTPClientTransport(new URL(cfg.url as string))
+            : new StdioClientTransport({
+                command: cfg.command as string,
+                args: cfg.args as string[],
+                ...(cfg.env !== undefined
+                  ? { env: { ...scrubbedEnv(), ...(cfg.env as Record<string, string>) } }
+                  : { env: scrubbedEnv() }),
+              })
+          const client = new Client({ name: 'dsh-assembler', version: '0.0.1' })
+          await client.connect(transport)
+          const tools = await client.listTools()
+          await client.close()
+          const raw: CachedTool[] = tools.tools.map((t) => ({
+            name: t.name,
+            ...(typeof t.description === 'string' ? { description: t.description } : {}),
+          }))
+          collected.set(server, toolsToEntries(server, raw))
+          cache.servers[server] = { key: keys.get(server) ?? '', fetchedAt: Date.now(), tools: raw }
+          cacheDirty = true
+        } catch (error: unknown) {
+          // No negative caching: an unreachable part stays a live retry next
+          // time, and any stale cache entry it has is already key-guarded.
+          console.error(`[assembler] federateMcpTools: server "${server}" unreachable: ${error instanceof Error ? error.message : String(error)}`)
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, misses.length) }, () => worker()))
+    if (cacheOn && cacheDirty) saveFedCache(cache)
+  }
   // Deterministic merge in declared server order (parallel arrival order is not)
   const known = new Set(catalog.capabilities.map((c) => c.id))
   for (const server of serverNames) {
@@ -422,6 +520,72 @@ export async function federateMcpTools(catalog: Catalog): Promise<Catalog> {
   }
   if (mcpEntries.length === 0) return catalog
   return { capabilities: [...catalog.capabilities, ...mcpEntries], 'mcp-servers': servers }
+}
+
+// ── Parts BOM (P2.2) ───────────────────────────────────────────────────────
+
+/** One row of index/catalog.yml — the supply-chain record of one part library. */
+interface IndexRecord {
+  id: string
+  repo?: string
+  rev?: string
+  license?: string
+  verified?: boolean
+}
+
+/**
+ * Render the parts BOM (`parts.lock.yml`) for an emitted preset: every
+ * selected capability with its supply-chain provenance — upstream repo,
+ * pinned rev, license, and the serverName the preset actually mounts. The
+ * preset says WHAT the agent can do; the lock says WHERE each ability came
+ * from, so an assembled agent is auditable like a dependency lockfile.
+ *
+ * serverNames are read back from the emitted composition text (not
+ * recomputed) so the lock always matches the preset's actual bytes.
+ */
+export function renderPartsLock(opts: {
+  presetId: string
+  requirement: string
+  selected: CapabilityEntry[]
+  presetText: string
+  index: IndexRecord[]
+}): string {
+  const byId = new Map(opts.index.map((r) => [r.id, r]))
+  const serverNames = [...opts.presetText.matchAll(/serverName: "([^"]+)"/g)].map((m) => m[1])
+  const nameFor = (server: string): string | undefined =>
+    serverNames.find((n) => n.startsWith(`${server}-`))
+  const parts = opts.selected.map((c) => {
+    const part: Record<string, unknown> = { capability: c.id, via: c.via }
+    if (c.tool !== undefined) part.tool = c.tool
+    if (c.via === 'mcp') {
+      const server = (c.config?.server as string | undefined) ?? ''
+      part.server = server
+      const mounted = nameFor(server)
+      // hostMounted servers emit no row of their own — mark the plane instead.
+      if (mounted !== undefined) part.serverName = mounted
+      else part.plane = 'host'
+      const rec = byId.get(server)
+      if (rec !== undefined) {
+        if (rec.repo !== undefined) part.repo = rec.repo
+        if (rec.rev !== undefined) part.rev = rec.rev
+        if (rec.license !== undefined) part.license = rec.license
+        part.verified = rec.verified !== false
+      }
+    } else {
+      const mounts = (c.config?.presetRows ?? []).map((r) => r.name)
+      if (mounts.length > 0) part.mounts = mounts
+    }
+    return part
+  })
+  const doc = {
+    preset: opts.presetId,
+    assembledAt: new Date().toISOString(),
+    requirement: opts.requirement.replace(/\s+/g, ' ').trim().slice(0, 140),
+    parts,
+  }
+  return '# 零件物料清单(BOM)— dsh-assembler 自动生成;记录每个能力的供应链出处。\n'
+    + '# 审计:repo@rev 为上游锁定版本,license 为上游许可证,serverName 为本 preset 实际挂载名。\n'
+    + yaml.dump(doc, { lineWidth: -1 })
 }
 
 /** Render one matcher draft as a copy-paste-ready capabilities.yml entry. */
@@ -536,6 +700,29 @@ export async function assemble(
         verification = { status: 'SKIPPED', reason: `probe error: ${error instanceof Error ? error.message : String(error)}` }
       }
     }
+  }
+
+  // Parts BOM — written LAST so it reflects the final generation: after a
+  // verify-retry re-selection, req.capabilityIds and the preset bytes on
+  // disk are both the retry's, and the lock reads them from there.
+  try {
+    const indexPath = join(REPO, 'index', 'catalog.yml')
+    const index = existsSync(indexPath) ? (yaml.load(readFileSync(indexPath, 'utf8')) as IndexRecord[]) : []
+    const byIdAll = new Map(catalog.capabilities.map((c) => [c.id, c]))
+    const finalSelected = req.capabilityIds
+      .map((cid) => byIdAll.get(cid))
+      .filter((c): c is CapabilityEntry => c !== undefined)
+    writeFileSync(join(dir, 'parts.lock.yml'), renderPartsLock({
+      presetId: id,
+      requirement,
+      selected: finalSelected,
+      presetText: readFileSync(join(dir, 'agent.cordis.yml'), 'utf8'),
+      index,
+    }))
+  } catch (error: unknown) {
+    // The lock is provenance metadata: failing to write it must not fail
+    // the assembly the user asked for.
+    console.error(`[assembler] parts.lock.yml write failed: ${error instanceof Error ? error.message : String(error)}`)
   }
 
   return { id, capabilityIds: req.capabilityIds, missing: req.missing, presetPath: join(dir, 'agent.cordis.yml'), drafts, verification }

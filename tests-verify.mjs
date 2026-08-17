@@ -37,5 +37,30 @@ writePresetFile(join(dir, 'fresh.yml'), 'new')
 check('新文件正常创建', readFileSync(join(dir, 'fresh.yml'), 'utf8') === 'new')
 rmSync(dir, { recursive: true, force: true })
 
+// 3. renderPartsLock:出处映射 + serverName 从 preset 字节读回 + host 平面标注
+const { renderPartsLock } = await import('./lib/index.js')
+const lock = renderPartsLock({
+  presetId: 'demo',
+  requirement: '  一个   演示需求  ',
+  selected: [
+    { id: 'mcp-currency-calc-currency-calc', via: 'mcp', tool: 'mcp__currency-calc__currency-calc', description: '', tags: [], config: { server: 'currency-calc' } },
+    { id: 'mcp-filesystem-read', via: 'mcp', tool: 'mcp__filesystem__read_text_file', description: '', tags: [], config: { server: 'filesystem' } },
+    { id: 'web-lookup', via: 'harness', description: '', tags: [], config: { presetRows: [{ id: 'tool-web', name: '@deepseek-ai/dsh-tool-web' }] } },
+  ],
+  presetText: '- id: mcp-currency-calc\n  config:\n    serverName: "currency-calc-59cbbdba"\n',
+  index: [{ id: 'currency-calc', repo: 'scurker/currency.js', rev: 'v2.0.4', license: 'MIT', verified: true }],
+})
+import yamlmod from 'js-yaml'
+const parsed2 = yamlmod.load(lock)
+check('BOM preset 头', parsed2.preset === 'demo')
+check('BOM 需求归一空白', parsed2.requirement === '一个 演示需求')
+const cur = parsed2.parts.find((p) => p.server === 'currency-calc')
+check('BOM 供应链出处 repo@rev+license', cur.repo === 'scurker/currency.js' && cur.rev === 'v2.0.4' && cur.license === 'MIT' && cur.verified === true)
+check('BOM serverName 从字节读回', cur.serverName === 'currency-calc-59cbbdba')
+const fsp = parsed2.parts.find((p) => p.server === 'filesystem')
+check('BOM host 平面零件标注 plane', fsp.plane === 'host' && fsp.serverName === undefined)
+const web = parsed2.parts.find((p) => p.capability === 'web-lookup')
+check('BOM harness 零件 mounts', Array.isArray(web.mounts) && web.mounts[0] === '@deepseek-ai/dsh-tool-web')
+
 console.log(`\n==== verify 单元测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)
 process.exit(failures === 0 ? 0 : 1)

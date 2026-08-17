@@ -10,3 +10,4 @@ lib/
 
 # smoke test scratch files
 generated/*/smoke-*
+.cache/

@@ -23,7 +23,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "link:dsh": "node scripts/link-dsh.mjs",
     "parts:install": "for d in generated/*/; do (cd \"$d\" && npm install --no-audit --no-fund); done",
-    "test": "npm run build && node tests-naming.mjs && node tests-verify.mjs",
+    "test": "npm run build && node tests-naming.mjs && node tests-verify.mjs && node tests-federation.mjs",
     "bench": "node scripts/assembly-bench.mjs"
   },
   "license": "BSD-3-Clause",
