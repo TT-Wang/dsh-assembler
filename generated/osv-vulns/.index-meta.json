@@ -1,0 +1,13 @@
+{
+  "id": "osv-vulns",
+  "kind": "service",
+  "service": "https://api.osv.dev",
+  "provider": "OSV",
+  "license": "Apache-2.0 (OSV data: per-source, CC-BY-4.0 for OSV-prefixed records)",
+  "terms": "https://google.github.io/osv.dev/faq/ — public, no key; OSV data is open, per-record licence follows its source database",
+  "rateLimit": "no API key; batch through querybatch, max 1000 queries per call",
+  "specSource": "https://osv.dev/docs/osv_service_v1.swagger.json",
+  "specVersion": "1.0",
+  "network": true,
+  "scaffoldedAt": "2026-08-17T15:36:41.470Z"
+}

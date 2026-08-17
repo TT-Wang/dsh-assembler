@@ -26,6 +26,7 @@ import yaml from 'js-yaml'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { inventoryEndpoints, specBaseUrl } from './spec-intake.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const [cmd, target, ...rest] = process.argv.slice(2)
@@ -577,41 +578,6 @@ async function loadSpec(src) {
   }
 }
 
-/** Minimal YAML subset parser is not attempted — js-yaml is a dependency. */
-function yamlParse(text) {
-  return yaml.load(text)
-}
-
-/**
- * Endpoint inventory grouped by tag, with the facts an adapter author needs:
- * method, path, summary, parameter names, whether a body is required.
- */
-function inventoryEndpoints(spec) {
-  const groups = new Map()
-  const paths = spec.paths ?? {}
-  for (const [path, item] of Object.entries(paths)) {
-    for (const method of ['get', 'post', 'put', 'patch', 'delete']) {
-      const op = item?.[method]
-      if (op === undefined) continue
-      const tag = (Array.isArray(op.tags) && op.tags.length > 0) ? String(op.tags[0]) : 'default'
-      const params = [...(item.parameters ?? []), ...(op.parameters ?? [])]
-        .map((prm) => `${prm.name}${prm.required === true ? '*' : ''}(${prm.in})`)
-      const entry = {
-        method: method.toUpperCase(),
-        path,
-        summary: String(op.summary ?? op.description ?? '').replace(/\s+/g, ' ').slice(0, 120),
-        operationId: op.operationId,
-        params,
-        hasBody: op.requestBody !== undefined,
-        auth: Array.isArray(op.security) ? op.security.length > 0 : undefined,
-      }
-      if (!groups.has(tag)) groups.set(tag, [])
-      groups.get(tag).push(entry)
-    }
-  }
-  return groups
-}
-
 function fromSpec() {
   const src = target
   if (src === undefined || src === '') die('用法:index-add.mjs from-spec <spec-url|spec-file> --id <零件id> [--client <客户名>] [--requires-secret ENV:用途]')
@@ -626,8 +592,7 @@ function fromSpec() {
     const groups = inventoryEndpoints(spec)
     const total = [...groups.values()].reduce((n, g) => n + g.length, 0)
     if (total === 0) die('spec 里没有找到任何端点(paths 为空?)')
-    const servers = Array.isArray(spec.servers) ? spec.servers.map((sv) => sv.url).filter(Boolean) : []
-    const baseUrl = flags['base-url'] ?? servers[0] ?? '(spec 未声明 servers,需手工确认 base URL)'
+    const baseUrl = flags['base-url'] ?? specBaseUrl(spec) ?? '(spec 未声明 base URL,需手工确认)'
 
     const requiredSecrets = parseRequiredSecrets(flags['requires-secret'])
 

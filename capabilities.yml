@@ -406,6 +406,11 @@ mcp-servers:
     requiredSecrets:
       - { env: GITHUB_TOKEN, purpose: "GitHub Personal Access Token(仓库读写)", optional: true }
 
+  osv-vulns:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/osv-vulns/index.js']
+
 capabilities:
   # ── customer-service domain tools (this package) ──────────────────────────
   - id: crm-query

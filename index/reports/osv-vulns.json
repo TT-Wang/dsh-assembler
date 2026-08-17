@@ -1,0 +1,20 @@
+{
+  "id": "osv-vulns",
+  "verifiedAt": "2026-08-17T15:43:55.083Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "scan-package",
+      "description": "查一个包的某个具体版本命中哪些已知漏洞，返回每条漏洞的严重度、CWE 与**应升到的修复版本**。只读，不需要凭证。"
+    },
+    {
+      "name": "scan-dependencies",
+      "description": "一次过一批包版本做分诊：逐包给出命中漏洞的条数与 id 列表。上游批量端点只回 id 不回详情，所以这里是**分诊层**——要某条漏洞的严重度和修复版本，再用 get-vulnerability 或对该包单独 scan-package。单次最多 200 个包。只读，不需要凭证。"
+    },
+    {
+      "name": "get-vulnerability",
+      "description": "按 OSV / GHSA / CVE-别名 id 取一条漏洞的完整判定材料：严重度、CWE、受影响范围、修复版本与参考链接。只读，不需要凭证。"
+    }
+  ]
+}
