@@ -1,9 +1,9 @@
 /**
  * assembly-bench:装配质量基准。
  *
- * 20 条自然语言需求 → 每条走一遍完整 find → assemble → verify 闭环
+ * 40 条自然语言需求 → 每条走一遍完整 find → assemble → verify 闭环
  * (/assemble 命令,装配即验证默认开启),统计自动验证 PASS 率。
- * 通过标准:≥80%(16/20)。
+ * 通过标准:≥80%(32/40)。
  *
  * 跑法:
  *   1. 起一个挂了 assembler 的 web profile:dsh --profile web [--patch <port.yml>]
@@ -21,7 +21,7 @@ const PORT = Number(process.argv[2] ?? 3096)
 const BASE = `http://127.0.0.1:${PORT}`
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-/** 20 题:15 单件 + 5 组合;全部可用目录内零件在一轮内自包含完成。 */
+/** 40 题:29 单件 + 11 组合;1-20 为初版基线题(保持不变以便跨目录规模对比),21-40 覆盖扩容批次。 */
 const REQUIREMENTS = [
   // —— 单件 ——
   { slug: 'currency', req: '我要一个货币汇率换算助手,能解析金额、按汇率换算并格式化输出' },
@@ -45,6 +45,28 @@ const REQUIREMENTS = [
   { slug: 'date-ics', req: '先算出下周同一天的日期,再生成那天的 ics 日历事件' },
   { slug: 'md-file', req: '把 Markdown 渲染成 HTML 并保存到工作目录文件里' },
   { slug: 'tpl-qr', req: '用模板填充生成一段文字,再把这段文字做成二维码' },
+
+  // —— 扩容批次覆盖(21-40):14 单件 + 6 组合 ——
+  { slug: 'math', req: '数学计算助手,能安全求值表达式,也能做单位换算' },
+  { slug: 'cron', req: 'cron 表达式助手,解析表达式并算出接下来几次执行时间' },
+  { slug: 'phone', req: '电话号码助手,解析号码、判断有效性并格式化成国际格式' },
+  { slug: 'semver', req: '版本号助手,比较两个版本大小、判断版本是否满足范围' },
+  { slug: 'yaml', req: 'YAML 配置助手,YAML 和 JSON 互相转换' },
+  { slug: 'pinyin', req: '拼音助手,把中文转成拼音,支持带声调和首字母' },
+  { slug: 'fanjian', req: '简繁转换助手,简体转繁体、繁体转简体' },
+  { slug: 'html2md', req: '把 HTML 网页源码转成 Markdown 的助手' },
+  { slug: 'hash', req: '校验助手,能算文本的 sha256 指纹,也能生成 UUID' },
+  { slug: 'jsonq', req: 'JSON 数据助手,用 JMESPath 表达式查询和投影 JSON' },
+  { slug: 'faker', req: '测试数据助手,按字段说明批量生成假的人名邮箱等记录' },
+  { slug: 'barcode', req: '条形码助手,把文本或编号生成 code128 条形码图片' },
+  { slug: 'geo', req: '地理助手,算两个经纬度坐标之间的距离和方位' },
+  { slug: 'jwt', req: 'JWT 助手,解码 token 看 header 和 payload,判断是否过期' },
+  { slug: 'math-rmb', req: '账目助手:先算一个算式的结果,再把金额转成人民币大写' },
+  { slug: 'fake-schema', req: '先生成几条测试用户数据,再用 JSON Schema 校验它们合规' },
+  { slug: 'yaml-query', req: '把 YAML 配置转成 JSON,再用查询表达式取出指定字段的值' },
+  { slug: 'docx-roundtrip', req: '生成一个 Word 文档,再把它的正文提取回纯文本' },
+  { slug: 'slug-qr', req: '把一个中文标题转成 URL slug,再把 slug 生成二维码' },
+  { slug: 'dns-ip', req: '解析一个域名的 IP,再判断这个 IP 是公网还是内网地址' },
 ]
 
 const rpc = async (method, payload) => {
@@ -94,12 +116,12 @@ async function runOne(item, index) {
       : toolText.includes('自动验证:跳过') ? 'SKIPPED'
         : finished ? 'UNKNOWN' : 'TIMEOUT'
   const line = (toolText.match(/自动验证[^\\"]*/) ?? [''])[0].slice(0, 300)
-  console.log(`[${index + 1}/20] ${name}: ${verdict}  ${line.slice(0, 120)}`)
+  console.log(`[${index + 1}/${REQUIREMENTS.length}] ${name}: ${verdict}  ${line.slice(0, 120)}`)
   return { name, requirement: item.req, verdict, verifyLine: line, wallSeconds: Math.round((Date.now() - t0) / 1000) }
 }
 
 const startedAt = new Date().toISOString()
-const LANES = 2
+const LANES = 3
 const results = new Array(REQUIREMENTS.length)
 let cursor = 0
 const lane = async () => {
@@ -108,7 +130,7 @@ const lane = async () => {
     try {
       results[i] = await runOne(REQUIREMENTS[i], i)
     } catch (error) {
-      console.log(`[${i + 1}/20] ${REQUIREMENTS[i].slug}: ERROR ${error.message.slice(0, 200)}`)
+      console.log(`[${i + 1}/${REQUIREMENTS.length}] ${REQUIREMENTS[i].slug}: ERROR ${error.message.slice(0, 200)}`)
       results[i] = { name: REQUIREMENTS[i].slug, requirement: REQUIREMENTS[i].req, verdict: 'ERROR', verifyLine: error.message.slice(0, 300), wallSeconds: 0 }
     }
   }

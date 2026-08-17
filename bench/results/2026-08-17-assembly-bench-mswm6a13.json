@@ -1,0 +1,304 @@
+{
+  "startedAt": "2026-08-17T02:04:21.090Z",
+  "finishedAt": "2026-08-17T02:27:57.639Z",
+  "port": 3096,
+  "total": 40,
+  "passes": 35,
+  "rate": 88,
+  "criterion": "PASS ≥ 80%",
+  "met": true,
+  "results": [
+    {
+      "name": "bench-01-currency",
+      "requirement": "我要一个货币汇率换算助手,能解析金额、按汇率换算并格式化输出",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请只使用工具完成一次货币汇率换算：先用 mcp__currency-calc__currency-parse 解析字符串 ",
+      "wallSeconds": 204
+    },
+    {
+      "name": "bench-02-qrcode",
+      "requirement": "帮我装一个二维码生成器,把文字或链接变成二维码图片",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请用二维码生成工具把文本 SMOKE-12345 生成 PNG 图片，再用二进制写入工具将图片保存为 smoke.png；回复中请包含原始文本 SMOKE-12」通过;验收标记 [SMOKE-12345, smoke.png]",
+      "wallSeconds": 98
+    },
+    {
+      "name": "bench-03-dates",
+      "requirement": "需要一个日期助手,能做日期加减、格式化和星期几计算",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请对日期 2024-05-06T10:30:00Z 使用 date-manipulate 减去 3 天，然后用 format-date 把结果按 YYYY-MM」通过;验收标记 [2024-05-06T10:30:00Z, 2024-05-03 Friday]",
+      "wallSeconds": 48
+    },
+    {
+      "name": "bench-04-numfmt",
+      "requirement": "数字格式化助手:千分位、百分比、四舍五入",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「使用数字格式化工具完成以下操作：将 1234567.891 用格式字符串 '#,##0.00' 格式化，然后对格式化结果调用 unformat-number 解」通过;验收标记 [1,234,567.89, 1234567.89, 12.34%]",
+      "wallSeconds": 40
+    },
+    {
+      "name": "bench-05-csv",
+      "requirement": "一个 CSV 数据助手,能解析 CSV 文本并按列筛选汇总",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「使用 mcp__csv-parse__parse-csv 解析以下 CSV 文本：`name,age,department",
+      "wallSeconds": 52
+    },
+    {
+      "name": "bench-06-mdrender",
+      "requirement": "把 Markdown 文本渲染成 HTML 的助手",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「把下面这个 Markdown 字符串用 mcp__markdown-render__render-markdown 渲染成 HTML，并直接输出返回的 HTML」通过;验收标记 [<h1>冒烟测试</h1>, <li>甲</li>, <code>代码</code>]",
+      "wallSeconds": 38
+    },
+    {
+      "name": "bench-07-html2text",
+      "requirement": "把 HTML 页面源码转成干净纯文本的助手",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「用 mcp__html-to-text__html-to-text 和 mcp__readability-extract__extract-article 分别」通过;验收标记 [TEST-42, 苹果派, 火星早餐革命]",
+      "wallSeconds": 102
+    },
+    {
+      "name": "bench-08-xml",
+      "requirement": "XML 解析助手,能从 XML 文档里取出指定节点的值",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「使用 mcp__xml-parse__xml-parse 解析下面这段 XML，然后用 mcp__json-query__query（JMESPath 表达式 」通过;验收标记 [提取值=Ada Lovelace]",
+      "wallSeconds": 48
+    },
+    {
+      "name": "bench-09-template",
+      "requirement": "模板渲染助手:把变量填进模板字符串生成最终文本",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「调用 mcp__template-render__render-template，将 Handlebars 模板 `Hello, {{name}}! Items」通过;验收标记 [Alice, [0:apple], [1:banana]]",
+      "wallSeconds": 102
+    },
+    {
+      "name": "bench-10-fuzzy",
+      "requirement": "模糊搜索助手,在一组字符串里找出和输入最接近的项",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「在字符串数组 ['hello', 'world', 'foo', 'bar'] 中，使用模糊搜索找出与 'helo' 最接近的项，并只输出该项。」通过;验收标记 [hello]",
+      "wallSeconds": 36
+    },
+    {
+      "name": "bench-11-ics",
+      "requirement": "日历助手,能生成 ics 日历事件文件内容",
+      "verdict": "FAIL",
+      "verifyLine": "自动验证:FAIL — 探针回复未含验收标记;验收标记 [SUMMARY:烟雾测试, 20260318T100000, 20260318T110000];探针「使用 mcp__calendar-generate__create-event 创建一个日历事件：标题为“烟雾测试”，开始时间 2026-03-18T10:00」;回复摘录「",
+      "wallSeconds": 114
+    },
+    {
+      "name": "bench-12-files",
+      "requirement": "文件助手,能在工作目录里读写和整理文本文件",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「在 list_allowed_directories 返回的第一个允许目录中完成文件整理自检：先创建子目录 smoke_probe；在其中用 write_fil」通过;验收标记 [SMOKE_PROBE_42, edited, done.txt]",
+      "wallSeconds": 122
+    },
+    {
+      "name": "bench-13-binfile",
+      "requirement": "能把 base64 内容落盘成二进制文件的助手",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请用 base64 写文件工具把 `c21va2UtdGVzdC1vaw==` 解码后写入工作区文件 `smoke.bin`，然后用 file-manager-」通过;验收标记 [smoke-test-ok, 13]",
+      "wallSeconds": 74
+    },
+    {
+      "name": "bench-14-zip",
+      "requirement": "压缩助手,把几个文件打包成 zip",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请用 zip-create-archive 将两个文件 a.txt（内容为 'zip-smoke-2025'）和 b.txt（内容为 'probe-ok'）打包」通过;验收标记 [probe.zip, zip-smoke-2025]",
+      "wallSeconds": 100
+    },
+    {
+      "name": "bench-15-htmlparse",
+      "requirement": "HTML 解析助手,用选择器从网页源码里抽取元素内容",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「使用工具解析以下 HTML，然后按指定格式输出结果。HTML：<div id='app'><h2 class='title'>Hello 世界</h2><a c」通过;验收标记 [count=2, text=Hello 世界, href=/docs]",
+      "wallSeconds": 94
+    },
+    {
+      "name": "bench-16-cur-qr",
+      "requirement": "既能算汇率又能把结果生成二维码的助手",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「先用 currency-parse 解析欧元金额 €2.573.693,75（小数分隔符为逗号，即 2,573,693.75 欧元）；再用 currency-c」通过;验收标记 [€2.573.693,75, 2,367,798.25]",
+      "wallSeconds": 82
+    },
+    {
+      "name": "bench-17-csv-num",
+      "requirement": "读 CSV 数据、汇总后用千分位格式输出报表数字的助手",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「使用 mcp__csv-parse__parse-csv 解析这段 CSV：",
+      "wallSeconds": 82
+    },
+    {
+      "name": "bench-18-date-ics",
+      "requirement": "先算出下周同一天的日期,再生成那天的 ics 日历事件",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「今天是 2026-03-30（周一）。请先用 mcp__date-format__date-manipulate 把 2026-03-30 加 7 天，得到下周」通过;验收标记 [2026-04-06, DTSTART;VALUE=DATE:20260406, Smoke 2026-04-06]",
+      "wallSeconds": 56
+    },
+    {
+      "name": "bench-19-md-file",
+      "requirement": "把 Markdown 渲染成 HTML 并保存到工作目录文件里",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请使用 mcp__markdown-render__render-markdown 将下面的 Markdown 渲染成 HTML，然后用 mcp__filesy」通过;验收标记 [<h1>冒烟测试</h1>, <li>第二项</li>, render-smoke.html]",
+      "wallSeconds": 80
+    },
+    {
+      "name": "bench-20-tpl-qr",
+      "requirement": "用模板填充生成一段文字,再把这段文字做成二维码",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「使用 render-template 工具渲染 Handlebars 模板字符串：",
+      "wallSeconds": 72
+    },
+    {
+      "name": "bench-21-math",
+      "requirement": "数学计算助手,能安全求值表达式,也能做单位换算",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「计算 '12.7 cm + 5 inch' 的值，并将结果转换为毫米。」通过;验收标记 [254 mm]",
+      "wallSeconds": 46
+    },
+    {
+      "name": "bench-22-cron",
+      "requirement": "cron 表达式助手,解析表达式并算出接下来几次执行时间",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请用 mcp__cron-parse__next-runs 解析 cron 表达式 '0 2 * * *'，设置 from='2024-03-10T00:00:」通过;验收标记 [0 2 * * *, 2024-03-10T02:00:00]",
+      "wallSeconds": 146
+    },
+    {
+      "name": "bench-23-phone",
+      "requirement": "电话号码助手,解析号码、判断有效性并格式化成国际格式",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「使用 parse-phone 解析号码 +8613800138000，再用 format-phone 将其格式化为国际格式；输出 JSON 并原样包含输入号码，」通过;验收标记 [+8613800138000, true, +86 138 0013 8000]",
+      "wallSeconds": 40
+    },
+    {
+      "name": "bench-24-semver",
+      "requirement": "版本号助手,比较两个版本大小、判断版本是否满足范围",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请用 mcp__semver-check__compare 比较 1.10.0 和 1.2.3，并用 mcp__semver-check__satisfies 」通过;验收标记 [比较结果：1, 满足范围：true]",
+      "wallSeconds": 32
+    },
+    {
+      "name": "bench-25-yaml",
+      "requirement": "YAML 配置助手,YAML 和 JSON 互相转换",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「把 YAML `count: 3` 先用 yaml-to-json 转成 JSON，再用 json-to-yaml 把得到的 JSON 转回 YAML；最后只输」通过;验收标记 [",
+      "wallSeconds": 68
+    },
+    {
+      "name": "bench-26-pinyin",
+      "requirement": "拼音助手,把中文转成拼音,支持带声调和首字母",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请用 to-pinyin 工具把“拼音助手”分别用 tone 和 first 模式转换，输出带声调拼音和首字母结果。」通过;验收标记 [pīn yīn zhù shǒu, p y z s]",
+      "wallSeconds": 28
+    },
+    {
+      "name": "bench-27-fanjian",
+      "requirement": "简繁转换助手,简体转繁体、繁体转简体",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请将句子『简体字处理软件测试』先转换为台湾繁体（含词汇转换），再将该繁体结果转换为大陆简体。请依次输出两个转换结果，仅输出结果，不要多余文字。」通过;验收标记 [簡體字, 軟體]",
+      "wallSeconds": 58
+    },
+    {
+      "name": "bench-28-html2md",
+      "requirement": "把 HTML 网页源码转成 Markdown 的助手",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请用 html-to-markdown 工具将以下 HTML 字符串转换为 Markdown，并只输出转换结果（使用默认参数 headingStyle=atx,」通过;验收标记 [# 你好, - 项目A, `npm test`]",
+      "wallSeconds": 102
+    },
+    {
+      "name": "bench-29-hash",
+      "requirement": "校验助手,能算文本的 sha256 指纹,也能生成 UUID",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「使用 generate-uuid 工具生成两个 UUID v4，比较它们并输出是否相同；使用 hash-text 工具计算文本 abc 的 SHA256 摘要。」通过;验收标记 [uuids_same=false, ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad]",
+      "wallSeconds": 60
+    },
+    {
+      "name": "bench-30-jsonq",
+      "requirement": "JSON 数据助手,用 JMESPath 表达式查询和投影 JSON",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「用 mcp__json-query__query-multi 对同一份 JSON {",
+      "wallSeconds": 42
+    },
+    {
+      "name": "bench-31-faker",
+      "requirement": "测试数据助手,按字段说明批量生成假的人名邮箱等记录",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请调用 fake-records 工具，按 schema {",
+      "wallSeconds": 56
+    },
+    {
+      "name": "bench-32-barcode",
+      "requirement": "条形码助手,把文本或编号生成 code128 条形码图片",
+      "verdict": "FAIL",
+      "verifyLine": "自动验证:FAIL — probe turn did not finish within 180s;验收标记 [SMOKE-42, PNG];探针「调用 mcp__barcode-generate__barcode-png：bcid 填 code128，text 填 SMOKE-42，scale=3，hei」(preset 已生成,建议人工试用)",
+      "wallSeconds": 474
+    },
+    {
+      "name": "bench-33-geo",
+      "requirement": "地理助手,算两个经纬度坐标之间的距离和方位",
+      "verdict": "FAIL",
+      "verifyLine": "自动验证:FAIL — 探针回复未含验收标记;验收标记 [111.195, 0.00];探针「请使用地理工具计算从 (0, 0) 到 (1, 0) 的大圆距离和初始方位角。返回距离（公里，保留3位小数）、方位角（度，保留2位小数）和罗盘方向。」;回复摘录「",
+      "wallSeconds": 96
+    },
+    {
+      "name": "bench-34-jwt",
+      "requirement": "JWT 助手,解码 token 看 header 和 payload,判断是否过期",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「请用 mcp__jwt-decode__decode-jwt 解码这个 JWT：eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ」通过;验收标记 [HS256, 1700000000, 已过期]",
+      "wallSeconds": 100
+    },
+    {
+      "name": "bench-35-math-rmb",
+      "requirement": "账目助手:先算一个算式的结果,再把金额转成人民币大写",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「先计算 2024*8 的结果，再把结果转为人民币大写，并同时输出计算结果和人民币大写。」通过;验收标记 [16192, 人民币壹万陆仟壹佰玖拾贰元整]",
+      "wallSeconds": 52
+    },
+    {
+      "name": "bench-36-fake-schema",
+      "requirement": "先生成几条测试用户数据,再用 JSON Schema 校验它们合规",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「先用 mcp__fake-data__fake-records 按映射 {",
+      "wallSeconds": 144
+    },
+    {
+      "name": "bench-37-yaml-query",
+      "requirement": "把 YAML 配置转成 JSON,再用查询表达式取出指定字段的值",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「将以下 YAML 转换为 JSON,然后使用 JMESPath 表达式 app.name 查询字段值,只输出查询结果:",
+      "wallSeconds": 50
+    },
+    {
+      "name": "bench-38-docx-roundtrip",
+      "requirement": "生成一个 Word 文档,再把它的正文提取回纯文本",
+      "verdict": "FAIL",
+      "verifyLine": "自动验证:FAIL — probe turn did not finish within 180s;验收标记 [冒烟测试, SMOKE-12345 纯文本提取验证];探针「请使用 docx-generate-text 生成一个 Word 文档：标题为“冒烟测试”，正文包含“SMOKE-12345 纯文本提取验证”。生成后用 doc」(preset 已生成,建议人工试用)",
+      "wallSeconds": 434
+    },
+    {
+      "name": "bench-39-slug-qr",
+      "requirement": "把一个中文标题转成 URL slug,再把 slug 生成二维码",
+      "verdict": "PASS",
+      "verifyLine": "自动验证:PASS — 探针「把中文标题 '北京 Hello World!' 用 make-slug 转成 URL slug，然后将该 slug 作为内容调用 qr-generate-png」通过;验收标记 [bei-jing-hello-world, iVBOR]",
+      "wallSeconds": 58
+    },
+    {
+      "name": "bench-40-dns-ip",
+      "requirement": "解析一个域名的 IP,再判断这个 IP 是公网还是内网地址",
+      "verdict": "FAIL",
+      "verifyLine": "自动验证:FAIL — 探针回复未含验收标记;验收标记 [example.com, 93.184.216.34, 公网];探针「解析域名 example.com 的 A 记录，取其中一个 IP 字符串，用 parse-ip 解析该 IP，并输出该 IP 是公网还是内网的结论。」;回复摘录「",
+      "wallSeconds": 136
+    }
+  ],
+  "analysis": {
+    "baseline_1_20": "19/20 — 与 8-16 目录 137 条目时的首跑同为 19/20:目录扩到 196 条目后选型无退化(分域触发条件未满足);本次唯一基线 FAIL 是 ics(11),上次的 files(12)本次 PASS(数据债已修)",
+    "new_21_40": "16/20",
+    "failure_taxonomy": {
+      "bench-11-ics": "疑似零件能力缺口:calendar-generate 只有 create-calendar/create-all-day-event,探针要求带时刻的事件(10:00-11:00)——待补 timed-event 工具",
+      "bench-33-geo": "探针标记过精(111.195 三位小数+方位 0.00):零件算得对但小数呈现不同——deriver 标记设计问题,非装配失败",
+      "bench-40-dns-ip": "deriver 把世界知识写进标记(example.com 旧 IP 93.184.216.34,上游已换 IP):标记必须源于题面内嵌数据——deriver 规则缺陷",
+      "bench-32-barcode": "探针轮 180s 超时:条码 PNG base64 大文本内联回复拖慢生成",
+      "bench-38-docx-roundtrip": "探针轮 180s 超时:docx 生成+提取链较重"
+    },
+    "verdict": "88% 达标;5 个 FAIL 中 3 个是探针设计噪声(标记过精/世界知识标记/超时预算),1 个真实零件缺口(calendar timed event),1 个链路偏重。装配-选型环节本身零退化。"
+  }
+}
