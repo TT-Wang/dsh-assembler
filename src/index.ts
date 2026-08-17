@@ -14,7 +14,7 @@
  * later sessions. Unlike the CLI prototype, model calls go through the host's
  * `ctx.llm` (provider/key from the host config), not a private fetch.
  */
-import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, readdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -57,7 +57,7 @@ export interface Config {
 
 export interface CapabilityEntry {
   id: string
-  via: 'package' | 'harness' | 'mcp'
+  via: 'package' | 'harness' | 'mcp' | 'knowledge'
   tool?: string
   description: string
   tags: string[]
@@ -78,7 +78,7 @@ interface Catalog {
 /** One missing-capability drafting suggestion produced by the matcher LLM. */
 export interface MissingDraft {
   id: string
-  via: 'package' | 'harness' | 'mcp'
+  via: 'package' | 'harness' | 'mcp' | 'knowledge'
   description: string
   tags: string[]
   /** Package tool name for `via: package` entries (e.g. `send_email`). */
@@ -400,6 +400,48 @@ export function collectRequiredSecrets(
     }
   }
   return [...out.values()]
+}
+
+/**
+ * Copy the selected knowledge packs into the preset's `kb/` and report what
+ * landed there.
+ *
+ * A knowledge pack is EQUIPMENT, not a capability: the agent does not "call"
+ * it, it reads it. Copying (rather than referencing the catalog path) is what
+ * makes the preset a self-contained deliverable — an FDE hands over one
+ * directory, and the agent's knowledge travels with it rather than pointing
+ * back at the assembler's machine.
+ */
+export function installKnowledgePacks(
+  selected: CapabilityEntry[],
+  presetDir: string,
+  catalogRoot: string,
+): Array<{ id: string; docs: number; source?: string; version?: string }> {
+  const installed: Array<{ id: string; docs: number; source?: string; version?: string }> = []
+  for (const cap of selected.filter((c) => c.via === 'knowledge')) {
+    const packId = (cap.config?.pack as string | undefined) ?? cap.id
+    const packDir = join(catalogRoot, 'knowledge', packId)
+    const docsDir = join(packDir, 'docs')
+    if (!existsSync(docsDir)) continue
+    const targetDir = join(presetDir, 'kb', packId)
+    mkdirSync(targetDir, { recursive: true })
+    let docs = 0
+    for (const f of readdirSync(docsDir)) {
+      writeFileSync(join(targetDir, f), readFileSync(join(docsDir, f)))
+      docs += 1
+    }
+    let meta: Record<string, unknown> = {}
+    try {
+      meta = JSON.parse(readFileSync(join(packDir, '.knowledge-meta.json'), 'utf8')) as Record<string, unknown>
+    } catch { /* pack without metadata still installs */ }
+    installed.push({
+      id: packId,
+      docs,
+      ...(typeof meta.source === 'string' ? { source: meta.source } : {}),
+      ...(typeof meta.version === 'string' ? { version: meta.version } : {}),
+    })
+  }
+  return installed
 }
 
 /** One-shot fallback id for when no usable name exists: stable, short, collision-free enough. */
@@ -767,6 +809,7 @@ export function renderPartsLock(opts: {
   personaFindings?: PersonaLintFinding[]
   params?: Record<string, string>
   requiredSecrets?: Array<RequiredSecret & { server: string; configured: boolean }>
+  knowledge?: Array<{ id: string; docs: number; source?: string; version?: string }>
 }): string {
   const byId = new Map(opts.index.map((r) => [r.id, r]))
   const serverNames = [...opts.presetText.matchAll(/serverName: "([^"]+)"/g)].map((m) => m[1])
@@ -821,6 +864,8 @@ export function renderPartsLock(opts: {
   if (opts.params !== undefined && Object.keys(opts.params).length > 0) doc.params = opts.params
   // Credentials are NAMED here, never valued: the lock tells an operator what
   // to configure and where it is used, and stays safe to commit.
+  // Knowledge is provenance too: which teaching material, from where, at what version.
+  if (opts.knowledge !== undefined && opts.knowledge.length > 0) doc.knowledge = opts.knowledge
   if (opts.requiredSecrets !== undefined && opts.requiredSecrets.length > 0) {
     doc.requiredSecrets = opts.requiredSecrets.map((sec) => ({
       env: sec.env, server: sec.server, configured: sec.configured,
@@ -883,6 +928,7 @@ export async function assemble(
   params: Record<string, string>
   paramsRejected: ParamRejection[]
   requiredSecrets: Array<RequiredSecret & { server: string; configured: boolean }>
+  knowledge: Array<{ id: string; docs: number; source?: string; version?: string }>
 }> {
   const catalogPath = config.catalogPath ?? join(REPO, 'capabilities.yml')
   const templatePath = config.templatePath ?? join(REPO, 'presets', 'agent-template.yml')
@@ -985,6 +1031,19 @@ export async function assemble(
     }
   }
 
+  // Knowledge packs travel WITH the preset (copied into kb/), so the handover
+  // is one self-contained directory rather than a pointer back to this machine.
+  const knowledgeInstalled = (() => {
+    try {
+      const byIdK = new Map(catalog.capabilities.map((c) => [c.id, c]))
+      const selK = req.capabilityIds.map((cid) => byIdK.get(cid)).filter((c): c is CapabilityEntry => c !== undefined)
+      return installKnowledgePacks(selK, dir, dirname(catalogPath))
+    } catch (error: unknown) {
+      console.error(`[assembler] knowledge install failed: ${error instanceof Error ? error.message : String(error)}`)
+      return []
+    }
+  })()
+
   // Parts BOM — written LAST so it reflects the final generation: after a
   // verify-retry re-selection, req.capabilityIds and the preset bytes on
   // disk are both the retry's, and the lock reads them from there.
@@ -1009,6 +1068,7 @@ export async function assemble(
       personaFindings,
       params: screened.accepted,
       requiredSecrets,
+      knowledge: knowledgeInstalled,
     }))
   } catch (error: unknown) {
     // The lock is provenance metadata: failing to write it must not fail
@@ -1016,7 +1076,7 @@ export async function assemble(
     console.error(`[assembler] parts.lock.yml write failed: ${error instanceof Error ? error.message : String(error)}`)
   }
 
-  return { id, capabilityIds: req.capabilityIds, missing: req.missing, presetPath: join(dir, 'agent.cordis.yml'), drafts, verification, personaLint: personaFindings, params: screened.accepted, paramsRejected: screened.rejected, requiredSecrets }
+  return { id, capabilityIds: req.capabilityIds, missing: req.missing, presetPath: join(dir, 'agent.cordis.yml'), drafts, verification, personaLint: personaFindings, params: screened.accepted, paramsRejected: screened.rejected, requiredSecrets, knowledge: knowledgeInstalled }
 }
 
 /** Shared human-facing result text for the command and the tool. */
@@ -1057,6 +1117,9 @@ export function assembleResultText(result: Awaited<ReturnType<typeof assemble>>)
   const rejectLine = result.paramsRejected.length > 0
     ? `\n参数被拒:${result.paramsRejected.map((r) => `${r.key}(${r.reason})`).join(';')}`
     : ''
+  const kbLine = result.knowledge.length > 0
+    ? `\n知识包:${result.knowledge.map((k) => `${k.id}(${String(k.docs)} 篇${k.version !== undefined ? `,版本 ${k.version}` : ''})`).join(';')} — 已拷入 preset 的 kb/`
+    : ''
   const secretLines = result.requiredSecrets.length > 0
     ? `\n所需凭证:${result.requiredSecrets.map((sec) => `${sec.env}${sec.configured ? '(已配置)' : sec.optional === true ? '(可选,未配则降级)' : '(待配置)'}${sec.purpose !== undefined ? ` — ${sec.purpose}` : ''}`).join(';')}`
       + (result.requiredSecrets.some((sec) => !sec.configured && sec.optional !== true)
@@ -1066,7 +1129,7 @@ export function assembleResultText(result: Awaited<ReturnType<typeof assemble>>)
   const lint = result.personaLint.length > 0
     ? `\npersona 检查:${String(result.personaLint.length)} 条提示 — ${result.personaLint.map((f) => f.detail).join(';')}`
     : ''
-  return `assembled preset "${result.id}" with: ${result.capabilityIds.join(', ')}${missing}${drafts}${verifyLine}${secretLines}${paramLine}${rejectLine}${lint}\n`
+  return `assembled preset "${result.id}" with: ${result.capabilityIds.join(', ')}${missing}${drafts}${verifyLine}${kbLine}${secretLines}${paramLine}${rejectLine}${lint}\n`
     + `preset file: ${result.presetPath}\n`
     + `start a new session and select preset ${result.id} to use it.`
 }

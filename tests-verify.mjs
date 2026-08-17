@@ -133,5 +133,27 @@ const REQ_SERVERS = { s: { requiredSecrets: [{ env: 'MUST_HAVE_TEST_ONLY', purpo
 const reqSecrets = collectRequiredSecrets([{ id: 'r', via: 'mcp', description: '', tags: [], config: { server: 's' } }], REQ_SERVERS)
 check('未配的必需凭证进"阻塞"集合', reqSecrets.filter((x) => !x.configured && x.optional !== true).length === 1)
 
+// 6. 知识包安装:拷贝进 preset(自包含交付)+ 出处随行
+const { installKnowledgePacks } = await import('./lib/index.js')
+const { mkdtempSync: mkt, mkdirSync: mkd, writeFileSync: wf, readFileSync: rf, existsSync: ex } = await import('node:fs')
+const { join: jn } = await import('node:path')
+const { tmpdir: td } = await import('node:os')
+const kroot = mkt(jn(td(), 'kb-root-'))
+mkd(jn(kroot, 'knowledge', 'demo-pack', 'docs'), { recursive: true })
+wf(jn(kroot, 'knowledge', 'demo-pack', 'docs', 'policy.md'), '# 政策\n退货 15 日')
+wf(jn(kroot, 'knowledge', 'demo-pack', '.knowledge-meta.json'), JSON.stringify({ source: '客户导出', version: '2026-08' }))
+const pdir = mkt(jn(td(), 'preset-'))
+const inst = installKnowledgePacks(
+  [{ id: 'kb-cap', via: 'knowledge', description: '', tags: [], config: { pack: 'demo-pack' } }],
+  pdir, kroot,
+)
+check('知识包被安装', inst.length === 1 && inst[0].id === 'demo-pack' && inst[0].docs === 1, JSON.stringify(inst))
+check('文档真的拷进 preset 的 kb/', ex(jn(pdir, 'kb', 'demo-pack', 'policy.md')) && rf(jn(pdir, 'kb', 'demo-pack', 'policy.md'), 'utf8').includes('退货 15 日'))
+check('出处与版本随行', inst[0].source === '客户导出' && inst[0].version === '2026-08')
+const none = installKnowledgePacks([{ id: 'x', via: 'mcp', description: '', tags: [], config: { server: 's' } }], pdir, kroot)
+check('非知识条目不触发安装', none.length === 0)
+const missing = installKnowledgePacks([{ id: 'y', via: 'knowledge', description: '', tags: [], config: { pack: 'no-such-pack' } }], pdir, kroot)
+check('不存在的包安全跳过(不炸装配)', missing.length === 0)
+
 console.log(`\n==== verify 单元测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)
 process.exit(failures === 0 ? 0 : 1)

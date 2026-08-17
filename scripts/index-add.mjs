@@ -23,7 +23,7 @@
  */
 import { execSync, spawnSync } from 'node:child_process'
 import yaml from 'js-yaml'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -438,6 +438,118 @@ ${toolLines}
   return { id, registered: changed, note: changed.length > 0 ? 'git diff 后提交即完成收录;联邦缓存无此 server 键,下次装配自动实探' : '已登记过,无改动' }
 }
 
+// ── knowledge ──────────────────────────────────────────────────────────────
+// 知识包:客户的手册/SOP/产品目录/法规,作为**静态教材**进目录。
+// 它不是"能力"而是"装备",但走同一条供应链纪律:有出处、有版本、过门、
+// 进 BOM。质检门对它的形式是**检索命中**——给定问题必须检出预期片段,
+// 否则这包知识对 agent 就是不可用的。
+
+/** Collect readable documents under a directory (flat, extension-filtered). */
+function collectDocs(dir, exts) {
+  const out = []
+  const walk = (d, depth) => {
+    if (depth > 4) return
+    for (const name of readdirSync(d)) {
+      if (name.startsWith('.')) continue
+      const full = join(d, name)
+      const st = statSync(full)
+      if (st.isDirectory()) walk(full, depth + 1)
+      else if (exts.some((e) => name.toLowerCase().endsWith(e))) out.push({ path: full, bytes: st.size })
+    }
+  }
+  walk(dir, 0)
+  return out
+}
+
+function knowledgeScaffold() {
+  const src = target
+  if (src === undefined || !existsSync(src)) die('用法:index-add.mjs knowledge <文档目录> --id <包id> [--client <客户名>] [--source <来源说明>] [--version <版本>]')
+  const id = (flags.id ?? basename(src)).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48)
+  const root = catalogRoot(flags.client)
+  const dir = join(root, 'knowledge', id)
+  if (existsSync(join(dir, '.knowledge-meta.json')) && flags.force !== 'yes') die(`去重门:知识包 ${id} 已存在(${dir})`)
+
+  const exts = (flags.ext ?? '.md,.txt,.markdown').split(',').map((x) => x.trim())
+  const docs = collectDocs(src, exts)
+  if (docs.length === 0) die(`目录里没有找到 ${exts.join('/')} 文档:${src}`)
+
+  mkdirSync(join(dir, 'docs'), { recursive: true })
+  let totalBytes = 0
+  for (const d of docs) {
+    const rel = d.path.slice(src.replace(/\/$/, '').length + 1).replace(/[\/\\]/g, '__')
+    writeFileSync(join(dir, 'docs', rel), readFileSync(d.path))
+    totalBytes += d.bytes
+  }
+  const meta = {
+    id,
+    kind: 'knowledge',
+    client: flags.client ?? null,
+    source: flags.source ?? src,
+    version: flags.version ?? new Date().toISOString().slice(0, 10),
+    license: flags.license ?? '(客户资料:以合同为准)',
+    docCount: docs.length,
+    totalBytes,
+    scaffoldedAt: new Date().toISOString(),
+  }
+  writeFileSync(join(dir, '.knowledge-meta.json'), JSON.stringify(meta, null, 2) + '\n')
+  writeFileSync(join(dir, 'PROBES.example.json'), JSON.stringify({
+    probes: [
+      { question: '（换成一个这份资料能回答的问题）', mustInclude: ['（答案里必然出现的逐字片段）'] },
+      { question: '（第二个问题）', mustInclude: ['（片段）'] },
+    ],
+  }, null, 2) + '\n')
+  out({
+    id, kind: 'knowledge', client: flags.client ?? null,
+    dir: dir.replace(REPO + '/', ''),
+    docs: docs.length, totalBytes,
+    next: `把 PROBES.example.json 改成真实检索探针存为 probes.json,然后 knowledge-verify ${id}`,
+  })
+}
+
+/**
+ * The knowledge gate: every declared probe question must retrieve its
+ * expected snippet from the pack's documents.
+ *
+ * Retrieval here is deliberately the same crude thing an agent's search tool
+ * does — case-insensitive substring over the documents — because the gate
+ * answers "is this knowledge REACHABLE", not "is our ranking clever". A pack
+ * whose answers cannot be found by a plain search is not usable by an agent
+ * either, no matter how good the source document is.
+ */
+function knowledgeVerify() {
+  const id = target
+  const root = catalogRoot(flags.client)
+  const dir = join(root, 'knowledge', id ?? '')
+  if (!existsSync(join(dir, '.knowledge-meta.json'))) die(`知识包不存在:${dir}`)
+  const probesPath = join(dir, 'probes.json')
+  if (!existsSync(probesPath)) die(`缺 probes.json(检索探针)——参照 ${join(dir, 'PROBES.example.json')} 写真实问题与预期片段`)
+  const probes = JSON.parse(readFileSync(probesPath, 'utf8')).probes
+  if (!Array.isArray(probes) || probes.length === 0) die('probes.json 里没有探针')
+
+  const docsDir = join(dir, 'docs')
+  const corpus = readdirSync(docsDir).map((f) => ({ name: f, text: readFileSync(join(docsDir, f), 'utf8').toLowerCase() }))
+  const results = probes.map((p) => {
+    const marks = Array.isArray(p.mustInclude) ? p.mustInclude : []
+    const hits = marks.map((m) => {
+      const needle = String(m).toLowerCase()
+      const doc = corpus.find((c) => c.text.includes(needle))
+      return { mark: m, found: doc !== undefined, in: doc?.name ?? null }
+    })
+    const pass = marks.length > 0 && hits.every((h) => h.found)
+    console.error(`${pass ? '  ✓' : '  ✗ FAIL'} ${String(p.question).slice(0, 50)} — ${hits.map((h) => `${h.mark}${h.found ? `@${h.in}` : '(未找到)'}`).join(', ')}`)
+    return { question: p.question, marks, hits, pass }
+  })
+  const failed = results.filter((r) => !r.pass)
+  if (failed.length > 0) {
+    die(`知识门未过:${failed.length}/${results.length} 条探针检不出预期片段——这包知识对 agent 不可用`)
+  }
+  mkdirSync(join(root, 'index', 'reports'), { recursive: true })
+  writeFileSync(join(root, 'index', 'reports', `knowledge-${id}.json`), JSON.stringify({
+    id, kind: 'knowledge', verifiedAt: new Date().toISOString(), probes: results,
+  }, null, 2) + '\n')
+  out({ id, kind: 'knowledge', probes: results.length, passed: results.length, report: `index/reports/knowledge-${id}.json` })
+}
+
 // ── from-spec ──────────────────────────────────────────────────────────────
 // FDE 的日常动作不是收录 npm 包,是接客户的系统。客户手里通常有一份
 // OpenAPI/Swagger(或者只有一段接口说明),这里把它变成零件骨架 + 工单:
@@ -782,4 +894,6 @@ else if (cmd === 'check-all') await checkAll()
 else if (cmd === 'coverage') coverage()
 else if (cmd === 'auto') await auto()
 else if (cmd === 'from-spec') await fromSpec()
+else if (cmd === 'knowledge') knowledgeScaffold()
+else if (cmd === 'knowledge-verify') knowledgeVerify()
 else die('用法:index-add.mjs scaffold <owner/repo> --pkg <npm名> | verify <id> | register <id> | check-all | coverage | auto <owner/repo> --pkg <npm名> [--id <id>] [--port 3096]')

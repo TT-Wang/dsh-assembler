@@ -1,0 +1,11 @@
+{
+  "id": "acme-policies",
+  "kind": "knowledge",
+  "client": "acme",
+  "source": "ACME 客服中心知识库导出",
+  "version": "2026-08",
+  "license": "(客户资料:以合同为准)",
+  "docCount": 2,
+  "totalBytes": 976,
+  "scaffoldedAt": "2026-08-17T06:32:24.283Z"
+}

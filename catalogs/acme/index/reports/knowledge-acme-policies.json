@@ -1,0 +1,81 @@
+{
+  "id": "acme-policies",
+  "kind": "knowledge",
+  "verifiedAt": "2026-08-17T06:32:36.261Z",
+  "probes": [
+    {
+      "question": "普通商品的退货时限是多久?",
+      "marks": [
+        "15 个自然日"
+      ],
+      "hits": [
+        {
+          "mark": "15 个自然日",
+          "found": true,
+          "in": "return-policy.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "无理由退货的运费谁承担、多少钱?",
+      "marks": [
+        "运费由客户承担",
+        "12 元"
+      ],
+      "hits": [
+        {
+          "mark": "运费由客户承担",
+          "found": true,
+          "in": "return-policy.md"
+        },
+        {
+          "mark": "12 元",
+          "found": true,
+          "in": "return-policy.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "什么情况必须升级到人工主管?",
+      "marks": [
+        "2000 元",
+        "第三次来电"
+      ],
+      "hits": [
+        {
+          "mark": "2000 元",
+          "found": true,
+          "in": "escalation-sop.md"
+        },
+        {
+          "mark": "第三次来电",
+          "found": true,
+          "in": "escalation-sop.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "升级前必须先做什么?工单号什么格式?",
+      "marks": [
+        "先创建工单",
+        "ACME-YYYYMMDD-NNNN"
+      ],
+      "hits": [
+        {
+          "mark": "先创建工单",
+          "found": true,
+          "in": "escalation-sop.md"
+        },
+        {
+          "mark": "ACME-YYYYMMDD-NNNN",
+          "found": true,
+          "in": "escalation-sop.md"
+        }
+      ],
+      "pass": true
+    }
+  ]
+}

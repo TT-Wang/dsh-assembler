@@ -15,3 +15,14 @@ mcp-servers:
       - { env: EXTRA_TOKEN, purpose: "第二个,测试分号分隔(实测匿名可用,未配则走匿名路径)" }
 
 capabilities:
+  - id: acme-policies-kb
+    via: knowledge
+    description: ACME 客服知识库(退换货政策、客诉升级 SOP)——装配时拷入 preset 的 kb/,agent 用文件检索工具查阅
+    tags: [知识库, 政策, 退货, 退款, 运费, 客诉, 升级, sop, 工单, acme, kb, knowledge, policy, refund, escalation]
+    config:
+      pack: acme-policies
+      presetRows:
+        - id: tool-fs-search
+          name: '@deepseek-ai/dsh-tool-fs-search'
+          config:
+            sampleOverCapGlobResults: false

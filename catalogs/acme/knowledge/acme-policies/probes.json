@@ -1,0 +1,8 @@
+{
+  "probes": [
+    { "question": "普通商品的退货时限是多久?", "mustInclude": ["15 个自然日"] },
+    { "question": "无理由退货的运费谁承担、多少钱?", "mustInclude": ["运费由客户承担", "12 元"] },
+    { "question": "什么情况必须升级到人工主管?", "mustInclude": ["2000 元", "第三次来电"] },
+    { "question": "升级前必须先做什么?工单号什么格式?", "mustInclude": ["先创建工单", "ACME-YYYYMMDD-NNNN"] }
+  ]
+}
