@@ -418,13 +418,16 @@ export async function runScenario(
   presetId: string,
   scenario: ScenarioSpec,
   timeoutMs = DEFAULT_TURN_BUDGET_MS,
+  onPhase?: (line: string) => void,
 ): Promise<ProbeResult> {
   const session = await openProbeSession(port, presetId);
   const turns: TurnResult[] = [];
   try {
     for (const [i, turn] of scenario.turns.entries()) {
+      const turnStart = Date.now();
       const reply = await sendTurn(session, turn.prompt, timeoutMs);
       if (reply === undefined) {
+        onPhase?.(`轮 ${String(i + 1)}/${String(scenario.turns.length)} ✗ 超时(${String(Math.round(timeoutMs / 1000))}s)`);
         return {
           status: "FAIL",
           kind: "scenario",
@@ -434,6 +437,7 @@ export async function runScenario(
         };
       }
       const pass = marksPresent(turn.mustInclude, reply);
+      onPhase?.(`轮 ${String(i + 1)}/${String(scenario.turns.length)} ${pass ? '✓' : '✗'}(${String(Math.round((Date.now() - turnStart) / 1000))}s)`);
       turns.push({ index: i + 1, prompt: turn.prompt, mustInclude: turn.mustInclude, pass, reply: reply.slice(0, 300) });
       if (!pass) {
         return {

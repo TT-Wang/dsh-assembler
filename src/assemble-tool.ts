@@ -62,7 +62,7 @@ export function assembleToolDefinition(ctx: Context, config: Config): ToolDefini
       schema: { type: 'string' as const },
       render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
     },
-    execute: async (args: unknown): Promise<string> => {
+    execute: async (args: unknown, exec?: { agent?: unknown }): Promise<string> => {
       const a = args as { requirement?: unknown; name?: unknown; params?: unknown } | null
       const requirement = typeof a?.requirement === 'string' ? a.requirement.trim() : ''
       if (requirement === '') {
@@ -77,8 +77,62 @@ export function assembleToolDefinition(ctx: Context, config: Config): ToolDefini
           if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') params[k] = String(v)
         }
       }
-      const result = await assemble(ctx, requirement, config, { name: name === '' ? undefined : name, params })
-      return assembleResultText(result)
+
+      // ── Assembly progress, live ────────────────────────────────────────
+      // A tool result is atomic on this harness (tool/call → tool/result,
+      // nothing in between), so a long assemble is a silent spinner from the
+      // user's seat. The jobs service is the harness's one live channel — the
+      // same stream a background bash command narrates through — so the
+      // assembly registers itself as a job and narrates its phases there. The
+      // jobs panel shows them as they happen; the phases also ride the final
+      // result as a timeline, so the trail survives for whoever reads the
+      // transcript later. `ctx.get('jobs')` is optional on purpose: a profile
+      // without the jobs plugin still assembles, just silently.
+      const phases: string[] = []
+      let pending: string[] = []
+      let settle: ((outcome: { status: 'completed' | 'failed'; detail?: string }) => void) | undefined
+      const jobs = ctx.get('jobs') as undefined | {
+        start(spec: {
+          kind: string
+          label: string
+          owner?: unknown
+          run: () => {
+            cancel: () => void
+            done: Promise<{ status: 'completed' | 'failed'; detail?: string }>
+            readOutput: () => string
+          }
+        }): unknown
+      }
+      try {
+        jobs?.start({
+          kind: 'assemble',
+          label: `assemble ${name !== '' ? name : '(自动命名)'}`,
+          ...(exec?.agent !== undefined ? { owner: exec.agent } : {}),
+          run: () => ({
+            // An assembly is not abortable mid-flight (the preset write is
+            // atomic and probes have their own deadlines); kill just stops
+            // the narration.
+            cancel: () => { settle?.({ status: 'completed', detail: '进度跟踪被终止(装配仍在完成)' }); settle = undefined },
+            done: new Promise((resolve) => { settle = resolve }),
+            readOutput: () => {
+              const out = pending.join('\n')
+              pending = []
+              return out === '' ? '' : `${out}\n`
+            },
+          }),
+        })
+      } catch { /* jobs registration is narration, never a build dependency */ }
+
+      const onPhase = (line: string): void => { phases.push(line); pending.push(line) }
+      try {
+        const result = await assemble(ctx, requirement, config, { name: name === '' ? undefined : name, params, onPhase })
+        settle?.({ status: 'completed', detail: `自动验证:${result.verification.status}` })
+        const timeline = phases.length > 0 ? `\n装配轨迹:${phases.join(';')}` : ''
+        return assembleResultText(result) + timeline
+      } catch (error) {
+        settle?.({ status: 'failed', detail: String(error instanceof Error ? error.message : error).slice(0, 200) })
+        throw error
+      }
     },
   })
 }

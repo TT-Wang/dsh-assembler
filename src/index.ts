@@ -1030,7 +1030,7 @@ export async function assemble(
   ctx: Context,
   requirement: string,
   config: Config,
-  options: { name?: string; params?: Record<string, string> } = {},
+  options: { name?: string; params?: Record<string, string>; onPhase?: (line: string) => void } = {},
 ): Promise<{
   id: string
   capabilityIds: string[]
@@ -1046,9 +1046,19 @@ export async function assemble(
 }> {
   const catalogPath = config.catalogPath ?? join(REPO, 'capabilities.yml')
   const templatePath = config.templatePath ?? join(REPO, 'presets', 'agent-template.yml')
+  // Progress narration for whoever is watching (the jobs panel): a swallowed
+  // reporter must never fail an assembly, hence the try around every call.
+  const phase = (line: string): void => {
+    try { options.onPhase?.(line) } catch { /* a broken reporter must not break the build */ }
+  }
+  const t0 = Date.now()
+  const secs = (from: number): string => `${String(Math.round((Date.now() - from) / 1000))}s`
   const staticCatalog = loadCatalog(catalogPath)
   const catalog = await federateMcpTools(staticCatalog)
+  phase(`零件联邦就绪:${String(catalog.capabilities.length)} 条可装配(${secs(t0)})`)
+  const tSel = Date.now()
   const req = await llmMapRequirement(ctx, requirement, catalog, { provider: config.provider, model: config.model }, config)
+  phase(`选型完成:${String(req.capabilityIds.length)} 个能力${req.missing.length > 0 ? `,${String(req.missing.length)} 项缺口` : ''}(${secs(tSel)})`)
   // Parameter screening happens before emission so a refused key can never
   // reach the file; rejections are reported, not silently dropped.
   const screened = screenParams(options.params ?? {})
@@ -1073,8 +1083,10 @@ export async function assemble(
       return []
     }
   })()
+  if (knowledgeInstalled.length > 0) phase(`知识包已随 preset 安装:${knowledgeInstalled.map((k) => k.id).join('、')}`)
   const preset = emitPreset(req, catalog, template, id, knowledgeLocatorText(knowledgeInstalled))
   writePresetFile(join(dir, 'agent.cordis.yml'), preset)
+  phase(`preset 已发射:${id}`)
   // Display metadata beside the composition: the roster picker shows the name
   // and a one-line description (harness dsh-agent-presets reads preset.yml).
   const description = requirement.replace(/\s+/g, ' ').trim().slice(0, 140)
@@ -1107,6 +1119,7 @@ export async function assemble(
     const missingSecrets = requiredSecrets.filter((sec) => !sec.configured && sec.optional !== true)
     if (port === undefined) {
       verification = { status: 'SKIPPED', reason: 'webServer port unavailable (headless run?)' }
+      phase('验收跳过:无 webServer 端口(headless?)')
     } else if (missingSecrets.length > 0) {
       // The interface is in place and the preset is mountable; what is absent
       // is the operator's key. Calling that a FAILED assembly would be a lie
@@ -1121,11 +1134,16 @@ export async function assemble(
       const selected = req.capabilityIds.map((cid) => byId.get(cid)).filter((c): c is CapabilityEntry => c !== undefined)
       const runPlan = async (plan: ProbePlan): Promise<ProbeResult> => (
         plan.kind === 'scenario'
-          ? await runScenario(port, id, plan.scenario, config.verifyTimeoutMs)
+          ? await runScenario(port, id, plan.scenario, config.verifyTimeoutMs, phase)
           : await runProbe(port, id, plan.probe, config.verifyTimeoutMs)
       )
       try {
+        const tDerive = Date.now()
+        phase('探针推导中(定单轮或多轮场景)…')
         const plan = await deriveProbePlan(ctx, requirement, selected, { provider: config.provider, model: config.model })
+        phase(plan.kind === 'scenario'
+          ? `验收探针:多轮场景共 ${String(plan.scenario.turns.length)} 轮(推导 ${secs(tDerive)})——探针会话可在侧栏实时旁观`
+          : `验收探针:单轮(推导 ${secs(tDerive)})——探针会话可在侧栏实时旁观`)
         verification = await runPlan(plan)
         if (verification.status === 'FAIL') {
           // One re-selection with failure feedback, re-emit under the same id.
@@ -1133,6 +1151,7 @@ export async function assemble(
           // call, a wire hiccup) must not erase the first probe's verdict —
           // the FAIL plus its evidence is the actionable result.
           try {
+            phase('首探 FAIL → 携失败反馈重选型、同 id 重发一次…')
             const retryReq = await llmMapRequirement(
               ctx,
               `${requirement}\n\n(上一次装配选了 [${req.capabilityIds.join(', ')}],冒烟探针未通过:${verification.reason ?? '回复未包含验收标记'}。请重新选型,优先替换可能不匹配的零件。)`,
