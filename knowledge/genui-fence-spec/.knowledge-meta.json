@@ -1,0 +1,11 @@
+{
+  "id": "genui-fence-spec",
+  "kind": "knowledge",
+  "client": null,
+  "source": "github.com/omdsh-dev/dsh-genui@0.8.7 SKILL.md(随插件版本走,插件升级时重新收录)",
+  "version": "0.8.7",
+  "license": "MIT",
+  "docCount": 2,
+  "totalBytes": 14907,
+  "scaffoldedAt": "2026-08-18T06:00:15.547Z"
+}

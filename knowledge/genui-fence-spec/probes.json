@@ -1,0 +1,78 @@
+{
+  "_note": "检索探针:专挑这次真实翻车的字段——模型猜错的每一个点,都要能从这包文档里逐字检出正确写法。",
+  "probes": [
+    {
+      "question": "折线图能不能用 series 画多条线?要画高低温对比该用什么形状?",
+      "mustInclude": [
+        "只读**顶层 `data`**",
+        "分组柱状"
+      ]
+    },
+    {
+      "question": "chart 多序列 series 里,序列名字段到底叫什么?写错会怎样?",
+      "mustInclude": [
+        "`label`,不是 `name`",
+        "空坐标轴"
+      ]
+    },
+    {
+      "question": "chart 组件的数据点应该写成什么形状?裸数字行不行?",
+      "mustInclude": [
+        "\"data\":[{\"label\":\"...\",\"value\":n",
+        "series"
+      ]
+    },
+    {
+      "question": "chart 的多序列 series 里,序列名的字段叫什么?",
+      "mustInclude": [
+        "series 字段 = 分组柱状图"
+      ]
+    },
+    {
+      "question": "chart 支持哪几种形态?",
+      "mustInclude": [
+        "bars/line/donut"
+      ]
+    },
+    {
+      "question": "stat 卡的涨跌怎么表示,颜色规则是什么?",
+      "mustInclude": [
+        "delta",
+        "开头自动红"
+      ]
+    },
+    {
+      "question": "负值数据画柱状图和 donut 时怎么处理?",
+      "mustInclude": [
+        "柱高为 0 但数值标注照显"
+      ]
+    },
+    {
+      "question": "fence 的语言标是什么、spec 是什么格式?",
+      "mustInclude": [
+        "dsh-ui",
+        "JSON"
+      ]
+    },
+    {
+      "question": "进度条组件的取值范围?",
+      "mustInclude": [
+        "value\":0-100"
+      ]
+    },
+    {
+      "question": "表格组件的列和行怎么写?",
+      "mustInclude": [
+        "\"columns\":[",
+        "\"rows\":[["
+      ]
+    },
+    {
+      "question": "单序列时数据放哪个字段?series 和顶层 data 能同时用吗?",
+      "mustInclude": [
+        "单序列直接用顶层 `data`",
+        "不要再放顶层 `data`"
+      ]
+    }
+  ]
+}

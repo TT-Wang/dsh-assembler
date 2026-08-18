@@ -1,0 +1,203 @@
+{
+  "id": "genui-fence-spec",
+  "kind": "knowledge",
+  "verifiedAt": "2026-08-18T06:17:46.010Z",
+  "probes": [
+    {
+      "question": "折线图能不能用 series 画多条线?要画高低温对比该用什么形状?",
+      "marks": [
+        "只读**顶层 `data`**",
+        "分组柱状"
+      ],
+      "hits": [
+        {
+          "mark": "只读**顶层 `data`**",
+          "found": true,
+          "in": "chart-series-addendum.md"
+        },
+        {
+          "mark": "分组柱状",
+          "found": true,
+          "in": "chart-series-addendum.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "chart 多序列 series 里,序列名字段到底叫什么?写错会怎样?",
+      "marks": [
+        "`label`,不是 `name`",
+        "空坐标轴"
+      ],
+      "hits": [
+        {
+          "mark": "`label`,不是 `name`",
+          "found": true,
+          "in": "chart-series-addendum.md"
+        },
+        {
+          "mark": "空坐标轴",
+          "found": true,
+          "in": "chart-series-addendum.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "chart 组件的数据点应该写成什么形状?裸数字行不行?",
+      "marks": [
+        "\"data\":[{\"label\":\"...\",\"value\":n",
+        "series"
+      ],
+      "hits": [
+        {
+          "mark": "\"data\":[{\"label\":\"...\",\"value\":n",
+          "found": true,
+          "in": "genui-spec.md"
+        },
+        {
+          "mark": "series",
+          "found": true,
+          "in": "chart-series-addendum.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "chart 的多序列 series 里,序列名的字段叫什么?",
+      "marks": [
+        "series 字段 = 分组柱状图"
+      ],
+      "hits": [
+        {
+          "mark": "series 字段 = 分组柱状图",
+          "found": true,
+          "in": "genui-spec.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "chart 支持哪几种形态?",
+      "marks": [
+        "bars/line/donut"
+      ],
+      "hits": [
+        {
+          "mark": "bars/line/donut",
+          "found": true,
+          "in": "genui-spec.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "stat 卡的涨跌怎么表示,颜色规则是什么?",
+      "marks": [
+        "delta",
+        "开头自动红"
+      ],
+      "hits": [
+        {
+          "mark": "delta",
+          "found": true,
+          "in": "genui-spec.md"
+        },
+        {
+          "mark": "开头自动红",
+          "found": true,
+          "in": "genui-spec.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "负值数据画柱状图和 donut 时怎么处理?",
+      "marks": [
+        "柱高为 0 但数值标注照显"
+      ],
+      "hits": [
+        {
+          "mark": "柱高为 0 但数值标注照显",
+          "found": true,
+          "in": "genui-spec.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "fence 的语言标是什么、spec 是什么格式?",
+      "marks": [
+        "dsh-ui",
+        "JSON"
+      ],
+      "hits": [
+        {
+          "mark": "dsh-ui",
+          "found": true,
+          "in": "genui-spec.md"
+        },
+        {
+          "mark": "JSON",
+          "found": true,
+          "in": "chart-series-addendum.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "进度条组件的取值范围?",
+      "marks": [
+        "value\":0-100"
+      ],
+      "hits": [
+        {
+          "mark": "value\":0-100",
+          "found": true,
+          "in": "genui-spec.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "表格组件的列和行怎么写?",
+      "marks": [
+        "\"columns\":[",
+        "\"rows\":[["
+      ],
+      "hits": [
+        {
+          "mark": "\"columns\":[",
+          "found": true,
+          "in": "genui-spec.md"
+        },
+        {
+          "mark": "\"rows\":[[",
+          "found": true,
+          "in": "genui-spec.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "单序列时数据放哪个字段?series 和顶层 data 能同时用吗?",
+      "marks": [
+        "单序列直接用顶层 `data`",
+        "不要再放顶层 `data`"
+      ],
+      "hits": [
+        {
+          "mark": "单序列直接用顶层 `data`",
+          "found": true,
+          "in": "chart-series-addendum.md"
+        },
+        {
+          "mark": "不要再放顶层 `data`",
+          "found": true,
+          "in": "chart-series-addendum.md"
+        }
+      ],
+      "pass": true
+    }
+  ]
+}

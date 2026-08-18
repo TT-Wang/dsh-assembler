@@ -417,6 +417,17 @@ mcp-servers:
     args: ["/Users/tongtao/code/dsh-assembler/generated/deps-graph/index.js"]
 
 capabilities:
+  - id: genui-fence-spec-kb
+    via: knowledge
+    description: dsh-ui 行内 UI 的字段规范(genui 插件的 SKILL.md,随插件版本收录)——需求要求画图表/看板/仪表盘等行内 UI 时必选:窄面 preset 读不到 host 的 skill 通道,没有这包规范模型只能猜字段,画出来是空图。装配时拷入 preset 的 kb/。
+    tags: [ui, genui, dsh-ui, 行内ui, 图表, 走势图, 折线, 柱状, donut, 仪表盘, 看板, 组件, fence, 渲染, chart, plot, stat, 卡片, dashboard, kanban, widget, 可视化, visualization]
+    config:
+      pack: genui-fence-spec
+      presetRows:
+        - id: tool-fs-search
+          name: '@deepseek-ai/dsh-tool-fs-search'
+          config:
+            sampleOverCapGlobResults: false
   # ── customer-service domain tools (this package) ──────────────────────────
   - id: crm-query
     via: package
