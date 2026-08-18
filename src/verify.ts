@@ -155,6 +155,18 @@ const MARK_RULES = [
 ];
 
 /** One fast-model JSON call with the deriver's provider/model discipline. */
+/**
+ * Deadline for one auxiliary model call in the assemble path (selection,
+ * probe derivation). These calls run INSIDE the user's assemble turn: without
+ * a signal, an upstream that neither answers nor closes (observed live: four
+ * proxied sockets ESTABLISHED, session log frozen for 6 minutes) hangs the
+ * whole turn forever — the user sees a spinner and nothing else. Generous on
+ * purpose: a derivation is seconds on a healthy route, so two minutes only
+ * ever fires on a broken one, and the abort feeds the existing failure paths
+ * (probe → 未能验证, selection → loud tool error) instead of a silent hang.
+ */
+export const AUX_CALL_TIMEOUT_MS = 120_000;
+
 async function callDeriver(
   ctx: Context,
   prompt: string,
@@ -168,6 +180,7 @@ async function callDeriver(
     provider: llm.provider ?? selection?.provider ?? "deepseek-official",
     model: llm.model ?? "deepseek-v4-flash",
     messages: [createUserMessage({ content: [{ type: "text", text: prompt }], source: { kind: "user" } })],
+    signal: AbortSignal.timeout(AUX_CALL_TIMEOUT_MS),
   };
   for await (const chunk of ctx.llm.stream(options)) assembler.push(chunk);
   const finish = assembler.finish;

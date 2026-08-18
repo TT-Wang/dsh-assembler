@@ -25,7 +25,7 @@ import { BlockAssembler, type GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { createUserMessage } from '@deepseek-ai/dsh-llm/message'
 import yaml from 'js-yaml'
 import { assembleToolDefinition } from './assemble-tool.js'
-import { deriveProbePlan, runProbe, runScenario, type ProbePlan, type ProbeResult } from './verify.js'
+import { AUX_CALL_TIMEOUT_MS, deriveProbePlan, runProbe, runScenario, type ProbePlan, type ProbeResult } from './verify.js'
 import { lintPersona, resolvePersonaText, type PersonaLintFinding } from './persona-lint.js'
 
 export { lintPersona, resolvePersonaText, type PersonaLintFinding } from './persona-lint.js'
@@ -241,6 +241,11 @@ export async function llmMapRequirement(
       content: [{ type: 'text', text: prompt }],
       source: { kind: 'user' },
     })],
+    // Deadline, not decoration: this call runs inside the user's assemble
+    // turn, and an upstream that neither answers nor closes would otherwise
+    // hang that turn forever (see AUX_CALL_TIMEOUT_MS in verify.ts — observed
+    // live on the probe-deriver twin of this call).
+    signal: AbortSignal.timeout(AUX_CALL_TIMEOUT_MS),
   }
   const stream = ctx.llm.stream(request)
   let text = ''
