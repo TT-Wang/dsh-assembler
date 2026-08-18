@@ -1,0 +1,6 @@
+# northwind 交付:把 assembler 的目录指到客户目录(它 extends 公共目录,
+# 所以看得见公共零件 + 客户治理口径两层)。
+- id: dsh-assembler
+  name: '@dsh-external/dsh-assembler'
+  config:
+    catalogPath: /Users/tongtao/code/dsh-assembler/catalogs/northwind/capabilities.yml
