@@ -123,6 +123,21 @@ export const MAX_SCENARIO_TURNS = 4;
  */
 export const ASSEMBLE_WORST_CASE_MS = DEFAULT_TURN_BUDGET_MS * MAX_SCENARIO_TURNS + 10 * 60_000;
 
+/**
+ * Deadline for one probe wire RPC (session.create, session.prompt).
+ *
+ * These are supposed to return in milliseconds: session.prompt uses mode:queue,
+ * so it enqueues and returns immediately — the agent runs LATER, and sendTurn's
+ * own turn-budget loop waits for that. But the `await fetch` had NO timeout, so
+ * a host that accepts the socket and never answers hangs the RPC forever — and
+ * because sendTurn's while-loop only starts counting AFTER fetch resolves, the
+ * turn budget never even engages. Observed live: session.prompt for a scenario's
+ * second turn never returned; assemble sat past its whole worst-case window with
+ * a spinner. 30s is generous for an enqueue-and-ack; blowing it means the host
+ * is not answering, which is an ERRORED probe, not a hung turn.
+ */
+export const PROBE_RPC_TIMEOUT_MS = 30_000;
+
 /** Pure mark check: every mark present, case-insensitive. Unit-tested. */
 export function marksPresent(marks: readonly string[], reply: string): boolean {
   const hay = reply.toLowerCase();
@@ -325,11 +340,23 @@ interface ProbeSession {
 async function openProbeSession(port: number, presetId: string): Promise<ProbeSession> {
   const base = `http://127.0.0.1:${port}`;
   const rpc = async (method: string, payload: unknown): Promise<any> => {
-    const res = await fetch(`${base}/api/${method}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "client-request", rpcId: `probe-${Date.now()}-${Math.round(performance.now())}`, method, payload }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${base}/api/${method}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "client-request", rpcId: `probe-${Date.now()}-${Math.round(performance.now())}`, method, payload }),
+        // Deadline the socket itself, not just the turn that follows it: an
+        // unanswered enqueue-and-ack would otherwise hang before sendTurn's
+        // turn budget ever starts counting (see PROBE_RPC_TIMEOUT_MS).
+        signal: AbortSignal.timeout(PROBE_RPC_TIMEOUT_MS),
+      });
+    } catch (error) {
+      const why = error instanceof Error && error.name === "TimeoutError"
+        ? `${Math.round(PROBE_RPC_TIMEOUT_MS / 1000)}s 内无响应`
+        : (error instanceof Error ? error.message : String(error));
+      throw new Error(`${method}: wire RPC 失败(${why})`);
+    }
     const j = (await res.json()) as any;
     if (!j.result?.ok) throw new Error(`${method}: ${JSON.stringify(j.result?.error ?? j).slice(0, 800)}`);
     return j.result.value;
