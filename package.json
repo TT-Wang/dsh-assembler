@@ -1,6 +1,6 @@
 {
   "name": "@dsh-external/dsh-assembler",
-  "description": "Vibe-assembly for DeepSeek Harness: turn a natural-language agent requirement into a composed agent preset by matching the capability catalog. Registers the /assemble command.",
+  "description": "Vibe-assembly for DSH (DeepSeek Harness): turn a natural-language agent requirement into a composed agent preset by matching the capability catalog. Registers the /assemble command.",
   "version": "0.0.1",
   "type": "module",
   "main": "lib/index.js",

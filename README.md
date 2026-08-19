@@ -1,4 +1,4 @@
-# dsh-assembler — Vibe Assembly for DeepSeek Harness
+# dsh-assembler — Vibe Assembly for DSH
 
 English | [中文](README.zh.md)
 
