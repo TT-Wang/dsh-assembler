@@ -1,0 +1,11 @@
+{
+  "id": "bluesky-feed",
+  "kind": "service",
+  "service": "https://public.api.bsky.app",
+  "provider": "(未填)",
+  "license": "Bluesky public AppView (read-only public data, no auth)",
+  "terms": "https://docs.bsky.app — public read endpoints; posts are user content",
+  "rateLimit": "no key; public AppView rate-limited by IP",
+  "network": true,
+  "scaffoldedAt": "2026-08-19T10:25:26.682Z"
+}

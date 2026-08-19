@@ -780,3 +780,29 @@
     - { name: "package-licence", description: "查一个包版本的许可证与元数据：licences、是否已弃用（及原因）、发布时间、上游公告 id、主页/仓库链接。许可证字段来自上游注册表的镜像，是**参考信息不" }
     - { name: "resolved-dependencies", description: "解析一个包版本的依赖闭包：直接依赖与间接依赖分别计数，并列出节点（默认最多 60 个）。这是把\"一条直接依赖\"展开成\"实际装进产物的那一堆\"的动作——治理要管的" }
     - { name: "list-versions", description: "列一个包有哪些版本：总数、默认（latest）版本、最近 15 个版本及其发布时间与弃用状态。用来确认\"该升到哪个版本\"那个版本真的存在且没被弃用。只读，不需要" }
+
+- id: hn-search
+  kind: service
+  service: "https://hn.algolia.com/api/v1"
+  provider: "(未填)"
+  license: "MIT (Algolia HN Search API, public, no key)"
+  terms: "https://hn.algolia.com/api — public, no key, courteous rate"
+  rateLimit: "no key; ~10000 req/hour soft"
+  network: true
+  tools:
+    - { name: "search-stories", description: "按关键词搜 Hacker News 故事,返回标题、外链、分数(points)、评论数与作者。sort=relevance 按相关度、sort=date 按时间" }
+    - { name: "top-stories", description: "某关键词下当前分数最高的 HN 故事(points 降序),用来看\"这个话题现在最热的讨论是什么\"。只读,不需要凭证。" }
+    - { name: "get-item", description: "按 objectID 取一条 HN 项(故事或评论)的详情,包括正文文本与子评论 id。只读,不需要凭证。" }
+
+- id: bluesky-feed
+  kind: service
+  service: "https://public.api.bsky.app"
+  provider: "(未填)"
+  license: "Bluesky public AppView (read-only public data, no auth)"
+  terms: "https://docs.bsky.app — public read endpoints; posts are user content"
+  rateLimit: "no key; public AppView rate-limited by IP"
+  network: true
+  tools:
+    - { name: "author-feed", description: "读某个 Bluesky 账号最近的帖子,带点赞/转发/回复数与原帖链接。盯特定 AI 大 V 或机构就用这个(给一批账号各调一次)。只读,不需要凭证。" }
+    - { name: "whats-hot", description: "Bluesky 官方 \"whats-hot\" 热门 feed:全站当下高互动的帖子。用来快速扫\"现在 Bluesky 上什么在刷屏\"。只读,不需要凭证。" }
+    - { name: "profile", description: "看某个 Bluesky 账号的资料:显示名、简介、粉丝数/关注数/发帖数。用来判断一个账号的分量。只读,不需要凭证。" }

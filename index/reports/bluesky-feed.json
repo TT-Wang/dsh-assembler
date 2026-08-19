@@ -1,0 +1,20 @@
+{
+  "id": "bluesky-feed",
+  "verifiedAt": "2026-08-19T10:29:58.673Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "author-feed",
+      "description": "读某个 Bluesky 账号最近的帖子,带点赞/转发/回复数与原帖链接。盯特定 AI 大 V 或机构就用这个(给一批账号各调一次)。只读,不需要凭证。"
+    },
+    {
+      "name": "whats-hot",
+      "description": "Bluesky 官方 \"whats-hot\" 热门 feed:全站当下高互动的帖子。用来快速扫\"现在 Bluesky 上什么在刷屏\"。只读,不需要凭证。"
+    },
+    {
+      "name": "profile",
+      "description": "看某个 Bluesky 账号的资料:显示名、简介、粉丝数/关注数/发帖数。用来判断一个账号的分量。只读,不需要凭证。"
+    }
+  ]
+}

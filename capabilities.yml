@@ -416,6 +416,16 @@ mcp-servers:
     command: node
     args: ["/Users/tongtao/code/dsh-assembler/generated/deps-graph/index.js"]
 
+  hn-search:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/hn-search/index.js"]
+
+  bluesky-feed:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/bluesky-feed/index.js"]
+
 capabilities:
   - id: genui-fence-spec-kb
     via: knowledge

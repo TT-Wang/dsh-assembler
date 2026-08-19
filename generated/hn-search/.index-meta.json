@@ -1,0 +1,11 @@
+{
+  "id": "hn-search",
+  "kind": "service",
+  "service": "https://hn.algolia.com/api/v1",
+  "provider": "(未填)",
+  "license": "MIT (Algolia HN Search API, public, no key)",
+  "terms": "https://hn.algolia.com/api — public, no key, courteous rate",
+  "rateLimit": "no key; ~10000 req/hour soft",
+  "network": true,
+  "scaffoldedAt": "2026-08-19T10:25:26.610Z"
+}
