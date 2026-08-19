@@ -412,13 +412,32 @@ async function sendTurn(session: ProbeSession, prompt: string, timeoutMs: number
 }
 
 /** Run a single-turn probe in a real session bound to the preset. */
+/**
+ * Tell the watcher which sidebar session is the live probe.
+ *
+ * The probe runs in its own session with an auto-generated title; the assemble
+ * call the user is watching cannot show that session's thinking inline (a tool
+ * result is atomic). DSH web has no session deep-link to click, so the next
+ * best thing is to name the probe session in the progress stream the instant it
+ * opens — the user opens that sidebar row and watches the real thinking + tool
+ * calls live. The task's opening words are the hint, because that is exactly
+ * what the session-title plugin derives its title from.
+ */
+function announceProbeSession(onPhase: ((line: string) => void) | undefined, sessionId: string, taskHint: string): void {
+  if (onPhase === undefined) return;
+  const hint = taskHint.replace(/\s+/g, " ").trim().slice(0, 24);
+  onPhase(`探针会话已开(实时思维链在此)——侧栏找标题近似「${hint}…」的会话点开旁观 · id ${sessionId.slice(0, 16)}`);
+}
+
 export async function runProbe(
   port: number,
   presetId: string,
   probe: ProbeSpec,
   timeoutMs = DEFAULT_TURN_BUDGET_MS,
+  onPhase?: (line: string) => void,
 ): Promise<ProbeResult> {
   const session = await openProbeSession(port, presetId);
+  announceProbeSession(onPhase, session.sessionId, probe.task);
   try {
     const reply = await sendTurn(session, probe.task, timeoutMs);
     if (reply === undefined) {
@@ -448,6 +467,7 @@ export async function runScenario(
   onPhase?: (line: string) => void,
 ): Promise<ProbeResult> {
   const session = await openProbeSession(port, presetId);
+  announceProbeSession(onPhase, session.sessionId, scenario.turns[0]?.prompt ?? scenario.goal);
   const turns: TurnResult[] = [];
   try {
     for (const [i, turn] of scenario.turns.entries()) {

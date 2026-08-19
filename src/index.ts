@@ -1135,7 +1135,7 @@ export async function assemble(
       const runPlan = async (plan: ProbePlan): Promise<ProbeResult> => (
         plan.kind === 'scenario'
           ? await runScenario(port, id, plan.scenario, config.verifyTimeoutMs, phase)
-          : await runProbe(port, id, plan.probe, config.verifyTimeoutMs)
+          : await runProbe(port, id, plan.probe, config.verifyTimeoutMs, phase)
       )
       try {
         const tDerive = Date.now()
