@@ -53,6 +53,15 @@ export function solutionToolDefinition(ctx: Context, config: Config): ToolDefini
           },
         },
       },
+      sharedSchema: {
+        type: 'string',
+        description:
+          'Optional SHARED SQLite DDL (idempotent: only CREATE TABLE/INDEX IF NOT EXISTS) defining tables that ALL agents '
+          + 'in the suite read and write together — use this when the request says the agents "share the same data" '
+          + '(e.g. 共享同一套商品/订单数据). Define the common tables (products, orders, …) here ONCE; every agent\'s SQLite '
+          + 'default DB is pinned to one shared solution database, so what one agent writes another can read. '
+          + 'Each agent still gets its own extra tables from its own assembly. English column names, sensible keys.',
+      },
       params: {
         type: 'object',
         additionalProperties: true,
@@ -66,7 +75,7 @@ export function solutionToolDefinition(ctx: Context, config: Config): ToolDefini
       render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
     },
     execute: async (args: unknown): Promise<string> => {
-      const a = args as { name?: unknown; client?: unknown; agents?: unknown; params?: unknown } | null
+      const a = args as { name?: unknown; client?: unknown; agents?: unknown; params?: unknown; sharedSchema?: unknown } | null
       const name = typeof a?.name === 'string' ? a.name.trim() : ''
       if (name === '') throw new Error('assemble_solution needs {"name": "<suite-slug>", "agents": [...]}')
       const rawAgents = Array.isArray(a?.agents) ? a.agents : []
@@ -92,7 +101,8 @@ export function solutionToolDefinition(ctx: Context, config: Config): ToolDefini
       const onPhase = (line: string): void => { lines.push(line) }
 
       const client = typeof a?.client === 'string' ? a.client.trim() : undefined
-      const spec = { name, ...(client !== undefined && client !== '' ? { client } : {}), ...(Object.keys(params).length > 0 ? { params } : {}), agents }
+      const sharedSchema = typeof a?.sharedSchema === 'string' && a.sharedSchema.trim() !== '' ? a.sharedSchema.trim() : undefined
+      const spec = { name, ...(client !== undefined && client !== '' ? { client } : {}), ...(sharedSchema !== undefined ? { sharedSchema } : {}), ...(Object.keys(params).length > 0 ? { params } : {}), agents }
 
       let jobDone: ((o: { status: 'completed' | 'failed'; detail?: string }) => void) | undefined
       if (jobs !== undefined) {

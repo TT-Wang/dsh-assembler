@@ -743,6 +743,14 @@ export function installStateEquipment(opts: {
   stateSchema?: string
   selected: CapabilityEntry[]
   dir: string
+  /**
+   * 共享库(solution 级):给了则本 agent 的默认库钉到这个绝对路径,而不是自己
+   * 的 workspace/data.db——同一套班子的多个 agent 由此读写同一份账(FDE 的
+   * "共享同一套商品/订单数据")。共享库的建表由 solution 层统一做,这里的
+   * 每 agent DDL 仍会自动执行(CREATE TABLE IF NOT EXISTS 幂等,补齐本 agent
+   * 专属表不冲突)。
+   */
+  sharedDb?: string
 }): StateEquipment | null {
   const ddl = (opts.stateSchema ?? '').trim()
   if (ddl === '') return null
@@ -762,17 +770,19 @@ export function installStateEquipment(opts: {
   const file = join(eqDir, 'init.sql')
   writeFileSync(file, ddl.endsWith('\n') ? ddl : `${ddl}\n`)
   const extraServerEnv: Record<string, Record<string, string>> = {}
-  // 默认库钉为**绝对路径** <preset>/workspace/data.db:该 preset 的任何会话
-  // (前端页/DSH 对话/种子脚本)打开的都是同一份账。两版教训:不钉库位 agent
-  // 各自发明库名甚至落 :memory:;钉相对路径则解析进部件进程 cwd(= host 检出
-  // 目录),五个 preset 的表混进同一个文件。代价:探针会话也写这份库(验收
-  // 残留几行数据)——比"跨 preset 串库"便宜得多,如实记录。
-  const defaultDb = join(opts.dir, 'workspace', 'data.db')
-  mkdirSync(join(opts.dir, 'workspace'), { recursive: true })
+  // 默认库钉为**绝对路径**:独立 agent → 自己的 workspace/data.db;solution 班子
+  // → 共享库(sharedDb)。该 preset 的任何会话(前端页/DSH 对话/种子脚本)打开
+  // 的都是同一份账。两版教训:不钉库位 agent 各自发明库名甚至落 :memory:;钉相对
+  // 路径则解析进部件进程 cwd(= host 检出目录),五个 preset 的表混进同一个文件。
+  const defaultDb = opts.sharedDb ?? join(opts.dir, 'workspace', 'data.db')
+  mkdirSync(dirname(defaultDb), { recursive: true })
   for (const server of sqliteServers) extraServerEnv[server] = { SQLITE_INIT_DDL_FILE: file, SQLITE_DEFAULT_DB: defaultDb }
+  const dbNote = opts.sharedDb !== undefined
+    ? `\n\n本台数据库已配备(**方案共享库**,与同套班子的其他 agent 读写同一份账):默认库已固定(调用 sqlite 工具时**不要传 database 参数**,禁止自创数据库文件名),共享表结构已由方案统一建好,本 agent 专属表在打开时自动补齐(DDL 见 ${file})——直接使用现有表,禁止重新设计 schema 或另建同用途的表。`
+    : `\n\n本台数据库已配备:默认库已固定(调用 sqlite 工具时**不要传 database 参数**,禁止自创数据库文件名),表结构一打开即自动建好(DDL 见 ${file})——直接使用现有表,禁止重新设计 schema 或另建同用途的表。`
   return {
     extraServerEnv,
-    personaText: `\n\n本台数据库已配备:默认库已固定(调用 sqlite 工具时**不要传 database 参数**,禁止自创数据库文件名),表结构一打开即自动建好(DDL 见 ${file})——直接使用现有表,禁止重新设计 schema 或另建同用途的表。`,
+    personaText: dbNote,
     files: ['equipment/init.sql'],
   }
 }
@@ -1658,6 +1668,11 @@ export async function assemble(
     reverify?: boolean
     /** Skip same-name reuse: full re-selection and re-emit (--fresh). */
     fresh?: boolean
+    /**
+     * 方案共享库(solution 级):给了则本 agent 的 SQLite 默认库钉到这个绝对
+     * 路径,与同套班子的其他 agent 读写同一份账。由 assemble_solution 传入。
+     */
+    sharedDb?: string
   } = {},
 ): Promise<{
   id: string
@@ -1828,8 +1843,9 @@ export async function assemble(
       ...(req.stateSchema !== undefined ? { stateSchema: req.stateSchema } : {}),
       selected: selectedForEquip,
       dir,
+      ...(options.sharedDb !== undefined ? { sharedDb: options.sharedDb } : {}),
     })
-    if (equipmentNow !== null) phase('装备已发射:预建数据库 schema(equipment/init.sql,双次执行门 PASS)')
+    if (equipmentNow !== null) phase(`装备已发射:预建数据库 schema(equipment/init.sql,双次执行门 PASS)${options.sharedDb !== undefined ? '——钉方案共享库' : ''}`)
   }
   const tEmit = Date.now()
   const preset = reuse !== null
@@ -1984,6 +2000,7 @@ export async function assemble(
               ...(retryReq.stateSchema !== undefined ? { stateSchema: retryReq.stateSchema } : {}),
               selected: retrySelected,
               dir,
+              ...(options.sharedDb !== undefined ? { sharedDb: options.sharedDb } : {}),
             })
             equipmentNow = retryEquipment
             const retryPreset = emitPreset(retryReq, catalog, template, id, knowledgeLocatorText(knowledgeInstalled) + (retryEquipment?.personaText ?? ''), retryEquipment?.extraServerEnv, join(dir, 'workspace'))

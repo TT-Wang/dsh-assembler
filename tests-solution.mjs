@@ -44,12 +44,14 @@ const results = [
 ]
 const solDir = join(root, '_sol')
 mkdirSync(solDir, { recursive: true })
-const hp = writeHandover(solDir, { name: 'ecommerce-suite', client: '示例电商', params: { timezone: 'Asia/Shanghai' } }, results, root)
+// 共享表由 solution 层传入(不再从各 agent 的 init.sql 反推)——这是 G1 修复:
+// 方案级共享库,products/orders 是全班子共用的表。
+const hp = writeHandover(solDir, { name: 'ecommerce-suite', client: '示例电商', params: { timezone: 'Asia/Shanghai' } }, results, root, ['products', 'orders'])
 const md = readFileSync(hp, 'utf8')
 
 check('HANDOVER 列出两个 agent 及验收', md.includes('cs-agent') && md.includes('recon-agent') && (md.match(/PASS/g) ?? []).length >= 2, md.slice(0, 200))
 check('每个 agent 的职责有据', md.includes('查订单开工单转人工') && md.includes('对账'))
-check('共享表去重汇总(orders 只出现一次)', (md.match(/`orders`/g) ?? []).length === 1 && md.includes('`tickets`') && md.includes('`reconciliations`'), md)
+check('共享表来自方案层(products+orders)', md.includes('`products`') && md.includes('`orders`'), md.slice(md.indexOf('共享数据'), md.indexOf('共享数据') + 120))
 check('待配置凭证汇总', md.includes('CRM_TOKEN') && md.includes('**待配置**'))
 check('知识包随行', md.includes('refund-policy') && md.includes('2026-08'))
 check('BOM 去重(sqlite-query 两 agent 共用只列一次)', (md.match(/sqlite-query/g) ?? []).length === 1, md)

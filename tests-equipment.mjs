@@ -42,6 +42,14 @@ check('默认库钉为本 preset 的绝对 workspace/data.db', eq !== null && eq
 check('persona 句点名"禁止重新设计"', eq?.personaText.includes('禁止重新设计') === true)
 check('BOM 文件清单', JSON.stringify(eq?.files) === '["equipment/init.sql"]')
 
+// 方案共享库(G1):给了 sharedDb,默认库钉到共享路径而非自己的 workspace,persona 明示共享。
+const dirS = join(root, 'agent-shared'); mkdirSync(dirS, { recursive: true })
+const SHARED = join(root, '_sol', 'shared', 'data.db')
+const eqS = installStateEquipment({ stateSchema: GOOD_DDL, selected: [SQLITE_CAP], dir: dirS, sharedDb: SHARED })
+check('sharedDb → 默认库钉到方案共享路径', eqS !== null && eqS.extraServerEnv['sqlite-query'].SQLITE_DEFAULT_DB === SHARED)
+check('sharedDb → 本 agent DDL 仍自动执行(补专属表)', eqS !== null && eqS.extraServerEnv['sqlite-query'].SQLITE_INIT_DDL_FILE.endsWith('init.sql'))
+check('sharedDb → persona 点名"方案共享库"', eqS?.personaText.includes('方案共享库') === true)
+
 const dirB = join(root, 'agent-b'); mkdirSync(dirB, { recursive: true })
 check('没选 sqlite → 不装备', installStateEquipment({ stateSchema: GOOD_DDL, selected: [OTHER_CAP], dir: dirB }) === null)
 check('没起草 schema → 不装备', installStateEquipment({ selected: [SQLITE_CAP], dir: dirB }) === null)

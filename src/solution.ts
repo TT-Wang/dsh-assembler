@@ -18,11 +18,29 @@
  * 本就跑在 host 进程里,回环只会平添一次会话握手与 20 分钟的墙钟猜测。
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { homedir } from 'node:os'
+import { createRequire } from 'node:module'
 import yaml from 'js-yaml'
 import type { Context } from '@deepseek-ai/cordis'
-import { assemble, type Config } from './index.js'
+import { assemble, validateStateSchema, type Config } from './index.js'
+
+/**
+ * 把共享 DDL 建进共享库文件(幂等)。node:sqlite 在宿主运行时可用(装备槽的
+ * 双次执行门也用它);建表失败不炸方案——退化为各 agent 独立库,如实记录。
+ */
+function applySharedSchema(dbPath: string, ddl: string): void {
+  try {
+    // 动态 require 避免类型依赖:node:sqlite 是实验 API,宿主 Node 22 带。
+    const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as { DatabaseSync: new (p: string) => { exec: (s: string) => void; close: () => void } }
+    const db = new DatabaseSync(dbPath)
+    try { db.exec(ddl) } finally { db.close() }
+  } catch (error: unknown) {
+    // 建不出来就让每个 agent 的 SQLITE_INIT_DDL_FILE 各自建(共享库仍是同一个
+    // 文件路径,第一个打开它的 agent 会用自己的 DDL 建表)。
+    console.error(`[assembler] 方案共享库建表失败(退化为按需建):${error instanceof Error ? error.message : String(error)}`)
+  }
+}
 
 /** 一个 agent 的交付结果:装配判决 + 关键产物指针。 */
 export interface SolutionAgentResult {
@@ -63,6 +81,13 @@ export async function assembleSolution(
     name: string
     client?: string
     params?: Record<string, string>
+    /**
+     * 方案共享数据(FDE 的"共享同一套商品/订单数据"):一段幂等 SQLite DDL
+     * (只 CREATE TABLE/INDEX IF NOT EXISTS),定义全班子共用的表。给了则建一个
+     * 方案级共享库,每个子 agent 的 SQLite 默认库都钉到它——各 agent 读写同一
+     * 份账。各 agent 自己的 stateSchema 仍会补齐其专属表(幂等,不冲突)。
+     */
+    sharedSchema?: string
     agents: Array<{ id: string; requirement: string }>
   },
   config: Config,
@@ -75,6 +100,26 @@ export async function assembleSolution(
   const phase = (line: string): void => { try { onPhase?.(line) } catch { /* 直播是加速器 */ } }
   phase(`══ 方案「${spec.name}」开始:共 ${String(spec.agents.length)} 个 agent ══`)
 
+  // 共享库就位:方案级 data.db + 共享 DDL 建表一次。每个子 agent 装配时把默认库
+  // 钉到它,班子由此读写同一份账。DDL 过双次执行门(与 installStateEquipment 同闸)。
+  let sharedDb: string | undefined
+  const sharedTables: string[] = []
+  const sharedDdl = (spec.sharedSchema ?? '').trim()
+  if (sharedDdl !== '') {
+    const why = validateStateSchema(sharedDdl)
+    if (why !== null) {
+      phase(`⚠ 方案共享 schema 未过双次执行门,退化为各 agent 独立库:${why}`)
+    } else {
+      const dataDir = join(solutionDir, 'shared')
+      mkdirSync(dataDir, { recursive: true })
+      sharedDb = join(dataDir, 'data.db')
+      writeFileSync(join(dataDir, 'schema.sql'), sharedDdl.endsWith('\n') ? sharedDdl : `${sharedDdl}\n`)
+      applySharedSchema(sharedDb, sharedDdl)
+      for (const m of sharedDdl.matchAll(/CREATE TABLE IF NOT EXISTS\s+["'`]?([A-Za-z_][A-Za-z0-9_]*)/gi)) sharedTables.push(m[1])
+      phase(`方案共享库就位:${String(sharedTables.length)} 张共享表(${sharedTables.join('、')})→ ${sharedDb}`)
+    }
+  }
+
   const results: SolutionAgentResult[] = []
   for (const [i, a] of spec.agents.entries()) {
     phase(`方案 agent ${String(i + 1)}/${String(spec.agents.length)}:装配「${a.id}」…`)
@@ -83,6 +128,7 @@ export async function assembleSolution(
       const r = await assemble(ctx, a.requirement, config, {
         name: a.id,
         ...(spec.params !== undefined ? { params: spec.params } : {}),
+        ...(sharedDb !== undefined ? { sharedDb } : {}),
         onPhase,
       })
       results.push({
@@ -118,12 +164,13 @@ export async function assembleSolution(
     version: '0.1.0',
     generatedAt: new Date().toISOString(),
     params: spec.params ?? {},
+    ...(sharedTables.length > 0 ? { sharedTables } : {}),
     agents: spec.agents.map((a) => ({ id: a.id, requirement: a.requirement })),
   }
   const solutionPath = join(solutionDir, 'solution.yml')
   writeFileSync(solutionPath, `# ${spec.name} —— 方案包清单(FDE 多 agent 交付单元)\n${yaml.dump(solutionDoc, { lineWidth: -1 })}`)
 
-  const handoverPath = writeHandover(solutionDir, spec, results, root)
+  const handoverPath = writeHandover(solutionDir, spec, results, root, sharedTables)
   phase(`══ 方案「${spec.name}」交付完成:${String(results.filter((r) => r.verdict === 'PASS').length)}/${String(results.length)} PASS · HANDOVER 已生成 ══`)
 
   const failed = results.filter((r) => ['FAIL', 'ERRORED', 'ERROR'].includes(r.verdict)).map((r) => r.id)
@@ -147,11 +194,12 @@ export function writeHandover(
   spec: { name: string; client?: string; params?: Record<string, string> },
   results: SolutionAgentResult[],
   root: string,
+  sharedTableNames: string[] = [],
 ): string {
   const allSecrets = new Map<string, { env: string; purpose?: string; configured?: boolean; optional?: boolean }>()
   const allParts = new Map<string, { part: string; repo?: string; rev?: string; service?: string; license?: string }>()
   const allKnowledge = new Map<string, { id: string; docs: number; source?: string; version?: string }>()
-  const sharedTables = new Set<string>()
+  const sharedTables = new Set<string>(sharedTableNames)
 
   for (const r of results) {
     const lockPath = join(root, r.id, 'parts.lock.yml')
@@ -175,14 +223,6 @@ export function writeHandover(
     }
     for (const k of (lock.knowledge as Array<Record<string, unknown>> ?? [])) {
       if (!allKnowledge.has(k.id as string)) allKnowledge.set(k.id as string, k as { id: string; docs: number; source?: string; version?: string })
-    }
-    // 共享数据:各 agent 装备槽里的表名(equipment/init.sql 存在即读表名)。
-    const eqPath = join(root, r.id, 'equipment', 'init.sql')
-    if (existsSync(eqPath)) {
-      try {
-        const ddl = readFileSync(eqPath, 'utf8')
-        for (const m of ddl.matchAll(/CREATE TABLE IF NOT EXISTS\s+["'`]?([A-Za-z_][A-Za-z0-9_]*)/gi)) sharedTables.add(m[1])
-      } catch { /* 读不到就不列 */ }
     }
   }
 
