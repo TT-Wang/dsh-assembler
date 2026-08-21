@@ -137,16 +137,23 @@ export function renderSolutionResult(result: import('./solution.js').SolutionRes
     `  - ${r.id}: ${r.verdict}${r.gaps > 0 ? `(${String(r.gaps)} 缺件工单)` : ''}${r.frontendUrl !== undefined ? ` · ${r.frontendUrl}` : ''}${r.verdict !== 'PASS' && r.verdictReason !== undefined ? ` — ${r.verdictReason.slice(0, 100)}` : ''}`,
   ).join('\n')
   const passN = result.agents.filter((r) => r.verdict === 'PASS').length
+  const skipN = result.agents.filter((r) => r.verdict === 'SKIPPED').length
   const anyGaps = result.agents.some((r) => r.gaps > 0)
+  // SKIPPED 不是失败:凭证未配/验证关闭是设计内降级(装配正确,只是探针没法实调
+  // 外部服务)。与 FAIL 分开报,免得"3/4 PASS"被误读成"1 个坏了"。
+  const headline = skipN > 0
+    ? `${String(passN)}/${String(result.agents.length)} PASS · ${String(skipN)} 待配置凭证(装配正确,配好凭证即可验证)`
+    : `${String(passN)}/${String(result.agents.length)} PASS`
   const contract = [
     '',
     '【给调用方 agent 的行为契约】',
     `- 如实向用户转述:每个 agent 的 id + 验收结论 + 前端 URL、HANDOVER 文档路径(${result.handoverPath})。`,
+    ...(skipN > 0 ? ['- 标 SKIPPED 的 agent 是装配正确、待配置凭证才能实测(不是失败):转述时说清这层,别让用户以为坏了。'] : []),
     ...(result.failed.length > 0 ? ['- 有 agent 未通过:如实报出失败的 agent 与原因,不要自行改 preset 或另装,等用户定夺。'] : []),
     ...(anyGaps ? ['- 有缺件工单:先转述、征得用户同意再照单施工(新零件走入库流水线)。'] : []),
     '- 待配置凭证见 HANDOVER 的「待配置凭证」表:凭证配到 host 环境变量,绝不进装配参数。',
   ].join('\n')
-  return `方案「${result.name}」交付:${String(passN)}/${String(result.agents.length)} PASS\n`
+  return `方案「${result.name}」交付:${headline}\n`
     + `agent:\n${rows}\n`
     + `\n方案清单:${result.solutionPath}\n交付说明书:${result.handoverPath}\n`
     + contract + '\n'

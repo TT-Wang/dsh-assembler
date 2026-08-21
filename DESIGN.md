@@ -262,6 +262,18 @@ DDL 是静态文件、应用者是零件进程(装配器不在场 ✓);"禁止�
 
 ---
 
+## 多 agent 方案交付:一套班子,不是一个巨物
+
+`assemble` 装一个 agent;`assemble_solution` 装**一整套班子** + 一份交付说明书。市场战役 FDE 级实测(f01 电商运营班子)暴露:主 agent 只有单发工具时,面对"装一套四个分工 agent 的班子"只能把四份职责揉进一个 30 能力的巨型单体——多 agent 分工、共享数据、HANDOVER 全落不了地。
+
+工具接受 agent 清单(每项 {id, requirement},当作独立 assemble 需求写),逐个走同一条装配脊柱(选型→发射→独立验收),最后从工件本身(每个 preset 的 parts.lock.yml)汇总一份 `HANDOVER.md`:交付的 agent 表(各自验收/零件数/缺件工单/前端 URL)、每个 agent 的职责、共享数据表、部署参数、待配置凭证、供应链 BOM(每零件 repo@版本 + 许可)。产物落 `.agent-presets/_solutions/<name>/`(solution.yml + HANDOVER.md)。
+
+**共享数据是班子与散兵的分界。** 需求说"四个 agent 共享同一套商品/订单数据"时,`sharedSchema` 参数一次定义公共表(幂等 DDL),装配器建一个方案级共享库 `_solutions/<name>/shared/data.db`,把每个子 agent 的 SQLite 默认库都钉到它——一个 agent 写的另一个能读。各 agent 自己的 stateSchema 仍幂等补齐其专属表进同一份账。实测:三个子 agent 的 `SQLITE_DEFAULT_DB` 全指向同一共享库,共享表 + 各专属表并存。
+
+判据回照:HANDOVER / solution.yml / 共享库都是静态工件(产物 ✓),装配完即产出、装配器不在会话期在场(运行时 ✓),清单声明"有哪些 agent、共享什么",不含执行顺序(步骤号 ✓)。CLI 版(scripts/solution.mjs)仍在,给不经 agent 的批处理交付用;工具版是 agent 可达的同一能力。
+
+---
+
 ## 缺件工单:补缺口的活交给谁
 
 **分工裁定(2026-08-21,与用户共同定稿)**:装配脊柱——选型神谕、确定性发射、独立黑盒验收——留在装配器代码里;**写缺失零件**这种需要全套 harness(工具+迭代+执行)的创造性工作,交给**调用方主 agent**。理由:装配器的辅助 LLM 调用是裸的一问一答(无工具面、无执行环),写不出能用的零件;主 agent 有完整 coding harness,写代码天然比神谕强。
