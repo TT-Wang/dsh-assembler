@@ -114,6 +114,18 @@ export interface ProbeResult {
  */
 export const DEFAULT_TURN_BUDGET_MS = 600_000;
 
+/**
+ * 冒烟探针的每轮预算——比 DEFAULT_TURN_BUDGET_MS 紧得多,刻意的。
+ *
+ * 市场战役实测(s04 简历打分):首探让 agent 找不存在的文件,重试探针又踩空
+ * 工作区,agent 不问人、只是硬试,把 600s×2 烧满(总 638s→再重试 906s)。
+ * 冒烟探针是"证明这套能力活着"的最小证据,不是生产任务:一轮真 agent 干活
+ * 240s 绰绰有余(战役里 PASS 的多轮场景每轮 3-48s)。收紧预算把"失控探针"
+ * 从 10 分钟的黑洞变成 4 分钟内的快速判负——省下的是每个失败场景 5-15 分钟。
+ * 需要更长的部署仍可用 verifyTimeoutMs 覆盖(合法长任务的逃生阀)。
+ */
+export const PROBE_TURN_BUDGET_MS = 240_000;
+
 /** Most turns a derived scenario may have (the deriver is told "2-4 turns"). */
 export const MAX_SCENARIO_TURNS = 4;
 
@@ -130,7 +142,7 @@ export const MAX_SCENARIO_TURNS = 4;
  * The margin covers what surrounds the turns themselves: the matcher call, part
  * federation, preset emission, probe derivation, and the session handshake.
  */
-export const ASSEMBLE_WORST_CASE_MS = DEFAULT_TURN_BUDGET_MS * MAX_SCENARIO_TURNS + 10 * 60_000;
+export const ASSEMBLE_WORST_CASE_MS = PROBE_TURN_BUDGET_MS * MAX_SCENARIO_TURNS + 10 * 60_000;
 
 /**
  * Deadline for one probe wire RPC (session.create, session.prompt).
@@ -189,6 +201,10 @@ const MARK_RULES = [
   "- If the requirement is about serving a PERSON (customer intake, interview, tutoring), the probe prompt must EMBED that person's data inline (a name/phone/case facts you invent): the probe PLAYS the counterpart. The agent must never need to ask a real human for anything.",
   // 市场战役 s12 实测:推导出"打开看板页面验证",agent 拿浏览器访 example.com 后问人。
   "- The agent's delivered web page/frontend is NOT testable by the agent: never ask it to open/visit/check its own UI or any URL for it, and never design turns around browser tools unless the requirement is about visiting EXTERNAL sites. Test the agent's tools and persisted state directly.",
+  // 市场战役 s28 实测:测"无依据时拒答",把整句话术「知识库中没有相关内容」当标记,
+  // agent 换个说法(「未找到」「无法回答」)就假红。拒答/否定类无法用固定话术断言:
+  // 别测拒答,改测 agent 能正确USE它有依据的内容——正向任务的标记才稳定。
+  "- NEVER test a REFUSAL or a NEGATIVE ('says it cannot find / has no data / declines') with a mark: refusal wording is unbounded, so any fixed phrase mis-fails a correct refusal. Test the POSITIVE capability instead — give the agent data it CAN use and mark on the answer it must produce from that data.",
   "- Budget: the probe agent has ~10 minutes per turn, and a turn that overruns is scored FAIL. Size EVERY turn to fit, the first one included — batch-flavored requirements (score N resumes, process N files) are probed with 2-3 items MAX; 3 items proves the capability as well as 30 does. Avoid tasks whose replies embed large payloads (full base64 images) — ask for byte counts or short prefixes instead.",
 ];
 
@@ -597,7 +613,7 @@ export async function runProbe(
   port: number,
   presetId: string,
   probe: ProbeSpec,
-  timeoutMs = DEFAULT_TURN_BUDGET_MS,
+  timeoutMs = PROBE_TURN_BUDGET_MS,
   onPhase?: (line: string) => void,
   cwd?: string,
 ): Promise<ProbeResult> {
@@ -671,7 +687,7 @@ export async function runScenario(
   port: number,
   presetId: string,
   scenario: ScenarioSpec,
-  timeoutMs = DEFAULT_TURN_BUDGET_MS,
+  timeoutMs = PROBE_TURN_BUDGET_MS,
   onPhase?: (line: string) => void,
   cwd?: string,
 ): Promise<ProbeResult> {
