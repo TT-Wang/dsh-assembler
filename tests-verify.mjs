@@ -2,7 +2,7 @@
  * 装配即验证的纯函数单元测试:evaluateProbe 判定 + writePresetFile 幂等写盘。
  * 跑法:node tests-verify.mjs(先 npm run build)
  */
-import { evaluateProbe } from './lib/verify.js'
+import { evaluateProbe, sendTurn } from './lib/verify.js'
 import { writePresetFile } from './lib/index.js'
 import { mkdtempSync, rmSync, writeFileSync, statSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -154,6 +154,31 @@ const none = installKnowledgePacks([{ id: 'x', via: 'mcp', description: '', tags
 check('非知识条目不触发安装', none.length === 0)
 const missing = installKnowledgePacks([{ id: 'y', via: 'knowledge', description: '', tags: [], config: { pack: 'no-such-pack' } }], pdir, kroot)
 check('不存在的包安全跳过(不炸装配)', missing.length === 0)
+
+// N. sendTurn 三义务(bilingual-reader 悬挂取证,2026-08-21):
+//    问人即判负 + 工具动作流进直播台 + 正常轮取 assistant/message 文本。
+{
+  const phases = []
+  const s1 = { sessionId: 's-ask', frames: [], rpc: async () => ({}), close: () => {} }
+  const p1 = sendTurn(s1, '测试任务', 30_000, (l) => phases.push(l))
+  s1.frames.push({ type: 'tool/call', data: { name: 'read_file', arguments: '{}' } })
+  await new Promise((r) => setTimeout(r, 1300))
+  s1.frames.push({ type: 'tool/call', data: { name: 'ask_user_question', arguments: JSON.stringify({ questions: [{ question: '能否把 book.txt 粘贴给我?' }] }) } })
+  const askOut = await p1
+  check('agent 问人 ⇒ 立即判负并带回问题原文', askOut.askedUser === '能否把 book.txt 粘贴给我?', JSON.stringify(askOut))
+  check('工具动作实时流进直播台', phases.some((l) => l.includes('read_file')), JSON.stringify(phases))
+
+  const s2 = { sessionId: 's-ok', frames: [], rpc: async () => ({}), close: () => {} }
+  const p2 = sendTurn(s2, 'hi', 30_000)
+  s2.frames.push({ type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '答复正文' }] } } })
+  s2.frames.push({ type: 'turn/end' })
+  const okOut = await p2
+  check('正常轮返回 reply', okOut.reply === '答复正文', JSON.stringify(okOut))
+
+  const s3 = { sessionId: 's-to', frames: [], rpc: async () => ({}), close: () => {} }
+  const toOut = await sendTurn(s3, 'hi', 1500)
+  check('轮预算耗尽返回空对象(超时语义不变)', toOut.reply === undefined && toOut.askedUser === undefined, JSON.stringify(toOut))
+}
 
 console.log(`\n==== verify 单元测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)
 process.exit(failures === 0 ? 0 : 1)

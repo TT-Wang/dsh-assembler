@@ -14,8 +14,8 @@
  * later sessions. Unlike the CLI prototype, model calls go through the host's
  * `ctx.llm` (provider/key from the host config), not a private fetch.
  */
-import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, readdirSync, appendFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, readdirSync, appendFileSync, mkdtempSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -289,7 +289,7 @@ export async function llmMapRequirement(
     // turn, and an upstream that neither answers nor closes would otherwise
     // hang that turn forever (see AUX_CALL_TIMEOUT_MS in verify.ts — observed
     // live on the probe-deriver twin of this call).
-    signal: AbortSignal.timeout(AUX_CALL_TIMEOUT_MS),
+    ...(AUX_CALL_TIMEOUT_MS > 0 ? { signal: AbortSignal.timeout(AUX_CALL_TIMEOUT_MS) } : {}),
   }
   const stream = ctx.llm.stream(request)
   let text = ''
@@ -406,7 +406,15 @@ export function assertEmittedPreset(text: string): string {
   return text
 }
 
-export function emitPreset(req: AssembleRequest, catalog: Catalog, template: string, presetId: string, personaSuffix = '', extraServerEnv?: Record<string, Record<string, string>>): string {
+/**
+ * 目录声明里的"每 preset 工作区"槽位。stdio MCP 声明(如 filesystem)的 args
+ * 里写它,发射时替换成该 preset 的 workspace/ 绝对路径——文件面 = agent 自己
+ * 的工作区,一个 preset 一根,越界目录对工具而言天然不存在。联邦列举工具时
+ * 用临时目录替位(见 {@link federateMcpTools})。
+ */
+export const WORKSPACE_SLOT = '@@WORKSPACE@@'
+
+export function emitPreset(req: AssembleRequest, catalog: Catalog, template: string, presetId: string, personaSuffix = '', extraServerEnv?: Record<string, Record<string, string>>, workspaceDir?: string): string {
   const byId = new Map(catalog.capabilities.map((c) => [c.id, c]))
   // Enabled-only: `enabled: false` entries are excluded from the LLM's
   // choice set by llmMapRequirement below; this is the second gate for the
@@ -496,7 +504,18 @@ export function emitPreset(req: AssembleRequest, catalog: Catalog, template: str
       .replace('{{extraRows}}', allRows),
     req.params ?? {},
   )
-  return assertEmittedPreset(rendered.replaceAll(SUFFIX_SLOT, presetNameSuffix(presetId, rendered)))
+  let out = rendered.replaceAll(SUFFIX_SLOT, presetNameSuffix(presetId, rendered))
+  // @@WORKSPACE@@:目录声明里的"每 preset 工作区"槽位(filesystem 零件的根)。
+  // 替换在 suffix 哈希之后——workspace 路径由 preset id 唯一决定,同 id 同路径,
+  // 不会让两份同字节组合产出不同代际。缺路径时宁可炸在装配台,也不发一个
+  // 根目录是字面量 '@@WORKSPACE@@' 的哑零件出门。
+  if (out.includes(WORKSPACE_SLOT)) {
+    if (workspaceDir === undefined) {
+      throw new Error('assemble: 选中的能力声明了 @@WORKSPACE@@(每 preset 工作区)但发射时未提供工作区路径')
+    }
+    out = out.replaceAll(WORKSPACE_SLOT, workspaceDir)
+  }
+  return assertEmittedPreset(out)
 }
 
 /**
@@ -950,8 +969,11 @@ export const VERIFY_CARRY_TTL_MS = 7 * 24 * 3600 * 1000
  * rev 2:装备槽注入 SQLITE_DEFAULT_DB(钉死默认库)。
  * rev 3:默认库改为**绝对路径** preset workspace/data.db——相对路径解析进的是
  *        部件进程 cwd(= host 检出目录),实测五个 preset 的表混进同一个文件。
+ * rev 4:filesystem 不再走 host 全局挂载(那个挂载从未活过),改随 preset 发射
+ *        mcp 行、根目录经 @@WORKSPACE@@ 钉到各自 workspace/。老代 lock 选了
+ *        文件能力却没有对应行,复用必须失效,同需求重装原地换代补上行。
  */
-export const EMISSION_REV = 3
+export const EMISSION_REV = 4
 
 /** preset 文本的账本键。 */
 export function presetSha(text: string): string {
@@ -1241,6 +1263,13 @@ export function toolsToEntries(server: string, tools: CachedTool[]): CapabilityE
  * deterministic regardless of whether the server is also mounted in the
  * host composition.
  */
+/** 联邦列举时 @@WORKSPACE@@ 的替位目录(懒建、进程内复用一个即可)。 */
+let fedWorkspaceStubDir: string | null = null
+function fedWorkspaceStub(): string {
+  if (fedWorkspaceStubDir === null) fedWorkspaceStubDir = mkdtempSync(join(tmpdir(), 'assembler-fed-ws-'))
+  return fedWorkspaceStubDir
+}
+
 export async function federateMcpTools(catalog: Catalog): Promise<Catalog> {
   const servers = catalog['mcp-servers'] ?? {}
   const serverNames = Object.keys(servers)
@@ -1255,8 +1284,25 @@ export async function federateMcpTools(catalog: Catalog): Promise<Catalog> {
   const ttlMs = Number(process.env.DSH_ASSEMBLER_FED_TTL_MS ?? FED_CACHE_TTL_MS) || FED_CACHE_TTL_MS
   const cache = cacheOn ? loadFedCache() : { version: FED_CACHE_VERSION, servers: {} }
   const keys = new Map(serverNames.map((s) => [s, serverCacheKey(servers[s])]))
+  // 可达闸:stdio 声明的命令在本机解析不到,整台服务器从目录剔除(缓存命中也
+  // 不豁免——缓存证明的是"当时列举过工具",不是"现在拉得起进程")。反例已付
+  // 学费:filesystem 走 host 全局挂载、挂载因 npx/pnpm 布局天天死,目录照旧
+  // 售卖其工具 → 选型选对了、运行时零件不存在 → agent 盲猜 7 个工具名后向
+  // 用户求助、探针挂满 600s(bilingual-reader 取证,2026-08-21)。目录只许
+  // 承诺本机此刻真能拉起的零件。
+  const commandResolvable = (cfg: Record<string, unknown>): boolean => {
+    if (cfg.transport === 'streamable-http') return true
+    const cmd = String(cfg.command ?? '')
+    if (cmd === '') return false
+    if (cmd.includes('/')) return existsSync(cmd)
+    return (process.env.PATH ?? '').split(':').some((p) => p !== '' && existsSync(join(p, cmd)))
+  }
   const misses: string[] = []
   for (const server of serverNames) {
+    if (!commandResolvable(servers[server])) {
+      console.error(`[assembler] federateMcpTools: server "${server}" 命令不可达(${String(servers[server].command ?? '')}),目录剔除其工具`)
+      continue
+    }
     const hit = cache.servers[server]
     if (cacheOn && hit !== undefined && hit.key === keys.get(server) && Date.now() - hit.fetchedAt < ttlMs) {
       collected.set(server, toolsToEntries(server, hit.tools))
@@ -1280,11 +1326,13 @@ export async function federateMcpTools(catalog: Catalog): Promise<Catalog> {
       for (let server = queue.shift(); server !== undefined; server = queue.shift()) {
         const cfg = servers[server]
         try {
+          // @@WORKSPACE@@ 在列举时用一次性临时目录替位:filesystem 这类零件要求
+          // 根目录真实存在才肯启动;列举只看工具清单,给哪个根都一样。
           const transport = cfg.transport === 'streamable-http'
             ? new StreamableHTTPClientTransport(new URL(cfg.url as string))
             : new StdioClientTransport({
                 command: cfg.command as string,
-                args: cfg.args as string[],
+                args: ((cfg.args as string[] | undefined) ?? []).map((a) => a === WORKSPACE_SLOT ? fedWorkspaceStub() : a),
                 ...(cfg.env !== undefined
                   ? { env: { ...scrubbedEnv(), ...(cfg.env as Record<string, string>) } }
                   : { env: scrubbedEnv() }),
@@ -1516,7 +1564,15 @@ export async function assemble(
   // 没有这份文件,用户面对慢装配只能看一颗 chip 猜"卡了还是 bug"。
   const progressBuf: string[] = []
   let progressPath: string | null = null
-  const stamp = (): string => new Date().toISOString().slice(11, 19)
+  // 本地时间(不是 UTC):直播台是给盯着屏幕的人看的,11:17 与墙上钟的 19:17
+  // 对不上号,第一反应是"这日志是不是旧的"(实测用户就这么问)。
+  const stamp = (): string => {
+    const d = new Date()
+    return [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, '0')).join(':')
+  }
+  // 开工时刻在此定格:头行(══ assemble <id> 开始 ══)要等 id 解出才能落盘,
+  // 若用落盘时刻做头行时间戳,会晚于它下面缓冲行的时间戳——链首乱序(实测)。
+  const startedStamp = stamp()
   const phase = (line: string): void => {
     try { options.onPhase?.(line) } catch { /* a broken reporter must not break the build */ }
     try {
@@ -1524,6 +1580,13 @@ export async function assemble(
       if (progressPath !== null) appendFileSync(progressPath, entry)
       else progressBuf.push(entry)
     } catch { /* 直播是加速器不是必需品 */ }
+  }
+  // 无闸辅助调用的心跳:AUX 兜底闸已按用户裁定禁用(见 AUX_CALL_TIMEOUT_MS),
+  // "还在推理"与"挂了"从此只能靠直播区分——每 20s 报一次经过时间。
+  const hb = async <T>(label: string, p: Promise<T>): Promise<T> => {
+    const t = Date.now()
+    const timer = setInterval(() => { phase(`  …${label}进行中(${String(Math.round((Date.now() - t) / 1000))}s)`) }, 20_000)
+    try { return await p } finally { clearInterval(timer) }
   }
   const t0 = Date.now()
   const secs = (from: number): string => `${String(Math.round((Date.now() - from) / 1000))}s`
@@ -1578,7 +1641,7 @@ export async function assemble(
   } else {
     const tSel = Date.now()
     let selUsage: AuxUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cacheReadTokens: 0 }
-    req = await llmMapRequirement(ctx, requirement, catalog, { provider: config.provider, model: config.model }, config, (u) => { selUsage = u })
+    req = await hb('选型推理', llmMapRequirement(ctx, requirement, catalog, { provider: config.provider, model: config.model }, config, (u) => { selUsage = u }))
     selUsageLedger = selUsage
     mark('选型', tSel, usageDetail(selUsage))
     phase(`选型完成:${String(req.capabilityIds.length)} 个能力${req.missing.length > 0 ? `,${String(req.missing.length)} 项缺口` : ''}(${secs(tSel)})`)
@@ -1594,7 +1657,7 @@ export async function assemble(
   // 直播文件就位:本次运行覆写(每次装配一份新链),缓冲的前几段一并落下。
   try {
     progressPath = join(dir, 'progress.log')
-    writeFileSync(progressPath, `${stamp()} ══ assemble ${id} 开始 ══\n${progressBuf.join('')}`)
+    writeFileSync(progressPath, `${startedStamp} ══ assemble ${id} 开始 ══\n${progressBuf.join('')}`)
   } catch { progressPath = null }
   // Knowledge packs travel WITH the preset (copied into kb/), so the handover is
   // one self-contained directory rather than a pointer back to this machine.
@@ -1627,7 +1690,7 @@ export async function assemble(
   const tEmit = Date.now()
   const preset = reuse !== null
     ? reuse.presetText
-    : emitPreset(req, catalog, template, id, knowledgeLocatorText(knowledgeInstalled) + (equipmentNow?.personaText ?? ''), equipmentNow?.extraServerEnv)
+    : emitPreset(req, catalog, template, id, knowledgeLocatorText(knowledgeInstalled) + (equipmentNow?.personaText ?? ''), equipmentNow?.extraServerEnv, join(dir, 'workspace'))
   if (reuse === null) {
     writePresetFile(join(dir, 'agent.cordis.yml'), preset)
     mark('发射', tEmit)
@@ -1726,16 +1789,21 @@ export async function assemble(
       // (fe-e2e 首败:标记里出现 frontend-data-desk / 记录台前端)。
       const selected = req.capabilityIds.map((cid) => byId.get(cid))
         .filter((c): c is CapabilityEntry => c !== undefined && c.via !== 'frontend')
+      // 探针在 preset 自己的 workspace/ 里跑(不再用一次性 mkdtemp):
+      //  1. filesystem 零件的根就钉在这里,探针读写的"工作区"与工具面指同一目录;
+      //  2. 与前端页的会话共用一个持久工作区,探针验证的就是交付后真实使用的那间屋。
+      const probeCwd = join(dir, 'workspace')
+      mkdirSync(probeCwd, { recursive: true })
       const runPlan = async (plan: ProbePlan): Promise<ProbeResult> => (
         plan.kind === 'scenario'
-          ? await runScenario(port, id, plan.scenario, config.verifyTimeoutMs, phase)
-          : await runProbe(port, id, plan.probe, config.verifyTimeoutMs, phase)
+          ? await runScenario(port, id, plan.scenario, config.verifyTimeoutMs, phase, probeCwd)
+          : await runProbe(port, id, plan.probe, config.verifyTimeoutMs, phase, probeCwd)
       )
       try {
         const tDerive = Date.now()
         phase('探针推导中(定单轮或多轮场景)…')
         const deriveUsage: AuxUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cacheReadTokens: 0 }
-        const plan = await deriveProbePlan(ctx, requirement, selected, auxLlm, (u) => { addUsage(deriveUsage, { type: 'usage', usage: u }) })
+        const plan = await hb('探针推导', deriveProbePlan(ctx, requirement, selected, auxLlm, (u) => { addUsage(deriveUsage, { type: 'usage', usage: u }) }))
         deriveUsageLedger = deriveUsage
         mark('探针推导', tDerive, usageDetail(deriveUsage))
         phase(plan.kind === 'scenario'
@@ -1755,13 +1823,13 @@ export async function assemble(
             // 纠错对采集:重选前的选型 + 失败原因,是台账里最值钱的样本。
             const firstSelectedIds = [...req.capabilityIds]
             const firstFailReason = (verification.reason ?? '回复未包含验收标记').slice(0, 200)
-            const retryReq = await llmMapRequirement(
+            const retryReq = await hb('重选型推理', llmMapRequirement(
               ctx,
               `${requirement}\n\n(上一次装配选了 [${req.capabilityIds.join(', ')}],冒烟探针未通过:${verification.reason ?? '回复未包含验收标记'}。请重新选型,优先替换可能不匹配的零件。)`,
               catalog,
               { provider: config.provider, model: config.model },
               config,
-            )
+            ))
             const retrySelected = retryReq.capabilityIds.map((cid) => byId.get(cid))
               .filter((c): c is CapabilityEntry => c !== undefined && c.via !== 'frontend')
             // 重选可能换掉状态零件或重画 schema:装备随重选一起重装,preset 的
@@ -1772,10 +1840,10 @@ export async function assemble(
               dir,
             })
             equipmentNow = retryEquipment
-            const retryPreset = emitPreset(retryReq, catalog, template, id, knowledgeLocatorText(knowledgeInstalled) + (retryEquipment?.personaText ?? ''), retryEquipment?.extraServerEnv)
+            const retryPreset = emitPreset(retryReq, catalog, template, id, knowledgeLocatorText(knowledgeInstalled) + (retryEquipment?.personaText ?? ''), retryEquipment?.extraServerEnv, join(dir, 'workspace'))
             writePresetFile(join(dir, 'agent.cordis.yml'), retryPreset)
             presetRewritten = true
-            const retryPlan = await deriveProbePlan(ctx, requirement, retrySelected, auxLlm)
+            const retryPlan = await hb('重试探针推导', deriveProbePlan(ctx, requirement, retrySelected, auxLlm))
             verification = await runPlan(retryPlan)
             mark('重试轮(重选+重验)', tRetry)
             retryLedger = {

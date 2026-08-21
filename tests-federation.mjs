@@ -2,7 +2,7 @@
  * 联邦缓存单元测试:serverCacheKey 失效语义 + toolsToEntries 确定性。
  * 跑法:node tests-federation.mjs(先 npm run build)
  */
-import { serverCacheKey, toolsToEntries } from './lib/index.js'
+import { serverCacheKey, toolsToEntries, federateMcpTools } from './lib/index.js'
 import { mkdtempSync, rmSync, writeFileSync, utimesSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -54,5 +54,18 @@ check('无描述兜底', e1[1].description.includes('plain-tool'), e1[1].descrip
 check('tags 含 server 名', e1[0].tags.includes('http-request'))
 
 rmSync(dir, { recursive: true, force: true })
+
+// 6. 可达闸:stdio 命令本机解析不到 ⇒ 整台服务器剔除(不炸、不入目录、不 spawn)。
+// 目录只许承诺本机此刻真能拉起的零件——filesystem 幽灵挂载(命令不存在、目录
+// 照旧售卖其工具、agent 求助用户挂满 600s)就是这道闸缺席的代价。
+const fedOut = await federateMcpTools({
+  capabilities: [],
+  'mcp-servers': {
+    'ghost-abs': { transport: 'stdio', command: '/nonexistent-assembler-test-bin-xyz', args: [] },
+    'ghost-bare': { transport: 'stdio', command: 'nonexistent-assembler-cmd-xyz', args: [] },
+  },
+})
+check('不可达 stdio 服务器整台剔除', fedOut.capabilities.length === 0, JSON.stringify(fedOut.capabilities))
+
 console.log(`\n==== federation 缓存单元测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)
 process.exit(failures === 0 ? 0 : 1)

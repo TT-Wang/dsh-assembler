@@ -17,8 +17,8 @@ import { createElement as h } from 'react'
 const TAB_TYPE = 'dsh-assembler:console'
 const CONSOLE_URL = '/assembler/ui/_console'
 const DATA_URL = '/assembler/ui/_console/data'
-/** mtime 比现在早这么多秒以内算"正在进行"(direct feed 心跳约 1.5s,给足余量)。 */
-const FRESH_WINDOW_S = 20
+/** mtime 比现在早这么多秒以内算"正在进行"(链子自带 20s 心跳,两跳余量)。 */
+const FRESH_WINDOW_S = 45
 
 interface ProgressItem { id: string; mtime: number; tail: string }
 

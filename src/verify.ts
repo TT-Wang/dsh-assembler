@@ -178,6 +178,10 @@ const MARK_RULES = [
   // 实测假红:需求含"要一个文件管理页面",推导器把"文件管理页面"当了标记——
   // 被判的是 agent 的回复,agent 不是页面,UI 词永远不会出现。
   "- NEVER use UI/page words from the requirement (页面/前端/界面/看板/page/UI) as marks — the agent's REPLY is judged, and the agent is not the page. Marks must be tokens the agent's own answer would naturally contain.",
+  // 实测两连败(fs-reader-e2e):推导器让轮 1"读取工作区中的 book_cn.txt"——
+  // 探针工作区是空的,agent 找不到文件只能问人,无人值守 = 判负。场景引用的
+  // 一切材料必须由探针自己先造出来。
+  "- The probe runs in an EMPTY workspace with NOBODY attending the session. NEVER reference a pre-existing file/record, and NEVER design a turn that needs a human to supply anything mid-run. Any file or data a turn uses must first be CREATED by the agent inside this same probe — e.g. turn 1: \"把以下内容写入 book.txt:<a short passage you invent inline>\", later turns then read/extend it.",
   "- Budget: the probe agent has ~10 minutes per turn, and a turn that overruns is scored FAIL. Size EVERY turn to fit, the first one included — if a turn needs many upstream calls (one per item in a list), keep the list short: 3-5 items proves the capability as well as 30 does. Avoid tasks whose replies embed large payloads (full base64 images) — ask for byte counts or short prefixes instead.",
 ];
 
@@ -192,7 +196,12 @@ const MARK_RULES = [
  * ever fires on a genuinely broken route. 实测晚高峰 DeepSeek 官方端点 + max 档,一次选型可超 120s——用户裁定"先看得见,再谈砍":配合装配直播台,窗口放宽到 300s,悬挂仍有底。原文如下:the abort feeds the existing failure paths
  * (probe → 未能验证, selection → loud tool error) instead of a silent hang.
  */
-export const AUX_CALL_TIMEOUT_MS = 300_000;
+// 用户裁定(2026-08-21):有装配直播台之后,辅助调用**不设兜底闸**——慢就看着,
+// 绝不替用户砍(120s 版曾把晚高峰的正常选型误杀)。0 = 禁用;要恢复止血闸,
+// 把它改回毫秒数即可,两个调用点会自动重新挂上 AbortSignal。风险如实记:
+// 上游真悬挂时该调用会一直等,直播台里表现为行动链停在"选型完成"之前——
+// 看得见,由人决定杀不杀(job 面板可 kill,或直接关会话)。
+export const AUX_CALL_TIMEOUT_MS = 0;
 
 /** 一次辅助调用的 token 账目(账单用):产出多少、其中推理多少、缓存命中多少。 */
 export interface AuxUsage {
@@ -245,7 +254,7 @@ async function callDeriver(
     // 继承 max 时一次推导 90s,其中绝大头是隐藏推理链的解码。
     ...(llm.effort !== undefined ? { reasoningEffort: llm.effort as GenerateOptions["reasoningEffort"] } : {}),
     messages: [createUserMessage({ content: [{ type: "text", text: prompt }], source: { kind: "user" } })],
-    signal: AbortSignal.timeout(AUX_CALL_TIMEOUT_MS),
+    ...(AUX_CALL_TIMEOUT_MS > 0 ? { signal: AbortSignal.timeout(AUX_CALL_TIMEOUT_MS) } : {}),
   };
   const usage: AuxUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cacheReadTokens: 0 };
   for await (const chunk of ctx.llm.stream(options)) {
@@ -448,15 +457,29 @@ async function openProbeSession(port: number, presetId: string, cwd?: string): P
 }
 
 /**
- * Send one prompt and return the reply text of THAT turn.
+ * Send one prompt and return the outcome of THAT turn.
  *
  * Turn boundaries come from counting `turn/end` events rather than from the
  * frame index: a turn's frames arrive after the prompt is accepted, and the
  * count is what distinguishes "this turn finished" from "an earlier one did"
  * when several turns share the session.
- * @returns the turn's reply, or undefined when it never finished in time.
+ *
+ * 三件直播台义务(bilingual-reader 悬挂取证后加,2026-08-21):
+ *  1. 动作流:轮内每个 tool/call 即时 phase 一行——48s 的轮在直播台不再是
+ *     48s 的空白,"卡了还是在干活"肉眼可判。
+ *  2. 心跳:20s 没有可见动作也报一行经过时间。AUX 无闸 + 轮预算 600s 之后,
+ *     心跳是"静默 ≠ 死亡"的唯一凭证。
+ *  3. 问人即判负:agent 调 ask_user_question 时,探针会话无人可答,这个调用
+ *     会挂到轮预算耗尽(实测挂满 600s:agent 猜完 7 个不存在的文件工具名后
+ *     问用户"能否把 book.txt 粘贴给我")。探针的语义是"自主完成",中途求助
+ *     = 能力面不足,立即判 FAIL 并把问题原文带回——这行原文就是缺口诊断书。
+ *
+ * @returns `{reply}` 轮正常完成;`{askedUser}` agent 中途问人(判负,值为问题
+ *          原文);`{}` 轮预算耗尽。
  */
-async function sendTurn(session: ProbeSession, prompt: string, timeoutMs: number): Promise<string | undefined> {
+export interface TurnOutcome { reply?: string; askedUser?: string }
+
+export async function sendTurn(session: ProbeSession, prompt: string, timeoutMs: number, onPhase?: (line: string) => void): Promise<TurnOutcome> {
   const endsBefore = session.frames.filter((e) => e.type === "turn/end").length;
   const startIndex = session.frames.length;
   await session.rpc("session.prompt", {
@@ -465,17 +488,47 @@ async function sendTurn(session: ProbeSession, prompt: string, timeoutMs: number
     content: [{ type: "text", text: prompt }],
   });
   const t0 = Date.now();
+  let scanned = startIndex;
+  let framesSeen = session.frames.length;
+  let lastVisibleAt = Date.now();
+  let lastAction = "";
   while (Date.now() - t0 < timeoutMs) {
+    for (; scanned < session.frames.length; scanned++) {
+      const ev = session.frames[scanned];
+      if (ev?.type !== "tool/call") continue;
+      const name = String(ev.data?.name ?? "?");
+      if (name === "ask_user_question") {
+        let q = "";
+        try {
+          const args = JSON.parse(String(ev.data?.arguments ?? "{}")) as { questions?: Array<{ question?: unknown }> };
+          q = String(args.questions?.[0]?.question ?? "");
+        } catch { /* 参数解析不了就只报工具名 */ }
+        return { askedUser: q !== "" ? q : "(问题原文不可解析)" };
+      }
+      lastAction = name;
+      lastVisibleAt = Date.now();
+      onPhase?.(`  · 动作:${name}`);
+    }
     if (session.frames.filter((e) => e.type === "turn/end").length > endsBefore) {
-      return session.frames
-        .slice(startIndex)
-        .filter((e) => e.type === "assistant/message")
-        .map(frameText)
-        .join("\n");
+      return {
+        reply: session.frames
+          .slice(startIndex)
+          .filter((e) => e.type === "assistant/message")
+          .map(frameText)
+          .join("\n"),
+      };
+    }
+    if (Date.now() - lastVisibleAt >= 20_000) {
+      lastVisibleAt = Date.now();
+      // 帧还在到达 = 模型在输出(思维链/正文流);帧也停了 = 在等模型或工具。
+      const streaming = session.frames.length > framesSeen;
+      framesSeen = session.frames.length;
+      const state = streaming ? "模型输出流动中" : "等待模型/工具响应";
+      onPhase?.(`  …轮进行中(${String(Math.round((Date.now() - t0) / 1000))}s,${state}${lastAction !== "" ? `,已用:${lastAction}` : ""})`);
     }
     await new Promise((r) => setTimeout(r, 1000));
   }
-  return undefined;
+  return {};
 }
 
 /** Run a single-turn probe in a real session bound to the preset. */
@@ -502,16 +555,21 @@ export async function runProbe(
   probe: ProbeSpec,
   timeoutMs = DEFAULT_TURN_BUDGET_MS,
   onPhase?: (line: string) => void,
+  cwd?: string,
 ): Promise<ProbeResult> {
-  const session = await openProbeSession(port, presetId);
+  const session = await openProbeSession(port, presetId, cwd);
   announceProbeSession(onPhase, session.sessionId, probe.task);
   try {
-    const reply = await sendTurn(session, probe.task, timeoutMs);
-    if (reply === undefined) {
+    const out = await sendTurn(session, probe.task, timeoutMs, onPhase);
+    if (out.askedUser !== undefined) {
+      onPhase?.(`✗ agent 中途向用户求助(探针无人可答,判 FAIL):「${out.askedUser.slice(0, 120)}」`);
+      return { status: "FAIL", kind: "single", probe, reason: `agent 求助用户而非自主完成:「${out.askedUser.slice(0, 200)}」——通常是能力面缺了它要的工具` };
+    }
+    if (out.reply === undefined) {
       return { status: "FAIL", kind: "single", probe, reason: `probe turn did not finish within ${Math.round(timeoutMs / 1000)}s` };
     }
-    const pass = evaluateProbe(probe, reply);
-    return { status: pass ? "PASS" : "FAIL", kind: "single", probe, reply: reply.slice(0, 400) };
+    const pass = evaluateProbe(probe, out.reply);
+    return { status: pass ? "PASS" : "FAIL", kind: "single", probe, reply: out.reply.slice(0, 400) };
   } finally {
     session.close();
   }
@@ -555,9 +613,10 @@ export async function runFrontendGate(
   const token = `FE-GATE-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
   const session = await openProbeSession(port, presetId, join(presetDir, "workspace"));
   try {
-    const reply = await sendTurn(session, `请原样回复这串口令(不要解释):${token}`, opts.timeoutMs ?? 90_000);
-    if (reply === undefined) return { pass: false, reason: "环路门:回显轮未在时限内完成" };
-    if (!marksPresent([token], reply)) return { pass: false, reason: "环路门:回复未含口令" };
+    const out = await sendTurn(session, `请原样回复这串口令(不要解释):${token}`, opts.timeoutMs ?? 90_000);
+    if (out.askedUser !== undefined) return { pass: false, reason: `环路门:agent 反问用户(「${out.askedUser.slice(0, 80)}」)` };
+    if (out.reply === undefined) return { pass: false, reason: "环路门:回显轮未在时限内完成" };
+    if (!marksPresent([token], out.reply)) return { pass: false, reason: "环路门:回复未含口令" };
     return { pass: true, reason: "页面门+环路门 PASS" };
   } finally {
     session.close();
@@ -570,14 +629,26 @@ export async function runScenario(
   scenario: ScenarioSpec,
   timeoutMs = DEFAULT_TURN_BUDGET_MS,
   onPhase?: (line: string) => void,
+  cwd?: string,
 ): Promise<ProbeResult> {
-  const session = await openProbeSession(port, presetId);
+  const session = await openProbeSession(port, presetId, cwd);
   announceProbeSession(onPhase, session.sessionId, scenario.turns[0]?.prompt ?? scenario.goal);
   const turns: TurnResult[] = [];
   try {
     for (const [i, turn] of scenario.turns.entries()) {
       const turnStart = Date.now();
-      const reply = await sendTurn(session, turn.prompt, timeoutMs);
+      const out = await sendTurn(session, turn.prompt, timeoutMs, onPhase);
+      if (out.askedUser !== undefined) {
+        onPhase?.(`轮 ${String(i + 1)}/${String(scenario.turns.length)} ✗ agent 中途向用户求助(探针无人可答):「${out.askedUser.slice(0, 120)}」`);
+        return {
+          status: "FAIL",
+          kind: "scenario",
+          scenario,
+          turns,
+          reason: `第 ${String(i + 1)} 轮 agent 求助用户而非自主完成:「${out.askedUser.slice(0, 200)}」——通常是能力面缺了它要的工具`,
+        };
+      }
+      const reply = out.reply;
       if (reply === undefined) {
         onPhase?.(`轮 ${String(i + 1)}/${String(scenario.turns.length)} ✗ 超时(${String(Math.round(timeoutMs / 1000))}s)`);
         return {

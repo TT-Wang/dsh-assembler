@@ -53,7 +53,8 @@ const $ = (id) => document.getElementById(id);
 let cur = null, autoLatest = true;
 function stateOf(e) {
   if (/装配完成|══ 完 ══/.test(e.tail)) return ['done', '完成'];
-  if (Date.now() / 1000 - e.mtime < 25) return ['live', '进行中'];
+  // 45s:链子有 20s 心跳兜底,两跳没到才怀疑中断(25s 时代曾把正常轮误标)。
+  if (Date.now() / 1000 - e.mtime < 45) return ['live', '进行中'];
   return ['dead', '中断?'];
 }
 async function tick() {

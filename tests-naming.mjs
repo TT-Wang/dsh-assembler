@@ -96,6 +96,26 @@ check('参数进入渲染文本', outP1.includes('tz: UTC') && outP2.includes('t
 const nameOfP = (t) => yaml.load(t.split('\n').slice(1).join('\n')).find((r) => r && r.name === '@deepseek-ai/dsh-mcp-client').config.serverName
 check('参数变则 serverName 换代(字节决定名字)', nameOfP(outP1) !== nameOfP(outP2), `${nameOfP(outP1)} vs ${nameOfP(outP2)}`)
 
+// 6b. @@WORKSPACE@@ 槽位:filesystem 类零件的根钉到该 preset 自己的 workspace/。
+// bilingual-reader 取证(2026-08-21):host 全局挂载死了目录还在售卖文件工具,
+// 现改随 preset 发射;槽位没人填时必须炸在装配台,不许发根目录是字面量的哑零件。
+const wsCatalog = {
+  capabilities: [
+    { id: 'mcp-filesystem-read-text-file', via: 'mcp', tool: 'mcp__filesystem__read_text_file', description: 'read file', tags: ['file'], config: { server: 'filesystem' } },
+  ],
+  'mcp-servers': {
+    filesystem: { transport: 'stdio', command: 'node', args: ['/tmp/fs.js', '@@WORKSPACE@@'] },
+  },
+}
+const wsReq = { capabilityIds: ['mcp-filesystem-read-text-file'], missing: [], rationale: '', persona: 'p' }
+const wsOut = emitPreset(wsReq, wsCatalog, template, 'reader', '', undefined, '/abs/presets/reader/workspace')
+check('@@WORKSPACE@@ 替换为该 preset 工作区', wsOut.includes('/abs/presets/reader/workspace') && !wsOut.includes('@@WORKSPACE@@'), wsOut)
+const wsRow = yaml.load(wsOut).find((r) => r && r.name === '@deepseek-ai/dsh-mcp-client')
+check('workspace 行仍带代际 serverName', /^filesystem-[0-9a-f]{8}$/.test(wsRow?.config?.serverName ?? ''), wsRow?.config?.serverName)
+let wsThrew = ''
+try { emitPreset(wsReq, wsCatalog, template, 'reader') } catch (e) { wsThrew = String(e?.message ?? e) }
+check('缺工作区路径必炸(拒发哑零件)', wsThrew.includes('@@WORKSPACE@@'), wsThrew)
+
 // 7. 能力 id 调和:机械前缀漏写可修,语义错的丢弃,全错才失败。
 // 实测来源:选型 LLM 答 semver-check-compare(真实 id 带 mcp- 前缀),整次装配硬失败。
 const CAT = ['mcp-semver-check-compare', 'mcp-semver-check-satisfies', 'web-lookup']

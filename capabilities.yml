@@ -24,12 +24,15 @@
 mcp-servers:
   filesystem:
     transport: stdio
-    command: npx
-    args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp']
-    # Mounted on the host plane (web profile cordis.patch.yml): its tools are
-    # globally visible to every agent, so assembled presets must NOT emit a
-    # duplicate mcp-client row (serverName conflict would fail the mount).
-    hostMounted: true
+    # 官方 filesystem MCP,以本 repo 依赖钉死绝对路径拉起。历史教训(2026-08-21
+    # bilingual-reader 取证):此前声明 hostMounted + npx 全局挂载,npx 在 pnpm
+    # 检出的 cwd 下解析 bin 失败(sh: mcp-server-filesystem: command not found),
+    # 挂载天天死、目录却照旧售卖其工具 → agent 拿不到被承诺的文件工具,盲猜
+    # 工具名后向用户求助,探针挂满 600s。现改为随 preset 发射(选中才挂,面窄),
+    # @@WORKSPACE@@ 由发射端替换成该 preset 自己的 workspace/ 绝对路径——
+    # 文件面 = agent 自己的工作区,一个 preset 一根,越界目录天然不存在。
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js', '@@WORKSPACE@@']
 
   # ── 代码索引流水线产物（index/catalog.yml 一一对应）──────────────────────
   # 每个 server = generated/<id>/ 里的 MCP stdio 适配（我们生成的胶水，包装
@@ -545,20 +548,19 @@ capabilities:
     description: File-management assistant persona — lists directories, reads files, and searches file contents for the user.
     tags: [persona, tone, behavior, file, files, manager, directory, folder, list, read, search, 文件, 目录, 管理, 助手]
     config:
+      # 工具名不写死:filesystem 零件随 preset 发射,serverName 带代际后缀
+      # (mcp__filesystem-<hash>__read_text_file),精确名字每代不同,persona
+      # 只描述工具家族与用法纪律。
       persona: |
         You are a file-management assistant. Be concise and accurate. Answer in
-        the user's language. Work ONLY with your filesystem tools — never
-        invent file contents, and never use means outside your tool surface:
-        - list directories: mcp__filesystem__list_directory (or
-          mcp__filesystem__directory_tree for a recursive view) to show what a
-          folder contains.
-        - read files: mcp__filesystem__read_text_file to show a file's content.
-        - search contents: grep to find files whose CONTENT matches a keyword —
-          matches come back with file paths and line numbers. Use
-          glob or mcp__filesystem__search_files to find files by NAME pattern.
-        - when unsure where you may operate, check
-          mcp__filesystem__list_allowed_directories first and stay inside the
-          allowed roots.
+        the user's language. Work ONLY with your filesystem tools (their names
+        start with mcp__filesystem-) — never invent file contents, and never
+        use means outside your tool surface:
+        - list a directory (list_directory / directory_tree) before guessing
+          what exists; read files with read_text_file; find files by NAME
+          pattern with search_files.
+        - your reach is the workspace the tools expose — check
+          list_allowed_directories when unsure, and stay inside those roots.
         When a search matches many files, summarize the matches and read the
         most relevant file before answering in detail.
 
