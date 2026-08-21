@@ -14,17 +14,21 @@ The catalog grows through an **induction pipeline**: open-source libraries, publ
 
 | | Measured | Where to verify |
 |---|---|---|
-| Catalog | **79 MCP servers / 215 registered tools / 237 assemblable entries** (229 federated + 8 static) | `index/catalog.yml` |
-| Part mix | 61 library-backed + 13 service-backed + 4 first-party | same |
-| Assembly wall time | median **56s** (single-turn 52s / scenario 182s) | ledgers in `bench/results/` |
+| Catalog | **84 MCP servers / 229 registered tools / 83 parts** | `index/catalog.yml`, `capabilities.yml` |
+| Part mix | 62 library-backed + 17 service-backed + 4 first-party | `node scripts/catalog-report.mjs` |
+| Assembly wall time | typical **30–90s** single agent; multi-agent solution ~5–10 min | `progress.log` per preset |
+| Market campaign | **84 real-world requirements** across 4 batches — single agents, composite agents, adversarial prompts, and multi-agent FDE suites | `docs/campaigns/` |
 
 ---
 
 ## What it does
 
 - **Two entry points** — the `/assemble <requirement>` command (human shortcut) and an `assemble` tool (agent-native: the whole call renders in the conversation).
-- **Assemble-then-verify** — after emitting a preset, the assembler derives an acceptance probe, runs it in a **real session bound to that preset**, and judges the reply against content-bearing marks. A FAIL triggers one re-selection with the failure fed back, then re-probes. `find → assemble → **verify**`, on by default.
+- **Assemble-then-verify** — after emitting a preset, the assembler derives an acceptance probe, runs it in a **real session bound to that preset**, and judges the reply against content-bearing marks. A FAIL triggers one re-selection with the failure fed back, then re-probes. `find → assemble → **verify**`, on by default. The probe fails fast and honestly: an agent that asks the (absent) user for help is scored FAIL with the question quoted back, and every probe turn narrates its tool actions live.
 - **Multi-turn scenario probes** — the deriver picks the probe shape itself: one turn for pure-compute agents, a 2–4 turn scenario when the requirement implies work that outlives a turn (bookkeeping, filing, tracking). Scenario turns run in **one session**, and a later turn queries what an earlier turn wrote. Judgement stays black-box: replies only, never the trajectory.
+- **Multi-agent solutions (the FDE unit of delivery)** — one `assemble` builds one agent; **`assemble_solution` builds an entire team** plus a delivery document. Give it a list of agents and it assembles each on the same verified pipeline, then **grows a `HANDOVER.md` out of the artifacts themselves** — per-agent verdicts, shared tables, credential checklist, supply-chain BOM. Pass a `sharedSchema` and every agent's SQLite default DB is pinned to **one shared solution database**, so the customer-service agent and the reconciliation agent read and write the *same* orders — a real team, not a pile of separate bots. (A CLI, `scripts/solution.mjs`, drives the same delivery for non-agent batch use.)
+- **Gap work orders** — when selection reports a capability the catalog cannot yet cover, the assembler writes an actionable work order to `<preset>/gaps/`: the spec, the real induction-pipeline commands to build the missing part, and the exact re-assemble command that closes the loop. The writing of the missing part is handed to the **calling agent** (which has a full coding harness); the assembly spine stays deterministic, and the verdict always comes from the assembler's own black-box probe.
+- **Assembly console (live)** — every assembly dual-writes its action chain to `<preset>/progress.log`; a live console page (`/assembler/ui/_console`) polls it so a slow assembly is a visible, timestamped trail — "stuck or working?" answered at a glance — not a silent spinner. Selection, emission, probe rounds, per-turn tool actions and a 20s heartbeat all scroll there.
 - **Solution packs (the FDE unit of delivery)** — `solutions/<name>/solution.yml` declares an entire engagement: which agents, which catalog, deployment parameters, client knowledge. `solution apply` assembles them all, each through verification; `solution handover` **grows a delivery report out of the artifacts themselves**. Multi-tenant is `--param` plus a different credential set — never a forked manifest.
 - **Knowledge packs (`via: knowledge`)** — a client's manuals, SOPs and product catalogues enter as **static teaching material**, past a **retrieval-hit gate** (a probe question whose expected snippet cannot be found is refused), and are **copied into the preset's `kb/`** at assembly time. The handover is one self-contained directory.
 - **Credential contract (interface first, key later)** — parts **declare** the environment variable they need and what it is for; the **value never enters a preset**. Unconfigured, a part still starts, `listTools` still succeeds, and a call returns an **actionable error** (which variable, what for, where to get it). On the assembly side: assembly succeeds, the probe degrades to **SKIPPED** with configuration guidance. Optional credentials (GitHub public reads, polite-pool mailtos) take the anonymous path and do not hold verification back.
@@ -116,7 +120,11 @@ Some service parts need the operator's contact details (SEC mandates a contactab
 
 Or simply say it in any session — the agent calls the `assemble` tool on its own, and reasoning, tool card and result all render inline.
 
-### 3. Deliver a solution (the FDE path)
+### 3. Deliver a whole team (the FDE path)
+
+Just ask for a suite of agents in one session — "give me a set of ops agents: one for support, one for reconciliation, one for inventory, one for content, all sharing the same product/order data, plus a handover doc" — and the agent calls **`assemble_solution`** on its own. It splits the request into focused agents, assembles and verifies each, pins them to one shared database, and writes a `HANDOVER.md`. No manifest to hand-edit.
+
+For non-agent batch delivery, the CLI drives the same pipeline:
 
 ```bash
 npm run solution -- init acme-service --client acme     # manifest skeleton
@@ -125,7 +133,7 @@ npm run solution -- apply solutions/acme-service/solution.yml --port 3096
 npm run solution -- handover solutions/acme-service/solution.yml
 ```
 
-`HANDOVER.md` lists what was delivered with each verdict, the deployment parameters, the **pending-credential checklist**, knowledge packs with source and version, the supply-chain BOM, and the rebuild command — assembled from the artifacts, with **nothing hand-filled**. Anything that can be forgotten does not belong in a handover.
+`HANDOVER.md` lists what was delivered with each verdict, the shared tables, the deployment parameters, the **pending-credential checklist**, knowledge packs with source and version, the supply-chain BOM, and the rebuild command — assembled from the artifacts, with **nothing hand-filled**. Anything that can be forgotten does not belong in a handover.
 
 ---
 
@@ -137,7 +145,11 @@ dsh-assembler/
 │   ├── index.ts            # assembly core: catalog, matching, emission, BOM, params, secrets, knowledge
 │   ├── verify.ts           # assemble-then-verify: probe derivation (single/scenario) + real-session driver
 │   ├── persona-lint.ts     # mechanical persona checks
-│   └── assemble-tool.ts    # the assemble agent tool
+│   ├── frontend.ts         # frontend lane: template emission + same-origin route + live console
+│   ├── solution.ts         # multi-agent solution delivery + HANDOVER from artifacts
+│   ├── solution-tool.ts    # the assemble_solution agent tool
+│   ├── assemble-tool.ts    # the assemble agent tool
+│   └── client/             # browser half: assembly console tab in the DSH sidebar
 ├── capabilities.yml        # ★ public catalog: capability entries + mcp-servers + requiredSecrets
 ├── index/                  # ★ public part index (origin/licence/terms) + smoke reports
 ├── generated/              # ★ part library: 78 MCP adapter servers, one directory each

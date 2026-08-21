@@ -14,17 +14,21 @@
 
 | | 数字 | 证据 |
 |---|---|---|
-| 能力目录 | **79 个 MCP 服务器 / 215 个登记工具 / 237 个可装配条目**(联邦实探 229 条 mcp + 8 条静态) | `index/catalog.yml` |
-| 零件构成 | 61 库型 + 13 服务型 + 4 第一方 | 同上 |
-| 装配耗时 | 中位 **56 秒**(单轮 52s / 多轮场景 182s) | `bench/results/` 账本 |
+| 能力目录 | **84 个 MCP 服务器 / 229 个登记工具 / 83 个零件** | `index/catalog.yml`、`capabilities.yml` |
+| 零件构成 | 62 库型 + 17 服务型 + 4 第一方 | `node scripts/catalog-report.mjs` |
+| 装配耗时 | 单 agent 典型 **30–90 秒**;多 agent 方案约 5–10 分钟 | 各 preset 的 `progress.log` |
+| 市场压测 | **84 个真实世界需求**分 4 批跑过——单 agent、复合 agent、对抗注入、多 agent FDE 班子 | `docs/campaigns/` |
 
 ---
 
 ## 特性
 
 - **双入口**:`/assemble <需求>` 命令(人类快捷方式)+ `assemble` 工具(agent 原生路径,调用轨迹自动渲染)
-- **装配即验证**:装配完成后自动派生验收探针,在绑定新 preset 的**真实会话**里试跑,按内容型验收标记判 PASS/FAIL;FAIL 触发一次带失败反馈的重新选型再探(find → assemble → **verify** 闭环)
+- **装配即验证**:装配完成后自动派生验收探针,在绑定新 preset 的**真实会话**里试跑,按内容型验收标记判 PASS/FAIL;FAIL 触发一次带失败反馈的重新选型再探(find → assemble → **verify** 闭环)。探针快速且诚实:agent 中途向(不在场的)用户求助即判 FAIL 并带回问题原文,每一轮探针的工具动作实时上链
 - **多轮场景探针**:派生器自行决定探针形态——纯计算需求出单轮题,跨轮需求(记账/归档/追踪)出 2-4 轮场景脚本,**同一会话**里逐轮验收,后面的轮次查询前面轮次写入的状态。全程黑盒:只看回复,不看轨迹
+- **多 agent 方案(FDE 交付单元)**:`assemble` 装一个 agent;**`assemble_solution` 装一整套班子** + 一份交付说明书。给它 agent 清单,逐个走同一条验收流水线,再**从工件自己长出 `HANDOVER.md`**(每 agent 验收、共享表、待配凭证清单、供应链 BOM)。传一段 `sharedSchema`,每个 agent 的 SQLite 默认库都钉到**同一个方案共享库**——客服 agent 和对账 agent 读写**同一份**订单,是真的班子而非一堆散兵。(CLI `scripts/solution.mjs` 给不经 agent 的批处理交付用同一条流水线)
+- **缺件工单**:选型报出目录尚不能覆盖的能力时,装配器把可执行工单写进 `<preset>/gaps/`:缺什么、造零件的真实入库命令、以及闭环的重跑命令。写缺失零件的活交给**调用方 agent**(它有全套 coding harness);装配脊柱保持确定性,验收永远归装配器自己的黑盒探针
+- **装配直播台**:每次装配把行动链双写进 `<preset>/progress.log`;直播台页面(`/assembler/ui/_console`)轮询它,让慢装配变成一条可见的、带时间戳的轨迹——"卡了还是在干活"一眼可判,而不是一颗沉默的转圈 chip。选型、发射、探针轮次、每轮工具动作、20s 心跳都在那里滚动
 - **方案包(FDE 交付单元)**:`solutions/<name>/solution.yml` 声明一次交付的全部——几个 agent、用哪份目录、部署参数、客户知识。`solution apply` 一条命令按清单装配并逐个验收;`solution handover` 从每个 preset 的 BOM **自动长出**交付报告。多租户 = 换 `--param` 换凭证,不分叉清单
 - **知识包(`via: knowledge`)**:客户手册/SOP/产品目录作为**静态教材**进目录,过**检索命中门**(探针问题检不出预期片段就拒收),装配时**拷进 preset 的 `kb/`**——交付物自包含
 - **凭证契约(接口先就位,key 后补)**:零件只**声明**需要哪个环境变量及用途,**值永不进 preset**;未配时零件照常启动、`listTools` 成功、调用返回**可行动错误**;装配侧对应为"装配成功 + 探针 SKIPPED + 配置指引"。可选凭证(如 GitHub 公开读)走匿名降级不拦验证
@@ -121,7 +125,11 @@
 
 或直接在任意会话里说"帮我组装一个能查订单、开工单、转人工的客服机器人"——agent 会自动调用 `assemble` 工具,思维链 + 工具卡片 + 结果全部渲染。
 
-### 3. 交付一个方案(FDE 路径)
+### 3. 交付一整套班子(FDE 路径)
+
+直接在会话里要一套 agent——"给我一套运营 agent 班子:客服、对账、库存、内容四个,共享同一套商品/订单数据,各有前端,再给我一份交付说明书"——agent 会自动调用 **`assemble_solution`**:把需求拆成分工明确的 agent、逐个装配并验收、钉到同一个共享库、写出 `HANDOVER.md`。无清单要手改。
+
+不经 agent 的批处理交付,用 CLI 走同一条流水线:
 
 ```bash
 npm run solution -- init acme-service --client acme     # 起清单
@@ -130,7 +138,7 @@ npm run solution -- apply solutions/acme-service/solution.yml --port 3096
 npm run solution -- handover solutions/acme-service/solution.yml
 ```
 
-产出 `HANDOVER.md`:交付了哪些 agent 与验收结论、部署参数、**待配凭证清单**、知识包来源版本、供应链 BOM、重建命令。全部从工件里长出来,**没有一处靠人填写**。
+产出 `HANDOVER.md`:交付了哪些 agent 与验收结论、共享表、部署参数、**待配凭证清单**、知识包来源版本、供应链 BOM、重建命令。全部从工件里长出来,**没有一处靠人填写**。
 
 ---
 
