@@ -3,8 +3,8 @@
  * 命名功能单测：直接 import 编译产物 lib/index.js（peers 已 symlink 到 node_modules）。
  * 验证 sanitizePresetName / presetNameSuffix / resolvePresetId / emitPreset 的命名行为。
  */
-import { sanitizePresetName, presetNameSuffix, resolvePresetId, emitPreset, screenParams, applyParams, reconcileCapabilityIds, assertEmittedPreset, assembleResultText } from './lib/index.js'
-import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs'
+import { sanitizePresetName, presetNameSuffix, resolvePresetId, emitPreset, screenParams, applyParams, reconcileCapabilityIds, assertEmittedPreset, assembleResultText, writeGapWorkOrders } from './lib/index.js'
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import yaml from 'js-yaml'
@@ -181,6 +181,32 @@ check('0s 段照列(缓存热是信息)', billText.includes('零件联邦 0s'))
 check('未认领时间入"其他"', billText.includes('其他 8s'), billText.match(/耗时[^\n]*/)?.[0])
 const billTight = assembleResultText({ ...billBase, timings: [{ stage: '选型', seconds: 10 }], totalSeconds: 11 })
 check('零头 <2s 不单列"其他"', !billTight.includes('其他'), billTight.match(/耗时[^\n]*/)?.[0])
+
+// 10. 缺件工单:缺口落成"主 agent 拿了就能开工"的施工单(设计裁定 2026-08-21:
+// 脊柱确定性不动,写零件交给有全套 harness 的调用方;新代码必须入库不焊死)。
+const gapRoot = mkdtempSync(join(tmpdir(), 'gap-order-test-'))
+const gapEntries = [
+  { id: 'gpx-parse', via: 'mcp', description: '解析 GPX 轨迹文件', tags: ['gpx', '轨迹'] },
+  { id: 'fs-extra-cap', via: 'harness', description: '文件搜索', tags: ['file'], mount: { name: '@deepseek-ai/dsh-tool-fs-search' } },
+]
+const orderPaths = writeGapWorkOrders({ presetDir: gapRoot, presetId: 'trail-helper', requirement: '解析 GPX 并统计爬升', missingEntries: gapEntries })
+check('每缺口一份工单', orderPaths.length === 2 && orderPaths.every((p) => existsSync(p)), JSON.stringify(orderPaths))
+const order1 = readFileSync(orderPaths[0], 'utf8')
+check('工单含真实流水线命令', order1.includes('scripts/index-add.mjs scaffold') && order1.includes('verify gpx-parse') && order1.includes('register gpx-parse'))
+check('工单含目录条目草案', order1.includes('id: gpx-parse') && order1.includes('```yaml'))
+check('工单含复跑闭环指令', order1.includes('/assemble 解析 GPX 并统计爬升 --name trail-helper'))
+check('工单立入库铁律与凭证红线', order1.includes('入库') && order1.includes('凭证'))
+const order2 = readFileSync(orderPaths[1], 'utf8')
+check('harness 已知挂载走免代码路线', order2.includes('不用写代码') && order2.includes('dsh-tool-fs-search'))
+const rewritten = writeGapWorkOrders({ presetDir: gapRoot, presetId: 'trail-helper', requirement: '解析 GPX 并统计爬升', missingEntries: [gapEntries[0]] })
+check('重写清掉已补齐缺口的旧工单', rewritten.length === 1 && !existsSync(orderPaths[1]), JSON.stringify(rewritten))
+const cleared = writeGapWorkOrders({ presetDir: gapRoot, presetId: 'trail-helper', requirement: 'x', missingEntries: [] })
+check('无缺口时 gaps/ 整目录消失', cleared.length === 0 && !existsSync(join(gapRoot, 'gaps')))
+const orderText = assembleResultText({ ...billBase, gapOrders: ['/tmp/p/gaps/01-gpx-parse.md'], drafts: ['  - id: x'], timings: [], totalSeconds: 1 })
+check('结果文本列工单路径并压掉内联草案', orderText.includes('缺件工单(1 份)') && orderText.includes('01-gpx-parse.md') && !orderText.includes('补件草案'))
+const legacyText = assembleResultText({ ...billBase, drafts: ['  - id: x'], timings: [], totalSeconds: 1 })
+check('无工单时回退内联草案(缺口不失踪)', legacyText.includes('补件草案'))
+rmSync(gapRoot, { recursive: true, force: true })
 
 console.log(`\n==== 命名功能测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)
 process.exit(failures === 0 ? 0 : 1)

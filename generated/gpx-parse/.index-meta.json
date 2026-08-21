@@ -1,0 +1,8 @@
+{
+  "id": "gpx-parse",
+  "pkg": "@we-gold/gpxjs",
+  "version": "1.2.0",
+  "repo": "We-Gold/gpxjs",
+  "license": "MIT",
+  "scaffoldedAt": "2026-08-21T12:17:36.882Z"
+}

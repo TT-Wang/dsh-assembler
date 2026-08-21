@@ -1,0 +1,13 @@
+{
+  "name": "@dsh-index/gpx-parse",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "description": "MCP stdio server exposing @we-gold/gpxjs tools",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0",
+    "@we-gold/gpxjs": "1.2.0",
+    "xmldom-qsa": "^1.1.3"
+  }
+}

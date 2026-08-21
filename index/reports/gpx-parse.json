@@ -1,0 +1,16 @@
+{
+  "id": "gpx-parse",
+  "verifiedAt": "2026-08-21T12:19:16.595Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "analyze-gpx",
+      "description": "Analyze GPX XML text. Returns JSON {name, tracks: [{name, points, distance_km, elevation_gain_m, elevation_loss_m, duration_s, duration, avg_pace, per_km: [{km, seconds, pace}]}], totals: {distance_km, elevation_gain_m, duration_s}}. Routes (<rte>) are analyzed like tracks. Distance is haversine over track points; the per-km pace table needs point timestamps and is empty without them."
+    },
+    {
+      "name": "extract-points",
+      "description": "Extract raw points from GPX XML text as JSON {total, returned, points: [{lat, lon, ele, time}]}. Points come from all tracks and routes in document order; `limit` caps the returned sample (default 50) with even spacing across the full range so the shape of the whole track is preserved."
+    }
+  ]
+}

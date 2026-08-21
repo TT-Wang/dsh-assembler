@@ -14,7 +14,7 @@
  * later sessions. Unlike the CLI prototype, model calls go through the host's
  * `ctx.llm` (provider/key from the host config), not a private fetch.
  */
-import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, readdirSync, appendFileSync, mkdtempSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, readdirSync, appendFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
@@ -972,8 +972,11 @@ export const VERIFY_CARRY_TTL_MS = 7 * 24 * 3600 * 1000
  * rev 4:filesystem 不再走 host 全局挂载(那个挂载从未活过),改随 preset 发射
  *        mcp 行、根目录经 @@WORKSPACE@@ 钉到各自 workspace/。老代 lock 选了
  *        文件能力却没有对应行,复用必须失效,同需求重装原地换代补上行。
+ * rev 5:lock 增记 missing + catalogIdsHash(缺件工单闭环的后半):复用闸据此
+ *        识别"欠着件 + 目录已生长"并重新选型。旧代 lock 没这两个字段,闸失明,
+ *        必须换代补记。
  */
-export const EMISSION_REV = 4
+export const EMISSION_REV = 5
 
 /** preset 文本的账本键。 */
 export function presetSha(text: string): string {
@@ -1103,6 +1106,13 @@ export function planReuse(opts: {
   const lockParams = (lock.params !== null && typeof lock.params === 'object' ? lock.params : {}) as Record<string, string>
   const canon = (p: Record<string, string>): string => JSON.stringify(Object.entries(p).sort())
   if (canon(lockParams) !== canon(opts.params)) return null
+  // 缺口生长闸(缺件工单闭环的另一半):上次装配欠着件(lock.missing 在案),
+  // 而目录指纹已变(通常 = 主 agent 照工单造件入库了)⇒ 拒绝复用、重新选型,
+  // 给新零件上桌的机会。目录没变则照常复用——重选也只会报出同样的缺口,
+  // 白付一次选型抖动。无缺口的 lock 不看指纹:目录生长与它无关。
+  const lockMissing = Array.isArray((lock as { missing?: unknown }).missing) ? ((lock as { missing?: unknown[] }).missing as unknown[]) : []
+  const lockCatalogHash = (lock as { catalogIdsHash?: unknown }).catalogIdsHash
+  if (lockMissing.length > 0 && typeof lockCatalogHash === 'string' && lockCatalogHash !== catalogIdsHash(opts.catalog)) return null
   const byId = new Map(opts.catalog.capabilities.map((c) => [c.id, c]))
   const ids: string[] = []
   for (const p of Array.isArray(lock.parts) ? lock.parts : []) {
@@ -1412,6 +1422,10 @@ export function renderPartsLock(opts: {
   knowledge?: Array<{ id: string; docs: number; source?: string; version?: string }>
   /** Assembly-time pre-thought equipment shipped with the preset (e.g. equipment/init.sql). */
   equipment?: string[]
+  /** 选型报出的缺口(有工单在 gaps/ 与之对应);复用闸靠它判断"是否还欠着件"。 */
+  missing?: string[]
+  /** 装配时目录的 id 集指纹;与 missing 联用:缺口在案 + 目录已生长 ⇒ 拒绝复用重选。 */
+  catalogIdsHash?: string
 }): string {
   const byId = new Map(opts.index.map((r) => [r.id, r]))
   const serverNames = [...opts.presetText.matchAll(/serverName: "([^"]+)"/g)].map((m) => m[1])
@@ -1462,6 +1476,10 @@ export function renderPartsLock(opts: {
   if (opts.personaFindings !== undefined && opts.personaFindings.length > 0) {
     doc.personaLint = opts.personaFindings.map((f) => `${f.kind}: ${f.detail}`)
   }
+  // 缺口与目录指纹入档:这是"缺件工单闭环"的另一半——重跑时复用闸读它们,
+  // 发现"欠着件 + 目录已生长"就放弃复用重新选型,新入库的零件才有机会上桌。
+  if (opts.missing !== undefined && opts.missing.length > 0) doc.missing = opts.missing
+  if (opts.catalogIdsHash !== undefined) doc.catalogIdsHash = opts.catalogIdsHash
   // Parameters are part of the build record: the same preset id emitted with
   // different parameters is a different artifact, and the lock says which.
   if (opts.params !== undefined && Object.keys(opts.params).length > 0) doc.params = opts.params
@@ -1482,6 +1500,92 @@ export function renderPartsLock(opts: {
   return '# 零件物料清单(BOM)— dsh-assembler 自动生成;记录每个能力的供应链出处。\n'
     + '# 审计:repo@rev 为上游锁定版本,license 为上游许可证,serverName 为本 preset 实际挂载名。\n'
     + yaml.dump(doc, { lineWidth: -1 })
+}
+
+/**
+ * 缺件工单:把选型报出的每个缺口落成一份"调用方 agent 拿了就能开工"的施工单。
+ *
+ * 设计裁定(2026-08-21,与用户共同定稿):装配脊柱(选型神谕/确定性发射/独立
+ * 验收)不动;"写缺失零件"这种需要全套 harness(工具+迭代+执行)的创造性工作
+ * 交给调用方主 agent——aux 神谕调用没有工具面,写不出能用的零件。工单三要素:
+ * spec(缺什么)、真实可跑的命令序列(index 流水线,门在流水线里)、本次装配
+ * 的复跑指令(零件入库后重跑即闭环)。铁律:新代码必须**入库**而不是焊死在
+ * 单台 preset——入库 = smoke 质检门 + BOM 供应链记录 + 全体后续装配可选 +
+ * 选型账本多一条样本;直接改 preset 的产物是无门、无记录、不可复用的雪花。
+ * 验收始终归 assembler 的黑盒探针:写零件的 agent 不给自己发合格证。
+ */
+export function renderGapWorkOrder(draft: MissingDraft, opts: { presetId: string; requirement: string }): string {
+  const entryYaml = renderMissingDraft(draft)
+  const route = draft.via === 'harness' && draft.mount !== undefined
+    ? [
+        '## 施工路线(via: harness,已知挂载行——不用写代码)',
+        '',
+        '把文末的目录条目追加进 capabilities.yml 的 `capabilities:` 段即可,然后直接跳到「完工闭环」。',
+      ]
+    : [
+        `## 施工路线(via: ${draft.via}——造零件入库)`,
+        '',
+        `在 dsh-assembler 检出(${REPO})下:`,
+        '',
+        '1. 有合适上游 npm 库时用脚手架(生成 generated/<id>/ 骨架 + 上游源码缓存 + WORK-ORDER.md):',
+        '',
+        `   node scripts/index-add.mjs scaffold <owner/repo> --pkg <npm包名> --id ${draft.id}`,
+        '',
+        `   纯胶水(无上游库)则手建 generated/${draft.id}/{package.json,index.js,smoke.mjs},参考任一现有零件(如 generated/csv-parse/)。`,
+        `2. 质检门:node scripts/index-add.mjs verify ${draft.id}(smoke exit 0 + 独立 listTools 实探;smoke 必须真调用工具拿真结果,不许只测"能启动")`,
+        `3. 登记入库:node scripts/index-add.mjs register ${draft.id}(verify 不过会被直接拒绝;自动写 index/catalog.yml 与 capabilities.yml 的 mcp-servers 段)`,
+        '4. 目录条目:register 后把文末草案并入 capabilities.yml 的 `capabilities:` 段(id/描述/tags 可按实况修润)。',
+      ]
+  return [
+    `# 缺件工单:${draft.id}`,
+    '',
+    `- 需求方 preset:\`${opts.presetId}\``,
+    `- 缺口:${draft.description}`,
+    `- via:${draft.via}${draft.tool !== undefined ? `(tool: ${draft.tool})` : ''}`,
+    '',
+    '新零件必须走入库流水线,禁止把胶水代码直接塞进本 preset(无质检门、无供应链记录、不可复用)。',
+    '代码里绝不写入任何凭证/token——零件从自己的进程环境读,host 或 .env 提供。',
+    '',
+    ...route,
+    '',
+    '## 目录条目草案',
+    '',
+    '```yaml',
+    entryYaml,
+    '```',
+    '',
+    '## 完工闭环',
+    '',
+    '零件入库后重跑本次装配(同名同需求会同 id 原地换代,新零件被选中并过独立验收):',
+    '',
+    '```',
+    `/assemble ${opts.requirement.replace(/\s+/g, ' ').trim()} --name ${opts.presetId}`,
+    '```',
+    '',
+  ].join('\n')
+}
+
+/**
+ * 把全部缺口写成 gaps/ 下的工单文件;每次装配整目录重写——上一轮的缺口
+ * 若已补齐,旧工单随之消失(工单反映现状,不是历史)。无缺口时目录不存在。
+ */
+export function writeGapWorkOrders(opts: {
+  presetDir: string
+  presetId: string
+  requirement: string
+  missingEntries: MissingDraft[]
+}): string[] {
+  const gapsDir = join(opts.presetDir, 'gaps')
+  rmSync(gapsDir, { recursive: true, force: true })
+  if (opts.missingEntries.length === 0) return []
+  mkdirSync(gapsDir, { recursive: true })
+  const paths: string[] = []
+  for (const [i, draft] of opts.missingEntries.entries()) {
+    const file = join(gapsDir, `${String(i + 1).padStart(2, '0')}-${draft.id}.md`)
+    writeFileSync(file, renderGapWorkOrder(draft, { presetId: opts.presetId, requirement: opts.requirement }))
+    paths.push(file)
+  }
+  return paths
 }
 
 /** Render one matcher draft as a copy-paste-ready capabilities.yml entry. */
@@ -1537,6 +1641,8 @@ export async function assemble(
   missing: string[]
   presetPath: string
   drafts: string[]
+  /** 缺件工单文件的绝对路径(preset/gaps/ 下,每缺口一份;无缺口为空)。 */
+  gapOrders: string[]
   verification: ProbeResult
   personaLint: PersonaLintFinding[]
   params: Record<string, string>
@@ -1724,7 +1830,6 @@ export async function assemble(
   } catch (error: unknown) {
     console.error(`[assembler] 前端发射失败(装配照常):${error instanceof Error ? error.message : String(error)}`)
   }
-  const drafts = (req.missingEntries ?? []).map(renderMissingDraft)
   // Declared here because both the BOM block and the verify block read it.
   let requiredSecrets: Array<RequiredSecret & { server: string; configured: boolean }> = []
 
@@ -1857,6 +1962,9 @@ export async function assemble(
               // The persona of record is the retry's too — the lock lints the
               // text that actually shipped, not the first generation's.
               req.persona = retryReq.persona
+              // 缺口报告与缺件工单同理:以实际上桌的重试选型为准。
+              req.missing = retryReq.missing
+              req.missingEntries = retryReq.missingEntries
             }
           } catch (retryError: unknown) {
             verification = {
@@ -1889,6 +1997,21 @@ export async function assemble(
       mark('前端验收', tFe)
       phase(frontendCheck.pass ? `前端验收:${frontendCheck.reason ?? 'PASS'}` : `前端验收:FAIL——${frontendCheck.reason ?? ''}`)
     }
+  }
+
+  // ── 缺件工单(在验收之后落盘:重试轮可能换过选型,工单以上桌代际为准)──
+  // 草案与工单同源 req.missingEntries;工单是"主 agent 拿了就能开工"的施工单,
+  // 详见 renderGapWorkOrder 的设计裁定注释。落盘失败不毁装配(缺口在结果文本
+  // 里仍有报告)。
+  const drafts = (req.missingEntries ?? []).map(renderMissingDraft)
+  let gapOrders: string[] = []
+  try {
+    gapOrders = writeGapWorkOrders({ presetDir: dir, presetId: id, requirement, missingEntries: req.missingEntries ?? [] })
+    if (gapOrders.length > 0) {
+      phase(`缺件工单已落盘:${String(gapOrders.length)} 份 → ${join(dir, 'gaps')}/(照单造件入库,重跑本次 assemble 即闭环)`)
+    }
+  } catch (error: unknown) {
+    console.error(`[assembler] 缺件工单落盘失败(装配照常):${error instanceof Error ? error.message : String(error)}`)
   }
 
   // 台账落笔:新鲜 PASS 才入账(沿用不重写台账;FAIL/SKIPPED/ERRORED 没有可记的
@@ -1952,6 +2075,8 @@ export async function assemble(
         requiredSecrets,
         knowledge: knowledgeInstalled,
         ...(equipmentNow !== null ? { equipment: equipmentNow.files } : {}),
+        missing: req.missing,
+        catalogIdsHash: catalogIdsHash(catalog),
       }))
     }
   } catch (error: unknown) {
@@ -2003,7 +2128,7 @@ export async function assemble(
     }
   }
   phase(`装配完成:共 ${String(totalSeconds)}s — ${timings.map((s) => `${s.stage} ${String(s.seconds)}s`).join(' · ')}`)
-  return { id, capabilityIds: req.capabilityIds, missing: req.missing, presetPath: join(dir, 'agent.cordis.yml'), drafts, verification, personaLint: personaFindings, params: screened.accepted, paramsRejected: screened.rejected, requiredSecrets, knowledge: knowledgeInstalled, timings, totalSeconds, reused: reuse !== null, frontend: frontendInfo, frontendCheck }
+  return { id, capabilityIds: req.capabilityIds, missing: req.missing, presetPath: join(dir, 'agent.cordis.yml'), drafts, gapOrders, verification, personaLint: personaFindings, params: screened.accepted, paramsRejected: screened.rejected, requiredSecrets, knowledge: knowledgeInstalled, timings, totalSeconds, reused: reuse !== null, frontend: frontendInfo, frontendCheck }
 }
 
 /** Shared human-facing result text for the command and the tool. */
@@ -2011,9 +2136,14 @@ export function assembleResultText(result: Awaited<ReturnType<typeof assemble>>)
   const missing = result.missing.length > 0
     ? `\nmissing capabilities (not in catalog): ${result.missing.join(', ')}`
     : ''
-  const drafts = result.drafts.length > 0
-    ? `\n\n补件草案 (append to the "capabilities:" section of capabilities.yml):\n${result.drafts.join('\n')}`
-    : ''
+  // 缺件工单优先:有工单时结果只报路径与闭环指令(草案 YAML 已在工单里,
+  // 不再整段刷进对话);工单落盘失败才回退到内联草案,缺口报告绝不失踪。
+  const gapOrders = result.gapOrders ?? []
+  const drafts = gapOrders.length > 0
+    ? `\n\n缺件工单(${String(gapOrders.length)} 份)——请照单造件并入库,入库后重跑本次 assemble 即闭环:\n${gapOrders.map((p) => `  ${p}`).join('\n')}\n(工单含施工路线、质检门命令与目录条目草案;新零件必须走 index 流水线入库,不要直接改本 preset。)`
+    : result.drafts.length > 0
+      ? `\n\n补件草案 (append to the "capabilities:" section of capabilities.yml):\n${result.drafts.join('\n')}`
+      : ''
   const v = result.verification
   // Two probe shapes render differently: a single probe reports its task and
   // marks; a scenario reports the turn ladder, which is the evidence that

@@ -95,6 +95,20 @@ check('同概念判定:需求变了为假', sameConceptOnDisk({ name: 'my-agent'
 writeFileSync(join(dir, 'parts.lock.yml'), yaml.dump(lockDoc, { lineWidth: -1 }))
 check('lock 损坏 → 不复用不抛错', planReuse({ name: 'broken-agent', requirement: REQ, params: PARAMS, presetRoot: root, catalog: CATALOG }) === null)
 
+// 缺口生长闸(缺件工单闭环后半):欠着件 + 目录指纹变了 ⇒ 拒绝复用重选型;
+// 目录没变 ⇒ 照常复用(重选只会报同样缺口,白付抖动)。无缺口的 lock 不看指纹。
+const hashNow = catalogIdsHash(CATALOG)
+const CATALOG_GROWN = {
+  capabilities: [...CATALOG.capabilities, { id: 'mcp-gpx-parse-analyze', via: 'mcp', tool: 'mcp__gpx-parse__analyze', description: 'gpx', tags: ['gpx'], config: { server: 'gpx-parse' } }],
+  'mcp-servers': { ...CATALOG['mcp-servers'], 'gpx-parse': { transport: 'stdio', command: 'node', args: ['g.js'] } },
+}
+writeFileSync(join(dir, 'parts.lock.yml'), yaml.dump({ ...lockDoc, missing: ['GPX 解析'], catalogIdsHash: hashNow }, { lineWidth: -1 }))
+check('欠件在案 + 目录已生长 → 不复用(新零件要上桌)', planReuse({ name: 'my-agent', requirement: REQ, params: PARAMS, presetRoot: root, catalog: CATALOG_GROWN }) === null)
+check('欠件在案 + 目录未变 → 照常复用', planReuse({ name: 'my-agent', requirement: REQ, params: PARAMS, presetRoot: root, catalog: CATALOG }) !== null)
+writeFileSync(join(dir, 'parts.lock.yml'), yaml.dump({ ...lockDoc, catalogIdsHash: hashNow }, { lineWidth: -1 }))
+check('无缺口的 lock 不看指纹(目录生长与它无关)', planReuse({ name: 'my-agent', requirement: REQ, params: PARAMS, presetRoot: root, catalog: CATALOG_GROWN }) !== null)
+writeFileSync(join(dir, 'parts.lock.yml'), yaml.dump(lockDoc, { lineWidth: -1 }))
+
 // ── 2. 验收台账:carryDecision 判定矩阵 ─────────────────────────────────────
 const sha = presetSha(PRESET_TEXT)
 const now = Date.now()
