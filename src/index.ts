@@ -26,7 +26,7 @@ import { BlockAssembler, type GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { createUserMessage } from '@deepseek-ai/dsh-llm/message'
 import yaml from 'js-yaml'
 import { assembleToolDefinition } from './assemble-tool.js'
-import { AUX_CALL_TIMEOUT_MS, addUsage, deriveProbePlan, runFrontendGate, runProbe, runScenario, usageDetail, type AuxUsage, type ProbePlan, type ProbeResult } from './verify.js'
+import { AUX_CALL_TIMEOUT_MS, addUsage, deriveProbePlan, parseModelJson, runFrontendGate, runProbe, runScenario, usageDetail, type AuxUsage, type ProbePlan, type ProbeResult } from './verify.js'
 import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend, frontendRouteHandler } from './frontend.js'
 
 export { FRONTEND_ROUTE, FRONTEND_TEMPLATES_DIR, DEFAULT_FRONTEND_TEMPLATE, emitFrontend, fillTemplate, listAssemblyProgress, listFrontendTemplates, resolveFrontendFile, frontendRouteHandler } from './frontend.js'
@@ -250,6 +250,13 @@ export async function llmMapRequirement(
     '- Respond with JSON only: {"capabilityIds": [...], "missing": [...], "missingEntries": [...], "persona": "...", "name": "...", "rationale": "..."}',
     `- capabilityIds must ONLY use ids from this exact set: ${ids.join(', ')}`,
     '- If the requirement asks for something the catalog cannot provide, list it in "missing" (e.g. "phone support", "payment").',
+    // 市场战役 F14:matcher 把 sqlite 能覆盖的"持久状态"、fs-search 能覆盖的
+    // "知识检索"报成缺口,还发明 vendor 名(agently-mail-*)——缺口误报比漏报
+    // 更贵:每个缺口都会生成一份施工工单。
+    '- GAP DISCIPLINE: before listing anything in "missing", exhaustively check the catalog for an existing part covering it under another name — persistent state/ledgers → the SQLite parts; saving/reading workspace files → the filesystem parts; searching/citing imported docs → the kb/fs-search entries; document output → the docx/pdf/excel parts. Report a gap ONLY when nothing plausibly covers it, and NEVER invent vendor-specific ids — describe the missing capability generically.',
+    // 市场战役 F3:看板需求被配了 browser-automate——"网页上操作"指的是交付的
+    // 前端页(装配器自动随件发),不是 agent 要去浏览网页。
+    '- A requirement mentioning 网页/页面/看板/面板 usually means the DELIVERED web UI (the assembler ships one automatically) — do NOT select browser-automation or http parts for that; select them only when the AGENT itself must visit EXTERNAL sites.',
     '- Include capabilities that are implied (a support agent needs a persona).',
     // A workstation, not a script: work that outlives a turn (bookkeeping,
     // filing, tracking, archiving) needs somewhere to PUT state. Selecting the
@@ -309,7 +316,7 @@ export async function llmMapRequirement(
   for (const block of assembler.message().content) {
     if (block.type === 'text') text += block.text
   }
-  const parsed = JSON.parse(text) as AssembleRequest
+  const parsed = parseModelJson(text) as unknown as AssembleRequest
   parsed.capabilityIds = reconcileCapabilityIds(parsed.capabilityIds ?? [], ids)
   return parsed
 }
@@ -414,6 +421,13 @@ export function assertEmittedPreset(text: string): string {
  */
 export const WORKSPACE_SLOT = '@@WORKSPACE@@'
 
+/**
+ * 教材区槽位:替换成该 preset 的 kb/ 绝对路径(workspace 的兄弟目录)。
+ * filesystem 零件用它当第二根——知识包装在 kb/,只根 workspace 时 agent 拿
+ * 文件工具够不着自己的教材(市场战役 s28 类)。发射时两目录都保证存在。
+ */
+export const KBDIR_SLOT = '@@KBDIR@@'
+
 export function emitPreset(req: AssembleRequest, catalog: Catalog, template: string, presetId: string, personaSuffix = '', extraServerEnv?: Record<string, Record<string, string>>, workspaceDir?: string): string {
   const byId = new Map(catalog.capabilities.map((c) => [c.id, c]))
   // Enabled-only: `enabled: false` entries are excluded from the LLM's
@@ -483,7 +497,10 @@ export function emitPreset(req: AssembleRequest, catalog: Catalog, template: str
       // 装备槽注入(如 SQLITE_INIT_DDL_FILE)与目录声明的 env 合并后一起走
       // stripSecretEnv——装备值是路径不是秘密,但规则不设例外。env 行在目录
       // 没写 env 而装备需要时也要出现。
-      const mergedEnv = stripSecretEnv({ ...(cfg.env as Record<string, unknown> | undefined ?? {}), ...(extraServerEnv?.[server] ?? {}) })
+      // PART_WORKDIR 全员注入(市场战役 F11):零件把相对路径解析进自己进程的
+      // cwd(= host 检出目录),docx 实测写进了 host 检出;每个 mcp 零件统一
+      // 拿到本 preset 的 workspace 绝对路径当根。目录/装备的显式 env 可覆盖。
+      const mergedEnv = stripSecretEnv({ PART_WORKDIR: WORKSPACE_SLOT, ...(cfg.env as Record<string, unknown> | undefined ?? {}), ...(extraServerEnv?.[server] ?? {}) })
       const lines = Object.entries(cfg)
         .filter(([k]) => k !== 'hostMounted' && k !== 'requiredSecrets' && k !== 'env')
         .map(([k, v]) => `\n    ${k}: ${renderYamlValue(v)}`)
@@ -509,11 +526,14 @@ export function emitPreset(req: AssembleRequest, catalog: Catalog, template: str
   // 替换在 suffix 哈希之后——workspace 路径由 preset id 唯一决定,同 id 同路径,
   // 不会让两份同字节组合产出不同代际。缺路径时宁可炸在装配台,也不发一个
   // 根目录是字面量 '@@WORKSPACE@@' 的哑零件出门。
-  if (out.includes(WORKSPACE_SLOT)) {
+  if (out.includes(WORKSPACE_SLOT) || out.includes(KBDIR_SLOT)) {
     if (workspaceDir === undefined) {
-      throw new Error('assemble: 选中的能力声明了 @@WORKSPACE@@(每 preset 工作区)但发射时未提供工作区路径')
+      throw new Error('assemble: 选中的能力声明了 @@WORKSPACE@@/@@KBDIR@@(每 preset 目录槽位)但发射时未提供工作区路径')
     }
     out = out.replaceAll(WORKSPACE_SLOT, workspaceDir)
+    // kb 是 workspace 的兄弟目录。发射保持纯文本替换;两根目录的真实建立
+    // 归 assemble(filesystem 零件对不存在的根直接拒启,见探针/前端两处 mkdir)。
+    out = out.replaceAll(KBDIR_SLOT, join(dirname(workspaceDir), 'kb'))
   }
   return assertEmittedPreset(out)
 }
@@ -975,8 +995,11 @@ export const VERIFY_CARRY_TTL_MS = 7 * 24 * 3600 * 1000
  * rev 5:lock 增记 missing + catalogIdsHash(缺件工单闭环的后半):复用闸据此
  *        识别"欠着件 + 目录已生长"并重新选型。旧代 lock 没这两个字段,闸失明,
  *        必须换代补记。
+ * rev 6:每个 mcp 行注入 PART_WORKDIR=<preset>/workspace(F11 零件 cwd 病类修):
+ *        零件相对路径从此解析进本 preset 工作区。旧代 preset 没这个 env,
+ *        零件仍写 host 检出,必须换代重发。
  */
-export const EMISSION_REV = 5
+export const EMISSION_REV = 6
 
 /** preset 文本的账本键。 */
 export function presetSha(text: string): string {
@@ -1342,7 +1365,7 @@ export async function federateMcpTools(catalog: Catalog): Promise<Catalog> {
             ? new StreamableHTTPClientTransport(new URL(cfg.url as string))
             : new StdioClientTransport({
                 command: cfg.command as string,
-                args: ((cfg.args as string[] | undefined) ?? []).map((a) => a === WORKSPACE_SLOT ? fedWorkspaceStub() : a),
+                args: ((cfg.args as string[] | undefined) ?? []).map((a) => a === WORKSPACE_SLOT || a === KBDIR_SLOT ? fedWorkspaceStub() : a),
                 ...(cfg.env !== undefined
                   ? { env: { ...scrubbedEnv(), ...(cfg.env as Record<string, string>) } }
                   : { env: scrubbedEnv() }),
@@ -1754,9 +1777,23 @@ export async function assemble(
     req.params = screened.accepted
     // 同概念原地重发:复用被新鲜度闸拒绝(发射代号/知识版本升级)时,同名同
     // 需求同参数的重装覆写原目录换代,而不是铸 -2 兄弟;-N 只防"不同新概念"撞名。
-    id = sameConceptOnDisk({ ...(options.name !== undefined ? { name: options.name } : {}), requirement, params: screened.accepted, presetRoot })
-      ? sanitizePresetName(options.name ?? '')
-      : resolvePresetId(options.name, req.name, presetRoot)
+    const explicit = sanitizePresetName(options.name ?? '')
+    const sameConcept = sameConceptOnDisk({ ...(options.name !== undefined ? { name: options.name } : {}), requirement, params: screened.accepted, presetRoot })
+    if (explicit !== '' && existsSync(join(presetRoot, explicit)) && !sameConcept) {
+      // 显式点名撞上"另一个概念"占着这个名字:绝不静默铸 -2(市场战役 F1 实录:
+      // 主 agent 换措辞重装铸出 kanban-2,再想 rm -rf 抢回原名、申请升权)。
+      // --fresh = 调用方明确要覆盖 ⇒ 原地换概念;否则把选择权还给人。
+      if (options.fresh !== true) {
+        throw new Error(
+          `assemble: preset 名「${explicit}」已存在,且承载的是另一个需求(与本次不同)。三选一:`
+          + `换一个名字;确定要覆盖旧概念就加 --fresh;或不指定名字由我起名。绝不静默铸「${explicit}-2」。`,
+        )
+      }
+      id = explicit
+      phase(`显式覆盖:「${explicit}」原承载的旧概念被 --fresh 替换(旧 kb/工作区文件保留在原目录)`)
+    } else {
+      id = sameConcept ? explicit : resolvePresetId(options.name, req.name, presetRoot)
+    }
   }
   const dir = join(presetRoot, id)
   mkdirSync(dir, { recursive: true })
@@ -1819,7 +1856,9 @@ export async function assemble(
     const feCap = req.capabilityIds.map((cid) => byIdFe.get(cid)).find((c) => c?.via === 'frontend')
     const template = (feCap?.config?.template as string | undefined) ?? DEFAULT_FRONTEND_TEMPLATE
     const fe = emitFrontend({ template, presetDir: dir, presetId: id, requirement, workdir: join(dir, 'workspace') })
+    // workspace + kb 双根都保证存在:filesystem 零件把它们当允许根,缺一即拒启。
     mkdirSync(join(dir, 'workspace'), { recursive: true })
+    mkdirSync(join(dir, 'kb'), { recursive: true })
     const fePort = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
     frontendInfo = {
       template: fe.template,
@@ -1899,6 +1938,7 @@ export async function assemble(
       //  2. 与前端页的会话共用一个持久工作区,探针验证的就是交付后真实使用的那间屋。
       const probeCwd = join(dir, 'workspace')
       mkdirSync(probeCwd, { recursive: true })
+      mkdirSync(join(dir, 'kb'), { recursive: true })
       const runPlan = async (plan: ProbePlan): Promise<ProbeResult> => (
         plan.kind === 'scenario'
           ? await runScenario(port, id, plan.scenario, config.verifyTimeoutMs, phase, probeCwd)
@@ -2217,7 +2257,25 @@ export function assembleResultText(result: Awaited<ReturnType<typeof assemble>>)
   const feLine = fe !== null
     ? `\n前端页面:${fe.url ?? fe.path}(模板 ${fe.template},浏览器打开即可直接操作)${fcText}`
     : ''
-  return `assembled preset "${result.id}" with: ${result.capabilityIds.join(', ')}${missing}${drafts}${reuseLine}${verifyLine}${feLine}${kbLine}${secretLines}${paramLine}${rejectLine}${lint}${billLine}\n`
+  // ── 给调用方 agent 的行为契约 ──────────────────────────────────────────
+  // 市场战役 F6 实录:FAIL 判决后主 agent 义警修复全谱系——改写需求重调 assemble
+  // (铸 -2 兄弟)、rm -rf 产物目录、edit 手改 preset persona、自行经 wire 重跑
+  // 探针、grep 装配器源码试图调试装配器。契约随结果走:决策点上的新鲜段落,
+  // 比工具描述里的陈年一句可靠。逐条对症,不是空洞礼貌。
+  const failed = v.status === 'FAIL' || v.status === 'ERRORED'
+  const contract = [
+    '',
+    '【给调用方 agent 的行为契约】',
+    '- 如实向用户转述:preset id、验证结论' + (result.frontend?.url !== undefined ? '、前端 URL(用户要能点开)' : '') + (gapOrders.length > 0 ? '、缺件工单路径' : '') + '。',
+    ...(failed ? [
+      '- 装配器已自带一次"携失败反馈重选型"的重试,本结果就是重试后的终局。不要再调 assemble 重试,不要改写需求另装一台。',
+      '- preset 目录与装配器源码不是你的修理对象:禁止编辑/删除 preset 文件,禁止自行重跑探针,禁止翻装配器源码调试。把失败原因与证据转述给用户,等用户定夺。',
+    ] : []),
+    ...(gapOrders.length > 0 ? ['- 缺件工单先转述、征得用户同意后再照单施工(在 dsh-assembler 检出目录下执行工单命令,新零件必须入库)。'] : []),
+    ...(result.requiredSecrets.some((s) => !s.configured) || result.paramsRejected.length > 0
+      ? ['- 待配置凭证/被拒的秘密参数必须转述给用户:凭证配到 host 环境变量,绝不进装配参数。'] : []),
+  ].join('\n')
+  return `assembled preset "${result.id}" with: ${result.capabilityIds.join(', ')}${missing}${drafts}${reuseLine}${verifyLine}${feLine}${kbLine}${secretLines}${paramLine}${rejectLine}${lint}${billLine}${contract}\n`
     + `preset file: ${result.presetPath}\n`
     + `start a new session and select preset ${result.id} to use it.`
 }

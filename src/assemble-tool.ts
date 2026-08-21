@@ -32,7 +32,14 @@ export function assembleToolDefinition(ctx: Context, config: Config): ToolDefini
       + 'write a composed agent preset under $DSH_HOME/.agent-presets/<id>/, and return the preset id. '
       + 'Call this when the user asks to BUILD/CREATE/ASSEMBLE an agent, bot, assistant, or preset '
       + '(e.g. "make me a customer-service bot that can look up orders and open tickets"). '
-      + 'Pass the complete requirement as one string.',
+      + 'Pass the complete requirement as one string. '
+      + 'AFTER it returns, relay the result faithfully to the user: preset id, frontend URL, the verification verdict, '
+      + 'and any gap work-orders or credential notes — do not swallow them. '
+      + 'On FAIL: the assembler already retried internally with failure feedback; do NOT re-call assemble, '
+      + 'do NOT rewrite the requirement to force a pass, and NEVER edit/delete preset files, re-run probes yourself, '
+      + 'or debug the assembler source — report to the user and wait for their decision. '
+      + 'Follow a gap work-order only after the user agrees. If you stripped secret-looking params before calling, tell the user '
+      + 'to configure them as host environment variables instead.',
     parameters: {
       requirement: {
         type: 'string',

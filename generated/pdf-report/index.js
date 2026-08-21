@@ -259,8 +259,10 @@ server.tool(
         pageCount: doc.getPageCount()
       };
       if (args.outputPath) {
-        writeFileSync(args.outputPath, bytes);
-        out.outputPath = args.outputPath;
+        // 路径锚点:相对 outputPath 落进 PART_WORKDIR(preset 工作区),不是零件 cwd。
+        const anchored = resolve(process.env.PART_WORKDIR || process.cwd(), args.outputPath);
+        writeFileSync(anchored, bytes);
+        out.outputPath = anchored;
       }
       return { content: [{ type: 'text', text: JSON.stringify(out) }] };
     } catch (err) {

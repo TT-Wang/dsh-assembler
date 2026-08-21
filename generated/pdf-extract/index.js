@@ -17,6 +17,7 @@ import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { resolve } from "node:path";
 
 const server = new McpServer({ name: "pdf-extract", version: "0.0.1" });
 
@@ -24,11 +25,15 @@ const server = new McpServer({ name: "pdf-extract", version: "0.0.1" });
 /* helpers                                                             */
 /* ------------------------------------------------------------------ */
 
+// 路径锚点:相对路径解析进 PART_WORKDIR(发射端注入的 preset 工作区),不是零件 cwd。
+const PART_WORKDIR = process.env.PART_WORKDIR || process.cwd();
+
 /** Read a local PDF file into a Buffer. Throws with a clear message. */
 function readPdfFile(filePath) {
   if (typeof filePath !== "string" || filePath.trim() === "") {
     throw new Error("path 必须是非空字符串（本地 PDF 文件路径）");
   }
+  filePath = resolve(PART_WORKDIR, filePath);
   let stat;
   try {
     stat = fs.statSync(filePath);

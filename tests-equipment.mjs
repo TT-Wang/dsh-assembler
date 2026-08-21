@@ -53,16 +53,17 @@ const catalog = {
   'mcp-servers': { 'sqlite-query': { transport: 'stdio', command: 'node', args: ['s.js'], env: { LANG: 'zh' } } },
 }
 const req = { capabilityIds: ['mcp-sqlite-query-execute'], missing: [], rationale: '', persona: 'p' }
-const withEq = emitPreset(req, catalog, '{{extraRows}}', 'agent-a', '', eq.extraServerEnv)
+const WSE = '/tmp/ws-eq/workspace'
+const withEq = emitPreset(req, catalog, '{{extraRows}}', 'agent-a', '', eq.extraServerEnv, WSE)
 const rows = yaml.load(withEq)
 const mcpRow = rows.find((r) => r?.name === '@deepseek-ai/dsh-mcp-client')
 check('env 合并目录声明 + 装备指针', mcpRow?.config?.env?.LANG === 'zh' && String(mcpRow?.config?.env?.SQLITE_INIT_DDL_FILE ?? '').endsWith('init.sql'), JSON.stringify(mcpRow?.config?.env))
-const noEq = emitPreset(req, catalog, '{{extraRows}}', 'agent-a')
+const noEq = emitPreset(req, catalog, '{{extraRows}}', 'agent-a', '', undefined, WSE)
 const noEqRow = yaml.load(noEq).find((r) => r?.name === '@deepseek-ai/dsh-mcp-client')
 check('不传装备时 env 只有目录声明', noEqRow?.config?.env?.LANG === 'zh' && noEqRow?.config?.env?.SQLITE_INIT_DDL_FILE === undefined)
 // 目录本无 env、仅装备注入时,env 行也要出现
 const catalogNoEnv = { capabilities: [SQLITE_CAP], 'mcp-servers': { 'sqlite-query': { transport: 'stdio', command: 'node', args: ['s.js'] } } }
-const onlyEq = yaml.load(emitPreset(req, catalogNoEnv, '{{extraRows}}', 'agent-a', '', eq.extraServerEnv)).find((r) => r?.name === '@deepseek-ai/dsh-mcp-client')
+const onlyEq = yaml.load(emitPreset(req, catalogNoEnv, '{{extraRows}}', 'agent-a', '', eq.extraServerEnv, WSE)).find((r) => r?.name === '@deepseek-ai/dsh-mcp-client')
 check('目录无 env 仅装备时 env 行仍出现', String(onlyEq?.config?.env?.SQLITE_INIT_DDL_FILE ?? '').endsWith('init.sql'))
 
 // ── 4. BOM equipment 记录 ─────────────────────────────────────────────────

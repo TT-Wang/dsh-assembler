@@ -32,7 +32,9 @@ mcp-servers:
     # @@WORKSPACE@@ 由发射端替换成该 preset 自己的 workspace/ 绝对路径——
     # 文件面 = agent 自己的工作区,一个 preset 一根,越界目录天然不存在。
     command: node
-    args: ['/Users/tongtao/code/dsh-assembler/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js', '@@WORKSPACE@@']
+    # 双根:workspace(读写作业区)+ kb(只读教材区——知识包装在 <preset>/kb,
+    # 只给 workspace 一根时 agent 拿文件工具够不着自己的教材,市场战役 s28 类)。
+    args: ['/Users/tongtao/code/dsh-assembler/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js', '@@WORKSPACE@@', '@@KBDIR@@']
 
   # ── 代码索引流水线产物（index/catalog.yml 一一对应）──────────────────────
   # 每个 server = generated/<id>/ 里的 MCP stdio 适配（我们生成的胶水，包装
@@ -51,10 +53,20 @@ mcp-servers:
     transport: stdio
     command: node
     args: ['/Users/tongtao/code/dsh-assembler/generated/email-send/index.js']
+    # 市场战役 F13:没有声明凭证,s20 的邮件助理探针对不存在的邮箱打了真拳
+    # (该走"待配置凭证跳验"却走了 FAIL)。密码只在零件进程 env,绝不进参数。
+    requiredSecrets:
+      - { env: SMTP_HOST, purpose: "SMTP 服务器地址(如 smtp.gmail.com)" }
+      - { env: SMTP_USER, purpose: "SMTP 账号(邮箱地址)" }
+      - { env: SMTP_PASS, purpose: "SMTP 密码/应用专用密码" }
   email-fetch:
     transport: stdio
     command: node
     args: ['/Users/tongtao/code/dsh-assembler/generated/email-fetch/index.js']
+    requiredSecrets:
+      - { env: IMAP_HOST, purpose: "IMAP 服务器地址(如 imap.gmail.com)" }
+      - { env: IMAP_USER, purpose: "IMAP 账号(邮箱地址)" }
+      - { env: IMAP_PASS, purpose: "IMAP 密码/应用专用密码" }
   http-request:
     transport: stdio
     command: node
@@ -536,8 +548,8 @@ capabilities:
             searchTimeoutMs: 60000
   - id: content-search
     via: harness
-    description: Search file contents by keyword and return the matching files with line numbers (grep-style content search).
-    tags: [search, content, grep, keyword, text, find, files, 搜索, 内容, 关键字, 查找]
+    description: Search file contents by keyword and return the matching files with line numbers (grep-style content search). Also the retrieval backbone for knowledge-base Q&A — search imported docs/kb files and cite the matching file + line as the answer's source.
+    tags: [search, content, grep, keyword, text, find, files, 搜索, 内容, 关键字, 查找, 知识库, 检索, 引用, 出处, 文档问答, knowledge-base, kb, rag, retrieval, citation]
     config:
       presetRows:
         - id: tool-fs-search

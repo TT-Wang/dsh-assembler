@@ -16,12 +16,13 @@ const { ImapFlow } = imapflowPkg;
 // ---------------------------------------------------------------------------
 // zod enforces required/typed fields before the handler runs: missing or wrongly
 // typed values surface as a clear "Invalid arguments for tool ..." MCP error.
+// 凭证宪法:密码只从零件进程环境读(IMAP_PASS),绝不做工具参数——参数会经
+// 对话进 session 日志。host/user 为非秘密配置:可传参,缺省从 IMAP_HOST/IMAP_USER 读。
 const connectionFields = {
-    host: z.string().min(1).describe('IMAP server hostname, e.g. "imap.gmail.com"'),
-    port: z.number().int().min(1).max(65535).optional().describe('IMAP server port (default 993)'),
+    host: z.string().min(1).optional().describe('IMAP server hostname, e.g. "imap.gmail.com"; defaults to deployment env IMAP_HOST'),
+    port: z.number().int().min(1).max(65535).optional().describe('IMAP server port (default env IMAP_PORT or 993)'),
     secure: z.boolean().optional().describe('Use TLS/SSL (default true)'),
-    user: z.string().min(1).describe('IMAP account username / email address'),
-    pass: z.string().min(1).describe('IMAP account password'),
+    user: z.string().min(1).optional().describe('IMAP account username; defaults to deployment env IMAP_USER'),
     rejectUnauthorized: z.boolean().optional().describe('Reject self-signed/expired TLS certificates (default true)')
 };
 
@@ -64,20 +65,22 @@ function errorResult(message) {
 // Defensive parameter check (backup for anything zod did not catch, e.g. null args).
 function validateConnArgs(args) {
     if (!args || typeof args !== 'object') return 'missing arguments object';
-    if (!args.host || typeof args.host !== 'string' || !args.host.trim()) return 'missing required parameter: host (IMAP server hostname)';
-    if (!args.user || typeof args.user !== 'string' || !args.user.trim()) return 'missing required parameter: user (IMAP account username)';
-    if (typeof args.pass !== 'string' || !args.pass.length) return 'missing required parameter: pass (IMAP account password)';
+    const host = args.host ?? process.env.IMAP_HOST;
+    const user = args.user ?? process.env.IMAP_USER;
+    if (!host || typeof host !== 'string' || !host.trim()) return 'IMAP 服务器未配置:传 host 参数或在部署环境配 IMAP_HOST';
+    if (!user || typeof user !== 'string' || !user.trim()) return 'IMAP 账号未配置:传 user 参数或在部署环境配 IMAP_USER';
+    if (typeof process.env.IMAP_PASS !== 'string' || !process.env.IMAP_PASS.length) return 'IMAP 密码未配置:在部署环境配 IMAP_PASS(密码绝不作为工具参数传入)';
     return null;
 }
 
 // Open an authenticated ImapFlow connection. Throws on failure.
 async function openClient(args) {
     const client = new ImapFlow({
-        host: args.host,
-        port: args.port !== undefined ? args.port : 993,
+        host: args.host ?? process.env.IMAP_HOST,
+        port: args.port !== undefined ? args.port : (Number(process.env.IMAP_PORT) || 993),
         secure: args.secure !== undefined ? !!args.secure : true,
         logger: false, // critical: keep stdout clean for MCP stdio protocol
-        auth: { user: args.user, pass: args.pass },
+        auth: { user: args.user ?? process.env.IMAP_USER, pass: process.env.IMAP_PASS },
         tls: { rejectUnauthorized: args.rejectUnauthorized !== undefined ? !!args.rejectUnauthorized : true },
         connectionTimeout: 30000,
         socketTimeout: 120000

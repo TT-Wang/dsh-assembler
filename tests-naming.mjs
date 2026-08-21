@@ -57,7 +57,8 @@ const catalog = {
 }
 const req = { capabilityIds: ['mcp-http-request-http-get'], missing: [], rationale: '', persona: '网页研究助手 persona' }
 const template = '{{extraRows}}'
-const out = emitPreset(req, catalog, template, 'web-research')
+const WSN = '/tmp/ws-naming/workspace'
+const out = emitPreset(req, catalog, template, 'web-research', '', undefined, WSN)
 check('serverName 含 8 位 hex suffix', /serverName: "http-request-[0-9a-f]{8}"/.test(out), out)
 const parsed = yaml.load(out)
 check('输出是合法 YAML 顶层列表', Array.isArray(parsed), JSON.stringify(parsed))
@@ -68,13 +69,13 @@ check('serverName ≤ 32 字符', mcpRow.config.serverName.length <= 32)
 // 5. 代际不变式:同输入字节级确定;字节变(哪怕只有 persona)⇒ serverName 变。
 // host 对同 id preset 的被取代 generation 永不释放 serverName,所以重发文件
 // 只要字节不同就必须换名,否则新 generation 挂载必撞旧 generation。
-const outAgain = emitPreset(req, catalog, template, 'web-research')
+const outAgain = emitPreset(req, catalog, template, 'web-research', '', undefined, WSN)
 check('同输入重发字节级相同', outAgain === out)
 // persona 要真的进入渲染文本,字节才会变;真实模板含 {{persona}}。
 const personaTemplate = '# persona: {{persona}}\n{{extraRows}}'
 const nameOf = (text) => yaml.load(text.split('\n').slice(1).join('\n')).find((r) => r && r.name === '@deepseek-ai/dsh-mcp-client').config.serverName
-const outV1 = emitPreset(req, catalog, personaTemplate, 'web-research')
-const outV2 = emitPreset({ ...req, persona: '网页研究助手 persona v2' }, catalog, personaTemplate, 'web-research')
+const outV1 = emitPreset(req, catalog, personaTemplate, 'web-research', '', undefined, WSN)
+const outV2 = emitPreset({ ...req, persona: '网页研究助手 persona v2' }, catalog, personaTemplate, 'web-research', '', undefined, WSN)
 check('字节变则 serverName 变', nameOf(outV2) !== nameOf(outV1), `${nameOf(outV1)} vs ${nameOf(outV2)}`)
 
 rmSync(root, { recursive: true, force: true })
@@ -90,8 +91,8 @@ check('超长值被拒', rejectedKeys.includes('longv'))
 check('槽位替换', applyParams('tz={{param:timezone}}|x', { timezone: 'UTC' }) === 'tz=UTC|x')
 check('未提供的槽位置空(不留字面量)', applyParams('tz={{param:missing}}!', {}) === 'tz=!')
 const pTpl = '# tz: {{param:timezone}}\n{{extraRows}}'
-const outP1 = emitPreset({ ...req, params: { timezone: 'UTC' } }, catalog, pTpl, 'web-research')
-const outP2 = emitPreset({ ...req, params: { timezone: 'Asia/Shanghai' } }, catalog, pTpl, 'web-research')
+const outP1 = emitPreset({ ...req, params: { timezone: 'UTC' } }, catalog, pTpl, 'web-research', '', undefined, WSN)
+const outP2 = emitPreset({ ...req, params: { timezone: 'Asia/Shanghai' } }, catalog, pTpl, 'web-research', '', undefined, WSN)
 check('参数进入渲染文本', outP1.includes('tz: UTC') && outP2.includes('tz: Asia/Shanghai'))
 const nameOfP = (t) => yaml.load(t.split('\n').slice(1).join('\n')).find((r) => r && r.name === '@deepseek-ai/dsh-mcp-client').config.serverName
 check('参数变则 serverName 换代(字节决定名字)', nameOfP(outP1) !== nameOfP(outP2), `${nameOfP(outP1)} vs ${nameOfP(outP2)}`)
@@ -154,7 +155,7 @@ let emptyThrew = false
 try { assertEmittedPreset('') } catch { emptyThrew = true }
 check('空文本(未渲染出任何行)被闸拒绝', emptyThrew)
 // happy path 字节中立:合法 preset 原样返回,与未加闸时同字节。
-const gated = emitPreset(req, catalog, template, 'web-research')
+const gated = emitPreset(req, catalog, template, 'web-research', '', undefined, WSN)
 check('合法 preset 照常通过闸且字节不变', Array.isArray(yaml.load(gated)) && gated === out, `same=${gated === out}`)
 
 // 9. 耗时账单:结果文本必须逐段列出时间去向,"为什么跑这么久"由产品自己回答。

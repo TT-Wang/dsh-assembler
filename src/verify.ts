@@ -182,8 +182,28 @@ const MARK_RULES = [
   // 探针工作区是空的,agent 找不到文件只能问人,无人值守 = 判负。场景引用的
   // 一切材料必须由探针自己先造出来。
   "- The probe runs in an EMPTY workspace with NOBODY attending the session. NEVER reference a pre-existing file/record, and NEVER design a turn that needs a human to supply anything mid-run. Any file or data a turn uses must first be CREATED by the agent inside this same probe — e.g. turn 1: \"把以下内容写入 book.txt:<a short passage you invent inline>\", later turns then read/extend it.",
-  "- Budget: the probe agent has ~10 minutes per turn, and a turn that overruns is scored FAIL. Size EVERY turn to fit, the first one included — if a turn needs many upstream calls (one per item in a list), keep the list short: 3-5 items proves the capability as well as 30 does. Avoid tasks whose replies embed large payloads (full base64 images) — ask for byte counts or short prefixes instead.",
+  // 市场战役 s05/s24 实测:推导器发明"本周(03-09~03-15)""2025-06-"这类日期,
+  // agent 按日期查不到数据只能问人;跨轮引用只许用轮 1 造出的独特 token。
+  "- NEVER invent absolute dates, date windows, or serial numbers as FACTS a later turn must match — later turns reference earlier state by the distinctive tokens turn 1 created (\"INV-7781 那一单\"), never by a date range you made up.",
+  // 市场战役 s18 实测:接待类场景没喂客户资料,agent 只能问"如何称呼您"——判负。
+  "- If the requirement is about serving a PERSON (customer intake, interview, tutoring), the probe prompt must EMBED that person's data inline (a name/phone/case facts you invent): the probe PLAYS the counterpart. The agent must never need to ask a real human for anything.",
+  // 市场战役 s12 实测:推导出"打开看板页面验证",agent 拿浏览器访 example.com 后问人。
+  "- The agent's delivered web page/frontend is NOT testable by the agent: never ask it to open/visit/check its own UI or any URL for it, and never design turns around browser tools unless the requirement is about visiting EXTERNAL sites. Test the agent's tools and persisted state directly.",
+  "- Budget: the probe agent has ~10 minutes per turn, and a turn that overruns is scored FAIL. Size EVERY turn to fit, the first one included — batch-flavored requirements (score N resumes, process N files) are probed with 2-3 items MAX; 3 items proves the capability as well as 30 does. Avoid tasks whose replies embed large payloads (full base64 images) — ask for byte counts or short prefixes instead.",
 ];
+
+/**
+ * 标记消毒(机械闸,不指望 prompt):剔除站不住的验收标记。实测病例:代码碎片
+ * "print("(s31)、单字符、纯符号。判据:长度 2-60、含至少两个相连的字母/数字/
+ * 汉字、不是纯标点。消毒后为空 = 这份推导不可用(调用方回退或报错)。
+ */
+export function sanitizeMarks(marks: unknown[]): string[] {
+  return marks
+    .map((m) => String(m).trim())
+    .filter((s) => s.length >= 2 && s.length <= 60)
+    .filter((s) => /[\p{L}\p{N}]{2}/u.test(s))
+    .slice(0, 3);
+}
 
 /** One fast-model JSON call with the deriver's provider/model discipline. */
 /**
@@ -270,9 +290,27 @@ async function callDeriver(
   for (const block of assembler.message().content) {
     if (block.type === "text") text += block.text;
   }
-  const m = text.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error(`probe deriver returned no JSON: ${text.slice(0, 120)}`);
-  return JSON.parse(m[0]) as Record<string, unknown>;
+  return parseModelJson(text);
+}
+
+/**
+ * 模型 JSON 出口的唯一解析器:剥 ``` 围栏、截首 { 到末 }、再 parse。
+ * 实测(市场战役 s21):重试轮 matcher 回了 ```json 围栏,裸 JSON.parse 直接
+ * 「Unexpected token '`'」把整个重试炸掉——模型输出永远可能带杂音,每个
+ * 解析点各自裸奔就是每个点各自炸一次。失败信息带原文片段,可诊断。
+ */
+export function parseModelJson(raw: string): Record<string, unknown> {
+  const unfenced = raw.replace(/```[a-zA-Z]*\n?/g, "").replace(/```/g, "");
+  const start = unfenced.indexOf("{");
+  const end = unfenced.lastIndexOf("}");
+  if (start === -1 || end <= start) {
+    throw new Error(`模型未返回 JSON:${raw.slice(0, 160)}`);
+  }
+  try {
+    return JSON.parse(unfenced.slice(start, end + 1)) as Record<string, unknown>;
+  } catch (error) {
+    throw new Error(`模型 JSON 解析失败(${error instanceof Error ? error.message.slice(0, 80) : "?"}):${unfenced.slice(start, start + 160)}`);
+  }
 }
 
 /** Ask the fast model for a probe task tailored to the selected parts. */
@@ -300,7 +338,11 @@ export async function deriveProbe(
   if (typeof parsed.task !== "string" || !Array.isArray(parsed.mustInclude)) {
     throw new Error("probe deriver JSON missing task/mustInclude");
   }
-  return { task: parsed.task, mustInclude: parsed.mustInclude.map(String).slice(0, 3) };
+  const marks = sanitizeMarks(parsed.mustInclude);
+  if (marks.length === 0) {
+    throw new Error(`probe deriver 的验收标记全被消毒剔除(原标记:${parsed.mustInclude.map(String).join(", ").slice(0, 80)})`);
+  }
+  return { task: parsed.task, mustInclude: marks };
 }
 
 /** What the deriver decided to run: one turn, or a multi-turn scenario. */
@@ -368,15 +410,17 @@ export async function deriveProbePlan(
     const turns: ScenarioTurn[] = (parsed.turns as Array<Record<string, unknown>>)
       .filter((t) => typeof t.prompt === "string" && Array.isArray(t.mustInclude) && t.mustInclude.length > 0)
       .slice(0, 4)
-      .map((t) => ({ prompt: String(t.prompt), mustInclude: (t.mustInclude as unknown[]).map(String).slice(0, 3) }));
+      // 标记消毒是机械闸:某轮标记全剔 = 该场景稿不可信,整体走单轮回退。
+      .map((t) => ({ prompt: String(t.prompt), mustInclude: sanitizeMarks(t.mustInclude as unknown[]) }));
     // A one-turn "scenario" is a single probe wearing a costume; two turns is
     // the minimum that can prove anything about continuity.
-    if (turns.length >= 2) {
+    if (turns.length >= 2 && turns.every((t) => t.mustInclude.length > 0)) {
       return { kind: "scenario", scenario: { goal: typeof parsed.goal === "string" ? parsed.goal : "多轮场景验收", turns } };
     }
   }
-  if (typeof parsed.task === "string" && Array.isArray(parsed.mustInclude) && parsed.mustInclude.length > 0) {
-    return { kind: "single", probe: { task: parsed.task, mustInclude: (parsed.mustInclude as unknown[]).map(String).slice(0, 3) } };
+  if (typeof parsed.task === "string" && Array.isArray(parsed.mustInclude)) {
+    const marks = sanitizeMarks(parsed.mustInclude as unknown[]);
+    if (marks.length > 0) return { kind: "single", probe: { task: parsed.task, mustInclude: marks } };
   }
   return { kind: "single", probe: await deriveProbe(ctx, requirement, selected, llm, onUsage) };
 }

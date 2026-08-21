@@ -50,17 +50,22 @@ function buildTransporter(args) {
     return nodemailer.createTransport({ streamTransport: true, buffer: true });
   }
   if (mode === 'smtp') {
-    if (!args.host || !String(args.host).trim()) {
-      throw new Error('transport=smtp 时必须提供 host（SMTP 服务器地址）');
+    // 凭证宪法:密码只从零件进程环境读(SMTP_PASS),绝不做工具参数——参数会
+    // 经对话进 session 日志。host/user 等非秘密配置 env 兜底、参数可覆盖。
+    const host = args.host ?? process.env.SMTP_HOST;
+    if (!host || !String(host).trim()) {
+      throw new Error('transport=smtp 需要 SMTP 服务器地址:传 host 参数或在部署环境配 SMTP_HOST');
     }
-    const port = args.port ?? (args.secure ? 465 : 587);
+    const secure = args.secure ?? (process.env.SMTP_SECURE === 'true');
+    const port = args.port ?? (Number(process.env.SMTP_PORT) || (secure ? 465 : 587));
     const options = {
-      host: args.host,
+      host,
       port,
-      secure: !!args.secure
+      secure: !!secure
     };
-    if (args.authUser) {
-      options.auth = { user: args.authUser, pass: args.authPass ?? '' };
+    const authUser = args.authUser ?? process.env.SMTP_USER;
+    if (authUser) {
+      options.auth = { user: authUser, pass: process.env.SMTP_PASS ?? '' };
     }
     if (typeof args.tlsRejectUnauthorized === 'boolean') {
       options.tls = { rejectUnauthorized: args.tlsRejectUnauthorized };
@@ -78,7 +83,7 @@ function buildTransporter(args) {
 // ---------------------------------------------------------------------------
 server.tool(
   'send-email',
-  '发送一封邮件。transport=smtp（默认）时通过真实 SMTP 服务器发送，需要 host/port/authUser/authPass；' +
+  '发送一封邮件。transport=smtp（默认）时通过真实 SMTP 服务器发送:服务器与账号可传参或由部署环境变量提供(SMTP_HOST/SMTP_PORT/SMTP_USER),密码只从部署环境 SMTP_PASS 读取,绝不作为参数传入;' +
     'transport=json 时不连接任何服务器，直接返回 RFC822 消息体与 messageId（适合开发/冒烟）；' +
     'transport=stream 时返回渲染后的消息 buffer（同样无需服务器）。返回 messageId、envelope、accepted/rejected 等信息。',
   {
@@ -90,7 +95,6 @@ server.tool(
     port: z.number().int().positive().optional().describe('SMTP 端口，默认 465(secure) 或 587'),
     secure: z.boolean().optional().describe('是否使用 SSL/TLS 直连（端口 465 通常为 true）'),
     authUser: z.string().optional().describe('SMTP 认证用户名（邮箱地址）'),
-    authPass: z.string().optional().describe('SMTP 认证密码或应用专用密码'),
     tlsRejectUnauthorized: z
       .boolean()
       .optional()
@@ -178,7 +182,6 @@ server.tool(
     port: z.number().int().positive().optional().describe('SMTP 端口，默认 465(secure) 或 587'),
     secure: z.boolean().optional().describe('是否使用 SSL/TLS 直连'),
     authUser: z.string().optional().describe('SMTP 认证用户名'),
-    authPass: z.string().optional().describe('SMTP 认证密码'),
     tlsRejectUnauthorized: z.boolean().optional().describe('是否校验证书'),
     connectionTimeout: z.number().int().positive().optional().describe('连接超时毫秒数')
   },

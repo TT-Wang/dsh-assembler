@@ -7,6 +7,10 @@ import path from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+
+// 路径锚点:相对路径解析进 PART_WORKDIR(发射端注入的 preset 工作区),不是零件 cwd。
+const PART_WORKDIR = process.env.PART_WORKDIR || process.cwd();
+const anchorPath = (p) => path.resolve(PART_WORKDIR, String(p));
 import ExcelJS from 'exceljs';
 
 const { Workbook, ValueType } = ExcelJS;
@@ -163,6 +167,7 @@ server.tool(
       .describe('Optional cell range to limit the read, e.g. "A1:C5". Omit to read the full used range.'),
   },
   guard(async ({ filePath, sheetName, cellRange }) => {
+    filePath = anchorPath(filePath);
     if (!fs.existsSync(filePath)) throw new Error(`File not found: ${filePath}`);
     const wb = new Workbook();
     await wb.xlsx.readFile(filePath);
@@ -200,6 +205,7 @@ server.tool(
       .describe('Worksheets to write into the file.'),
   },
   guard(async ({ filePath, overwrite, sheets }) => {
+    filePath = anchorPath(filePath);
     const existed = fs.existsSync(filePath);
     if (existed && overwrite === false) {
       throw new Error(`Refusing to overwrite existing file: ${filePath}`);
@@ -239,6 +245,7 @@ server.tool(
       .describe('Internal worksheet name for the parsed data (default "Sheet1").'),
   },
   guard(async ({ filePath, delimiter, sheetName }) => {
+    filePath = anchorPath(filePath);
     if (!fs.existsSync(filePath)) throw new Error(`File not found: ${filePath}`);
     const wb = new Workbook();
     const parserOptions = delimiter ? { delimiter } : undefined;
@@ -272,6 +279,7 @@ server.tool(
       .describe('Internal worksheet name for the data (default "Sheet1").'),
   },
   guard(async ({ filePath, rows, delimiter, sheetName }) => {
+    filePath = anchorPath(filePath);
     const wb = new Workbook();
     const ws = wb.addWorksheet(sheetName || 'Sheet1');
     for (const rowValues of rows || []) {

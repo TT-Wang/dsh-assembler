@@ -11,6 +11,10 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname, sep } from 'node:path';
 import bwipjs from 'bwip-js';
 
+// 路径锚点:相对路径一律解析进部署方钉的工作区(PART_WORKDIR,发射端注入),
+// 而不是零件进程的 cwd(= host 检出目录)——市场战役 s23 实锤:docx 写进了 host 检出。
+const PART_WORKDIR = process.env.PART_WORKDIR || process.cwd();
+
 const server = new McpServer({ name: 'barcode-generate', version: '0.0.1' });
 
 const LINEAR = new Set(['code128', 'ean13', 'upca']);
@@ -50,7 +54,7 @@ server.registerTool('barcode-png', {
     const w = png.readUInt32BE(16);
     const h = png.readUInt32BE(20);
     if (savePath !== undefined) {
-      const root = process.cwd();
+      const root = PART_WORKDIR;
       const target = resolve(root, savePath);
       if (target !== root && !target.startsWith(root + sep)) {
         return { isError: true, content: [{ type: 'text', text: `barcode-png: savePath 越出工作区: ${savePath}` }] };

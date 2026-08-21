@@ -11,6 +11,10 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { readFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
+
+// 路径锚点:相对路径一律解析进部署方钉的工作区(PART_WORKDIR,发射端注入),
+// 而不是零件进程的 cwd(= host 检出目录)——市场战役 s23 实锤:docx 写进了 host 检出。
+const PART_WORKDIR = process.env.PART_WORKDIR || process.cwd();
 // exifr 的 npm main 指向 CJS 打包(dist/full.umd.cjs),README 认可的 Node 用法
 // 即默认导入;兜底 .default 形状。
 import exifrPkg from 'exifr';
@@ -56,7 +60,7 @@ server.registerTool('read-exif', {
   }
   let bytes;
   if (path !== undefined) {
-    const root = process.cwd();
+    const root = PART_WORKDIR;
     const target = resolve(root, path);
     if (target !== root && !target.startsWith(root + sep)) {
       return { isError: true, content: [{ type: 'text', text: `read-exif: path escapes the workspace: ${path}` }] };
