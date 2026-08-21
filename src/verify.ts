@@ -205,6 +205,9 @@ const MARK_RULES = [
   // agent 换个说法(「未找到」「无法回答」)就假红。拒答/否定类无法用固定话术断言:
   // 别测拒答,改测 agent 能正确USE它有依据的内容——正向任务的标记才稳定。
   "- NEVER test a REFUSAL or a NEGATIVE ('says it cannot find / has no data / declines') with a mark: refusal wording is unbounded, so any fixed phrase mis-fails a correct refusal. Test the POSITIVE capability instead — give the agent data it CAN use and mark on the answer it must produce from that data.",
+  // 市场战役 a04 实测:任务是"起草合同并存档",agent 把正文写进文件、回复只给摘要,
+  // 却要求回复逐字含「苏州蓝海电子公司/50万元」——产出到文件的任务,正文不在对话里。
+  "- When a turn asks the agent to WRITE its output to a file/record (draft a contract, save a report), the long content lives in the FILE, not the chat reply — do NOT mark on verbatim body text. Mark on what the reply naturally states: the saved filename, a confirmation token you gave it, or a short computed field. To verify the content itself, add a LATER turn that reads it back and reports one specific value.",
   "- Budget: the probe agent has ~10 minutes per turn, and a turn that overruns is scored FAIL. Size EVERY turn to fit, the first one included — batch-flavored requirements (score N resumes, process N files) are probed with 2-3 items MAX; 3 items proves the capability as well as 30 does. Avoid tasks whose replies embed large payloads (full base64 images) — ask for byte counts or short prefixes instead.",
 ];
 
