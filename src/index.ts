@@ -29,7 +29,7 @@ import { assembleToolDefinition } from './assemble-tool.js'
 import { AUX_CALL_TIMEOUT_MS, addUsage, deriveProbePlan, runFrontendGate, runProbe, runScenario, usageDetail, type AuxUsage, type ProbePlan, type ProbeResult } from './verify.js'
 import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend, frontendRouteHandler } from './frontend.js'
 
-export { FRONTEND_ROUTE, FRONTEND_TEMPLATES_DIR, DEFAULT_FRONTEND_TEMPLATE, emitFrontend, fillTemplate, listFrontendTemplates, resolveFrontendFile, frontendRouteHandler } from './frontend.js'
+export { FRONTEND_ROUTE, FRONTEND_TEMPLATES_DIR, DEFAULT_FRONTEND_TEMPLATE, emitFrontend, fillTemplate, listAssemblyProgress, listFrontendTemplates, resolveFrontendFile, frontendRouteHandler } from './frontend.js'
 import { lintPersona, resolvePersonaText, type PersonaLintFinding } from './persona-lint.js'
 
 export { lintPersona, resolvePersonaText, type PersonaLintFinding } from './persona-lint.js'
@@ -1510,11 +1510,27 @@ export async function assemble(
   const templatePath = config.templatePath ?? join(REPO, 'presets', 'agent-template.yml')
   // Progress narration for whoever is watching (the jobs panel): a swallowed
   // reporter must never fail an assembly, hence the try around every call.
+  // 进度双写:jobs 通道(readOutput)之外,同一行还落进 preset 的 progress.log
+  // ——装配直播台(/assembler/ui/_console)靠轮询这份文件把行动链摆到用户眼前。
+  // web 的后台任务面板只渲染条目与终态、从不消费 readOutput(源码坐实),
+  // 没有这份文件,用户面对慢装配只能看一颗 chip 猜"卡了还是 bug"。
+  const progressBuf: string[] = []
+  let progressPath: string | null = null
+  const stamp = (): string => new Date().toISOString().slice(11, 19)
   const phase = (line: string): void => {
     try { options.onPhase?.(line) } catch { /* a broken reporter must not break the build */ }
+    try {
+      const entry = `${stamp()} ${line}\n`
+      if (progressPath !== null) appendFileSync(progressPath, entry)
+      else progressBuf.push(entry)
+    } catch { /* 直播是加速器不是必需品 */ }
   }
   const t0 = Date.now()
   const secs = (from: number): string => `${String(Math.round((Date.now() - from) / 1000))}s`
+  {
+    const consolePort = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
+    if (consolePort !== undefined) phase(`直播台:http://127.0.0.1:${String(consolePort)}${FRONTEND_ROUTE}/_console(实时行动链在此)`)
+  }
   // ── 耗时账单 ──────────────────────────────────────────────────────────
   // Every stage stamps its wall time into an ordered ledger that ships in
   // the RESULT text, not just the transient phase stream. Motivation is the
@@ -1575,6 +1591,11 @@ export async function assemble(
   }
   const dir = join(presetRoot, id)
   mkdirSync(dir, { recursive: true })
+  // 直播文件就位:本次运行覆写(每次装配一份新链),缓冲的前几段一并落下。
+  try {
+    progressPath = join(dir, 'progress.log')
+    writeFileSync(progressPath, `${stamp()} ══ assemble ${id} 开始 ══\n${progressBuf.join('')}`)
+  } catch { progressPath = null }
   // Knowledge packs travel WITH the preset (copied into kb/), so the handover is
   // one self-contained directory rather than a pointer back to this machine.
   // Installed BEFORE emission because the persona has to name where they landed

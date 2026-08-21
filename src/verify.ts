@@ -189,10 +189,10 @@ const MARK_RULES = [
  * proxied sockets ESTABLISHED, session log frozen for 6 minutes) hangs the
  * whole turn forever — the user sees a spinner and nothing else. Generous on
  * purpose: a derivation is seconds on a healthy route, so two minutes only
- * ever fires on a broken one, and the abort feeds the existing failure paths
+ * ever fires on a genuinely broken route. 实测晚高峰 DeepSeek 官方端点 + max 档,一次选型可超 120s——用户裁定"先看得见,再谈砍":配合装配直播台,窗口放宽到 300s,悬挂仍有底。原文如下:the abort feeds the existing failure paths
  * (probe → 未能验证, selection → loud tool error) instead of a silent hang.
  */
-export const AUX_CALL_TIMEOUT_MS = 120_000;
+export const AUX_CALL_TIMEOUT_MS = 300_000;
 
 /** 一次辅助调用的 token 账目(账单用):产出多少、其中推理多少、缓存命中多少。 */
 export interface AuxUsage {

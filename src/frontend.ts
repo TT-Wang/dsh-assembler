@@ -15,7 +15,7 @@
  * /m/ 独立移动客户端证明独立页面讲 wire 完全成立;dsh-ios 证明插件可注册
  * 自有 web 路由。
  */
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -55,7 +55,7 @@ export function fillTemplate(text: string, slots: Record<string, string>): strin
 export function listFrontendTemplates(templatesDir = FRONTEND_TEMPLATES_DIR): string[] {
   try {
     return readdirSync(templatesDir, { withFileTypes: true })
-      .filter((d) => d.isDirectory() && existsSync(join(templatesDir, d.name, 'index.html')))
+      .filter((d) => d.isDirectory() && !d.name.startsWith('_') && existsSync(join(templatesDir, d.name, 'index.html')))
       .map((d) => d.name)
       .sort()
   } catch {
@@ -145,6 +145,27 @@ export function resolveFrontendFile(presetRoot: string, urlPath: string): { file
   return { file, presetDir, mime: MIME[dot] ?? 'application/octet-stream' }
 }
 
+/** 直播台数据:presetRoot 下各 progress.log 的尾部,按修改时间倒序。 */
+export function listAssemblyProgress(presetRoot: string, limit = 20): Array<{ id: string; mtime: number; tail: string }> {
+  let names: string[] = []
+  try {
+    names = readdirSync(presetRoot, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)
+  } catch {
+    return []
+  }
+  const items: Array<{ id: string; mtime: number; tail: string }> = []
+  for (const id of names) {
+    const p = join(presetRoot, id, 'progress.log')
+    try {
+      const st = statSync(p)
+      const text = readFileSync(p, 'utf8')
+      const lines = text.split('\n')
+      items.push({ id, mtime: Math.floor(st.mtimeMs / 1000), tail: lines.slice(-120).join('\n') })
+    } catch { /* 该 preset 没有直播文件(老代或手工目录) */ }
+  }
+  return items.sort((a, b) => b.mtime - a.mtime).slice(0, limit)
+}
+
 /**
  * host webServer 路由处理器工厂。GET 页面时顺手确保该 preset 的 workspace/
  * 存在——页面的 session.create 用它当 cwd,同一 preset 的前端会话共享一个
@@ -163,6 +184,20 @@ export function frontendRouteHandler(presetRoot: string): (req: IncomingMessage,
       pathname = new URL(req.url ?? '/', 'http://local').pathname
     } catch {
       return send(400, 'Bad Request')
+    }
+    if (pathname === `${FRONTEND_ROUTE}/_console/data`) {
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json; charset=utf-8')
+      res.setHeader('Cache-Control', 'no-store')
+      return res.end(JSON.stringify({ items: listAssemblyProgress(presetRoot) }))
+    }
+    if (pathname === `${FRONTEND_ROUTE}/_console` || pathname === `${FRONTEND_ROUTE}/_console/`) {
+      const page = join(FRONTEND_TEMPLATES_DIR, '_console', 'index.html')
+      if (!existsSync(page)) return send(404, 'Not found')
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/html; charset=utf-8')
+      res.setHeader('Cache-Control', 'no-store')
+      return res.end(readFileSync(page))
     }
     const hit = resolveFrontendFile(presetRoot, pathname)
     if (hit === null || !existsSync(hit.file)) return send(404, 'Not found')

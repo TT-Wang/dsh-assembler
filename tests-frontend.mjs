@@ -4,10 +4,10 @@
  * 安全包含闸(id/asset 双正则 + resolve 越界拒绝)。全部离线。
  */
 import {
-  listFrontendTemplates, emitFrontend, fillTemplate, resolveFrontendFile,
+  listFrontendTemplates, emitFrontend, fillTemplate, resolveFrontendFile, listAssemblyProgress,
   FRONTEND_ROUTE, DEFAULT_FRONTEND_TEMPLATE,
 } from './lib/index.js'
-import { mkdtempSync, mkdirSync, readFileSync, statSync, rmSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, statSync, rmSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -20,7 +20,7 @@ const check = (label, cond, extra = '') => {
 // ── 1. 模板库健全性:四张模板都在,且都带完整 wire 接线 ─────────────────────
 const templates = listFrontendTemplates()
 check('模板库含七张模板', ['approval-desk', 'chat-console', 'dashboard', 'data-desk', 'file-desk', 'form-desk', 'kanban'].every((t) => templates.includes(t)), templates.join(','))
-check('_vendor 不算模板(无 index.html)', !templates.includes('_vendor'))
+check('_ 开头目录不算模板(_vendor/_console 是基础设施)', !templates.includes('_vendor') && !templates.includes('_console'))
 check('兜底模板存在于库中', templates.includes(DEFAULT_FRONTEND_TEMPLATE))
 for (const t of templates) {
   const html = readFileSync(join('frontends', t, 'index.html'), 'utf8')
@@ -69,6 +69,19 @@ const v = R(`${FRONTEND_ROUTE}/_vendor/core.min.css`)
 check('_vendor 资产可取且指向共享目录', v !== null && v.file.endsWith('frontends/_vendor/core.min.css') && v.mime.includes('css'))
 check('_vendor 遍历拒绝', R(`${FRONTEND_ROUTE}/_vendor/%2e%2e`) === null && R(`${FRONTEND_ROUTE}/_vendor/.hidden`) === null)
 check('_vendor 不接子目录', R(`${FRONTEND_ROUTE}/_vendor/a/b.css`) === null)
+// 直播台数据函数
+import('node:fs').then(() => {})
+const pr = join(root)
+writeFileSync(join(dir, 'progress.log'), '12:00:00 ══ assemble my-agent 开始 ══\n12:00:01 选型完成\n')
+const prog = listAssemblyProgress(pr)
+check('直播台列出有 progress.log 的 preset', prog.length === 1 && prog[0].id === 'my-agent' && prog[0].tail.includes('选型完成'))
+check('直播台带 mtime(秒)', Number.isInteger(prog[0].mtime) && prog[0].mtime > 1_700_000_000)
+
+// 浏览器半区构建产物:ModuleLoader 制式 + 注册/弹出 API 引用齐全
+const clientJs = readFileSync('lib/client.js', 'utf8')
+check('client half:ModuleLoader 包裹 + 包名 id', clientJs.startsWith('window.__ModuleLoader__.load(') && clientJs.includes('@dsh-external/dsh-assembler'))
+check('client half:registerTab + openTab + 直播台数据源', clientJs.includes('registerTab') && clientJs.includes('openTab') && clientJs.includes('/assembler/ui/_console/data'))
+check('client half:react 走外部共享(不自带)', clientJs.includes('require("react")') && clientJs.length < 20000)
 
 rmSync(root, { recursive: true, force: true })
 console.log(`\n==== 前端车道单元测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)

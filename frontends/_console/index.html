@@ -1,0 +1,98 @@
+<!doctype html>
+<!-- _console — 装配直播台:轮询各 preset 的 progress.log,把每次装配的行动链
+     实时摆在眼前(左列装配清单,右侧日志尾随)。"卡了还是 bug"从此看得见。 -->
+<html lang="zh" class="uk-theme-zinc">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>装配直播台 · dsh-assembler</title>
+<script>if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.classList.add('dark')</script>
+<link rel="stylesheet" href="_vendor/core.min.css">
+<link rel="stylesheet" href="_vendor/utilities.min.css">
+<style>
+  .dot{width:9px;height:9px;border-radius:9999px;background:hsl(var(--muted-foreground));flex:none}
+  .dot.live{background:hsl(var(--primary));animation:pulse 1.1s infinite}
+  .dot.done{background:#10a37f}
+  .dot.dead{background:#d92d20}
+  @keyframes pulse{50%{opacity:.3}}
+  .logbox{font:12.5px/1.75 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word}
+  .row.sel{background:hsl(var(--muted))}
+</style>
+</head>
+<body class="bg-background text-foreground min-h-screen">
+<header class="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-card px-6 py-3">
+  <div class="dot live" id="beat"></div>
+  <div>
+    <div class="font-semibold">装配直播台</div>
+    <div class="text-xs text-muted-foreground">每次装配的行动链实时滚动 · 1.5s 轮询 · 常开本页再去装配</div>
+  </div>
+  <div class="flex-1"></div>
+  <span class="text-xs text-muted-foreground" id="stamp"></span>
+</header>
+<div class="max-w-6xl mx-auto px-5 py-5 grid gap-5 md:grid-cols-[300px_1fr]">
+  <div class="uk-card h-fit">
+    <div class="uk-card-header"><h2 class="uk-card-title text-sm">装配记录(近 20 次)</h2></div>
+    <div class="uk-card-body pt-0 flex flex-col" id="list">
+      <div class="text-center text-muted-foreground py-10 text-sm">还没有装配记录。<br>去对话里发一条 /assemble 即可。</div>
+    </div>
+  </div>
+  <div class="uk-card">
+    <div class="uk-card-header flex items-center gap-3">
+      <h2 class="uk-card-title text-sm" id="curTitle">行动链</h2>
+      <span class="uk-badge uk-badge-secondary" id="curState" style="display:none"></span>
+      <div class="flex-1"></div>
+      <label class="text-xs text-muted-foreground flex items-center gap-1"><input type="checkbox" id="follow" checked> 尾随</label>
+    </div>
+    <div class="uk-card-body">
+      <div class="logbox" id="log">左侧选择一次装配,或发起新装配后自动跳到最新。</div>
+    </div>
+  </div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+let cur = null, autoLatest = true;
+function stateOf(e) {
+  if (/装配完成|══ 完 ══/.test(e.tail)) return ['done', '完成'];
+  if (Date.now() / 1000 - e.mtime < 25) return ['live', '进行中'];
+  return ['dead', '中断?'];
+}
+async function tick() {
+  let d;
+  try {
+    const r = await fetch('_console/data', { cache: 'no-store' });
+    d = await r.json();
+    $('beat').className = 'dot live';
+  } catch { $('beat').className = 'dot dead'; return; }
+  $('stamp').textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  const list = $('list');
+  list.innerHTML = '';
+  if (!d.items.length) return;
+  if (autoLatest) cur = d.items[0].id;
+  for (const e of d.items) {
+    const [cls, label] = stateOf(e);
+    const row = document.createElement('button');
+    row.className = 'row flex items-center gap-2 text-left px-2 py-2 rounded-lg border-0 bg-transparent cursor-pointer' + (e.id === cur ? ' sel' : '');
+    row.innerHTML = '<span class="dot ' + cls + '"></span><span class="flex-1 text-sm font-medium"></span><span class="text-xs text-muted-foreground"></span>';
+    row.children[1].textContent = e.id;
+    row.children[2].textContent = label;
+    row.onclick = () => { cur = e.id; autoLatest = (e.id === d.items[0].id); render(d); };
+    list.appendChild(row);
+  }
+  render(d);
+}
+function render(d) {
+  const e = d.items.find((x) => x.id === cur) ?? d.items[0];
+  if (!e) return;
+  const [cls, label] = stateOf(e);
+  $('curTitle').textContent = '行动链 · ' + e.id;
+  const st = $('curState'); st.style.display = ''; st.textContent = label;
+  const log = $('log');
+  const atBottom = $('follow').checked;
+  log.textContent = e.tail;
+  if (atBottom) log.parentElement.scrollTop = log.parentElement.scrollHeight;
+}
+tick();
+setInterval(tick, 1500);
+</script>
+</body>
+</html>

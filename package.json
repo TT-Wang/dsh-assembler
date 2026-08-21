@@ -11,7 +11,8 @@
       "default": "./lib/index.js"
     },
     "./src/*": "./src/*",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./client": "./lib/client.js"
   },
   "files": [
     "lib/**/*",
@@ -20,7 +21,7 @@
     "frontends/**/*"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/build-client.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "link:dsh": "node scripts/link-dsh.mjs",
     "parts:install": "for d in generated/*/; do (cd \"$d\" && npm install --no-audit --no-fund); done",
@@ -34,21 +35,39 @@
     "index:auto": "node scripts/index-add.mjs auto",
     "solution": "node scripts/solution.mjs",
     "catalog:report": "node scripts/catalog-report.mjs",
-    "catalog:check": "node scripts/catalog-report.mjs --check"
+    "catalog:check": "node scripts/catalog-report.mjs --check",
+    "build:client": "node scripts/build-client.mjs"
   },
   "license": "BSD-3-Clause",
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1-rc.1",
     "@deepseek-ai/dsh-commands": "^0.0.1-rc.1 || ^0.1.0-rc.1",
     "@deepseek-ai/dsh-llm": "^0.0.1-rc.1 || ^0.1.0-rc.1",
-    "@deepseek-ai/dsh-tools": "^0.0.1-rc.1 || ^0.1.0-rc.1"
+    "@deepseek-ai/dsh-tools": "^0.0.1-rc.1 || ^0.1.0-rc.1",
+    "dsh-better-sidebar": "*",
+    "react": "^18.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "esbuild": "^0.23.1",
     "typescript": "^5.5.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "js-yaml": "^4.1.0"
+  },
+  "dsh": {
+    "client": {
+      "inject": [],
+      "platform": "web"
+    }
+  },
+  "peerDependenciesMeta": {
+    "dsh-better-sidebar": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   }
 }
