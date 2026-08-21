@@ -253,7 +253,15 @@ export function writeHandover(
     '',
     '## 待配置凭证',
     '',
-    allSecrets.size === 0 ? '(本方案不需要凭证)' : ['| 变量 | 用途 | 状态 |', '|---|---|---|', ...[...allSecrets.values()].map((s) => `| \`${s.env}\` | ${s.purpose ?? ''} | ${s.configured ? '已配置' : s.optional ? '可选' : '**待配置**'} |`)].join('\n'),
+    allSecrets.size === 0
+      ? '(已入库零件不需要凭证)'
+      : ['| 变量 | 用途 | 状态 |', '|---|---|---|', ...[...allSecrets.values()].map((s) => `| \`${s.env}\` | ${s.purpose ?? ''} | ${s.configured ? '已配置' : s.optional ? '可选' : '**待配置**'} |`)].join('\n'),
+    // 缺件工单里的能力(银行/支付/平台 API 等)通常自带凭证需求,但零件尚未
+    // 入库,凭证还无处声明。明说这层边界,免得"待配置凭证为空"被误读成"零凭证"。
+    ...(results.some((r) => r.gaps > 0) ? [
+      '',
+      `> ⚠ 另有 ${String(results.reduce((n, r) => n + r.gaps, 0))} 项缺件工单(见各 agent 的 gaps/):这些外部能力(如平台/银行/支付/公众号 API)的凭证要等对应零件照单入库后才会出现在本表。届时凭证一律配到 host 环境变量,绝不进装配参数。`,
+    ] : []),
     '',
     '## 知识包',
     '',

@@ -53,6 +53,7 @@ check('HANDOVER 列出两个 agent 及验收', md.includes('cs-agent') && md.inc
 check('每个 agent 的职责有据', md.includes('查订单开工单转人工') && md.includes('对账'))
 check('共享表来自方案层(products+orders)', md.includes('`products`') && md.includes('`orders`'), md.slice(md.indexOf('共享数据'), md.indexOf('共享数据') + 120))
 check('待配置凭证汇总', md.includes('CRM_TOKEN') && md.includes('**待配置**'))
+check('缺件工单的凭证边界有说明(G2)', md.includes('缺件工单') && md.includes('照单入库后才会出现'), md.slice(md.indexOf('待配置凭证'), md.indexOf('待配置凭证') + 400))
 check('知识包随行', md.includes('refund-policy') && md.includes('2026-08'))
 check('BOM 去重(sqlite-query 两 agent 共用只列一次)', (md.match(/sqlite-query/g) ?? []).length === 1, md)
 check('BOM 出处含上游 rev', md.includes('mholt/papaparse@v5.4.1'))
