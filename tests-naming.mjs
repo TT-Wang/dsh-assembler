@@ -3,7 +3,7 @@
  * 命名功能单测：直接 import 编译产物 lib/index.js（peers 已 symlink 到 node_modules）。
  * 验证 sanitizePresetName / presetNameSuffix / resolvePresetId / emitPreset 的命名行为。
  */
-import { sanitizePresetName, presetNameSuffix, resolvePresetId, emitPreset, screenParams, applyParams, reconcileCapabilityIds } from './lib/index.js'
+import { sanitizePresetName, presetNameSuffix, resolvePresetId, emitPreset, screenParams, applyParams, reconcileCapabilityIds, assertEmittedPreset, assembleResultText } from './lib/index.js'
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -109,6 +109,58 @@ let threw = false
 try { reconcileCapabilityIds(['nope-1', 'nope-2'], CAT) } catch { threw = true }
 check('全部不匹配才硬失败', threw)
 check('空选择不报错', reconcileCapabilityIds([], CAT).length === 0)
+
+// 8. 发射闸:preset 渲染坏了(YAML 特殊字符)必须在写盘前抛错,绝不静默交付
+// 装不上的文件。persona 走 JSON 编码是安全的,但能力行的 name/id 是裸插值——一个
+// 带引号的行名就能把单引号标量拆坏,而坏文件只在 host 挂载时才炸(客户面前),
+// 装配却早已报了成功。发射闸把这类失败从"挂载期静默"提前到"装配期高声"。
+const hostileCatalog = {
+  capabilities: [
+    { id: 'bad-row', via: 'harness', description: 'x', tags: ['x'], config: { presetRows: [{ id: 'tool-x', name: "it's @a/b" }] } },
+  ],
+  'mcp-servers': {},
+}
+let gateThrew = false
+let gateMsg = ''
+try {
+  emitPreset({ capabilityIds: ['bad-row'], missing: [], rationale: '', persona: 'p' }, hostileCatalog, '{{extraRows}}', 'hostile')
+} catch (e) {
+  gateMsg = String(e?.message ?? e)
+  gateThrew = /合法 YAML|行序列/.test(gateMsg)
+}
+check('能力行名含引号 → 发射闸抛错(不写坏文件)', gateThrew, gateMsg.slice(0, 80))
+// 直接对着坏文本调闸:未解析成非空行序列必抛。
+let emptyThrew = false
+try { assertEmittedPreset('') } catch { emptyThrew = true }
+check('空文本(未渲染出任何行)被闸拒绝', emptyThrew)
+// happy path 字节中立:合法 preset 原样返回,与未加闸时同字节。
+const gated = emitPreset(req, catalog, template, 'web-research')
+check('合法 preset 照常通过闸且字节不变', Array.isArray(yaml.load(gated)) && gated === out, `same=${gated === out}`)
+
+// 9. 耗时账单:结果文本必须逐段列出时间去向,"为什么跑这么久"由产品自己回答。
+// 无一段认领的时间(会话握手、BOM 写盘)以"其他"入账而不是消失;不足 2s 的
+// 零头不单列(账单是给人看的,不是审计日志)。
+const billBase = {
+  id: 'x', capabilityIds: ['a'], missing: [], presetPath: '/tmp/x', drafts: [],
+  verification: { status: 'SKIPPED', reason: 'verify disabled' },
+  personaLint: [], params: {}, paramsRejected: [], requiredSecrets: [], knowledge: [],
+}
+const billText = assembleResultText({
+  ...billBase,
+  timings: [
+    { stage: '零件联邦', seconds: 0 },
+    { stage: '选型', seconds: 12 },
+    { stage: '发射', seconds: 0 },
+    { stage: '验收探针(2轮)', seconds: 130 },
+  ],
+  totalSeconds: 150,
+})
+check('账单含总耗时', billText.includes('耗时:共 150s'))
+check('账单逐段列出', billText.includes('选型 12s') && billText.includes('验收探针(2轮) 130s'))
+check('0s 段照列(缓存热是信息)', billText.includes('零件联邦 0s'))
+check('未认领时间入"其他"', billText.includes('其他 8s'), billText.match(/耗时[^\n]*/)?.[0])
+const billTight = assembleResultText({ ...billBase, timings: [{ stage: '选型', seconds: 10 }], totalSeconds: 11 })
+check('零头 <2s 不单列"其他"', !billTight.includes('其他'), billTight.match(/耗时[^\n]*/)?.[0])
 
 console.log(`\n==== 命名功能测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)
 process.exit(failures === 0 ? 0 : 1)

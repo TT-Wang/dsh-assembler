@@ -3,67 +3,128 @@
   "probes": [
     {
       "question": "给 OSV 查一个 Python 包时,ecosystem 该怎么拼?给 deps.dev 呢?",
-      "mustInclude": ["invalid ecosystem", "PYPI", "PyPI"]
+      "mustInclude": [
+        "invalid ecosystem",
+        "PYPI",
+        "PyPI"
+      ]
     },
     {
       "question": "Rust 包在两个上游分别叫什么?",
-      "mustInclude": ["crates.io", "CARGO"]
+      "mustInclude": [
+        "crates.io",
+        "CARGO"
+      ]
     },
     {
       "question": "为什么不能只跑一次批量查询就出治理结论?",
-      "mustInclude": ["querybatch", "只回 id", "分诊"]
+      "mustInclude": [
+        "querybatch",
+        "只回 id",
+        "分诊"
+      ]
     },
     {
       "question": "批量查询里某个包没有漏洞,返回的是什么?怎么读?",
-      "mustInclude": ["按输入顺序位置对齐", "空对象"]
+      "mustInclude": [
+        "按输入顺序位置对齐",
+        "空对象"
+      ]
     },
     {
       "question": "修复版本从 OSV 记录的哪个字段取?哪种区间类型不能直接当升级目标?",
-      "mustInclude": ["affected[].ranges[].events[].fixed", "commit 哈希"]
+      "mustInclude": [
+        "affected[].ranges[].events[].fixed",
+        "commit 哈希"
+      ]
     },
     {
       "question": "一条漏洞没有定性严重度标签,能不能当低危处理?",
-      "mustInclude": ["不要因为缺定性标签就当成低危", "待评估"]
+      "mustInclude": [
+        "不要因为缺定性标签就当成低危",
+        "待评估"
+      ]
     },
     {
       "question": "CVSS 8.0 的漏洞属于哪一级,多久要修完?",
-      "mustInclude": ["HIGH", "5 个工作日"]
+      "mustInclude": [
+        "HIGH",
+        "5 个工作日"
+      ]
     },
     {
       "question": "许可证字段是空的,该放行还是拦下?",
-      "mustInclude": ["空的许可证字段按禁止处理"]
+      "mustInclude": [
+        "空的许可证字段按禁止处理"
+      ]
     },
     {
       "question": "AGPL-3.0 的依赖怎么处置?MPL-2.0 呢?",
-      "mustInclude": ["AGPL-3.0", "禁止引入", "MPL-2.0", "法务审批"]
+      "mustInclude": [
+        "AGPL-3.0",
+        "禁止引入",
+        "MPL-2.0",
+        "法务审批"
+      ]
     },
     {
       "question": "命中漏洞但上游没有修复版本,按什么顺序找出路?",
-      "mustInclude": ["不可达豁免", "复查日期"]
+      "mustInclude": [
+        "不可达豁免",
+        "复查日期"
+      ]
     },
     {
       "question": "一条 waiver 缺了批准人,agent 应该怎么做?",
-      "mustInclude": ["拒绝生成而不是补全空缺"]
+      "mustInclude": [
+        "拒绝生成而不是补全空缺"
+      ]
     },
     {
       "question": "报告里为什么要写上零命中的包?",
-      "mustInclude": ["零命中也要出现在报告里"]
+      "mustInclude": [
+        "零命中也要出现在报告里"
+      ]
     },
     {
       "question": "deps.dev 的许可证字段能不能直接当合规结论?",
-      "mustInclude": ["参考信息不是法律结论"]
+      "mustInclude": [
+        "参考信息不是法律结论"
+      ]
     },
     {
       "question": "取 deps.dev 的最近发布版本,为什么不能直接取 versions 数组尾部?",
-      "mustInclude": ["版本字符串", "publishedAt"]
+      "mustInclude": [
+        "版本字符串",
+        "publishedAt"
+      ]
     },
     {
       "question": "统计一个包的直接依赖数量时要排除什么?",
-      "mustInclude": ["SELF"]
+      "mustInclude": [
+        "SELF"
+      ]
     },
     {
       "question": "这份治理口径是客户的真实规定吗?",
-      "mustInclude": ["示例策略,不是 Northwind 的真实内部规定"]
+      "mustInclude": [
+        "示例策略,不是 Northwind 的真实内部规定"
+      ]
+    },
+    {
+      "question": "治理报告开头的元信息块必须有哪些项?",
+      "mustInclude": [
+        "批次标识",
+        "数据署名",
+        "边界声明"
+      ]
+    },
+    {
+      "question": "写治理报告时结构要不要自己设计?",
+      "mustInclude": [
+        "照抄本结构",
+        "不要重排结构"
+      ]
     }
   ]
 }

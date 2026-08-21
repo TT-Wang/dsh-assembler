@@ -283,7 +283,13 @@ server.tool(
 // ---------------------------------------------------------------------------
 server.tool(
   'postgres-query',
-  '连接 PostgreSQL 并执行任意 SQL（SELECT / INSERT / UPDATE / DELETE / DDL），支持 $1/$2 位置参数绑定（参数数组按序对应）。SELECT 返回 { command, rowCount, rows, fields }：rows 为行对象数组（字段名为键，numeric/bigint 以字符串返回保证 JSON 安全，bytea 二进制列以 { $binary: <base64>, encoding: "base64" } 返回，timestamp 为 ISO 字符串），fields 为列元数据（name/dataTypeID/dataTypeSize/format）；写语句返回 { command, rowCount, rows: [] }。注意：本工具直接执行传入的 SQL，可能修改数据，需谨慎使用。参数: 连接配置同 postgres-test-connection（connectionString 可选，host 默认 localhost，port 默认 5432，user 默认当前系统用户，password 可选，database 可选，ssl 可选，connectTimeoutMillis 默认 10000）；sql（必填，要执行的 SQL 文本，参数占位符用 $1/$2/...）；params（可选，位置参数数组，元素可为字符串/数字/布尔/null，二进制参数用 { $binary: "<base64>" } 形式）；queryTimeoutMillis（可选，单条查询超时毫秒，默认 30000）。',
+  '连接 PostgreSQL 并执行任意 SQL（SELECT / INSERT / UPDATE / DELETE / DDL），支持 $1/$2 位置参数绑定（参数数组按序对应）。' +
+    '**请尽量把一批相关语句合并成一次调用，不要逐条多次调用本工具**：不带 params 时 sql 可以是多条分号分隔的语句脚本' +
+    '（建表+批量写入+查询一次完成，整个脚本在同一连接的隐式事务中执行，任一条失败整体回滚；脚本内不要写 BEGIN/COMMIT），' +
+    '此时返回 { batch: true, statements, results: [每条语句的 { command, rowCount, rows, fields }] }；' +
+    '多行插入优先写成 INSERT INTO t VALUES (...),(...),(...) 单语句。' +
+    '单条语句返回 { command, rowCount, rows, fields }：rows 为行对象数组（字段名为键，numeric/bigint 以字符串返回保证 JSON 安全，bytea 二进制列以 { $binary: <base64>, encoding: "base64" } 返回，timestamp 为 ISO 字符串），fields 为列元数据（name/dataTypeID/dataTypeSize/format）。' +
+    '注意：本工具直接执行传入的 SQL，可能修改数据，需谨慎使用。参数: 连接配置同 postgres-test-connection（connectionString 可选，host 默认 localhost，port 默认 5432，user 默认当前系统用户，password 可选，database 可选，ssl 可选，connectTimeoutMillis 默认 10000）；sql（必填，SQL 文本：单条可用 $1/$2 占位符配 params；多条分号分隔脚本不支持 params，值直接写进 SQL）；params（可选，仅单条语句可用，位置参数数组，元素可为字符串/数字/布尔/null，二进制参数用 { $binary: "<base64>" } 形式）；queryTimeoutMillis（可选，单条查询超时毫秒，默认 30000）。',
   {
     ...connectionFields,
     sql: z.string().describe('要执行的 SQL 文本（必填），参数占位符用 $1、$2 等位置形式'),
@@ -315,26 +321,35 @@ server.tool(
           ? Buffer.from(/** @type {string} */ (p.$binary), 'base64')
           : p
       );
+      // 多语句脚本必须走简单协议:pg 在 values 非空时切 extended protocol,
+      // 那里多语句直接报 "cannot insert multiple commands"——裁决交给 pg 本身,
+      // 错误文本已足够行动(拆成单条,或把值写进字面量)。
       const res = await client.query({
         text: args.sql,
         values,
         query_timeout: args.queryTimeoutMillis,
       });
-      return {
-        command: res.command,
-        rowCount: res.rowCount,
-        rows: (res.rows || []).map((row) => {
+      const shape = (one) => ({
+        command: one.command,
+        rowCount: one.rowCount,
+        rows: (one.rows || []).map((row) => {
           const out = {};
           for (const [k, v] of Object.entries(row)) out[k] = serializeValue(v);
           return out;
         }),
-        fields: (res.fields || []).map((f) => ({
+        fields: (one.fields || []).map((f) => ({
           name: f.name,
           dataTypeID: f.dataTypeID,
           dataTypeSize: f.dataTypeSize,
           format: f.format,
         })),
-      };
+      });
+      // 多语句脚本（简单协议）返回结果数组——此前这里按单结果读取，多语句调用
+      // 会静默返回 { command: undefined, rows: [] } 的空壳,批量能力名存实亡。
+      if (Array.isArray(res)) {
+        return { batch: true, statements: res.length, results: res.map(shape) };
+      }
+      return shape(res);
     });
   })
 );

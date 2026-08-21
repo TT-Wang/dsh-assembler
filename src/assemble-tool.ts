@@ -57,13 +57,25 @@ export function assembleToolDefinition(ctx: Context, config: Config): ToolDefini
           + 'Never pass credentials here — keys that look like secrets (password/token/api-key/…) are refused by design; '
           + 'secrets belong in the host env/settings.',
       },
+      reverify: {
+        type: 'boolean',
+        description:
+          'Optional. Re-assembling an unchanged preset normally CARRIES the last PASS from the verify ledger '
+          + '(same bytes, within TTL) instead of re-probing. Pass true to force a fresh acceptance probe.',
+      },
+      fresh: {
+        type: 'boolean',
+        description:
+          'Optional. When name+requirement+params match an existing preset, the assembler reuses its selection '
+          + 'and emitted file as-is. Pass true to force a full re-selection and re-emit instead.',
+      },
     },
     output: {
       schema: { type: 'string' as const },
       render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
     },
     execute: async (args: unknown, exec?: { agent?: unknown }): Promise<string> => {
-      const a = args as { requirement?: unknown; name?: unknown; params?: unknown } | null
+      const a = args as { requirement?: unknown; name?: unknown; params?: unknown; reverify?: unknown; fresh?: unknown } | null
       const requirement = typeof a?.requirement === 'string' ? a.requirement.trim() : ''
       if (requirement === '') {
         throw new Error('assemble needs {"requirement": "<what you want the agent to do>"}')
@@ -125,7 +137,13 @@ export function assembleToolDefinition(ctx: Context, config: Config): ToolDefini
 
       const onPhase = (line: string): void => { phases.push(line); pending.push(line) }
       try {
-        const result = await assemble(ctx, requirement, config, { name: name === '' ? undefined : name, params, onPhase })
+        const result = await assemble(ctx, requirement, config, {
+          ...(name === '' ? {} : { name }),
+          params,
+          onPhase,
+          ...(a?.reverify === true ? { reverify: true } : {}),
+          ...(a?.fresh === true ? { fresh: true } : {}),
+        })
         settle?.({ status: 'completed', detail: `自动验证:${result.verification.status}` })
         const timeline = phases.length > 0 ? `\n装配轨迹:${phases.join(';')}` : ''
         return assembleResultText(result) + timeline

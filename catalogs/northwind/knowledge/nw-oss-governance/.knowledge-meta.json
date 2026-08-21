@@ -3,9 +3,9 @@
   "kind": "knowledge",
   "client": "northwind",
   "source": "Northwind 开源治理口径 + 两个上游的实测字段口径(2026-08-17 现场核对)",
-  "version": "2026-08-17",
+  "version": "2026-08-21",
   "license": "(示例策略:交付时由客户规定替换)",
-  "docCount": 2,
-  "totalBytes": 7524,
+  "docCount": 3,
+  "totalBytes": 10580,
   "scaffoldedAt": "2026-08-17T15:55:54.053Z"
 }

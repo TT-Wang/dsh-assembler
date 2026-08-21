@@ -228,7 +228,51 @@ const t9 = await client.callTool({
 assert(t9.isError !== true, 'DROP TABLE 成功', textOf(t9));
 
 // ---------------------------------------------------------------------------
-// 12. 关闭连接，验证子进程干净退出
+// 12. 批量接口(v0.0.2):多语句脚本一次调用、结果逐条、隐式事务回滚
+// ---------------------------------------------------------------------------
+console.log('\n[11] 多语句脚本批量');
+const BT = 'smoke_batch_v2';
+const b1 = await client.callTool({
+  name: 'postgres-query',
+  arguments: {
+    ...connArgs,
+    sql: `DROP TABLE IF EXISTS ${BT}; CREATE TABLE ${BT} (id INT PRIMARY KEY, pkg TEXT); ` +
+      `INSERT INTO ${BT} VALUES (1, 'express'), (2, 'lodash'); SELECT count(*) AS n FROM ${BT};`,
+  },
+});
+const b1txt = textOf(b1);
+assert(b1.isError !== true, '脚本执行成功', b1txt.slice(0, 150));
+const b1obj = (() => { try { return JSON.parse(b1txt); } catch { return null; } })();
+assert(b1obj?.batch === true && b1obj.statements === 4, `batch=true 且逐条结果(4 条,得 ${b1obj?.statements})`);
+assert(String(b1obj?.results?.[3]?.rows?.[0]?.n) === '2', `脚本内 SELECT 可读(count=2,得 ${b1obj?.results?.[3]?.rows?.[0]?.n})`);
+
+// 隐式事务:第二条撞主键 → 整个脚本回滚,第一条 INSERT 不落库
+const b2 = await client.callTool({
+  name: 'postgres-query',
+  arguments: {
+    ...connArgs,
+    sql: `INSERT INTO ${BT} VALUES (3, 'should-roll-back'); INSERT INTO ${BT} VALUES (1, 'dup-key');`,
+  },
+});
+assert(b2.isError === true, '脚本中途失败返回 isError', textOf(b2).slice(0, 120));
+const b3 = await client.callTool({
+  name: 'postgres-query',
+  arguments: { ...connArgs, sql: `SELECT count(*) AS n FROM ${BT}` },
+});
+const b3obj = (() => { try { return JSON.parse(textOf(b3)); } catch { return null; } })();
+assert(String(b3obj?.rows?.[0]?.n) === '2', `失败脚本整体回滚(行数仍 2,得 ${b3obj?.rows?.[0]?.n})`);
+
+// 脚本 + params 是矛盾请求 → pg 明确报错,不静默截断
+const b4 = await client.callTool({
+  name: 'postgres-query',
+  arguments: { ...connArgs, sql: `SELECT $1::text; SELECT 2;`, params: ['x'] },
+});
+assert(b4.isError === true && /multiple commands/i.test(textOf(b4)), '脚本+params 明确报错', textOf(b4).slice(0, 120));
+
+await client.callTool({ name: 'postgres-query', arguments: { ...connArgs, sql: `DROP TABLE IF EXISTS ${BT}` } });
+
+// ---------------------------------------------------------------------------
+// 13. 关闭连接，验证子进程干净退出
 // ---------------------------------------------------------------------------
 await client.close();
 assert(true, 'MCP client 关闭');

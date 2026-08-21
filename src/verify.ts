@@ -87,6 +87,15 @@ export interface ProbeResult {
   turns?: TurnResult[];
   /** Why the run degraded to SKIPPED, when it did. */
   reason?: string;
+  /**
+   * True when this PASS was CARRIED FORWARD from the verify ledger rather than
+   * probed fresh: the preset's bytes are identical to a generation that already
+   * passed, within the carry TTL. The verdict is honest — it DID run, on these
+   * exact bytes — but a reader must be able to tell "probed now" from "probed
+   * then", so the flag rides the result and the render says which (账本文化:
+   * 沿用要明说,绝不冒充新跑)。
+   */
+  carried?: boolean;
 }
 
 /**
@@ -166,6 +175,9 @@ const MARK_RULES = [
   "- mustInclude: 1-3 content-bearing strings that will appear in the reply IFF the task truly succeeded (a computed value, a verbatim token from the task input). Never accept generic words like \"done\" or \"success\".",
   "- mustInclude values MUST be derivable from data embedded in the task text itself. NEVER use remembered world facts (a domain's IP, a live exchange rate, today's date) — live data changes and remembered values go stale.",
   "- Avoid over-precise numeric marks: a mark like \"111.195\" fails when the tool legitimately prints 111.1949. Prefer a verbatim echo token, an integer, or the leading digits of a number (e.g. \"111.1\").",
+  // 实测假红:需求含"要一个文件管理页面",推导器把"文件管理页面"当了标记——
+  // 被判的是 agent 的回复,agent 不是页面,UI 词永远不会出现。
+  "- NEVER use UI/page words from the requirement (页面/前端/界面/看板/page/UI) as marks — the agent's REPLY is judged, and the agent is not the page. Marks must be tokens the agent's own answer would naturally contain.",
   "- Budget: the probe agent has ~10 minutes per turn, and a turn that overruns is scored FAIL. Size EVERY turn to fit, the first one included — if a turn needs many upstream calls (one per item in a list), keep the list short: 3-5 items proves the capability as well as 30 does. Avoid tasks whose replies embed large payloads (full base64 images) — ask for byte counts or short prefixes instead.",
 ];
 
@@ -182,10 +194,45 @@ const MARK_RULES = [
  */
 export const AUX_CALL_TIMEOUT_MS = 120_000;
 
+/** 一次辅助调用的 token 账目(账单用):产出多少、其中推理多少、缓存命中多少。 */
+export interface AuxUsage {
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  cacheReadTokens: number;
+}
+
+/** 从一段流的 usage chunk 里累计账目;形状防御性读取(缺哪个字段记 0)。 */
+export function addUsage(into: AuxUsage, chunk: unknown): void {
+  const c = chunk as { type?: unknown; usage?: Record<string, unknown> } | null;
+  if (c?.type !== "usage" || c.usage === null || typeof c.usage !== "object") return;
+  const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  into.inputTokens += n(c.usage.inputTokens);
+  into.outputTokens += n(c.usage.outputTokens);
+  into.reasoningTokens += n(c.usage.reasoningTokens);
+  into.cacheReadTokens += n(c.usage.cacheReadTokens);
+}
+
+/** 账单里的紧凑账目行,如 "出6.8k/思5.9k/缓12.3k";全零(拿不到 usage)返回 ''。 */
+export function usageDetail(u: AuxUsage): string {
+  if (u.outputTokens === 0 && u.inputTokens === 0 && u.cacheReadTokens === 0) return "";
+  const k = (v: number): string => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v));
+  return `出${k(u.outputTokens)}/思${k(u.reasoningTokens)}/缓${k(u.cacheReadTokens)}`;
+}
+
+/** 辅助调用可选的模型路由与档位;effort 只辖装配器自己的内部调用,与会话模型无关。 */
+export interface AuxLlm {
+  provider?: string;
+  model?: string;
+  /** 装配器内部调用(选型/推导)的推理档:off|low|high|max;缺省继承 connection 默认。 */
+  effort?: string;
+}
+
 async function callDeriver(
   ctx: Context,
   prompt: string,
-  llm: { provider?: string; model?: string },
+  llm: AuxLlm,
+  onUsage?: (u: AuxUsage) => void,
 ): Promise<Record<string, unknown>> {
   const assembler = new BlockAssembler();
   // Same fast-model + provider-resolution discipline as llmMapRequirement:
@@ -194,10 +241,18 @@ async function callDeriver(
   const options: GenerateOptions = {
     provider: llm.provider ?? selection?.provider ?? "deepseek-official",
     model: llm.model ?? "deepseek-v4-flash",
+    // 档位是本调用自己的:推导一份 JSON 探针稿不需要会话级 max 深思——实测
+    // 继承 max 时一次推导 90s,其中绝大头是隐藏推理链的解码。
+    ...(llm.effort !== undefined ? { reasoningEffort: llm.effort as GenerateOptions["reasoningEffort"] } : {}),
     messages: [createUserMessage({ content: [{ type: "text", text: prompt }], source: { kind: "user" } })],
     signal: AbortSignal.timeout(AUX_CALL_TIMEOUT_MS),
   };
-  for await (const chunk of ctx.llm.stream(options)) assembler.push(chunk);
+  const usage: AuxUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cacheReadTokens: 0 };
+  for await (const chunk of ctx.llm.stream(options)) {
+    addUsage(usage, chunk);
+    assembler.push(chunk);
+  }
+  onUsage?.(usage);
   const finish = assembler.finish;
   if (finish.kind === "error" || finish.kind === "aborted") {
     throw new Error(`probe deriver: model call ${finish.kind}: ${finish.failure.message}`);
@@ -216,7 +271,8 @@ export async function deriveProbe(
   ctx: Context,
   requirement: string,
   selected: CapabilityEntry[],
-  llm: { provider?: string; model?: string },
+  llm: AuxLlm,
+  onUsage?: (u: AuxUsage) => void,
 ): Promise<ProbeSpec> {
   const tools = selected.map((c) => `- ${c.tool ?? c.id}: ${c.description.slice(0, 120)}`).join("\n");
   const prompt = [
@@ -231,7 +287,7 @@ export async function deriveProbe(
     "- Prefer self-contained work (compute, transform, generate). Use the network only when the agent's parts are network tools.",
     ...MARK_RULES,
   ].join("\n");
-  const parsed = await callDeriver(ctx, prompt, llm) as unknown as ProbeSpec;
+  const parsed = await callDeriver(ctx, prompt, llm, onUsage) as unknown as ProbeSpec;
   if (typeof parsed.task !== "string" || !Array.isArray(parsed.mustInclude)) {
     throw new Error("probe deriver JSON missing task/mustInclude");
   }
@@ -262,7 +318,8 @@ export async function deriveProbePlan(
   ctx: Context,
   requirement: string,
   selected: CapabilityEntry[],
-  llm: { provider?: string; model?: string },
+  llm: AuxLlm,
+  onUsage?: (u: AuxUsage) => void,
 ): Promise<ProbePlan> {
   const tools = selected.map((c) => `- ${c.tool ?? c.id}: ${c.description.slice(0, 120)}`).join("\n");
   const prompt = [
@@ -274,6 +331,8 @@ export async function deriveProbePlan(
     "First DECIDE the probe shape:",
     '- "single" — one turn is enough to prove the agent works (pure compute/transform/generate agents).',
     '- "scenario" — 2-4 turns in ONE session, when the requirement implies work that OUTLIVES a turn (filing, bookkeeping, tracking, archiving) AND the tools can actually persist it (files, databases). A later turn then asks about what an earlier turn produced, which proves continuity.',
+    // 2 轮已是证明"状态活过一轮"的最小形状;每多一轮都是整段真 agent 墙钟。
+    "- Scenario turn count: DEFAULT to exactly 2 turns (create state → retrieve it). Use 3-4 only when 2 genuinely cannot prove the requirement.",
     "",
     "Then respond with JSON only, in ONE of these two shapes:",
     '{"kind": "single", "task": "...", "mustInclude": ["..."]}',
@@ -289,10 +348,11 @@ export async function deriveProbePlan(
 
   let parsed: Record<string, unknown>;
   try {
-    parsed = await callDeriver(ctx, prompt, llm);
+    parsed = await callDeriver(ctx, prompt, llm, onUsage);
   } catch (error) {
     // A malformed plan is not a reason to skip verification entirely.
-    return { kind: "single", probe: await deriveProbe(ctx, requirement, selected, llm) };
+    // 回退调用的账目同样上报——账单累计的是"推导"整个阶段的钱。
+    return { kind: "single", probe: await deriveProbe(ctx, requirement, selected, llm, onUsage) };
   }
 
   if (parsed.kind === "scenario" && Array.isArray(parsed.turns)) {
@@ -309,7 +369,7 @@ export async function deriveProbePlan(
   if (typeof parsed.task === "string" && Array.isArray(parsed.mustInclude) && parsed.mustInclude.length > 0) {
     return { kind: "single", probe: { task: parsed.task, mustInclude: (parsed.mustInclude as unknown[]).map(String).slice(0, 3) } };
   }
-  return { kind: "single", probe: await deriveProbe(ctx, requirement, selected, llm) };
+  return { kind: "single", probe: await deriveProbe(ctx, requirement, selected, llm, onUsage) };
 }
 
 /**
@@ -337,7 +397,7 @@ interface ProbeSession {
 }
 
 /** Open a session bound to the preset and subscribe to its event stream. */
-async function openProbeSession(port: number, presetId: string): Promise<ProbeSession> {
+async function openProbeSession(port: number, presetId: string, cwd?: string): Promise<ProbeSession> {
   const base = `http://127.0.0.1:${port}`;
   const rpc = async (method: string, payload: unknown): Promise<any> => {
     let res: Response;
@@ -362,8 +422,15 @@ async function openProbeSession(port: number, presetId: string): Promise<ProbeSe
     return j.result.value;
   };
 
-  const workdir = mkdtempSync(join(tmpdir(), "assembler-probe-"));
+  const workdir = cwd ?? mkdtempSync(join(tmpdir(), "assembler-probe-"));
   const { sessionId } = await rpc("session.create", { cwd: workdir, agentPreset: presetId });
+  // 探针退出必须掐掉会话:判超时弃考后,被考的 agent 那一轮还在服务器上跑——
+  // 白烧 token,侧栏的探针会话还永远显示"深思中",旁观者会误以为装配没完
+  // (实测:用户盯着遗孤轮问"为什么还在 deep diving")。cancel 尽力而为:
+  // 探针的判定在弃考那一刻已经成立,掐不掐得掉都不改变结论。
+  const cancel = (): void => {
+    void rpc("session.cancel", { sessionId }).catch(() => { /* 会话可能已自然结束 */ });
+  };
 
   const frames: any[] = [];
   const ws = new WebSocket(`ws://127.0.0.1:${port}/api/events.mux`);
@@ -377,7 +444,7 @@ async function openProbeSession(port: number, presetId: string): Promise<ProbeSe
     ws.onopen = () => res();
     ws.onerror = () => rej(new Error("events.mux websocket failed"));
   });
-  return { sessionId, frames, rpc, close: () => { ws.close(); } };
+  return { sessionId, frames, rpc, close: () => { cancel(); ws.close(); } };
 }
 
 /**
@@ -459,6 +526,44 @@ export async function runProbe(
  * the first failure (later turns build on the failed one, so their verdicts
  * would be noise rather than evidence).
  */
+/**
+ * 前端验收(纳入装配即验证):
+ *  - 门 1 页面可达:GET /assembler/ui/<id> 必须 200,且槽位已填(presetId 进了
+ *    页面、无残留 {{slot}})——发射对了但伺服不通,交付到客户手里就是白屏。
+ *  - 门 2 会话环路:用页面完全同款的参数(cwd=preset/workspace + agentPreset)
+ *    开一个真会话,发一条口令回显微探针——证明"页面里那套接线"端到端活着。
+ *    页面本身是静态 JS,它的全部副作用就是这两个 wire 调用;两门齐过 = 前端
+ *    以与探针同级的黑盒标准被验证。沿用轮只跑门 1(环路已在台账代际证过,
+ *    不为它重付一轮 agent)。
+ */
+export async function runFrontendGate(
+  port: number,
+  presetId: string,
+  presetDir: string,
+  opts: { loop?: boolean; timeoutMs?: number } = {},
+): Promise<{ pass: boolean; reason?: string }> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/assembler/ui/${presetId}`, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return { pass: false, reason: `页面不可达:HTTP ${res.status}` };
+    const html = await res.text();
+    if (!html.includes(`'${presetId}'`)) return { pass: false, reason: "页面槽位未填(presetId 未进页面)" };
+    if (/\{\{[A-Za-z]+\}\}/.test(html)) return { pass: false, reason: "页面存在未填充的 {{槽位}}" };
+  } catch (error) {
+    return { pass: false, reason: `页面请求失败:${error instanceof Error ? error.message : String(error)}` };
+  }
+  if (opts.loop === false) return { pass: true, reason: "页面门 PASS(沿用轮跳环路门)" };
+  const token = `FE-GATE-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  const session = await openProbeSession(port, presetId, join(presetDir, "workspace"));
+  try {
+    const reply = await sendTurn(session, `请原样回复这串口令(不要解释):${token}`, opts.timeoutMs ?? 90_000);
+    if (reply === undefined) return { pass: false, reason: "环路门:回显轮未在时限内完成" };
+    if (!marksPresent([token], reply)) return { pass: false, reason: "环路门:回复未含口令" };
+    return { pass: true, reason: "页面门+环路门 PASS" };
+  } finally {
+    session.close();
+  }
+}
+
 export async function runScenario(
   port: number,
   presetId: string,

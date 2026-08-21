@@ -427,6 +427,53 @@ mcp-servers:
     args: ["/Users/tongtao/code/dsh-assembler/generated/bluesky-feed/index.js"]
 
 capabilities:
+  # ── frontend templates(交互面零件:选形状,功能由其余零件供给)────────────
+  # 装配时填参发射进 preset 的 frontend/,由 /assembler/ui/<preset> 同源伺服;
+  # 页面直连 host wire(session.create/prompt + events.mux),即开即操作。
+  # 没选任何前端零件时,chat-console 作为兜底自动随每个 preset 发射。
+  - id: frontend-chat-console
+    via: frontend
+    description: 独立聊天页前端:与该 agent 直接对话的干净网页(流式回复、工具调用行、新会话)。需求明确要"一个聊天页面/网页对话界面"时选它;不选它每个 preset 也会默认带上。
+    tags: [前端, 页面, 网页, 聊天, 对话, ui, chat, page, web, frontend, console]
+    config:
+      template: chat-console
+  - id: frontend-form-desk
+    via: frontend
+    description: 表单工单台前端:结构化表单(标题/详情/优先级)一键提交给 agent 处理,右侧实时结果 + 本机提交历史。需求含"表单/工单/提交/受理/审批入口"类交互时选它。
+    tags: [前端, 表单, 工单, 提交, 受理, 审批, 页面, form, ticket, submit, desk, ui, frontend]
+    config:
+      template: form-desk
+  - id: frontend-data-desk
+    via: frontend
+    description: 记录台前端:一句话记一笔 + 查询/汇总按钮,回复含 json 表格时自动渲染成表。记账/库存/通讯录/日志类"记录+查询"agent 的页面首选。
+    tags: [前端, 记录, 记账, 台账, 库存, 通讯录, 查询, 汇总, 表格, crud, ledger, records, table, ui, frontend, 页面]
+    config:
+      template: data-desk
+  - id: frontend-dashboard
+    via: frontend
+    description: 仪表盘前端:一键让 agent 汇总数据概览,渲染指标卡与明细表(页面自带 json 契约,不依赖 persona)。需求含"仪表盘/概览/大盘/监控页"类交互时选它。
+    tags: [前端, 仪表盘, 概览, 大盘, 监控, 指标, dashboard, overview, metrics, stats, ui, frontend, 页面]
+    config:
+      template: dashboard
+  - id: frontend-kanban
+    via: frontend
+    description: 任务看板前端:待办/进行中/已完成三列,拖拽卡片即移动任务、一句话添加任务(页面自带 json 契约)。需求含"看板/任务板/kanban/待办管理页"类交互时选它。
+    tags: [前端, 看板, 任务, 待办, 进行中, 拖拽, kanban, board, todo, task, ui, frontend, 页面]
+    config:
+      template: kanban
+  - id: frontend-approval-desk
+    via: frontend
+    description: 审批台前端:待审事项列表逐条"通过/驳回"并附理由,新申请一键录入(页面自带 json 契约)。需求含"审批/报销/请假/申请受理/裁决"类交互时选它。
+    tags: [前端, 审批, 报销, 请假, 申请, 裁决, 通过, 驳回, approval, review, workflow, ui, frontend, 页面]
+    config:
+      template: approval-desk
+  - id: frontend-file-desk
+    via: frontend
+    description: 文件台前端:工作区文件清单可选中让 agent 读/总结,笔记一键存为文件(页面自带 json 契约)。需求含"文件管理/文档整理/资料台"类交互时选它。
+    tags: [前端, 文件, 文档, 资料, 整理, 笔记, 保存, file, files, notes, manager, ui, frontend, 页面]
+    config:
+      template: file-desk
+
   - id: genui-fence-spec-kb
     via: knowledge
     description: dsh-ui 行内 UI 的字段规范(genui 插件的 SKILL.md,随插件版本收录)——需求要求画图表/看板/仪表盘等行内 UI 时必选:窄面 preset 读不到 host 的 skill 通道,没有这包规范模型只能猜字段,画出来是空图。装配时拷入 preset 的 kb/。

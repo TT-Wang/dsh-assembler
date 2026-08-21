@@ -14,3 +14,6 @@ generated/*/smoke-*
 
 # 本机联系方式/凭证(.env.example 是模板)
 .env
+
+# 选型台账:样本含需求原文(未来可能含客户信息),不自动进公共 git;归档人工挑
+ledger/

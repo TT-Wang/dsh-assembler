@@ -113,7 +113,7 @@ async function assembleOne(port, requirement, id, params, waitMs) {
 
 async function apply() {
   const file = target
-  if (file === undefined || !existsSync(file)) die('用法:solution.mjs apply <solution.yml> [--port 3096] [--wait-minutes 30] [--param k=v]')
+  if (file === undefined || !existsSync(file)) die('用法:solution.mjs apply <solution.yml> [--port 3096] [--wait-minutes 30] [--lanes 3] [--param k=v]')
   const doc = yaml.load(readFileSync(file, 'utf8'))
   const port = Number(flags.port ?? 3096)
   // 等待上限从**被调方自己声明的最坏情况**推出来,不自己猜。猜的代价一个下午
@@ -140,18 +140,31 @@ async function apply() {
     if (i > 0) params[String(p).slice(0, i)] = String(p).slice(i + 1)
   }
 
-  const results = []
-  for (const agent of doc.agents ?? []) {
-    process.stderr.write(`[solution] 装配 ${agent.id} …\n`)
-    try {
-      const r = await assembleOne(port, agent.requirement, agent.id, params, waitMs)
-      process.stderr.write(`[solution]   ${agent.id}: ${r.verdict} (${r.wallSeconds}s)\n`)
-      results.push({ id: agent.id, ...r })
-    } catch (error) {
-      process.stderr.write(`[solution]   ${agent.id}: ERROR ${error.message.slice(0, 120)}\n`)
-      results.push({ id: agent.id, verdict: 'ERROR', line: error.message.slice(0, 200), wallSeconds: 0 })
+  // 并行装配:不同 agent 的装配与探针互相独立(各开各的会话、各写各的目录),
+  // 排队只是白等——三 agent 的交付墙钟从"三者之和"降到"最慢那个"。有界车道
+  // 而非全并发:worker 超配会因资源争抢反而变慢(SWE-bench harness 的
+  // --max_workers 同款教训);bench 已用 3 车道跑过 45 题验证 host 扛得住。
+  // 结果按清单原序落位,与串行时代的报告逐行可比。
+  const agents = doc.agents ?? []
+  const LANES = Math.min(agents.length, Math.max(1, Number(flags.lanes ?? process.env.DSH_ASSEMBLER_APPLY_LANES ?? 3) || 3))
+  if (agents.length > 1) process.stderr.write(`[solution] 并行装配:${agents.length} 个 agent,${LANES} 车道\n`)
+  const results = new Array(agents.length)
+  let cursor = 0
+  const lane = async () => {
+    for (let i = cursor++; i < agents.length; i = cursor++) {
+      const agent = agents[i]
+      process.stderr.write(`[solution] 装配 ${agent.id} …\n`)
+      try {
+        const r = await assembleOne(port, agent.requirement, agent.id, params, waitMs)
+        process.stderr.write(`[solution]   ${agent.id}: ${r.verdict} (${r.wallSeconds}s)\n`)
+        results[i] = { id: agent.id, ...r }
+      } catch (error) {
+        process.stderr.write(`[solution]   ${agent.id}: ERROR ${error.message.slice(0, 120)}\n`)
+        results[i] = { id: agent.id, verdict: 'ERROR', line: error.message.slice(0, 200), wallSeconds: 0 }
+      }
     }
   }
+  await Promise.all(Array.from({ length: LANES }, () => lane()))
   const applied = { appliedAt: new Date().toISOString(), port, params, results }
   writeFileSync(join(dirname(file), 'last-apply.json'), JSON.stringify(applied, null, 2) + '\n')
   // 交付判据:每个 agent 都得有证据。PASS 是证据;跳过是"说明白了为什么没有

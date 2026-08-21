@@ -1,0 +1,137 @@
+<!doctype html>
+<!-- data-desk — 记录台(Franken UI):一句话记一笔、一键查询汇总,json 表格自动渲染。 -->
+<html lang="zh" class="uk-theme-zinc">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}} · 记录台</title>
+<script>if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.classList.add('dark')</script>
+<link rel="stylesheet" href="_vendor/core.min.css">
+<link rel="stylesheet" href="_vendor/utilities.min.css">
+<script src="_vendor/core.iife.js" defer></script>
+<style>
+  .dot{width:9px;height:9px;border-radius:9999px;background:hsl(var(--muted-foreground));flex:none}
+  .dot.busy{background:hsl(var(--primary));animation:pulse 1.1s infinite}
+  .dot.ok{background:#10a37f}
+  @keyframes pulse{50%{opacity:.3}}
+  .prewrap{white-space:pre-wrap;word-break:break-word}
+</style>
+</head>
+<body class="bg-background text-foreground min-h-screen">
+<header class="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-card px-6 py-3">
+  <div class="dot" id="dot"></div>
+  <div>
+    <div class="font-semibold">{{title}} · 记录台</div>
+    <div class="text-xs text-muted-foreground">preset {{presetId}} · 记录/查询直达 agent</div>
+  </div>
+</header>
+<div class="max-w-3xl mx-auto px-5 py-6 flex flex-col gap-5">
+  <div class="uk-card">
+    <div class="uk-card-header"><h2 class="uk-card-title text-sm">记一笔</h2></div>
+    <div class="uk-card-body flex gap-2">
+      <input id="addBox" class="uk-input flex-1" placeholder="用一句话描述这条记录,例如:午饭 32 元…(Enter 提交)">
+      <button class="uk-btn uk-btn-primary" id="addBtn">记录</button>
+    </div>
+  </div>
+  <div class="uk-card">
+    <div class="uk-card-header"><h2 class="uk-card-title text-sm">查询</h2></div>
+    <div class="uk-card-body flex flex-col gap-3">
+      <div class="flex gap-2">
+        <input id="qBox" class="uk-input flex-1" placeholder="想查什么?例如:本月支出汇总…(Enter 查询)">
+        <button class="uk-btn uk-btn-default" id="qBtn">查询</button>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button class="uk-btn uk-btn-default uk-btn-sm" data-q="请汇总当前全部记录,给出总数与关键统计。">全部汇总</button>
+        <button class="uk-btn uk-btn-default uk-btn-sm" data-q="请列出最近 10 条记录。">最近 10 条</button>
+        <button class="uk-btn uk-btn-default uk-btn-sm" data-q="请按类别/类型分组统计当前记录。">分组统计</button>
+      </div>
+    </div>
+  </div>
+  <div class="uk-card">
+    <div class="uk-card-header"><h2 class="uk-card-title text-sm">结果</h2></div>
+    <div class="uk-card-body">
+      <div class="uk-alert uk-alert-destructive mb-3" id="err" style="display:none"></div>
+      <div class="prewrap text-muted-foreground" id="out">记录或查询后,agent 的回复在这里实时出现;回复里带表格数据时会自动渲染成表。</div>
+      <div class="overflow-x-auto" id="tableHost"></div>
+      <div class="flex flex-wrap gap-1 mt-3" id="tools"></div>
+    </div>
+  </div>
+</div>
+<script>
+const CFG = { presetId: '{{presetId}}', workdir: '{{workdir}}' };
+const HINT = '\n(如结果含结构化数据,请在回复末尾附一个 ```json 围栏,形如 {"table":{"columns":[...],"rows":[[...]]}}。)';
+let sessionId = null, ws = null, busy = false, replyBuf = '';
+const $ = (id) => document.getElementById(id);
+const out = $('out'), dot = $('dot'), tools = $('tools'), tableHost = $('tableHost');
+
+function setBusy(b) { busy = b; dot.className = 'dot ' + (b ? 'busy' : 'ok'); $('addBtn').disabled = b; $('qBtn').disabled = b; }
+function showErr(m) { const e = $('err'); e.textContent = m; e.style.display = 'block'; setTimeout(() => e.style.display = 'none', 8000); }
+async function rpc(method, payload) {
+  const res = await fetch('/api/' + method, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'client-request', rpcId: 'fe-' + Date.now() + '-' + Math.random().toString(36).slice(2), method, payload }) });
+  const j = await res.json();
+  if (!j.result || !j.result.ok) throw new Error(method + ' 失败: ' + JSON.stringify(j.result && j.result.error || j).slice(0, 200));
+  return j.result.value;
+}
+function openWs() {
+  ws = new WebSocket(location.origin.replace(/^http/, 'ws') + '/api/events.mux');
+  ws.onmessage = (m) => { let f; try { f = JSON.parse(String(m.data)); } catch { return; }
+    const p = f.payload; if (!p || p.type !== 'session/event' || p.sessionId !== sessionId) return; handle(p.event); };
+  ws.onclose = () => { if (sessionId) setTimeout(openWs, 1500); };
+}
+function textOf(e) { const c = e.data && e.data.message && e.data.message.content;
+  if (typeof c === 'string') return c;
+  if (Array.isArray(c)) return c.map((b) => b && b.type === 'text' ? b.text : '').join(''); return ''; }
+function renderTableFromReply(text) {
+  tableHost.innerHTML = '';
+  const fences = [...text.matchAll(/```json\s*([\s\S]*?)```/g)];
+  if (fences.length === 0) return;
+  let data; try { data = JSON.parse(fences[fences.length - 1][1]); } catch { return; }
+  let cols = null, rows = null;
+  if (data && data.table && Array.isArray(data.table.columns)) { cols = data.table.columns; rows = data.table.rows || []; }
+  else if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object') { cols = Object.keys(data[0]); rows = data.map((r) => cols.map((c) => r[c])); }
+  if (!cols) return;
+  const t = document.createElement('table'); t.className = 'uk-table uk-table-divider uk-table-hover mt-3';
+  t.innerHTML = '<thead><tr></tr></thead><tbody></tbody>';
+  const hr = t.querySelector('thead tr');
+  for (const c of cols) { const th = document.createElement('th'); th.textContent = String(c); hr.appendChild(th); }
+  const tb = t.querySelector('tbody');
+  for (const r of rows.slice(0, 100)) {
+    const tr = document.createElement('tr');
+    for (const v of r) { const td = document.createElement('td'); td.textContent = v == null ? '' : String(v); tr.appendChild(td); }
+    tb.appendChild(tr);
+  }
+  tableHost.appendChild(t);
+}
+function handle(e) {
+  if (e.type === 'assistant/message') { const t = textOf(e); if (!t) return;
+    out.classList.remove('text-muted-foreground');
+    replyBuf += (replyBuf === '' ? '' : '\n') + t;
+    out.textContent = replyBuf.replace(/```json[\s\S]*?```/g, '').trim() || '(整理数据中…)';
+  } else if (e.type === 'tool/call') {
+    const name = (e.data && e.data.name || '?').replace(/^mcp__/, '').replace(/__/, ' · ');
+    const c = document.createElement('span'); c.className = 'uk-badge uk-badge-secondary'; c.textContent = '🔧 ' + name; tools.appendChild(c);
+  } else if (e.type === 'turn/end') { setBusy(false); renderTableFromReply(replyBuf); }
+}
+async function ensureSession() {
+  if (sessionId) return;
+  const v = await rpc('session.create', { cwd: CFG.workdir, agentPreset: CFG.presetId });
+  sessionId = v.sessionId; openWs();
+  await new Promise((r) => { const t = setInterval(() => { if (ws && ws.readyState === 1) { clearInterval(t); r(); } }, 50); });
+}
+async function ask(text) {
+  if (busy || text.trim() === '') return;
+  replyBuf = ''; out.textContent = ''; out.classList.remove('text-muted-foreground'); tools.innerHTML = ''; tableHost.innerHTML = '';
+  setBusy(true);
+  try { await ensureSession(); await rpc('session.prompt', { sessionId, mode: 'queue', content: [{ type: 'text', text }] }); }
+  catch (err) { setBusy(false); showErr(String(err && err.message || err)); }
+}
+$('addBtn').onclick = () => { const v = $('addBox').value.trim(); if (v) { ask('请记录:' + v); $('addBox').value = ''; } };
+$('addBox').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('addBtn').click(); });
+$('qBtn').onclick = () => { const v = $('qBox').value.trim(); if (v) ask(v + HINT); };
+$('qBox').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('qBtn').click(); });
+document.querySelectorAll('[data-q]').forEach((c) => { c.onclick = () => ask(c.dataset.q + HINT); });
+window.addEventListener('load', () => setTimeout(() => ask('请汇总当前全部记录,给出总数与关键统计。' + HINT), 300));
+</script>
+</body>
+</html>

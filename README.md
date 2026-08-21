@@ -37,6 +37,32 @@ The catalog grows through an **induction pipeline**: open-source libraries, publ
 
 ---
 
+## Every assembly ships a web UI
+
+Assembly does not stop at the preset — every agent also gets an **operable web frontend**, served same-origin by the assembler on the host (`/assembler/ui/<preset>`). The page speaks the host's public wire (session.create / session.prompt / events.mux) and shares the same agent and the same durable workspace as the DSH conversation view; it pulls current state on open.
+
+Each screenshot below is the **real product of a single `/assemble` command** (real assembly, real data, real capture — verdict lines quoted verbatim):
+
+> `任务管理助手 … 要一个可以拖拽的任务看板页面` → 自动验证:PASS · 前端验收:页面门+环路门 PASS
+
+![Kanban (dark)](docs/frontends/kanban.png)
+
+![Approval desk](docs/frontends/approval-desk.png)
+
+![Data desk](docs/frontends/data-desk.png)
+
+![Chat console](docs/frontends/chat-console.png)
+
+How it works:
+
+- **Frontend template parts (`via: frontend`)** — 7 templates: chat console (default for **every** preset), form desk, data desk, dashboard, drag-and-drop kanban, approval desk, file desk; the matcher picks exactly one by interaction shape
+- **Look** — built on [Franken UI](https://github.com/franken-ui/ui) (the no-build HTML port of shadcn/ui, MIT), **vendored locally** — zero CDN dependency for offline/intranet delivery; auto light/dark
+- **Page↔agent contract** — pages embed a ```json fence contract in their prompts (no persona coupling); replies render as boards/tables/stat cards
+- **Frontends are verified too** — assemble-then-verify gains two frontend gates: **page gate** (HTTP 200 + slots filled) and **loop gate** (a real session opened with the page's exact parameters must echo a token); carried runs re-run the page gate only
+- **One durable ledger** — the equipment lane pins the default database (workspace `data.db`) and pre-builds its schema, so frontend sessions and DSH conversations write the **same** store
+
+---
+
 ## Architecture
 
 ```

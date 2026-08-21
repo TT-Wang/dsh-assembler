@@ -1,0 +1,141 @@
+<!doctype html>
+<!-- approval-desk — 审批台(Franken UI):待审列表由 agent 供给,逐条 通过/驳回,
+     附理由回传;页面自带 json 契约,不依赖 persona。 -->
+<html lang="zh" class="uk-theme-zinc">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}} · 审批台</title>
+<script>if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.classList.add('dark')</script>
+<link rel="stylesheet" href="_vendor/core.min.css">
+<link rel="stylesheet" href="_vendor/utilities.min.css">
+<script src="_vendor/core.iife.js" defer></script>
+<style>
+  .dot{width:9px;height:9px;border-radius:9999px;background:hsl(var(--muted-foreground));flex:none}
+  .dot.busy{background:hsl(var(--primary));animation:pulse 1.1s infinite}
+  .dot.ok{background:#10a37f}
+  @keyframes pulse{50%{opacity:.3}}
+  .prewrap{white-space:pre-wrap;word-break:break-word}
+</style>
+</head>
+<body class="bg-background text-foreground min-h-screen">
+<header class="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-card px-6 py-3">
+  <div class="dot" id="dot"></div>
+  <div>
+    <div class="font-semibold">{{title}} · 审批台</div>
+    <div class="text-xs text-muted-foreground">preset {{presetId}} · 待审事项逐条裁决</div>
+  </div>
+  <div class="flex-1"></div>
+  <button class="uk-btn uk-btn-primary" id="refreshBtn">刷新待审</button>
+</header>
+<div class="max-w-3xl mx-auto px-5 py-6 flex flex-col gap-5">
+  <div class="uk-alert uk-alert-destructive" id="err" style="display:none"></div>
+  <div class="uk-card">
+    <div class="uk-card-header"><h2 class="uk-card-title text-sm">新申请(录入)</h2></div>
+    <div class="uk-card-body flex gap-2">
+      <input id="addBox" class="uk-input flex-1" placeholder="一句话录入申请,例如:报销打车费 86 元,客户拜访…(Enter 提交)">
+      <button class="uk-btn uk-btn-default" id="addBtn">录入</button>
+    </div>
+  </div>
+  <div class="flex flex-col gap-3" id="list">
+    <div class="text-center text-muted-foreground py-14">点右上「刷新待审」,agent 会给出当前待审事项。</div>
+  </div>
+  <div class="uk-card">
+    <div class="uk-card-header"><h2 class="uk-card-title text-sm">agent 答复</h2></div>
+    <div class="uk-card-body">
+      <div class="prewrap text-muted-foreground" id="out">裁决或录入后,agent 的处理说明在这里实时出现。</div>
+      <div class="flex flex-wrap gap-1 mt-3" id="tools"></div>
+    </div>
+  </div>
+</div>
+<script>
+const CFG = { presetId: '{{presetId}}', workdir: '{{workdir}}' };
+let sessionId = null, ws = null, busy = false, replyBuf = '';
+const $ = (id) => document.getElementById(id);
+const list = $('list'), out = $('out'), dot = $('dot'), tools = $('tools');
+const CONTRACT = '回复末尾必须附一个 ```json 围栏,给出当前全部待审事项,形如:\n' +
+  '```json\n{"items":[{"id":"编号","title":"事项标题","requester":"申请人","summary":"一句话摘要","status":"待审"}]}\n```\n' +
+  '只列 status 为待审 的事项;没有就给空数组,不要编造。';
+
+function setBusy(b) { busy = b; dot.className = 'dot ' + (b ? 'busy' : 'ok'); $('refreshBtn').disabled = b; $('addBtn').disabled = b;
+  document.querySelectorAll('.act').forEach((x) => x.disabled = b); }
+function showErr(m) { const e = $('err'); e.textContent = m; e.style.display = 'block'; setTimeout(() => e.style.display = 'none', 8000); }
+async function rpc(method, payload) {
+  const res = await fetch('/api/' + method, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'client-request', rpcId: 'fe-' + Date.now() + '-' + Math.random().toString(36).slice(2), method, payload }) });
+  const j = await res.json();
+  if (!j.result || !j.result.ok) throw new Error(method + ' 失败: ' + JSON.stringify(j.result && j.result.error || j).slice(0, 200));
+  return j.result.value;
+}
+function openWs() {
+  ws = new WebSocket(location.origin.replace(/^http/, 'ws') + '/api/events.mux');
+  ws.onmessage = (m) => { let f; try { f = JSON.parse(String(m.data)); } catch { return; }
+    const p = f.payload; if (!p || p.type !== 'session/event' || p.sessionId !== sessionId) return; handle(p.event); };
+  ws.onclose = () => { if (sessionId) setTimeout(openWs, 1500); };
+}
+function textOf(e) { const c = e.data && e.data.message && e.data.message.content;
+  if (typeof c === 'string') return c;
+  if (Array.isArray(c)) return c.map((b) => b && b.type === 'text' ? b.text : '').join(''); return ''; }
+function handle(e) {
+  if (e.type === 'assistant/message') { const t = textOf(e); if (!t) return;
+    out.classList.remove('text-muted-foreground');
+    replyBuf += (replyBuf === '' ? '' : '\n') + t;
+    out.textContent = replyBuf.replace(/```json[\s\S]*?```/g, '').trim() || '(整理中…)';
+  } else if (e.type === 'tool/call') {
+    const name = (e.data && e.data.name || '?').replace(/^mcp__/, '').replace(/__/, ' · ');
+    const c = document.createElement('span'); c.className = 'uk-badge uk-badge-secondary'; c.textContent = '🔧 ' + name; tools.appendChild(c);
+  } else if (e.type === 'turn/end') { setBusy(false); render(); }
+}
+function render() {
+  const fences = [...replyBuf.matchAll(/```json\s*([\s\S]*?)```/g)];
+  if (fences.length === 0) return;
+  let data; try { data = JSON.parse(fences[fences.length - 1][1]); } catch { return; }
+  if (!Array.isArray(data.items)) return;
+  list.innerHTML = '';
+  if (data.items.length === 0) {
+    const d = document.createElement('div'); d.className = 'text-center text-muted-foreground py-10'; d.textContent = '没有待审事项 🎉'; list.appendChild(d); return;
+  }
+  for (const it of data.items.slice(0, 50)) {
+    const card = document.createElement('div'); card.className = 'uk-card';
+    const body = document.createElement('div'); body.className = 'uk-card-body flex items-start gap-4';
+    const info = document.createElement('div'); info.className = 'flex-1';
+    const t = document.createElement('div'); t.className = 'font-medium';
+    t.textContent = String(it.title ?? '');
+    const idb = document.createElement('span'); idb.className = 'uk-badge uk-badge-secondary ml-2'; idb.textContent = '#' + String(it.id ?? '');
+    t.appendChild(idb);
+    const meta = document.createElement('div'); meta.className = 'text-sm text-muted-foreground mt-1';
+    meta.textContent = (it.requester ? '申请人:' + it.requester + ' · ' : '') + String(it.summary ?? '');
+    info.append(t, meta);
+    const reason = document.createElement('input'); reason.className = 'uk-input uk-form-sm mt-2 w-full'; reason.placeholder = '理由(可选,随裁决发给 agent)';
+    info.appendChild(reason);
+    const acts = document.createElement('div'); acts.className = 'flex flex-col gap-2';
+    const ok = document.createElement('button'); ok.className = 'act uk-btn uk-btn-primary uk-btn-sm'; ok.textContent = '通过';
+    const no = document.createElement('button'); no.className = 'act uk-btn uk-btn-destructive uk-btn-sm'; no.textContent = '驳回';
+    ok.onclick = () => decide('通过', it, reason.value);
+    no.onclick = () => decide('驳回', it, reason.value);
+    acts.append(ok, no);
+    body.append(info, acts); card.appendChild(body); list.appendChild(card);
+  }
+}
+function decide(verdict, it, reason) {
+  ask('审批裁决:' + verdict + ' #' + String(it.id ?? '') + '「' + String(it.title ?? '') + '」' + (reason ? ',理由:' + reason : '') + '。请落实这条裁决并留痕。' + CONTRACT);
+}
+async function ensureSession() {
+  if (sessionId) return;
+  const v = await rpc('session.create', { cwd: CFG.workdir, agentPreset: CFG.presetId });
+  sessionId = v.sessionId; openWs();
+  await new Promise((r) => { const t = setInterval(() => { if (ws && ws.readyState === 1) { clearInterval(t); r(); } }, 50); });
+}
+async function ask(text) {
+  if (busy) return;
+  replyBuf = ''; out.textContent = ''; tools.innerHTML = ''; setBusy(true);
+  try { await ensureSession(); await rpc('session.prompt', { sessionId, mode: 'queue', content: [{ type: 'text', text }] }); }
+  catch (err) { setBusy(false); showErr(String(err && err.message || err)); }
+}
+$('refreshBtn').onclick = () => ask('请给出当前待审清单。' + CONTRACT);
+$('addBtn').onclick = () => { const v = $('addBox').value.trim(); if (v) { ask('新申请录入:' + v + '。请登记为待审事项。' + CONTRACT); $('addBox').value = ''; } };
+$('addBox').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('addBtn').click(); });
+window.addEventListener('load', () => setTimeout(() => ask('请给出当前待审清单。' + CONTRACT), 300));
+</script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 {
   "id": "nw-oss-governance",
   "kind": "knowledge",
-  "verifiedAt": "2026-08-17T15:56:22.321Z",
+  "verifiedAt": "2026-08-21T04:19:53.952Z",
   "probes": [
     {
       "question": "给 OSV 查一个 Python 包时,ecosystem 该怎么拼?给 deps.dev 呢?",
@@ -307,6 +307,52 @@
           "mark": "示例策略,不是 Northwind 的真实内部规定",
           "found": true,
           "in": "02-治理判定口径.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "治理报告开头的元信息块必须有哪些项?",
+      "marks": [
+        "批次标识",
+        "数据署名",
+        "边界声明"
+      ],
+      "hits": [
+        {
+          "mark": "批次标识",
+          "found": true,
+          "in": "03-报告模板.md"
+        },
+        {
+          "mark": "数据署名",
+          "found": true,
+          "in": "02-治理判定口径.md"
+        },
+        {
+          "mark": "边界声明",
+          "found": true,
+          "in": "02-治理判定口径.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "写治理报告时结构要不要自己设计?",
+      "marks": [
+        "照抄本结构",
+        "不要重排结构"
+      ],
+      "hits": [
+        {
+          "mark": "照抄本结构",
+          "found": true,
+          "in": "03-报告模板.md"
+        },
+        {
+          "mark": "不要重排结构",
+          "found": true,
+          "in": "03-报告模板.md"
         }
       ],
       "pass": true

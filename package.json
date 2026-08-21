@@ -16,14 +16,15 @@
   "files": [
     "lib/**/*",
     "capabilities.yml",
-    "presets/**/*"
+    "presets/**/*",
+    "frontends/**/*"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "link:dsh": "node scripts/link-dsh.mjs",
     "parts:install": "for d in generated/*/; do (cd \"$d\" && npm install --no-audit --no-fund); done",
-    "test": "npm run build && node scripts/lock-check.mjs && node scripts/catalog-report.mjs --check && node tests-naming.mjs && node tests-verify.mjs && node tests-federation.mjs && node tests-spec-intake.mjs && node tests-yaml-write.mjs && node tests-catalog-layer.mjs",
+    "test": "npm run build && node scripts/lock-check.mjs && node scripts/catalog-report.mjs --check && node tests-naming.mjs && node tests-verify.mjs && node tests-federation.mjs && node tests-spec-intake.mjs && node tests-yaml-write.mjs && node tests-catalog-layer.mjs && node tests-incremental.mjs && node tests-equipment.mjs && node tests-frontend.mjs",
     "lock:check": "node scripts/lock-check.mjs",
     "bench": "node scripts/assembly-bench.mjs",
     "index:add": "node scripts/index-add.mjs scaffold",
