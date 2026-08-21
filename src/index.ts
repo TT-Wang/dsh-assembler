@@ -26,6 +26,7 @@ import { BlockAssembler, type GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { createUserMessage } from '@deepseek-ai/dsh-llm/message'
 import yaml from 'js-yaml'
 import { assembleToolDefinition } from './assemble-tool.js'
+import { solutionToolDefinition } from './solution-tool.js'
 import { AUX_CALL_TIMEOUT_MS, addUsage, deriveProbePlan, parseModelJson, runFrontendGate, runProbe, runScenario, usageDetail, type AuxUsage, type ProbePlan, type ProbeResult } from './verify.js'
 import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend, frontendRouteHandler } from './frontend.js'
 
@@ -2292,6 +2293,9 @@ export function apply(ctx: Context, config: Config = {}): void {
   // renders the call (reasoning → tool card → result) in the conversation.
   // Registered on the host plane (like dsh-cs-tools), visible to every agent.
   ctx.effect(() => ctx.tools.register(assembleToolDefinition(ctx, config)), 'assembler.tool.assemble()')
+  // 多 agent 方案交付:assemble 装一个,assemble_solution 装一整套班子 + HANDOVER。
+  // FDE 级实测(f01)暴露:没有它,主 agent 面对多 agent 需求只能揉成巨型单体。
+  ctx.effect(() => ctx.tools.register(solutionToolDefinition(ctx, config)), 'assembler.tool.assemble_solution()')
 
   // 前端路由:/assembler/ui/<id> 同源伺服各 preset 的 frontend/ 静态文件。
   // webServer 走可选注入(dsh-ios 同款):headless profile 没有它,装配照常,
