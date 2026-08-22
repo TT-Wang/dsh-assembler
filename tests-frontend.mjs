@@ -82,6 +82,7 @@ const clientJs = readFileSync('lib/client.js', 'utf8')
 check('client half:ModuleLoader 包裹 + 包名 id', clientJs.startsWith('window.__ModuleLoader__.load(') && clientJs.includes('@dsh-external/dsh-assembler'))
 check('client half:registerTab + openTab + 直播台数据源', clientJs.includes('registerTab') && clientJs.includes('openTab') && clientJs.includes('/assembler/ui/_console/data'))
 check('client half:react 走外部共享(不自带)', clientJs.includes('require("react")') && clientJs.length < 20000)
+check('client half:两块都进侧栏(直播台 + agent 操作台)', clientJs.includes('dsh-assembler:console') && clientJs.includes('dsh-assembler:agent') && clientJs.includes('presetId'))
 
 rmSync(root, { recursive: true, force: true })
 console.log(`\n==== 前端车道单元测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)

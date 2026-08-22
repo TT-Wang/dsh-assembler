@@ -30,7 +30,7 @@ const servers = caps['mcp-servers'] ?? {}
 
 /** Domain grouping — the one human input here (which part serves which domain). */
 const DOMAINS = [
-  { zh: '文档办公', en: 'Documents & office', ids: ['pdf-generate', 'pdf-extract', 'pdf-report', 'docx-generate', 'docx-extract', 'pptx-generate', 'excel-read-write', 'zip-archive'] },
+  { zh: '文档办公', en: 'Documents & office', ids: ['pdf-generate', 'pdf-extract', 'pdf-report', 'docx-generate', 'docx-extract', 'pptx-generate', 'excel-read-write', 'zip-archive', 'mobi-parser'] },
   { zh: '数据格式', en: 'Data formats', ids: ['csv-parse', 'yaml-convert', 'toml-parse', 'xml-parse', 'json-query', 'json-schema-validate', 'html-parse', 'html-to-text', 'gpx-parse'] },
   { zh: '文本处理', en: 'Text processing', ids: ['markdown-render', 'html-to-markdown', 'readability-extract', 'text-diff', 'template-render', 'fuzzy-search', 'text-encoding'] },
   { zh: '中文专项', en: 'Chinese language', ids: ['pinyin-convert', 'chinese-convert', 'word-segment', 'num-to-chinese'] },
