@@ -1,0 +1,20 @@
+{
+  "id": "mobi-parser",
+  "verifiedAt": "2026-08-22T07:47:09.285Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "parse-mobi",
+      "description": "解析 MOBI/AZW3 电子书文件,返回书籍元数据(标题/作者/语言/出版日期/出版社/简介/标识符)与章节骨架(spine:每章 id、字节位置、大小)。适合读书助手在上传后先调它拿书名、作者与章节清单;要读正文请再用 read-chapter。"
+    },
+    {
+      "name": "read-chapter",
+      "description": "按章节 id 读取 MOBI/AZW3 书籍某一章的正文,HTML 已剥离为纯文本(保留段落换行)。章节 id 来自 parse-mobi 返回的 spine[].id;传不存在的 id 会得到明确错误。适合双语阅读器按章取原文。"
+    },
+    {
+      "name": "get-toc",
+      "description": "读取 MOBI/AZW3 书籍的目录树(TOC),返回层级结构:每项含 label(标题文字)与 href(内部链接);href 可用 parse-mobi 的 spine 索引或 resolveHref 定位到具体章节。适合生成阅读器侧边目录导航。"
+    }
+  ]
+}

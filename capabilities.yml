@@ -461,6 +461,11 @@ mcp-servers:
       - { env: "SMS_TENCENT_SIGN_NAME", purpose: "腾讯云短信签名名称" }
       - { env: "SMS_TENCENT_TEMPLATE_ID", purpose: "腾讯云短信模板 ID" }
 
+  mobi-parser:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/mobi-parser/index.js"]
+
 capabilities:
   # ── frontend templates(交互面零件:选形状,功能由其余零件供给)────────────
   # 装配时填参发射进 preset 的 frontend/,由 /assembler/ui/<preset> 同源伺服;
@@ -508,6 +513,12 @@ capabilities:
     tags: [前端, 文件, 文档, 资料, 整理, 笔记, 保存, file, files, notes, manager, ui, frontend, 页面]
     config:
       template: file-desk
+  - id: bilingual-reader-web-ui
+    via: frontend
+    description: 双语读书助手前端:上传多格式电子书(PDF/EPUB/TXT/DOCX/MOBI/AZW3/Markdown)、书库管理、双语分屏阅读(左原文右译文、段落对齐、字号与主题调节)、自动章节目录侧栏、选中句子一键存入摘抄库并支持搜索/导出(页面自带 json 契约)。需求含"双语阅读/读书助手/分屏对照/摘抄库/电子书上传"类交互时选它。
+    tags: [前端, 读书, 阅读, 双语, 分屏, 对照, 翻译, 电子书, 上传, 书库, 摘抄, 章节, 目录, reader, reading, bilingual, book, ebook, upload, library, excerpt, toc, translate, ui, frontend, 页面]
+    config:
+      template: bilingual-reader
 
   - id: genui-fence-spec-kb
     via: knowledge
@@ -624,3 +635,7 @@ capabilities:
     via: mcp
     description: "发送短信的网关能力:支持阿里云短信、腾讯云短信、通用 HTTP 网关(及本地 mock 联调),发送后支持查询回执;凭证经环境变量配置。"
     tags: [sms, 短信, 通知, alert, gateway, 提醒, 告警, 回执]
+  - id: mobi-parser
+    via: mcp
+    description: "Parse MOBI/AZW3 (KF8) ebook files into plain text, metadata (title/author/language/publisher), chapter structure (spine + TOC), and per-chapter text — the MOBI counterpart of the existing PDF/DOCX extractors. Pure local parsing, no network."
+    tags: [mobi, azw3, kf8, ebook, parser, reading, document, kindle, 电子书, 解析, 阅读]
