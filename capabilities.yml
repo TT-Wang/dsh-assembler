@@ -446,6 +446,21 @@ mcp-servers:
     command: node
     args: ["/Users/tongtao/code/dsh-assembler/generated/gpx-parse/index.js"]
 
+  sms-gateway:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/sms-gateway/index.js"]
+    requiredSecrets:
+      - { env: "SMS_ALIYUN_ACCESS_KEY_ID", purpose: "阿里云短信 AccessKey ID" }
+      - { env: "SMS_ALIYUN_ACCESS_KEY_SECRET", purpose: "阿里云短信 AccessKey Secret" }
+      - { env: "SMS_ALIYUN_SIGN_NAME", purpose: "阿里云短信签名名称" }
+      - { env: "SMS_ALIYUN_TEMPLATE_CODE", purpose: "阿里云短信模板 CODE" }
+      - { env: "SMS_TENCENT_SECRET_ID", purpose: "腾讯云 SecretId" }
+      - { env: "SMS_TENCENT_SECRET_KEY", purpose: "腾讯云 SecretKey" }
+      - { env: "SMS_TENCENT_SDKAPPID", purpose: "腾讯云 SmsSdkAppId" }
+      - { env: "SMS_TENCENT_SIGN_NAME", purpose: "腾讯云短信签名名称" }
+      - { env: "SMS_TENCENT_TEMPLATE_ID", purpose: "腾讯云短信模板 ID" }
+
 capabilities:
   # ── frontend templates(交互面零件:选形状,功能由其余零件供给)────────────
   # 装配时填参发射进 preset 的 frontend/,由 /assembler/ui/<preset> 同源伺服;
@@ -604,3 +619,8 @@ capabilities:
         Damaged items: cite the short return policy, open the ticket, then
         tell the user a human will follow up. Do not stop to ask preference
         questions before the ticket exists.
+
+  - id: sms-gateway
+    via: mcp
+    description: "发送短信的网关能力:支持阿里云短信、腾讯云短信、通用 HTTP 网关(及本地 mock 联调),发送后支持查询回执;凭证经环境变量配置。"
+    tags: [sms, 短信, 通知, alert, gateway, 提醒, 告警, 回执]

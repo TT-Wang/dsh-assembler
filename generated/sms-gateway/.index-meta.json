@@ -1,0 +1,49 @@
+{
+  "id": "sms-gateway",
+  "kind": "service",
+  "service": "https://dysmsapi.aliyuncs.com/",
+  "requiredSecrets": [
+    {
+      "env": "SMS_ALIYUN_ACCESS_KEY_ID",
+      "purpose": "阿里云短信 AccessKey ID"
+    },
+    {
+      "env": "SMS_ALIYUN_ACCESS_KEY_SECRET",
+      "purpose": "阿里云短信 AccessKey Secret"
+    },
+    {
+      "env": "SMS_ALIYUN_SIGN_NAME",
+      "purpose": "阿里云短信签名名称"
+    },
+    {
+      "env": "SMS_ALIYUN_TEMPLATE_CODE",
+      "purpose": "阿里云短信模板 CODE"
+    },
+    {
+      "env": "SMS_TENCENT_SECRET_ID",
+      "purpose": "腾讯云 SecretId"
+    },
+    {
+      "env": "SMS_TENCENT_SECRET_KEY",
+      "purpose": "腾讯云 SecretKey"
+    },
+    {
+      "env": "SMS_TENCENT_SDKAPPID",
+      "purpose": "腾讯云 SmsSdkAppId"
+    },
+    {
+      "env": "SMS_TENCENT_SIGN_NAME",
+      "purpose": "腾讯云短信签名名称"
+    },
+    {
+      "env": "SMS_TENCENT_TEMPLATE_ID",
+      "purpose": "腾讯云短信模板 ID"
+    }
+  ],
+  "provider": "阿里云短信 / 腾讯云短信 / 通用HTTP网关",
+  "license": "商用API,按云厂商服务条款",
+  "terms": "https://help.aliyun.com/zh/sms/ ; https://cloud.tencent.com/document/product/382",
+  "rateLimit": "依账号配额(阿里云默认约1000条/日)",
+  "network": true,
+  "scaffoldedAt": "2026-08-22T05:27:37.368Z"
+}
