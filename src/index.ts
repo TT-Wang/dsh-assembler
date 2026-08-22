@@ -1765,6 +1765,20 @@ export async function assemble(
   const screened = screenParams(options.params ?? {})
   const template = readFileSync(templatePath, 'utf8')
   const presetRoot = config.presetRoot ?? join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), '.agent-presets')
+  // ── 直播从第 1 秒起(临时链)────────────────────────────────────────────
+  // progress.log 过去要等 id 解出(选型之后)才创建,而满档选型实测可达 185s
+  // ——那段最焦虑的开头("到底启动没")直播台一片空白,缓冲行等选型完成才一次性
+  // 刷出(用户实测:15:24 开始的链 15:28 才显示)。这里先落一份临时链,phase()
+  // 立刻真写盘、心跳每 20s 刷新 mtime,选型全程可见;id 解出后把正文搬进正式
+  // 目录、删临时目录。临时目录名以 _ 打头 → 前端路由的 ID_RE 天然不收,只被
+  // 直播台的目录列举读到。
+  const pendingDir = join(presetRoot, `_pending-${createHash('sha256').update(`${requirement}${startedStamp}`).digest('hex').slice(0, 8)}`)
+  try {
+    mkdirSync(pendingDir, { recursive: true })
+    progressPath = join(pendingDir, 'progress.log')
+    const reqSnip = requirement.replace(/\s+/g, ' ').trim().slice(0, 40)
+    writeFileSync(progressPath, `${startedStamp} ══ 装配启动中·选型中…(${reqSnip})══\n${progressBuf.join('')}`)
+  } catch { progressPath = null }
   // ── 同名复用(增量装配的前半)────────────────────────────────────────────
   // 调用者点名的 preset 已存在且需求/参数与其 lock 完全相同 ⇒ 不再让天生抖动的
   // LLM 重新选型(一抖 persona 字节就变,验收台账就废),也不再铸 -2/-3 代际目录
@@ -1813,11 +1827,21 @@ export async function assemble(
   }
   const dir = join(presetRoot, id)
   mkdirSync(dir, { recursive: true })
-  // 直播文件就位:本次运行覆写(每次装配一份新链),缓冲的前几段一并落下。
+  // 直播文件就位:把临时链的正文(去掉临时头)搬进正式目录、换上正式头行,
+  // 删临时目录。临时链创建失败(progressPath 为 null)时,phase() 一直在写
+  // progressBuf,回退用它。
   try {
-    progressPath = join(dir, 'progress.log')
-    writeFileSync(progressPath, `${startedStamp} ══ assemble ${id} 开始 ══\n${progressBuf.join('')}`)
-  } catch { progressPath = null }
+    const realPath = join(dir, 'progress.log')
+    let body = progressBuf.join('')
+    if (progressPath !== null && progressPath !== realPath) {
+      try { body = readFileSync(progressPath, 'utf8').split('\n').slice(1).join('\n') } catch { /* 读不到临时链就用缓冲 */ }
+    }
+    writeFileSync(realPath, `${startedStamp} ══ assemble ${id} 开始 ══\n${body}`)
+    if (progressPath !== realPath && existsSync(pendingDir) && pendingDir !== dir) {
+      try { rmSync(pendingDir, { recursive: true, force: true }) } catch { /* 临时目录删不掉不影响交付 */ }
+    }
+    progressPath = realPath
+  } catch { /* 保留 progressPath 现值(可能仍指向临时链,至少还在直播) */ }
   // Knowledge packs travel WITH the preset (copied into kb/), so the handover is
   // one self-contained directory rather than a pointer back to this machine.
   // Installed BEFORE emission because the persona has to name where they landed
