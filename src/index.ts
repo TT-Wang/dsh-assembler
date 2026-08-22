@@ -269,7 +269,8 @@ export async function llmMapRequirement(
         '',
         'ARCHITECTURE-FIRST — this agent was first designed WITHOUT the catalog. Its architectural needs are:',
         archSpec.capabilities.map((c, i) => `${String(i + 1)}. ${c.name}${c.why !== '' ? ` — ${c.why}` : ''}`).join('\n'),
-        `(data model: ${archSpec.dataModel}; interfaces: ${archSpec.interfaces})`,
+        archSpec.dataModel !== '' ? `ARCHITECTURE DATA MODEL: ${archSpec.dataModel}` : '',
+        archSpec.interfaces !== '' ? `ARCHITECTURE INTERFACES: ${archSpec.interfaces}` : '',
         'GO THROUGH EVERY architectural need above: each must end up EITHER covered by a selected catalog id OR listed in "missing" — NEVER silently dropped. Still keep the selection minimal (smallest covering set; do not over-mount), but completeness on the gap axis is mandatory: an unmet need you neither select nor flag is the exact failure this step exists to prevent.',
       ].join('\n')
     : ''
@@ -301,9 +302,9 @@ export async function llmMapRequirement(
     '- When you select a state-keeping capability, the persona MUST carry a durability constraint, e.g. "跨轮事实必须写入账本/文件,不依赖记忆" — a constraint judgeable at any point, NEVER a numbered procedure ("第一步…第二步…" is forbidden in personas).',
     // 装配时预思考:schema 设计是"每次运行都要现想一遍"的最贵深思(实测单次 75s),
     // 把它提前到装配时想一次,烧进 preset 的装备槽,运行时的模型开库即有表。
-    '- When (and only when) you select a SQLite capability for persistent state, ALSO return "stateSchema": a short idempotent SQLite DDL string containing ONLY "CREATE TABLE IF NOT EXISTS ..." / "CREATE INDEX IF NOT EXISTS ..." statements (no INSERT/DROP/PRAGMA), pre-designing the tables this agent needs for its requirement. Design the schema HERE, once — the running agent will find the tables ready-built and must never redesign them. Column names in English; include sensible keys.',
+    '- When (and only when) you select a SQLite capability for persistent state, ALSO return "stateSchema": a short idempotent SQLite DDL string containing ONLY "CREATE TABLE IF NOT EXISTS ..." / "CREATE INDEX IF NOT EXISTS ..." statements (no INSERT/DROP/PRAGMA), pre-designing the tables this agent needs for its requirement. If an ARCHITECTURE DATA MODEL was given above, the schema MUST implement exactly those entities and their fields (do not redesign or omit them). Design the schema HERE, once — the running agent will find the tables ready-built and must never redesign them. Column names in English; include sensible keys.',
     // 前端零件是交互面模板:选形状,不选功能——功能由其余零件供给。
-    '- via:"frontend" entries are human-facing UI templates for this agent. Select EXACTLY ONE when the requirement implies a page/UI (页面/前端/网页/表单/工单/看板/仪表盘/面板/dashboard/form/UI), picking the template whose interaction SHAPE fits (form submission → form desk; records & queries → data desk; metrics overview → dashboard; plain conversation → chat console). Select NONE when no UI is implied — a chat console ships with every preset by default.',
+    '- via:"frontend" entries are human-facing UI templates for this agent. Select EXACTLY ONE when the requirement implies a page/UI (页面/前端/网页/表单/工单/看板/仪表盘/面板/dashboard/form/UI), picking the template whose interaction SHAPE fits (form submission → form desk; records & queries → data desk; metrics overview → dashboard; plain conversation → chat console). If ARCHITECTURE INTERFACES were given above, let that description drive the shape choice. Select NONE when no UI is implied — a chat console ships with every preset by default.',
     '- When NO catalog persona matches the requirement, write a "persona" string: a concise assistant persona for the assembled agent (role, tone, answer in the user\'s language, tool-use discipline). Omit it when a catalog persona IS selected — the catalog text wins.',
     '- Write a "name" for the assembled preset: a short kebab-case slug naming what the agent IS (2-5 words, lowercase letters, digits and hyphens only, e.g. "customer-service-bot", "web-research-assistant"). It becomes the preset id users pick in the roster.',
     '- For every item in "missing", add one matching entry to "missingEntries": {id, via, description, tags, tool?, mount?} — id is kebab-case; via is "package" | "harness" | "mcp"; when you know a harness plugin package that provides the capability, set mount.name to it (e.g. "@deepseek-ai/dsh-tool-fs-search"), else omit mount; set tool only for via: "package". Omit "missingEntries" entirely when nothing is missing.',
@@ -1826,6 +1827,8 @@ export async function assemble(
   let selUsageLedger: AuxUsage | null = null
   let deriveUsageLedger: AuxUsage | null = null
   let retryLedger: SelectionLedgerRecord['retry'] = null
+  // 架构 spec 提到外层作用域:选型分支产出它,下游探针派生(workflow 驱动)也要读它。
+  let archSpec: import('./arch-spec.js').ArchSpec | undefined
   if (reuse !== null) {
     req = { capabilityIds: reuse.capabilityIds, params: screened.accepted, missing: [], rationale: '同名复用:需求与参数未变' }
     id = reuse.id
@@ -1836,7 +1839,6 @@ export async function assemble(
     // 再让选型逐条覆盖或标缺口。DSH_ASSEMBLER_ARCH_FIRST=0 可关(退回纯选型优先)。
     // 实验(2026-08-22,HR/科研/医院导诊三例)证明:纯选型优先三战三次报"0 缺口"
     // 静默丢真需求(含医疗导诊的急危重症识别、边界拒答两个安全缺口)。
-    let archSpec: import('./arch-spec.js').ArchSpec | undefined
     if (process.env.DSH_ASSEMBLER_ARCH_FIRST !== '0') {
       try {
         const tArch = Date.now()
@@ -2018,6 +2020,10 @@ export async function assemble(
         status: 'SKIPPED',
         reason: `待配置凭证:${missingSecrets.map((sec) => sec.env).join(', ')}——装配正确但无法实调外部服务,配好后重跑装配即可验证`,
       }
+      // 这行以前漏了:凭证 SKIPPED 只设 verification 不 phase,直播台一片空白、
+      // 账单无探针段,旁观者会以为"怎么没验收"(实测 hr-arch2/hr-noshortlist 都
+      // 静默走了这条)。SKIPPED 是设计内降级,但必须看得见。
+      phase(`验收跳过:待配置凭证 ${missingSecrets.map((sec) => sec.env).join(', ')}(装配正确,配好凭证后重跑即验;探针不对未配服务打假拳)`)
     } else {
       const byId = new Map(catalog.capabilities.map((c) => [c.id, c]))
       // 前端零件不进探针推导的工具单:它是给人用的交互面,agent 摸不到——
@@ -2040,7 +2046,7 @@ export async function assemble(
         const tDerive = Date.now()
         phase('探针推导中(定单轮或多轮场景)…')
         const deriveUsage: AuxUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cacheReadTokens: 0 }
-        const plan = await hb('探针推导', deriveProbePlan(ctx, requirement, selected, auxLlm, (u) => { addUsage(deriveUsage, { type: 'usage', usage: u }) }))
+        const plan = await hb('探针推导', deriveProbePlan(ctx, requirement, selected, auxLlm, (u) => { addUsage(deriveUsage, { type: 'usage', usage: u }) }, archSpec !== undefined ? { workflow: archSpec.workflow, dataModel: archSpec.dataModel } : undefined))
         deriveUsageLedger = deriveUsage
         mark('探针推导', tDerive, usageDetail(deriveUsage))
         phase(plan.kind === 'scenario'
@@ -2081,7 +2087,7 @@ export async function assemble(
             const retryPreset = emitPreset(retryReq, catalog, template, id, knowledgeLocatorText(knowledgeInstalled) + (retryEquipment?.personaText ?? ''), retryEquipment?.extraServerEnv, join(dir, 'workspace'))
             writePresetFile(join(dir, 'agent.cordis.yml'), retryPreset)
             presetRewritten = true
-            const retryPlan = await hb('重试探针推导', deriveProbePlan(ctx, requirement, retrySelected, auxLlm))
+            const retryPlan = await hb('重试探针推导', deriveProbePlan(ctx, requirement, retrySelected, auxLlm, undefined, archSpec !== undefined ? { workflow: archSpec.workflow, dataModel: archSpec.dataModel } : undefined))
             verification = await runPlan(retryPlan)
             mark('重试轮(重选+重验)', tRetry)
             retryLedger = {

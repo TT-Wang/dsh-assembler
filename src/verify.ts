@@ -390,13 +390,28 @@ export async function deriveProbePlan(
   selected: CapabilityEntry[],
   llm: AuxLlm,
   onUsage?: (u: AuxUsage) => void,
+  arch?: { workflow?: string; dataModel?: string },
 ): Promise<ProbePlan> {
   const tools = selected.map((c) => `- ${c.tool ?? c.id}: ${c.description.slice(0, 120)}`).join("\n");
+  // 架构驱动探针(方向 2):选型前已出的架构 spec 知道这个 agent 的主工作流与
+  // 数据模型。把它喂给探针派生,探针就验**主流程的关键跨轮路径**,而不是从需求
+  // 重编一个可能偏门的场景——首探更贴合真实用法、更容易一次过,少触发那个整轮
+  // 297s 的重试。(实测:重试轮是一次复杂装配的单笔最大墙钟浪费。)
+  const archBlock = (arch?.workflow ?? "") !== "" || (arch?.dataModel ?? "") !== ""
+    ? [
+        "",
+        "This agent's architecture (design the probe to exercise its MAIN workflow, not a side path):",
+        arch?.workflow !== undefined && arch.workflow !== "" ? `- main workflow: ${arch.workflow}` : "",
+        arch?.dataModel !== undefined && arch.dataModel !== "" ? `- data model: ${arch.dataModel}` : "",
+        "The scenario's turn 1 should CREATE the central record of this workflow; a later turn should RETRIEVE/USE it — this is the workflow's own happy path, the thing a real user does first.",
+      ].filter((s) => s !== "").join("\n")
+    : "";
   const prompt = [
     "You design an acceptance probe for a freshly assembled agent.",
     `The agent was assembled for this requirement: ${requirement}`,
     "Its tools:",
     tools,
+    archBlock,
     "",
     "First DECIDE the probe shape:",
     '- "single" — one turn is enough to prove the agent works (pure compute/transform/generate agents).',
