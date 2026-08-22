@@ -28,6 +28,7 @@ import yaml from 'js-yaml'
 import { assembleToolDefinition } from './assemble-tool.js'
 import { solutionToolDefinition } from './solution-tool.js'
 import { specExperimentToolDefinition, deriveArchSpec } from './arch-spec.js'
+import { shortlistCapabilities } from './capability-index.js'
 import { AUX_CALL_TIMEOUT_MS, addUsage, deriveProbePlan, parseModelJson, runFrontendGate, runProbe, runScenario, usageDetail, type AuxUsage, type ProbePlan, type ProbeResult } from './verify.js'
 import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend, frontendRouteHandler } from './frontend.js'
 
@@ -238,8 +239,26 @@ export async function llmMapRequirement(
   config?: Config,
   onUsage?: (u: AuxUsage) => void,
   archSpec?: import('./arch-spec.js').ArchSpec,
+  onShortlist?: (info: { total: number; kept: number }) => void,
 ): Promise<AssembleRequest> {
-  const usable = catalog.capabilities.filter((c) => c.config?.enabled !== false)
+  const usableAll = catalog.capabilities.filter((c) => c.config?.enabled !== false)
+  // 两阶段选型第一阶段(能力目录粗筛):**默认关**,DSH_ASSEMBLER_SHORTLIST=1 才开。
+  // 诚实结论(2026-08-22 A/B 实测):粗筛把 267→91 候选,但选型时间**没变快**
+  // (粗筛开 275s / 关 174s,更慢那次是运行间抖动)——选型是**推理绑定**,不是
+  // 目录大小绑定(呼应"99% 是模型解码"取证),压缩输入治不了满档推理时间。粗筛
+  // 保留在此当"小模型做零件发现"的规则版基础,但默认不开:它不提速、还有召回
+  // 风险,不该误当提速。真正的提速杠杆在别处:重试轮(实测一轮 297s = 又一次
+  // 选型+探针)、探针并行、以及降推理档(用户裁定生产不降)。
+  const SHORTLIST_THRESHOLD = 100
+  let usable = usableAll
+  if (process.env.DSH_ASSEMBLER_SHORTLIST === '1' && usableAll.length > SHORTLIST_THRESHOLD) {
+    const queries = archSpec !== undefined && archSpec.capabilities.length > 0
+      ? [...archSpec.capabilities.map((c) => `${c.name} ${c.why}`), requirement]
+      : [requirement]
+    const sl = shortlistCapabilities(usableAll, queries)
+    usable = usableAll.filter((c) => sl.ids.has(c.id))
+    onShortlist?.({ total: usableAll.length, kept: usable.length })
+  }
   const ids = usable.map((c) => c.id)
   const tagsIndex = usable.map((c) => `${c.id}: ${c.tags.join(', ')} — ${c.description}`).join('\n')
   // 架构优先(实验证明:选型优先对复杂 agent 三战三次报"0 缺口",静默丢弃真需求,
@@ -1832,7 +1851,7 @@ export async function assemble(
     }
     const tSel = Date.now()
     let selUsage: AuxUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cacheReadTokens: 0 }
-    req = await hb('选型推理', llmMapRequirement(ctx, requirement, catalog, { provider: config.provider, model: config.model }, config, (u) => { selUsage = u }, archSpec))
+    req = await hb('选型推理', llmMapRequirement(ctx, requirement, catalog, { provider: config.provider, model: config.model }, config, (u) => { selUsage = u }, archSpec, (info) => phase(`能力目录粗筛:${String(info.total)} → ${String(info.kept)} 候选(选型只看相关子集)`)))
     selUsageLedger = selUsage
     mark('选型', tSel, usageDetail(selUsage))
     phase(`选型完成:${String(req.capabilityIds.length)} 个能力${req.missing.length > 0 ? `,${String(req.missing.length)} 项缺口` : ''}(${secs(tSel)})`)
