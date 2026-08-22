@@ -765,27 +765,27 @@ export interface SharedDataProbe {
  */
 export async function deriveSharedDataProbe(
   ctx: Context,
-  opts: { requirement: string; sharedTables: string[]; agents: Array<{ id: string; requirement: string }> },
+  opts: { requirement: string; sharedTables: string[]; sharedDdl?: string; agents: Array<{ id: string; requirement: string }> },
   llm: AuxLlm,
   onUsage?: (u: AuxUsage) => void,
 ): Promise<SharedDataProbe | null> {
   if (opts.agents.length < 2) return null;
-  const roster = opts.agents.map((a) => `- ${a.id}: ${a.requirement.replace(/\s+/g, " ").slice(0, 140)}`).join("\n");
+  const roster = opts.agents.map((a) => `- ${a.id}`).join("\n");
   const prompt = [
-    "You design a SHARED-DATA handoff probe for a freshly assembled multi-agent solution.",
-    `The whole solution was built for: ${opts.requirement.slice(0, 300)}`,
-    `All agents read and write ONE shared SQLite database whose shared tables are: ${opts.sharedTables.join(", ")}.`,
-    "The agents:",
+    "You design a SHARED-DATABASE CONNECTIVITY probe for a freshly assembled multi-agent solution.",
+    "Purpose: prove that two DIFFERENT agent presets (separate processes) read and write ONE shared SQLite database — i.e. what one agent writes, another can read. This is a PLUMBING check, not a domain check, so make BOTH sides EXPLICIT database operations (do not rely on the agents' domain flows).",
+    opts.sharedDdl !== undefined && opts.sharedDdl !== ""
+      ? `The shared database schema (use REAL column names and satisfy NOT NULL columns):\n${opts.sharedDdl.slice(0, 1600)}`
+      : `Shared tables: ${opts.sharedTables.join(", ")}`,
+    "Agents (every one has a SQL/database tool pointing at the shared DB):",
     roster,
     "",
-    "Design a WRITE→READ handoff across TWO DIFFERENT agents that proves the data really flows between them.",
-    "IRON RULE — the handoff must be AIRTIGHT: pick exactly ONE shared table T from the list above; the writer INSERTS one row into T; the reader looks up THE SAME ROW in THE SAME TABLE T by the token. Never make the reader read a different table, a derived quantity, or anything the writer did not just write.",
-    "- Pick writerId = an agent whose own job naturally CREATES a row in T; readerId = a DIFFERENT agent whose own job naturally LOOKS UP a row in T. Both must plausibly touch table T in their real work — do not ask the reconciliation agent about inventory, etc.",
-    "- writerTask: one instruction, in the requirement's language, that makes the writer insert ONE row into T carrying a DISTINCTIVE TOKEN you invent (e.g. order_no ORD-7788, sku SKU-3391). Give ALL concrete column values inline so the writer needs nothing from a human.",
-    "- readerTask: one instruction, in the requirement's language, that makes the reader look up the row in T WHERE the token matches, and report one column value the writer wrote. Tell the reader to answer from the database and, if the row is missing, to say so plainly — never to ask anyone.",
-    "- mustInclude: 1-2 marks that appear in the reader's reply IFF it truly read the writer's row (the token itself + one column value only the DB could supply).",
-    'Respond with JSON only: {"table": "...", "writerId": "...", "writerTask": "...", "readerId": "...", "readerTask": "...", "mustInclude": ["..."]}',
-    "- table MUST be one of the shared tables listed above; writerId and readerId MUST be two different ids from the agent list.",
+    "Pick exactly ONE shared table T. Invent a KEY token (for the primary/lookup column, e.g. ORD-7788) and a PAYLOAD token — a distinctive STRING (e.g. \"HANDOFF-4821-OK\") to put in a TEXT column of T.",
+    "- writerId + writerTask: pick any agent; the task is an EXPLICIT insert — e.g. \"用你的数据库/SQL 工具,向共享库表 `T` 插入一行:<keyCol>='<KEY>',<textCol>='<PAYLOAD>',其余 NOT NULL 列填任意合法占位值(先用 PRAGMA/表结构确认列)。这是共享库连通性测试,直接执行 INSERT,不要走别的流程,完成后回一句 done。\" Reference REAL columns from the schema so the insert satisfies NOT NULL.",
+    "- readerId (a DIFFERENT agent) + readerTask: an EXPLICIT query — e.g. \"用你的数据库/SQL 工具查询共享库表 `T` 里 <keyCol>='<KEY>' 的那一行,原样报出它的 <textCol> 字段值。直接查库按结果回答,查不到就说没查到,不要问任何人。\" NEVER put the payload value in this task — the reader must fetch it.",
+    "- mustInclude: EXACTLY the PAYLOAD string (verbatim). Never a formatted number, never the KEY (the reader's prompt already contains the key).",
+    'Respond with JSON only: {"table": "...", "writerId": "...", "writerTask": "...", "readerId": "...", "readerTask": "...", "mustInclude": ["<PAYLOAD>"]}',
+    "- table MUST be one of the shared tables; writerId and readerId MUST be two different ids from the agent list.",
   ].join("\n");
   let parsed: Record<string, unknown>;
   try {

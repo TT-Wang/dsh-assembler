@@ -176,7 +176,7 @@ export async function assembleSolution(
       phase('方案级共享数据探针:派生跨 agent 写→读交接…')
       const probe = await deriveSharedDataProbe(
         ctx,
-        { requirement: spec.agents.map((a) => a.requirement).join(' / ').slice(0, 300), sharedTables, agents: mountable.map((r) => ({ id: r.id, requirement: r.requirement })) },
+        { requirement: spec.agents.map((a) => a.requirement).join(' / ').slice(0, 300), sharedTables, sharedDdl, agents: mountable.map((r) => ({ id: r.id, requirement: r.requirement })) },
         { provider: config.provider, model: config.model, ...(config.auxReasoningEffort !== undefined ? { effort: config.auxReasoningEffort } : {}) },
       )
       if (probe === null) {
