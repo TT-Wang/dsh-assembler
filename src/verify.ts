@@ -778,13 +778,14 @@ export async function deriveSharedDataProbe(
     "The agents:",
     roster,
     "",
-    "Design a WRITE→READ handoff across TWO DIFFERENT agents that proves the data really flows between them:",
-    "- Pick a writer agent whose job is to CREATE/record something, and a reader agent whose job is to LOOK UP / report / reconcile it.",
-    "- writerTask: one instruction, in the requirement's language, that makes the writer agent insert ONE record into a shared table, carrying a DISTINCTIVE TOKEN you invent (e.g. an order number ORD-7788, a customer id CUS-3391). Give ALL the concrete field values inline so the writer needs nothing from a human.",
-    "- readerTask: one instruction, in the requirement's language, that makes the reader agent look that record up BY THE TOKEN and report a fact about it. Never restate the record's other fields — the reader must fetch them from the shared DB.",
-    "- mustInclude: 1-2 marks that will appear in the reader's reply IFF it truly read the writer's record (the token itself, plus one field value the writer wrote that the reader could only know by reading the DB).",
-    'Respond with JSON only: {"writerId": "...", "writerTask": "...", "readerId": "...", "readerTask": "...", "mustInclude": ["..."]}',
-    "- writerId and readerId MUST be two different ids from the agent list above.",
+    "Design a WRITE→READ handoff across TWO DIFFERENT agents that proves the data really flows between them.",
+    "IRON RULE — the handoff must be AIRTIGHT: pick exactly ONE shared table T from the list above; the writer INSERTS one row into T; the reader looks up THE SAME ROW in THE SAME TABLE T by the token. Never make the reader read a different table, a derived quantity, or anything the writer did not just write.",
+    "- Pick writerId = an agent whose own job naturally CREATES a row in T; readerId = a DIFFERENT agent whose own job naturally LOOKS UP a row in T. Both must plausibly touch table T in their real work — do not ask the reconciliation agent about inventory, etc.",
+    "- writerTask: one instruction, in the requirement's language, that makes the writer insert ONE row into T carrying a DISTINCTIVE TOKEN you invent (e.g. order_no ORD-7788, sku SKU-3391). Give ALL concrete column values inline so the writer needs nothing from a human.",
+    "- readerTask: one instruction, in the requirement's language, that makes the reader look up the row in T WHERE the token matches, and report one column value the writer wrote. Tell the reader to answer from the database and, if the row is missing, to say so plainly — never to ask anyone.",
+    "- mustInclude: 1-2 marks that appear in the reader's reply IFF it truly read the writer's row (the token itself + one column value only the DB could supply).",
+    'Respond with JSON only: {"table": "...", "writerId": "...", "writerTask": "...", "readerId": "...", "readerTask": "...", "mustInclude": ["..."]}',
+    "- table MUST be one of the shared tables listed above; writerId and readerId MUST be two different ids from the agent list.",
   ].join("\n");
   let parsed: Record<string, unknown>;
   try {
@@ -797,6 +798,10 @@ export async function deriveSharedDataProbe(
   const readerId = String(parsed.readerId ?? "");
   if (!ids.has(writerId) || !ids.has(readerId) || writerId === readerId) return null;
   if (typeof parsed.writerTask !== "string" || typeof parsed.readerTask !== "string") return null;
+  // table 必须是声明的共享表之一:派生器读了共享表外的东西(实测 f01:让对账
+  // agent 读"库存",而共享表只有 products/orders)是这个探针最主要的假红来源。
+  const table = String(parsed.table ?? "");
+  if (table !== "" && !opts.sharedTables.includes(table)) return null;
   const marks = sanitizeMarks(Array.isArray(parsed.mustInclude) ? parsed.mustInclude : []);
   if (marks.length === 0) return null;
   return { writerId, writerTask: parsed.writerTask, readerId, readerTask: parsed.readerTask, mustInclude: marks };
