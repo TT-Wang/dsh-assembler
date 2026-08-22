@@ -153,7 +153,12 @@ export function renderSolutionResult(result: import('./solution.js').SolutionRes
     ...(anyGaps ? ['- 有缺件工单:先转述、征得用户同意再照单施工(新零件走入库流水线)。'] : []),
     '- 待配置凭证见 HANDOVER 的「待配置凭证」表:凭证配到 host 环境变量,绝不进装配参数。',
   ].join('\n')
-  return `方案「${result.name}」交付:${headline}\n`
+  const sdc = result.sharedDataCheck
+  const sharedLine = sdc == null ? ''
+    : sdc.pass
+      ? `\n共享数据验收:✅ PASS(${sdc.writerId} 写 → ${sdc.readerId} 读到,班子真共享)`
+      : `\n共享数据验收:⚠ ${sdc.reason}`
+  return `方案「${result.name}」交付:${headline}${sharedLine}\n`
     + `agent:\n${rows}\n`
     + `\n方案清单:${result.solutionPath}\n交付说明书:${result.handoverPath}\n`
     + contract + '\n'

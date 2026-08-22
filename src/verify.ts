@@ -741,3 +741,108 @@ export async function runScenario(
     session.close();
   }
 }
+
+/**
+ * 方案级共享数据探针:证明一套班子**真的共享数据**,而不只是各库钉到同一文件。
+ *
+ * FDE 天花板的最后一环(市场战役 f01):assemble_solution 让主 agent 拆出 N 个
+ * agent、各 agent 的 SQLITE_DEFAULT_DB 钉到同一共享库——但这只是"结构上共享"。
+ * 真正的证明是黑盒的:让 writer agent 写一条带独特 token 的记录,再让 reader
+ * agent(另一个 preset、同一共享库)去读到它。读得到 = 数据真的在班子间流动。
+ */
+export interface SharedDataProbe {
+  writerId: string;
+  writerTask: string;
+  readerId: string;
+  readerTask: string;
+  mustInclude: string[];
+}
+
+/**
+ * 派生一个跨 agent 的写→读交接:给定共享表 + agent 清单,快模型设计
+ * "writer 用自己的领域语言写一条带独特 token 的记录、reader 用自己的领域语言
+ * 把它读回来"。token 由派生器发明(如 ORD-7788),reader 的验收标记就是它。
+ */
+export async function deriveSharedDataProbe(
+  ctx: Context,
+  opts: { requirement: string; sharedTables: string[]; agents: Array<{ id: string; requirement: string }> },
+  llm: AuxLlm,
+  onUsage?: (u: AuxUsage) => void,
+): Promise<SharedDataProbe | null> {
+  if (opts.agents.length < 2) return null;
+  const roster = opts.agents.map((a) => `- ${a.id}: ${a.requirement.replace(/\s+/g, " ").slice(0, 140)}`).join("\n");
+  const prompt = [
+    "You design a SHARED-DATA handoff probe for a freshly assembled multi-agent solution.",
+    `The whole solution was built for: ${opts.requirement.slice(0, 300)}`,
+    `All agents read and write ONE shared SQLite database whose shared tables are: ${opts.sharedTables.join(", ")}.`,
+    "The agents:",
+    roster,
+    "",
+    "Design a WRITE→READ handoff across TWO DIFFERENT agents that proves the data really flows between them:",
+    "- Pick a writer agent whose job is to CREATE/record something, and a reader agent whose job is to LOOK UP / report / reconcile it.",
+    "- writerTask: one instruction, in the requirement's language, that makes the writer agent insert ONE record into a shared table, carrying a DISTINCTIVE TOKEN you invent (e.g. an order number ORD-7788, a customer id CUS-3391). Give ALL the concrete field values inline so the writer needs nothing from a human.",
+    "- readerTask: one instruction, in the requirement's language, that makes the reader agent look that record up BY THE TOKEN and report a fact about it. Never restate the record's other fields — the reader must fetch them from the shared DB.",
+    "- mustInclude: 1-2 marks that will appear in the reader's reply IFF it truly read the writer's record (the token itself, plus one field value the writer wrote that the reader could only know by reading the DB).",
+    'Respond with JSON only: {"writerId": "...", "writerTask": "...", "readerId": "...", "readerTask": "...", "mustInclude": ["..."]}',
+    "- writerId and readerId MUST be two different ids from the agent list above.",
+  ].join("\n");
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = await callDeriver(ctx, prompt, llm, onUsage);
+  } catch {
+    return null;
+  }
+  const ids = new Set(opts.agents.map((a) => a.id));
+  const writerId = String(parsed.writerId ?? "");
+  const readerId = String(parsed.readerId ?? "");
+  if (!ids.has(writerId) || !ids.has(readerId) || writerId === readerId) return null;
+  if (typeof parsed.writerTask !== "string" || typeof parsed.readerTask !== "string") return null;
+  const marks = sanitizeMarks(Array.isArray(parsed.mustInclude) ? parsed.mustInclude : []);
+  if (marks.length === 0) return null;
+  return { writerId, writerTask: parsed.writerTask, readerId, readerTask: parsed.readerTask, mustInclude: marks };
+}
+
+/**
+ * 跑跨 agent 共享数据探针:writer 会话写 → reader 会话读 → 判 reader 回复含标记。
+ * 两个会话绑不同 preset(各自的 SQLITE_DEFAULT_DB 都钉到同一共享库),cwd 各用
+ * 自己的 workspace(filesystem 面),但 sqlite 默认库同一份——这正是被验证的接线。
+ */
+export async function runSharedDataProbe(
+  port: number,
+  probe: SharedDataProbe,
+  writerCwd: string,
+  readerCwd: string,
+  timeoutMs = PROBE_TURN_BUDGET_MS,
+  onPhase?: (line: string) => void,
+): Promise<{ pass: boolean; reason: string; writerReply?: string; readerReply?: string }> {
+  onPhase?.(`共享数据探针:${probe.writerId} 写 → ${probe.readerId} 读(标记 [${probe.mustInclude.join(", ")}])`);
+  const writer = await openProbeSession(port, probe.writerId, writerCwd);
+  let writerReply: string | undefined;
+  try {
+    const out = await sendTurn(writer, probe.writerTask, timeoutMs, onPhase);
+    if (out.askedUser !== undefined) return { pass: false, reason: `写入方 ${probe.writerId} 中途求助:「${out.askedUser.slice(0, 100)}」` };
+    if (out.reply === undefined) return { pass: false, reason: `写入方 ${probe.writerId} 未在时限内完成` };
+    writerReply = out.reply.slice(0, 300);
+    onPhase?.(`  ✓ ${probe.writerId} 写入完成`);
+  } finally {
+    writer.close();
+  }
+  const reader = await openProbeSession(port, probe.readerId, readerCwd);
+  try {
+    const out = await sendTurn(reader, probe.readerTask, timeoutMs, onPhase);
+    if (out.askedUser !== undefined) return { pass: false, reason: `读取方 ${probe.readerId} 中途求助:「${out.askedUser.slice(0, 100)}」`, writerReply };
+    if (out.reply === undefined) return { pass: false, reason: `读取方 ${probe.readerId} 未在时限内完成`, writerReply };
+    const readerReply = out.reply.slice(0, 300);
+    const pass = marksPresent(probe.mustInclude, out.reply);
+    return {
+      pass,
+      reason: pass
+        ? `${probe.readerId} 读到了 ${probe.writerId} 写入的记录(共享数据流动成立)`
+        : `${probe.readerId} 的回复未含标记 [${probe.mustInclude.join(", ")}]——写入方写了、读取方读不到,共享未真正打通`,
+      writerReply,
+      readerReply,
+    };
+  } finally {
+    reader.close();
+  }
+}

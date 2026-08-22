@@ -24,6 +24,7 @@ import { createRequire } from 'node:module'
 import yaml from 'js-yaml'
 import type { Context } from '@deepseek-ai/cordis'
 import { assemble, validateStateSchema, type Config } from './index.js'
+import { deriveSharedDataProbe, runSharedDataProbe } from './verify.js'
 
 /**
  * 把共享 DDL 建进共享库文件(幂等)。node:sqlite 在宿主运行时可用(装备槽的
@@ -63,6 +64,12 @@ export interface SolutionResult {
   solutionPath: string
   ok: boolean
   failed: string[]
+  /**
+   * 方案级共享数据验收:一个 agent 写、另一个 agent 从同一共享库读得到 = 班子
+   * 真的共享数据(不只是各库钉到同一文件)。仅在声明了 sharedSchema 且 ≥2 个
+   * agent 装配成功时跑;null = 没跑(单库/agent 不足/无端口)。
+   */
+  sharedDataCheck?: { pass: boolean; reason: string; writerId?: string; readerId?: string } | null
 }
 
 const presetRoot = (config: Config): string =>
@@ -157,6 +164,37 @@ export async function assembleSolution(
     }
   }
 
+  // ── 方案级共享数据验收(FDE 天花板的最后一环)──────────────────────────
+  // 声明了共享库、且 ≥2 个 agent 装配成功(能挂起会话)时,跑一次跨 agent 的
+  // 写→读探针:证明班子真的共享数据,而不只是各库钉到同一文件。没端口(headless)
+  // 或 agent 不足则跳过,如实记 null。
+  let sharedDataCheck: SolutionResult['sharedDataCheck'] = null
+  const port = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
+  const mountable = results.filter((r) => r.verdict === 'PASS' || r.verdict === 'SKIPPED')
+  if (sharedDb !== undefined && sharedTables.length > 0 && mountable.length >= 2 && port !== undefined) {
+    try {
+      phase('方案级共享数据探针:派生跨 agent 写→读交接…')
+      const probe = await deriveSharedDataProbe(
+        ctx,
+        { requirement: spec.agents.map((a) => a.requirement).join(' / ').slice(0, 300), sharedTables, agents: mountable.map((r) => ({ id: r.id, requirement: r.requirement })) },
+        { provider: config.provider, model: config.model, ...(config.auxReasoningEffort !== undefined ? { effort: config.auxReasoningEffort } : {}) },
+      )
+      if (probe === null) {
+        sharedDataCheck = { pass: false, reason: '共享数据探针派生失败(跨 agent 交接未成形),已跳过——共享库结构就绪但未黑盒验证流动' }
+        phase('共享数据探针:派生未成形,跳过(结构就绪、未验证流动)')
+      } else {
+        const writerCwd = join(root, probe.writerId, 'workspace')
+        const readerCwd = join(root, probe.readerId, 'workspace')
+        const res = await runSharedDataProbe(port, probe, writerCwd, readerCwd, config.verifyTimeoutMs, onPhase)
+        sharedDataCheck = { pass: res.pass, reason: res.reason, writerId: probe.writerId, readerId: probe.readerId }
+        phase(res.pass ? `共享数据验收 PASS:${res.reason}` : `共享数据验收 FAIL:${res.reason}`)
+      }
+    } catch (error: unknown) {
+      sharedDataCheck = { pass: false, reason: `共享数据探针出错:${error instanceof Error ? error.message.slice(0, 120) : String(error)}` }
+      phase(`共享数据探针出错(不阻断交付):${error instanceof Error ? error.message.slice(0, 80) : ''}`)
+    }
+  }
+
   // 方案清单落盘(可 git、可在另一台机器重建的交付单元)。
   const solutionDoc = {
     name: spec.name,
@@ -165,12 +203,13 @@ export async function assembleSolution(
     generatedAt: new Date().toISOString(),
     params: spec.params ?? {},
     ...(sharedTables.length > 0 ? { sharedTables } : {}),
+    ...(sharedDataCheck !== null ? { sharedDataCheck } : {}),
     agents: spec.agents.map((a) => ({ id: a.id, requirement: a.requirement })),
   }
   const solutionPath = join(solutionDir, 'solution.yml')
   writeFileSync(solutionPath, `# ${spec.name} —— 方案包清单(FDE 多 agent 交付单元)\n${yaml.dump(solutionDoc, { lineWidth: -1 })}`)
 
-  const handoverPath = writeHandover(solutionDir, spec, results, root, sharedTables)
+  const handoverPath = writeHandover(solutionDir, spec, results, root, sharedTables, sharedDataCheck)
   phase(`══ 方案「${spec.name}」交付完成:${String(results.filter((r) => r.verdict === 'PASS').length)}/${String(results.length)} PASS · HANDOVER 已生成 ══`)
 
   const failed = results.filter((r) => ['FAIL', 'ERRORED', 'ERROR'].includes(r.verdict)).map((r) => r.id)
@@ -182,6 +221,7 @@ export async function assembleSolution(
     solutionPath,
     ok: failed.length === 0,
     failed,
+    sharedDataCheck,
   }
 }
 
@@ -195,6 +235,7 @@ export function writeHandover(
   results: SolutionAgentResult[],
   root: string,
   sharedTableNames: string[] = [],
+  sharedDataCheck: SolutionResult['sharedDataCheck'] = null,
 ): string {
   const allSecrets = new Map<string, { env: string; purpose?: string; configured?: boolean; optional?: boolean }>()
   const allParts = new Map<string, { part: string; repo?: string; rev?: string; service?: string; license?: string }>()
@@ -246,6 +287,12 @@ export function writeHandover(
     '## 共享数据(各 agent 预建表)',
     '',
     sharedTables.size === 0 ? '(本方案无预建共享表)' : [...sharedTables].map((t) => `- \`${t}\``).join('\n'),
+    ...(sharedDataCheck !== null ? [
+      '',
+      sharedDataCheck.pass
+        ? `**共享验收 ✅ PASS** — ${sharedDataCheck.reason}${sharedDataCheck.writerId !== undefined ? `(${sharedDataCheck.writerId} 写 → ${sharedDataCheck.readerId} 读)` : ''}。班子确实读写同一份账,不只是各库钉到同一文件。`
+        : `**共享验收 ⚠ ${sharedDataCheck.reason}**`,
+    ] : []),
     '',
     '## 部署参数',
     '',
