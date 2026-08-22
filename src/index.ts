@@ -27,6 +27,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm/message'
 import yaml from 'js-yaml'
 import { assembleToolDefinition } from './assemble-tool.js'
 import { solutionToolDefinition } from './solution-tool.js'
+import { specExperimentToolDefinition, deriveArchSpec } from './arch-spec.js'
 import { AUX_CALL_TIMEOUT_MS, addUsage, deriveProbePlan, parseModelJson, runFrontendGate, runProbe, runScenario, usageDetail, type AuxUsage, type ProbePlan, type ProbeResult } from './verify.js'
 import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend, frontendRouteHandler } from './frontend.js'
 
@@ -99,7 +100,7 @@ export interface CapabilityEntry {
   }
 }
 
-interface Catalog {
+export interface Catalog {
   capabilities: CapabilityEntry[]
   /** Connection configs for MCP servers whose tools the assembler can select. */
   'mcp-servers'?: Record<string, Record<string, unknown>>
@@ -236,13 +237,27 @@ export async function llmMapRequirement(
   model: { provider?: string; model?: string },
   config?: Config,
   onUsage?: (u: AuxUsage) => void,
+  archSpec?: import('./arch-spec.js').ArchSpec,
 ): Promise<AssembleRequest> {
   const usable = catalog.capabilities.filter((c) => c.config?.enabled !== false)
   const ids = usable.map((c) => c.id)
   const tagsIndex = usable.map((c) => `${c.id}: ${c.tags.join(', ')} — ${c.description}`).join('\n')
+  // 架构优先(实验证明:选型优先对复杂 agent 三战三次报"0 缺口",静默丢弃真需求,
+  // 含医疗导诊的安全缺口)。给了架构 spec 就把它的完整需求清单钉进 prompt,逼选型
+  // 逐条"覆盖或标缺口、不许静默丢"——治"0 缺口"病,又不逼过度选型(仍取最小覆盖集)。
+  const archBlock = archSpec !== undefined && archSpec.capabilities.length > 0
+    ? [
+        '',
+        'ARCHITECTURE-FIRST — this agent was first designed WITHOUT the catalog. Its architectural needs are:',
+        archSpec.capabilities.map((c, i) => `${String(i + 1)}. ${c.name}${c.why !== '' ? ` — ${c.why}` : ''}`).join('\n'),
+        `(data model: ${archSpec.dataModel}; interfaces: ${archSpec.interfaces})`,
+        'GO THROUGH EVERY architectural need above: each must end up EITHER covered by a selected catalog id OR listed in "missing" — NEVER silently dropped. Still keep the selection minimal (smallest covering set; do not over-mount), but completeness on the gap axis is mandatory: an unmet need you neither select nor flag is the exact failure this step exists to prevent.',
+      ].join('\n')
+    : ''
   const prompt = [
     'You are the capability matcher of a vibe-assembly system. A user describes an agent they want to build.',
     'Pick which capabilities from the catalog are needed, and say which needed capabilities are MISSING.',
+    archBlock,
     '',
     'Catalog:',
     tagsIndex,
@@ -1798,9 +1813,26 @@ export async function assemble(
     timings.push({ stage: '选型(复用)', seconds: 0 })
     phase(`选型复用:需求与参数未变,沿用 ${id} 现有选型(${String(reuse.capabilityIds.length)} 个能力;全新重装用 --fresh)`)
   } else {
+    // 架构优先:选型前先无目录地出一份架构 spec(这个 agent 架构上需要什么),
+    // 再让选型逐条覆盖或标缺口。DSH_ASSEMBLER_ARCH_FIRST=0 可关(退回纯选型优先)。
+    // 实验(2026-08-22,HR/科研/医院导诊三例)证明:纯选型优先三战三次报"0 缺口"
+    // 静默丢真需求(含医疗导诊的急危重症识别、边界拒答两个安全缺口)。
+    let archSpec: import('./arch-spec.js').ArchSpec | undefined
+    if (process.env.DSH_ASSEMBLER_ARCH_FIRST !== '0') {
+      try {
+        const tArch = Date.now()
+        phase('架构 spec 推导中(先无目录列全需求,避免目录偏置)…')
+        archSpec = await hb('架构 spec 推导', deriveArchSpec(ctx, requirement, { provider: config.provider, model: config.model }, config))
+        mark('架构 spec', tArch)
+        phase(`架构 spec 就绪:${String(archSpec.capabilities.length)} 项架构需求(选型将逐条覆盖或标缺口)`)
+      } catch (error: unknown) {
+        console.error(`[assembler] 架构 spec 推导失败(退回纯选型优先):${error instanceof Error ? error.message : String(error)}`)
+        archSpec = undefined
+      }
+    }
     const tSel = Date.now()
     let selUsage: AuxUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cacheReadTokens: 0 }
-    req = await hb('选型推理', llmMapRequirement(ctx, requirement, catalog, { provider: config.provider, model: config.model }, config, (u) => { selUsage = u }))
+    req = await hb('选型推理', llmMapRequirement(ctx, requirement, catalog, { provider: config.provider, model: config.model }, config, (u) => { selUsage = u }, archSpec))
     selUsageLedger = selUsage
     mark('选型', tSel, usageDetail(selUsage))
     phase(`选型完成:${String(req.capabilityIds.length)} 个能力${req.missing.length > 0 ? `,${String(req.missing.length)} 项缺口` : ''}(${secs(tSel)})`)
@@ -2337,6 +2369,11 @@ export function apply(ctx: Context, config: Config = {}): void {
   // 多 agent 方案交付:assemble 装一个,assemble_solution 装一整套班子 + HANDOVER。
   // FDE 级实测(f01)暴露:没有它,主 agent 面对多 agent 需求只能揉成巨型单体。
   ctx.effect(() => ctx.tools.register(solutionToolDefinition(ctx, config)), 'assembler.tool.assemble_solution()')
+  // 实验工具(flag 门控,不进正常面):DSH_ASSEMBLER_EXPERIMENT=1 才注册,验完即撤。
+  // 对照"选型优先 vs 架构优先"的实际产出差异(用户 2026-08-22 提的架构-first 问题)。
+  if (process.env.DSH_ASSEMBLER_EXPERIMENT === '1') {
+    ctx.effect(() => ctx.tools.register(specExperimentToolDefinition(ctx, config)), 'assembler.tool.spec_experiment()')
+  }
 
   // 前端路由:/assembler/ui/<id> 同源伺服各 preset 的 frontend/ 静态文件。
   // webServer 走可选注入(dsh-ios 同款):headless profile 没有它,装配照常,
