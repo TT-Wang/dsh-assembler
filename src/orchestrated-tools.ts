@@ -150,11 +150,11 @@ export { PROBE_SKETCH_EXAMPLES } from './verify.js'
  *  draft        C 臂提案审阅——已判负结果(红笔率 0/8),留档复现用。
  *  dialogue     D 臂对话专家——已判死重(ask Σ0),目录过数千条复议。
  */
-export type AssemblerMode = 'pipeline' | 'orchestrated' | 'draft' | 'dialogue' | 'search'
+export type AssemblerMode = 'pipeline' | 'orchestrated' | 'draft' | 'dialogue' | 'search' | 'off'
 
 export function assemblerMode(): AssemblerMode {
   const m = process.env.DSH_ASSEMBLER_MODE
-  if (m === 'pipeline' || m === 'orchestrated' || m === 'draft' || m === 'dialogue' || m === 'search') return m
+  if (m === 'pipeline' || m === 'orchestrated' || m === 'draft' || m === 'dialogue' || m === 'search' || m === 'off') return m
   return 'search'
 }
 

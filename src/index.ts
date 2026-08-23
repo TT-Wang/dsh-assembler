@@ -2423,7 +2423,10 @@ export function apply(ctx: Context, config: Config = {}): void {
   // search = F 臂纯检索。非 pipeline 模式一律不注册 assemble*(臂间互斥,数据干净);
   // emit_preset/verify_preset(哑发射+独立考官)是所有新形态的公共底座。
   const mode = assemblerMode()
-  if (mode === 'pipeline') {
+  if (mode === 'off') {
+    // 完全停用(实验对照/纯写码环境):零工具零命令。前端路由仍伺服既有 preset
+    // 页面(它们是静态字节,不属于装配面)。
+  } else if (mode === 'pipeline') {
     // Agent-native path: the same capability as a tool, so the agent loop
     // renders the call (reasoning → tool card → result) in the conversation.
     // Registered on the host plane (like dsh-cs-tools), visible to every agent.
@@ -2471,6 +2474,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     console.error(`[assembler] 前端路由注册失败(headless?):${error instanceof Error ? error.message : String(error)}`)
   }
 
+  if (mode === 'off') return
   ctx.commands.register({
     name: 'assemble',
     description: 'Assemble an agent from a natural-language requirement (vibe assembly). Usage: /assemble <requirement> [--name <kebab-case-preset-name>] [--param key=value ...]',
