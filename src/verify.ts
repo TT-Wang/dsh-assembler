@@ -159,10 +159,30 @@ export const ASSEMBLE_WORST_CASE_MS = PROBE_TURN_BUDGET_MS * MAX_SCENARIO_TURNS 
  */
 export const PROBE_RPC_TIMEOUT_MS = 30_000;
 
-/** Pure mark check: every mark present, case-insensitive. Unit-tested. */
+/**
+ * 归一化:小写 + 剔除空白与常见排版标点(间隔号/破折号/全半角括号引号等)。
+ * 实测假红(reader-b):标记「第2章第2段」,agent 回复「第 2 章 · 第 2 段」——
+ * 语义完全一致,排版变体让子串匹配判死,白烧一整轮 302s 重试。归一后两边
+ * 都变「第2章第2段」→ 命中。
+ */
+function canonMark(s: string): string {
+  return s.toLowerCase().replace(/[\s·・、,,。.::;;!!??“”"'‘’()()\[\]【】《》<>\-—–_/\\|*`~]+/g, "");
+}
+
+/**
+ * Pure mark check: every mark present, case-insensitive. Unit-tested.
+ * 双通道:先精确子串(原语义);不中再归一化子串(治排版变体假红)。归一后
+ * 标记至少还剩 2 个字符才走归一通道(全标点标记归一成空串会假阳)。
+ */
 export function marksPresent(marks: readonly string[], reply: string): boolean {
+  if (marks.length === 0) return false;
   const hay = reply.toLowerCase();
-  return marks.length > 0 && marks.every((m) => hay.includes(m.toLowerCase()));
+  const hayCanon = canonMark(reply);
+  return marks.every((m) => {
+    if (hay.includes(m.toLowerCase())) return true;
+    const cm = canonMark(m);
+    return cm.length >= 2 && hayCanon.includes(cm);
+  });
 }
 
 /** Pure verdict for a single-turn probe. */

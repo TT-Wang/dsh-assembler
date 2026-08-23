@@ -49,28 +49,99 @@ export interface ArchSpec {
   dataModel: string
   workflow: string
   interfaces: string
+  /**
+   * 架构师顺手写的验收探针草图(真瓶颈打法 B:确定性构造探针)。
+   * 架构师本来就在想 workflow,多写这四个字段边际成本几秒,却能把之后整段
+   * ~160s 的探针推导 LLM 调用整个省掉——装配侧只做机械校验(validateArchProbe),
+   * 不合格就回退 LLM 推导,不冒质量险。与 stateSchema 同款"装配时预思考"。
+   */
+  probe?: {
+    kind: 'scenario' | 'single'
+    /** scenario:轮1 建中心记录的完整指令(数据全内嵌,自给自足)。 */
+    createTask?: string
+    /** scenario:轮2 按 token 取回并报告的指令(不复述其余字段)。 */
+    retrieveTask?: string
+    /** 架构师发明的独特 token(如 INV-7781),两轮指令都要含它。 */
+    token?: string
+    /** single:一轮任务指令。 */
+    task?: string
+    /** 验收标记(1-3 个,内容型)。 */
+    marks?: string[]
+  }
 }
 
 /** B-1:需求 → 架构 spec(不给目录,避免偏置)。 */
 export async function deriveArchSpec(ctx: Context, requirement: string, model: { provider?: string; model?: string }, config?: Config): Promise<ArchSpec> {
   const prompt = [
     'You are an agent ARCHITECT. A user describes an agent they want. Design its architecture FIRST — do NOT think about any existing parts catalog, think about what this agent fundamentally NEEDS.',
-    'Respond with JSON only: {"purpose":"...","capabilities":[{"name":"...","why":"..."}],"dataModel":"...","workflow":"...","interfaces":"..."}',
+    'Respond with JSON only: {"purpose":"...","capabilities":[{"name":"...","why":"..."}],"dataModel":"...","workflow":"...","interfaces":"...","probe":{...}}',
     '- purpose: one line, what this agent is for.',
     '- capabilities: the FULL list of distinct capabilities this agent architecturally needs, each a GENERIC description (e.g. "parse uploaded documents", "persist records across sessions", "search imported knowledge with citations", "generate a PDF report"). Be exhaustive — list everything the requirement implies, even the unglamorous ones (storage, retrieval, export). Do NOT reference any specific tool or library.',
     '- dataModel: what state it must keep (entities + key fields), one or two lines.',
     '- workflow: the main flow across turns, one or two lines.',
     '- interfaces: what humans/other systems interact with it through (a UI shape, a file drop, an API), one line.',
+    '- probe: a SMOKE-TEST sketch for the workflow\'s happy path, so acceptance needs no separate design pass. Two shapes:',
+    '  {"kind":"scenario","createTask":"...","retrieveTask":"...","token":"...","marks":["..."]} when the workflow keeps state across turns: invent a distinctive token (e.g. INV-7781); createTask = one instruction (in the requirement\'s language) that CREATES the workflow\'s central record carrying the token, with ALL data values invented inline (the probe runs in an EMPTY workspace with NOBODY to ask — never reference pre-existing files or expect human input); retrieveTask = one instruction that retrieves/uses that record BY the token WITHOUT restating its other fields, and reports one specific stored value.',
+    '  {"kind":"single","task":"...","marks":["..."]} for pure compute/transform agents with no cross-turn state.',
+    '  marks: 1-3 content-bearing strings that appear in the reply IFF it truly worked — verbatim tokens or stored values. NEVER: invented dates/date-ranges as facts, refusal wording, formatted numbers (1000.00 when 1000 is stored), UI/page words, or long verbatim body text when output goes to a file (mark the filename/confirmation instead). Size tasks to finish in ~2 minutes; batch flavors use 2-3 items max.',
     '',
     `Requirement: ${requirement}`,
   ].join('\n')
   const j = await callJson(ctx, prompt, model, config)
+  const rawProbe = j.probe !== null && typeof j.probe === 'object' ? j.probe as Record<string, unknown> : undefined
   return {
     purpose: String(j.purpose ?? ''),
     capabilities: Array.isArray(j.capabilities) ? (j.capabilities as Array<Record<string, unknown>>).map((c) => ({ name: String(c.name ?? ''), why: String(c.why ?? '') })).filter((c) => c.name !== '') : [],
     dataModel: String(j.dataModel ?? ''),
     workflow: String(j.workflow ?? ''),
     interfaces: String(j.interfaces ?? ''),
+    ...(rawProbe !== undefined ? {
+      probe: {
+        kind: rawProbe.kind === 'single' ? 'single' as const : 'scenario' as const,
+        ...(typeof rawProbe.createTask === 'string' ? { createTask: rawProbe.createTask } : {}),
+        ...(typeof rawProbe.retrieveTask === 'string' ? { retrieveTask: rawProbe.retrieveTask } : {}),
+        ...(typeof rawProbe.token === 'string' ? { token: rawProbe.token } : {}),
+        ...(typeof rawProbe.task === 'string' ? { task: rawProbe.task } : {}),
+        ...(Array.isArray(rawProbe.marks) ? { marks: (rawProbe.marks as unknown[]).map(String) } : {}),
+      },
+    } : {}),
+  }
+}
+
+/**
+ * 架构探针草图的机械校验闸:合格 → 直接构造 ProbePlan(省掉整段 LLM 探针推导);
+ * 任何一条不过 → null(调用方回退 LLM 推导)。校验的每一条都是战役里真踩过的坑:
+ * 标记消毒(代码碎片/过短)、token 自给自足(两轮指令都得含它,轮1 造它轮2 用它)、
+ * 取回轮不许复述标记值(否则 agent 照抄指令就能假 PASS,共享探针同款教训)。
+ */
+export function validateArchProbe(probe: NonNullable<ArchSpec['probe']>, sanitize: (marks: unknown[]) => string[]): import('./verify.js').ProbePlan | null {
+  const marks = sanitize(probe.marks ?? [])
+  if (marks.length === 0) return null
+  if (probe.kind === 'single') {
+    const task = (probe.task ?? '').trim()
+    if (task.length < 10) return null
+    return { kind: 'single', probe: { task, mustInclude: marks } }
+  }
+  const createTask = (probe.createTask ?? '').trim()
+  const retrieveTask = (probe.retrieveTask ?? '').trim()
+  const token = (probe.token ?? '').trim()
+  // 15:自给自足的建档指令(含内嵌数据)不可能更短——更短的多半是残缺草图。
+  if (createTask.length < 15 || retrieveTask.length < 10 || token.length < 3) return null
+  // token 自给自足:轮1 造它、轮2 按它取——两轮都必须真含 token。
+  if (!createTask.includes(token) || !retrieveTask.includes(token)) return null
+  // 取回轮不许把标记值(除 token 本身)复述在指令里:否则照抄即假 PASS。
+  for (const m of marks) {
+    if (m !== token && retrieveTask.toLowerCase().includes(m.toLowerCase())) return null
+  }
+  return {
+    kind: 'scenario',
+    scenario: {
+      goal: '架构直构:主工作流建档→取回(token 连续性)',
+      turns: [
+        { prompt: createTask, mustInclude: [token] },
+        { prompt: retrieveTask, mustInclude: marks },
+      ],
+    },
   }
 }
 

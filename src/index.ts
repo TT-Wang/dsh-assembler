@@ -27,9 +27,9 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm/message'
 import yaml from 'js-yaml'
 import { assembleToolDefinition } from './assemble-tool.js'
 import { solutionToolDefinition } from './solution-tool.js'
-import { specExperimentToolDefinition, deriveArchSpec } from './arch-spec.js'
+import { specExperimentToolDefinition, deriveArchSpec, validateArchProbe } from './arch-spec.js'
 import { shortlistCapabilities } from './capability-index.js'
-import { AUX_CALL_TIMEOUT_MS, addUsage, deriveProbePlan, parseModelJson, runFrontendGate, runProbe, runScenario, usageDetail, type AuxUsage, type ProbePlan, type ProbeResult } from './verify.js'
+import { AUX_CALL_TIMEOUT_MS, addUsage, deriveProbePlan, parseModelJson, runFrontendGate, runProbe, runScenario, sanitizeMarks, usageDetail, type AuxUsage, type ProbePlan, type ProbeResult } from './verify.js'
 import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend, frontendRouteHandler } from './frontend.js'
 
 export { FRONTEND_ROUTE, FRONTEND_TEMPLATES_DIR, DEFAULT_FRONTEND_TEMPLATE, emitFrontend, fillTemplate, listAssemblyProgress, listFrontendTemplates, resolveFrontendFile, frontendRouteHandler } from './frontend.js'
@@ -2044,14 +2044,32 @@ export async function assemble(
       )
       try {
         const tDerive = Date.now()
-        phase('探针推导中(定单轮或多轮场景)…')
-        const deriveUsage: AuxUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cacheReadTokens: 0 }
-        const plan = await hb('探针推导', deriveProbePlan(ctx, requirement, selected, auxLlm, (u) => { addUsage(deriveUsage, { type: 'usage', usage: u }) }, archSpec !== undefined ? { workflow: archSpec.workflow, dataModel: archSpec.dataModel } : undefined))
-        deriveUsageLedger = deriveUsage
-        mark('探针推导', tDerive, usageDetail(deriveUsage))
-        phase(plan.kind === 'scenario'
-          ? `验收探针:多轮场景共 ${String(plan.scenario.turns.length)} 轮(推导 ${secs(tDerive)})——探针会话可在侧栏实时旁观`
-          : `验收探针:单轮(推导 ${secs(tDerive)})——探针会话可在侧栏实时旁观`)
+        // 真瓶颈打法 B(确定性构造探针):架构师在 archSpec 里顺手写了探针草图,
+        // 机械校验合格就直接用——整段 ~160s 的 LLM 探针推导省掉(实测它是满档
+        // 推理绑定的第二大墙钟)。校验任何一条不过 → 回退 LLM 推导,不冒质量险。
+        // DSH_ASSEMBLER_ARCH_PROBE=0 强制全走 LLM 推导。
+        let plan: ProbePlan | null = null
+        if (process.env.DSH_ASSEMBLER_ARCH_PROBE !== '0' && archSpec?.probe !== undefined) {
+          plan = validateArchProbe(archSpec.probe, sanitizeMarks)
+          if (plan !== null) {
+            timings.push({ stage: '探针推导(架构直构)', seconds: 0 })
+            phase(plan.kind === 'scenario'
+              ? `验收探针:架构直构,多轮场景共 ${String(plan.scenario.turns.length)} 轮(推导 0s,省掉整段 LLM 推导)——探针会话可在侧栏实时旁观`
+              : '验收探针:架构直构,单轮(推导 0s)——探针会话可在侧栏实时旁观')
+          } else {
+            phase('架构探针草图未过机械校验,回退 LLM 推导…')
+          }
+        }
+        if (plan === null) {
+          phase('探针推导中(定单轮或多轮场景)…')
+          const deriveUsage: AuxUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cacheReadTokens: 0 }
+          plan = await hb('探针推导', deriveProbePlan(ctx, requirement, selected, auxLlm, (u) => { addUsage(deriveUsage, { type: 'usage', usage: u }) }, archSpec !== undefined ? { workflow: archSpec.workflow, dataModel: archSpec.dataModel } : undefined))
+          deriveUsageLedger = deriveUsage
+          mark('探针推导', tDerive, usageDetail(deriveUsage))
+          phase(plan.kind === 'scenario'
+            ? `验收探针:多轮场景共 ${String(plan.scenario.turns.length)} 轮(推导 ${secs(tDerive)})——探针会话可在侧栏实时旁观`
+            : `验收探针:单轮(推导 ${secs(tDerive)})——探针会话可在侧栏实时旁观`)
+        }
         const tProbe = Date.now()
         verification = await runPlan(plan)
         mark(plan.kind === 'scenario' ? `验收探针(${String(plan.scenario.turns.length)}轮)` : '验收探针(单轮)', tProbe)

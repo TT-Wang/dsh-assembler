@@ -17,6 +17,11 @@ const check = (name, ok, detail = '') => {
 // 1. evaluateProbe:全部标记命中才 PASS,大小写不敏感,空标记集恒 FAIL
 check('全标记命中 PASS', evaluateProbe({ task: '', mustInclude: ['42', 'CNY'] }, '结果是 42 cny'))
 check('缺一个标记 FAIL', !evaluateProbe({ task: '', mustInclude: ['42', 'usd'] }, '结果是 42 cny'))
+// 归一化双通道(reader-b 假红实录:「第2章第2段」被「第 2 章 · 第 2 段」判死,白烧 302s 重试)
+check('排版变体命中(空格+间隔号)', evaluateProbe({ task: '', mustInclude: ['第2章第2段'] }, '当前位置:第 2 章 · 第 2 段'))
+check('排版变体命中(连字符/下划线)', evaluateProbe({ task: '', mustInclude: ['READ-7781_摘录.md'] }, '文件 READ 7781 摘录.md 已保存'))
+check('归一不假阳(内容真不同仍 FAIL)', !evaluateProbe({ task: '', mustInclude: ['第3章第1段'] }, '当前位置:第 2 章 · 第 2 段'))
+check('全标点标记不走归一通道(防空串假阳)', !evaluateProbe({ task: '', mustInclude: ['—·—'] }, '任意回复'))
 check('大小写不敏感', evaluateProbe({ task: '', mustInclude: ['Hello'] }, 'say HELLO world'))
 check('空标记集恒 FAIL(拒绝空验收)', !evaluateProbe({ task: '', mustInclude: [] }, '任何回复'))
 check('标记可以是中文', evaluateProbe({ task: '', mustInclude: ['汇率'] }, '今日汇率为 7.1'))
