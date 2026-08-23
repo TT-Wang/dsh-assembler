@@ -73,23 +73,45 @@ function isMcp(c: CapabilityEntry): boolean {
  * - queries 为空(无 archSpec)时退化:只用 requirement 当单一 query。
  */
 /**
- * 带排名的全目录检索(F 臂"纯检索制"的后端):对一个自然语言 query 返回
- * 按分排序的 top-N 条目(含 frontend/knowledge/persona 等非 mcp 条目——
- * 检索制下主 agent 要自己找到交互面和知识包,不能只搜库型工具)。
- * 纯机械(tag ×3 / description ×1),零 LLM,毫秒级,确定性可单测。
- * 与粗筛器(shortlistCapabilities)共用同一套分词与打分,岗位不同:
- * 粗筛是选型 prompt 的减负器(负结果,默认关),检索是 F 臂的唯一目录入口。
+ * 带排名的全目录检索(检索形态的后端):对一个自然语言 query 返回按分排序的
+ * top-N 条目(含 frontend/knowledge/persona 等非 mcp 条目——主 agent 要自己
+ * 找到交互面和知识包,不能只搜库型工具)。纯机械,零 LLM,毫秒级,确定性可单测。
+ *
+ * 打分是 BM25 味的 IDF 加权(先例:Anthropic Tool Search Tool 开箱即 regex+BM25
+ * 双变体):每个命中词按 idf = ln(1+(N-df+0.5)/(df+0.5)) 计权,tag 命中 ×3、
+ * description 命中 ×1——"数据""管理"这类满目录都是的词自然降权,土法 tf 计数
+ * 在 259 条规模就已经被它们污染(实测"数据分析"查询里通用件混进前排)。
+ * 词只出现 0/1 次(词袋是 Set),不做长度归一——条目描述本来就一句话,等长。
  */
 export function rankCapabilities(
   capabilities: readonly CapabilityEntry[],
   query: string,
   topN = 12,
 ): Array<{ entry: CapabilityEntry; score: number }> {
-  const qt = tokenize(query)
+  const qt = [...new Set(tokenize(query))]
   if (qt.length === 0) return []
-  return capabilities
-    .filter((c) => c.config?.enabled !== false)
-    .map((c) => ({ entry: c, score: score(buildDoc(c), qt) }))
+  const usable = capabilities.filter((c) => c.config?.enabled !== false)
+  const docs = usable.map(buildDoc)
+  // 文档频率:一个词在多少条目(tag ∪ description)里出现。
+  const df = new Map<string, number>()
+  for (const d of docs) {
+    const seen = new Set([...d.tag, ...d.desc])
+    for (const t of seen) df.set(t, (df.get(t) ?? 0) + 1)
+  }
+  const N = docs.length
+  const idf = (t: string): number => {
+    const f = df.get(t) ?? 0
+    return Math.log(1 + (N - f + 0.5) / (f + 0.5))
+  }
+  return docs
+    .map((d, i) => {
+      let s = 0
+      for (const t of qt) {
+        if (d.tag.has(t)) s += 3 * idf(t)
+        else if (d.desc.has(t)) s += idf(t)
+      }
+      return { entry: usable[i], score: Math.round(s * 100) / 100 }
+    })
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score || a.entry.id.localeCompare(b.entry.id))
     .slice(0, topN)

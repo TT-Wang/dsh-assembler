@@ -96,6 +96,25 @@ export interface ProbeResult {
    * 沿用要明说,绝不冒充新跑)。
    */
   carried?: boolean;
+  /**
+   * 探针会话里被装配 agent 实际调用的工具聚合(动用率报告的数据源)。
+   * 字段命名对齐 OTel GenAI 语义约定的 execute_tool / gen_ai.tool.name,将来
+   * 台账可直接喂任何观测平台。注意语义边界:探针只走主流程,"未动用"是修剪
+   * 线索,不是"无用"判决(短信件没动可能只是凭证没配)。
+   */
+  toolsUsed?: Array<{ name: string; calls: number }>;
+}
+
+/** 聚合一段会话帧里的 tool/call:name → 次数(动用率报告)。 */
+function aggregateToolCalls(frames: readonly any[]): Array<{ name: string; calls: number }> {
+  const counts = new Map<string, number>();
+  for (const e of frames) {
+    if (e?.type !== "tool/call") continue;
+    const name = String(e.data?.name ?? "");
+    if (name === "") continue;
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  return [...counts.entries()].map(([name, calls]) => ({ name, calls })).sort((a, b) => b.calls - a.calls);
 }
 
 /**
@@ -661,13 +680,13 @@ export async function runProbe(
     const out = await sendTurn(session, probe.task, timeoutMs, onPhase);
     if (out.askedUser !== undefined) {
       onPhase?.(`✗ agent 中途向用户求助(探针无人可答,判 FAIL):「${out.askedUser.slice(0, 120)}」`);
-      return { status: "FAIL", kind: "single", probe, reason: `agent 求助用户而非自主完成:「${out.askedUser.slice(0, 200)}」——通常是能力面缺了它要的工具` };
+      return { status: "FAIL", kind: "single", probe, reason: `agent 求助用户而非自主完成:「${out.askedUser.slice(0, 200)}」——通常是能力面缺了它要的工具`, toolsUsed: aggregateToolCalls(session.frames) };
     }
     if (out.reply === undefined) {
-      return { status: "FAIL", kind: "single", probe, reason: `probe turn did not finish within ${Math.round(timeoutMs / 1000)}s` };
+      return { status: "FAIL", kind: "single", probe, reason: `probe turn did not finish within ${Math.round(timeoutMs / 1000)}s`, toolsUsed: aggregateToolCalls(session.frames) };
     }
     const pass = evaluateProbe(probe, out.reply);
-    return { status: pass ? "PASS" : "FAIL", kind: "single", probe, reply: out.reply.slice(0, 400) };
+    return { status: pass ? "PASS" : "FAIL", kind: "single", probe, reply: out.reply.slice(0, 400), toolsUsed: aggregateToolCalls(session.frames) };
   } finally {
     session.close();
   }
@@ -732,6 +751,8 @@ export async function runScenario(
   const session = await openProbeSession(port, presetId, cwd);
   announceProbeSession(onPhase, session.sessionId, scenario.turns[0]?.prompt ?? scenario.goal);
   const turns: TurnResult[] = [];
+  // 动用率随每个出口走:失败出口也带——"跑到一半都动用了什么"正是诊断素材。
+  const used = (): Array<{ name: string; calls: number }> => aggregateToolCalls(session.frames);
   try {
     for (const [i, turn] of scenario.turns.entries()) {
       const turnStart = Date.now();
@@ -744,6 +765,7 @@ export async function runScenario(
           scenario,
           turns,
           reason: `第 ${String(i + 1)} 轮 agent 求助用户而非自主完成:「${out.askedUser.slice(0, 200)}」——通常是能力面缺了它要的工具`,
+          toolsUsed: used(),
         };
       }
       const reply = out.reply;
@@ -755,6 +777,7 @@ export async function runScenario(
           scenario,
           turns,
           reason: `第 ${String(i + 1)} 轮未在 ${String(Math.round(timeoutMs / 1000))}s 内完成`,
+          toolsUsed: used(),
         };
       }
       const pass = marksPresent(turn.mustInclude, reply);
@@ -767,11 +790,12 @@ export async function runScenario(
           scenario,
           turns,
           reason: `第 ${String(i + 1)} 轮未含验收标记 [${turn.mustInclude.join(", ")}]`,
+          toolsUsed: used(),
         };
       }
     }
     const pass = evaluateScenario(turns, scenario.turns.length);
-    return { status: pass ? "PASS" : "FAIL", kind: "scenario", scenario, turns };
+    return { status: pass ? "PASS" : "FAIL", kind: "scenario", scenario, turns, toolsUsed: used() };
   } finally {
     session.close();
   }

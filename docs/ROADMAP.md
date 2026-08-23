@@ -9,6 +9,12 @@
 forms-bcdf-8.md)→ 超配病根定性为 **context 缺口**而非纪律问题 → 主 agent 九步
 工作清单,三个真智力点:②取舍裁剪 ④persona ⑦探针出题。
 
+> **执行状态(2026-08-23 深夜)**:阶段 0 全项 + 阶段 1 的骨架/回归/凭证 runbook
+> 已实现,含三处先例修正(BM25 提前至阶段 0——Anthropic Tool Search Tool 开箱
+> 即 regex+BM25;⑦出题辅助改"范例优先"——Tool Use Examples 实测 72%→90%;
+> 动用率字段对齐 OTel GenAI execute_tool/gen_ai.tool.name)。确认轮结果见
+> bench/results/。真凭证端到端待用户配 env 扣扳机(docs/live-credential-e2e.md)。
+
 ## 阶段 0|形态转正(收官,~一晚)
 
 把已定的架构落成默认产品:

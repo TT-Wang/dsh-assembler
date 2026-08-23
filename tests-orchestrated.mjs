@@ -99,19 +99,27 @@ const sk2 = normalizeProbeSketch({ task: '算 1+1', marks: ['2'] })
 check('草图归一:只有 task → single', sk2?.kind === 'single')
 check('草图归一:非对象 = null', normalizeProbeSketch('x') === null && normalizeProbeSketch(null) === null)
 
-// ── 模式矩阵 ────────────────────────────────────────────────────────────────
+// ── 模式矩阵(2026-08-23 身份裁定:默认 = 检索形态)─────────────────────────
 const saved = process.env.DSH_ASSEMBLER_MODE
 delete process.env.DSH_ASSEMBLER_MODE
-const modeDefault = assemblerMode() === 'pipeline' && orchestratedMode() === false
-const modeChecks = ['orchestrated', 'draft', 'dialogue', 'search'].every((m) => {
+const modeDefault = assemblerMode() === 'search' && orchestratedMode() === false
+const modeChecks = ['pipeline', 'orchestrated', 'draft', 'dialogue', 'search'].every((m) => {
   process.env.DSH_ASSEMBLER_MODE = m
   return assemblerMode() === m
 })
 process.env.DSH_ASSEMBLER_MODE = 'bogus'
-const modeBogus = assemblerMode() === 'pipeline'
+const modeBogus = assemblerMode() === 'search'
 if (saved === undefined) delete process.env.DSH_ASSEMBLER_MODE
 else process.env.DSH_ASSEMBLER_MODE = saved
-check('模式矩阵:默认 pipeline、四形态各就位、非法值回退 pipeline', modeDefault && modeChecks && modeBogus)
+check('模式矩阵:默认 search(身份裁定)、五形态显式可选、非法值回退 search', modeDefault && modeChecks && modeBogus)
+
+// ── 承重契约句(改契约掉了哪句立刻红——阶段1 的回归底线)────────────────────
+import('./lib/orchestrated-tools.js').then(() => {})
+const { BASELINE_RULE, MINIMAL_SET_RULE, FRONTEND_FACT, PROBE_SKETCH_EXAMPLES } = await import('./lib/orchestrated-tools.js')
+check('契约钉:基线判据在(LLM 能干的不装 + 10-15 件阈值文献)', BASELINE_RULE.includes('real-world I/O') && BASELINE_RULE.includes('10-15'))
+check('契约钉:最小覆盖集 + least-privilege 在', MINIMAL_SET_RULE.includes('least privilege') && MINIMAL_SET_RULE.includes('MINIMAL'))
+check('契约钉:前端物理事实在(仅首个模板生效)', FRONTEND_FACT.includes('首个') && FRONTEND_FACT.includes('生效'))
+check('契约钉:出题范例双形状在(scenario+single,token 两轮自足)', PROBE_SKETCH_EXAMPLES.includes('"kind":"scenario"') && PROBE_SKETCH_EXAMPLES.includes('"kind":"single"') && PROBE_SKETCH_EXAMPLES.includes('PO-4471'))
 
 // ── C 臂:parseDraftResponse / buildDraftPrompt ─────────────────────────────
 const dp = buildDraftPrompt('记账 agent', catalog)
@@ -143,6 +151,33 @@ check('F 检索:非 mcp 条目(frontend)也可检得', hitsFe.some((h) => h.entr
 check('F 检索:停用件不出、空查询空结果、确定性(两跑同序)', !rankCapabilities(catalog.capabilities, '停用件', 5).some((h) => h.entry.id === 'disabled-part')
   && rankCapabilities(catalog.capabilities, '', 5).length === 0
   && JSON.stringify(rankCapabilities(catalog.capabilities, 'sqlite', 5)) === JSON.stringify(rankCapabilities(catalog.capabilities, 'sqlite', 5)))
+
+// ── BM25 IDF:烂大街词降权,稀有词的命中赢过通用词命中 ──────────────────────
+const idfCat = {
+  capabilities: [
+    { id: 'part-a', via: 'mcp', description: '数据 数据 处理', tags: ['数据'], config: { server: 's1' } },
+    { id: 'part-b', via: 'mcp', description: '数据 工具', tags: ['数据'], config: { server: 's2' } },
+    { id: 'part-c', via: 'mcp', description: '数据 面板', tags: ['数据'], config: { server: 's3' } },
+    { id: 'part-rare', via: 'mcp', description: '发票 识别', tags: ['发票'], config: { server: 's4' } },
+  ],
+  'mcp-servers': {},
+}
+const idfHits = rankCapabilities(idfCat.capabilities, '数据 发票', 4)
+check('BM25:稀有词(发票,df=1)命中排在烂大街词(数据,df=3)命中之前', idfHits[0]?.entry.id === 'part-rare')
+
+// ── persona-lint 完备性(阶段1 ④):持久化约束 + 敏感领域边界 ────────────────
+const { lintPersona } = await import('./lib/persona-lint.js')
+const statePart = [{ id: 'sq', via: 'mcp', tool: 'mcp__sqlite-query__execute', description: '', tags: [], config: { server: 'sqlite-query' } }]
+const f1 = lintPersona('你是记账助手,认真负责,回答简洁,服务中文用户,金额按元展示。', statePart)
+check('lint 完备性:挂状态零件 + 无持久化约束 → missing-durability', f1.some((f) => f.kind === 'missing-durability'))
+const f2 = lintPersona('你是记账助手,跨轮事实必须写入数据库账本,不依赖会话记忆,金额按元展示。', statePart)
+check('lint 完备性:有持久化约束不误报', !f2.some((f) => f.kind === 'missing-durability'))
+const f3 = lintPersona('你是医院导诊助手,根据症状描述推荐科室,帮助患者预约挂号,答疑常见健康问题。', [])
+check('lint 完备性:医疗域无边界句 → missing-safety-boundary', f3.some((f) => f.kind === 'missing-safety-boundary'))
+const f4 = lintPersona('你是医院导诊助手,根据症状推荐科室,绝不诊断开药,涉及病情一律建议就医,仅限导诊与科普。', [])
+check('lint 完备性:医疗域有红线句不误报', !f4.some((f) => f.kind === 'missing-safety-boundary'))
+const f5 = lintPersona('你是看板助手,帮团队管理任务流转,语气干脆,拖拽操作在网页完成。', [])
+check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => f.kind === 'missing-safety-boundary'))
 
 if (failures > 0) {
   console.error(`\ntests-orchestrated: ${failures} failure(s)`)

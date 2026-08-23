@@ -52,22 +52,57 @@ export const VERIFY_TOOL_NAME = 'verify_preset'
 export const DRAFT_TOOL_NAME = 'draft_assembly'
 export const ASK_TOOL_NAME = 'ask_catalog'
 export const SEARCH_TOOL_NAME = 'search_catalog'
+export const VERIFY_SHARED_TOOL_NAME = 'verify_shared_data'
+
+// ── 承重契约句(集中定义:单测钉住它们,契约改动掉了哪句立刻红)────────────
+// 超配病根定性为 context 缺口(2026-08-23 用户裁定):不设阈值不说教,把决策
+// 需要的事实放在决策发生的地方。三句分别补三个缺口:基线(何时才需要零件)、
+// 价格(每件的每轮税)、最小集(least-privilege 框架,先例:over-privileged
+// tool selection 文献 + 工具过多致准确率下滑的实测阈值 10-15 件)。
+
+/** 基线判据:零件的边界——LLM 自己能稳定做的不装。 */
+export const BASELINE_RULE =
+  'MOUNT-OR-NOT BASELINE: parts exist for real-world I/O (files, network, processes, persistence) and hard deterministic computation. '
+  + 'What the delivered agent\'s own LLM does reliably (date arithmetic, formatting, text transformation, simple parsing) needs NO part — '
+  + 'mounting one anyway is over-privilege, and research shows accuracy measurably degrades past ~10-15 mounted tools (tool-name confusion).'
+
+/** 最小覆盖集:从 match prompt 移植出来的那条纪律,现在住在检索/发射契约里。 */
+export const MINIMAL_SET_RULE =
+  'Keep the mounted set MINIMAL (least privilege): the smallest covering set for the architecture — every mounted part is a real process '
+  + 'plus its tool manual in EVERY turn of the delivered agent\'s prompt, forever.'
+
+/** 前端物理事实:多装模板不是权衡,是死件。 */
+export const FRONTEND_FACT = '每 preset 仅首个 frontend 模板生效——选恰好一个交互形状。'
 
 /**
- * 装配器与主 agent 的配合形态(host 级环境变量,一臂一台 host,互不污染):
- *  pipeline     A 臂现状:assemble/assemble_solution 一条龙(默认)。
- *  orchestrated B 臂:主 agent 画图纸,match_catalog 映射 + 哑发射 + 独立考官。
- *  draft        C 臂"提案审阅制":draft_assembly 一次调用出完整方案书(架构+选型+
- *               persona+schema+探针草图),主 agent 红笔审阅后发射验收。
- *  dialogue     D 臂"对话式专家":B 的三工具 + ask_catalog 自由问答。
- *  search       F 臂"纯检索制":search_catalog 机械检索(零 LLM),选型智力
- *               全归主 agent,发射验收照旧。
+ * 探针草图范例(⑦出题辅助,范例优先于规则):先例 Anthropic Tool Use Examples
+ * 实测复杂参数准确率 72%→90% 靠的是给 1-5 个真实示例而不是更多规则。两个范例
+ * 覆盖两种形状,各自把易错点做对:token 两轮自足、取回轮不复述存储值、标记是
+ * 内容型、数据全内嵌(空工作区)。
+ */
+export const PROBE_SKETCH_EXAMPLES =
+  'GOOD scenario sketch: {"kind":"scenario","createTask":"新建一条采购单:单号 PO-4471,供应商晨光文具,金额 862 元,备注加急","retrieveTask":"查采购单 PO-4471,报出它的供应商和金额","token":"PO-4471","marks":["晨光文具","862"]} '
+  + '— the token appears in BOTH turns; the retrieve turn asks BY token without restating 晨光文具/862 (the agent must fetch them); marks are stored values, not "done". '
+  + 'GOOD single sketch: {"kind":"single","task":"把这段话按句拆行并编号后存为 notes.txt,完成后报文件名与行数:今天验收通过。明天发布。","marks":["notes.txt","2"]} '
+  + '— output goes to a file, so marks are the filename and a computed count, never the body text.'
+
+/**
+ * 装配器与主 agent 的配合形态(host 级环境变量 DSH_ASSEMBLER_MODE):
+ *  search       **默认**(2026-08-23 身份裁定 + 四臂实测):装配器 = 零件生态的
+ *               搜索引擎。search_catalog 机械检索(零 LLM,BM25 加权,带价签)+
+ *               match_catalog 备用精排阀 + 哑发射 + 独立考官。四臂对跑:Σ墙钟比
+ *               B 快 40%,辅助思考 114.5k→7.8k,质量不掉(forms-bcdf-8.md)。
+ *  pipeline     旧一条龙(assemble/assemble_solution),自动化/回归后备,显式开。
+ *  orchestrated B 臂(match 映射,无 search)——战役复现用。
+ *  draft        C 臂提案审阅——已判负结果(红笔率 0/8),留档复现用。
+ *  dialogue     D 臂对话专家——已判死重(ask Σ0),目录过数千条复议。
  */
 export type AssemblerMode = 'pipeline' | 'orchestrated' | 'draft' | 'dialogue' | 'search'
 
 export function assemblerMode(): AssemblerMode {
   const m = process.env.DSH_ASSEMBLER_MODE
-  return m === 'orchestrated' || m === 'draft' || m === 'dialogue' || m === 'search' ? m : 'pipeline'
+  if (m === 'pipeline' || m === 'orchestrated' || m === 'draft' || m === 'dialogue' || m === 'search') return m
+  return 'search'
 }
 
 /** 兼容旧名:B 臂判定。 */
@@ -536,7 +571,15 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
         items: { type: 'string' },
         required: true,
       },
-      persona: { type: 'string', description: 'the system persona YOU wrote for this agent (role, tone, tool discipline, durability constraint when state parts are mounted, domain safety boundaries; judgeable constraints only — never numbered procedures)', required: true },
+      persona: {
+        type: 'string',
+        description:
+          'the system persona YOU wrote for this agent. SKELETON — cover each dimension that applies: ① 角色与辖区 (what it is and is NOT for); '
+          + '② 语气 and answer language; ③ 工具纪律 (which tool for which job); ④ 持久化约束 when state parts are mounted (跨轮事实必须写入账本/文件,不依赖记忆); '
+          + '⑤ 安全合规边界 — MANDATORY for medical/legal/finance/collections domains (what it must never do, e.g. 绝不诊断开药/绝不联系第三方); '
+          + '⑥ 拒答范围 (out-of-scope requests it declines). Judgeable constraints only — never numbered procedures.',
+        required: true,
+      },
       stateSchema: { type: 'string', description: 'optional idempotent SQLite DDL (only CREATE TABLE/INDEX IF NOT EXISTS) pre-building this agent\'s tables; required in practice whenever a SQLite part is selected — design it from your data model' },
       params: { type: 'object', additionalProperties: true, description: 'optional NON-SECRET deployment parameters (flat string map, e.g. {"timezone":"Asia/Shanghai"}); secret-shaped keys are refused by design — credentials go to host env' },
       missing: { type: 'array', items: { type: 'string' }, description: 'optional: the gap descriptions from match_catalog (recorded in the BOM so re-assembly notices when the catalog grows)' },
@@ -557,6 +600,12 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
       const catalogIds = catalog.capabilities.filter((c) => c.config?.enabled !== false).map((c) => c.id)
       // 调和闸:主 agent 传来的 id 走同一条机械修复;全都不存在 → 大声失败。
       const ids = reconcileCapabilityIds(input.capabilityIds, catalogIds)
+      // 前端硬闸:一个 preset 只有首个 frontend 模板生效——≥2 个不是权衡是死件,
+      // 错误就按错误处理(F 臂实测 HR 装了 3 个模板)。context 补全治大半,这是兜底。
+      const feIds = ids.filter((cid) => catalog.capabilities.find((c) => c.id === cid)?.via === 'frontend')
+      if (feIds.length >= 2) {
+        throw new Error(`emit_preset: 选了 ${String(feIds.length)} 个 frontend 模板(${feIds.join(', ')}),但${FRONTEND_FACT}挑一个交互形状最贴的重新调用。`)
+      }
       const presetRoot = presetRootOf(config)
       const id = sanitizePresetName(input.name)
       const dir = join(presetRoot, id)
@@ -656,7 +705,8 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
         + [
           '',
           '【接力棒】',
-          `- 发射完成 ≠ 可用。立即调 verify_preset {"presetId": "${id}"} 独立验收(可附上你按主工作流设计的探针草图)。`,
+          `- 发射完成 ≠ 可用。立即调 verify_preset {"presetId": "${id}"} 独立验收,并附上你按主工作流设计的探针草图(草图过机械闸 = 验收推导 0s;不给则考官满档自行推导,贵且慢)。`,
+          `- 出题范例(照这个形状写):${PROBE_SKETCH_EXAMPLES}`,
           '- 红线:绝不手改 preset 目录下的任何文件(host 按字节代际挂载,手改必撞名);要改选型/persona/schema,一律重调 emit_preset 同名重发。',
         ].join('\n')
     },
@@ -674,11 +724,11 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
       + 'you know the user\'s intent best — but the verdict is the examiner\'s: you cannot grade your own assembly, and this tool NEVER retries. '
       + 'On FAIL it returns the evidence (which turn, which missing mark, what the agent replied) and the surgical decision is YOURS: '
       + 'swap parts and re-emit, build the missing part first, tighten the persona, or report honestly to the user. '
-      + 'Sketch rules: invent ALL data inline; scenario shape = turn 1 CREATES the workflow\'s central record carrying an invented token '
-      + '(e.g. INV-7781), turn 2 retrieves BY that token WITHOUT restating the stored values; marks are 1-3 content-bearing strings '
-      + '(the token / a stored value) — never invented dates as facts, never refusal wording, never UI/page words, never formatted numbers, '
-      + 'never long body text that goes to a file (mark the filename instead); size each turn under ~2 minutes. '
-      + 'A sketch that fails the mechanical gate falls back to the examiner\'s own derivation. '
+      + 'Sketch by EXAMPLE (copy these shapes): ' + PROBE_SKETCH_EXAMPLES + ' '
+      + 'Rules the examples embody: invent ALL data inline (empty workspace, nobody attending); the retrieve turn asks BY the token without '
+      + 'restating stored values; marks are content-bearing — never invented dates as facts, never refusal wording, never UI/page words, '
+      + 'never formatted numbers, never long body text that goes to a file; size each turn under ~2 minutes. '
+      + 'A sketch that fails the mechanical gate falls back to the examiner\'s own derivation (slow, expensive). '
       + 'A PASS on unchanged bytes within 7 days is carried from the ledger (honestly labeled); pass reverify=true to force a fresh probe.',
     parameters: {
       presetId: { type: 'string', description: 'the emitted preset id to verify', required: true },
@@ -719,14 +769,50 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
         appendOrchLedger({ tool: VERIFY_TOOL_NAME, presetId: id, elapsedSeconds: Math.round((Date.now() - t0) / 1000), ...outcome })
       }
       // lock 是考官的案卷:需求文本(推导回退用)与选型(工具面)都从盘上工件读,
-      // 不信调用者的口头转述——考官只认工件。
+      // 不信调用者的口头转述——考官只认工件。lockParts 全记录:动用率映射要用
+      // serverName(本 preset 代际的运行时名)/plane/tool 三个字段。
       let lockRequirement = ''
       let lockIds: string[] = []
+      let lockParts: Array<{ capability: string; tool?: string; server?: string; serverName?: string; plane?: string }> = []
       try {
         const lock = (yaml.load(readFileSync(join(dir, 'parts.lock.yml'), 'utf8')) ?? {}) as { requirement?: unknown; parts?: Array<Record<string, unknown>> }
         lockRequirement = typeof lock.requirement === 'string' ? lock.requirement : ''
-        lockIds = (Array.isArray(lock.parts) ? lock.parts : []).map((p) => String(p.capability ?? '')).filter((s) => s !== '')
+        lockParts = (Array.isArray(lock.parts) ? lock.parts : [])
+          .map((p) => ({
+            capability: String(p.capability ?? ''),
+            ...(typeof p.tool === 'string' ? { tool: p.tool } : {}),
+            ...(typeof p.server === 'string' ? { server: p.server } : {}),
+            ...(typeof p.serverName === 'string' ? { serverName: p.serverName } : {}),
+            ...(typeof p.plane === 'string' ? { plane: p.plane } : {}),
+          }))
+          .filter((p) => p.capability !== '')
+        lockIds = lockParts.map((p) => p.capability)
       } catch { /* 无 lock:仍可验收(推导退化为按 preset 文本),但正常发射必有 lock */ }
+      // 动用率映射:一个工具零件"被动用" = 探针会话里出现了它的运行时工具名。
+      // 自装 mcp 行的运行时名带代际后缀(mcp__<serverName>__<tool>),host 平面
+      // 与 package 工具用目录名原样。语义边界:探针只走主流程,未动用≠无用。
+      const utilization = (used: Array<{ name: string; calls: number }> | undefined): { mounted: number; usedCount: number; unused: string[] } | null => {
+        if (used === undefined) return null
+        const usedNames = new Set(used.map((u) => u.name))
+        const toolParts = lockParts.filter((p) => p.tool !== undefined)
+        if (toolParts.length === 0) return null
+        const unused: string[] = []
+        let usedCount = 0
+        for (const p of toolParts) {
+          const t = p.tool ?? ''
+          const candidates = new Set<string>([t])
+          // mcp__<server>__<tool> 按双下划线切段(server/tool 内的连字符与单下划线不受影响);
+          // 自装行的运行时名把 server 换成本代际 serverName。
+          const seg = t.split('__')
+          if (seg.length >= 3 && seg[0] === 'mcp' && p.serverName !== undefined) {
+            candidates.add(`mcp__${p.serverName}__${seg.slice(2).join('__')}`)
+          }
+          const hit = [...candidates].some((c) => usedNames.has(c))
+          if (hit) usedCount++
+          else unused.push(p.capability)
+        }
+        return { mounted: toolParts.length, usedCount, unused }
+      }
       const presetText = readFileSync(presetPath, 'utf8')
       const sha = presetSha(presetText)
       const contractPass = [
@@ -827,13 +913,19 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
         }
         const elapsed = Math.round((Date.now() - t0) / 1000)
         phase(`验收完成:${verification.status}(${String(elapsed)}s)`)
+        // 动用率:实测证据回填(②context 的事后镜子)。字段名对齐 OTel GenAI
+        // 的 execute_tool / gen_ai.tool.name,台账将来可直喂观测平台。
+        const util = utilization(verification.toolsUsed)
         settleAndLedger({
           status: verification.status,
           ...(verification.kind !== undefined ? { kind: verification.kind } : {}),
           ...(verification.reason !== undefined ? { reason: verification.reason.slice(0, 200) } : {}),
           sketch: sketch !== null && sketchNote === '',
           derive: { out: deriveUsage.outputTokens, reason: deriveUsage.reasoningTokens },
+          ...(verification.toolsUsed !== undefined ? { toolExecutions: verification.toolsUsed.map((u) => ({ 'gen_ai.tool.name': u.name, calls: u.calls })) } : {}),
+          ...(util !== null ? { utilization: { mounted: util.mounted, used: util.usedCount } } : {}),
         }, verification.status === 'PASS' ? 'completed' : 'failed', verification.status)
+        const utilLine = util === null ? '' : `\n动用率:${String(util.usedCount)}/${String(util.mounted)} 个工具零件被探针动用${util.unused.length > 0 ? `;未动用:${util.unused.slice(0, 12).join(', ')}(探针只走主流程,未动用≠无用——这是修剪线索:确认多余就调 emit_preset 去掉重发)` : ''}`
         const ladder = (verification.turns ?? [])
           .map((t) => `  第${String(t.index)}轮 ${t.pass ? '✓' : '✗'} 「${t.prompt.slice(0, 50)}」标记 [${t.mustInclude.join(', ')}]${t.pass ? '' : `;回复摘录「${t.reply.slice(0, 120)}」`}`)
           .join('\n')
@@ -843,12 +935,12 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
           const evidence = verification.kind === 'scenario'
             ? `多轮场景「${verification.scenario?.goal.slice(0, 60) ?? ''}」共 ${String(verification.scenario?.turns.length ?? 0)} 轮逐轮通过\n${ladder}`
             : `探针「${verification.probe?.task.slice(0, 80) ?? ''}」通过;验收标记 [${verification.probe?.mustInclude.join(', ') ?? ''}]`
-          return `${head} — ${evidence}${feLine}${contractPass}`
+          return `${head} — ${evidence}${feLine}${utilLine}${contractPass}`
         }
         const evidence = verification.kind === 'scenario'
           ? `${verification.reason ?? ''}\n${ladder}`
           : `${verification.reason ?? '回复未含验收标记'};探针「${verification.probe?.task.slice(0, 80) ?? ''}」;标记 [${verification.probe?.mustInclude.join(', ') ?? ''}]${verification.reply !== undefined ? `;回复摘录「${verification.reply.slice(0, 150)}」` : ''}`
-        return `${head} — ${evidence}${feLine}${verification.status === 'FAIL' || verification.status === 'ERRORED' ? contractFail : contractPass}`
+        return `${head} — ${evidence}${feLine}${utilLine}${verification.status === 'FAIL' || verification.status === 'ERRORED' ? contractFail : contractPass}`
       } catch (error: unknown) {
         settleAndLedger({ status: 'ERRORED', reason: error instanceof Error ? error.message.slice(0, 200) : String(error) }, 'failed', 'ERRORED')
         throw error
@@ -1051,12 +1143,17 @@ export function searchCatalogToolDefinition(_ctx: Context, config: Config): Tool
   return defineTool({
     name: SEARCH_TOOL_NAME,
     description:
-      'SEARCH-MODE ASSEMBLY: mechanical lexical search over the parts catalog (zero LLM, instant, deterministic). '
-      + 'In this mode there is NO capability matcher — YOU are the selector. Flow: design the architecture yourself '
-      + '(show the user), then search REPEATEDLY with different phrasings for each architectural need (per-need queries beat '
-      + 'one big query; try synonyms — 持久存储/数据库/sqlite), pick the capability ids yourself, then emit_preset and verify_preset. '
-      + 'Honesty rule: a need no search can cover goes into emit_preset\'s missing/missingEntries as a GAP — never force an '
-      + 'unrelated part and never invent ids. Lexical search misses paraphrases: try 2-3 phrasings before declaring a gap.',
+      'The parts-ecosystem SEARCH ENGINE (mechanical BM25-weighted lexical search: zero LLM, instant, deterministic). '
+      + 'YOU are the selector — the assembler only supplies facts. Flow: design the architecture yourself (show the user), '
+      + 'search REPEATEDLY with different phrasings per architectural need (per-need queries beat one big query; try synonyms — '
+      + '持久存储/数据库/sqlite), decide the ids yourself, then emit_preset and verify_preset. '
+      + BASELINE_RULE + ' ' + MINIMAL_SET_RULE + ' '
+      + 'Each result row carries the FACTS for that decision: a price tag (≈prompt-tokens its tool manual adds to EVERY turn of the '
+      + 'delivered agent, and whether it spawns a process), credential needs, and evidence. '
+      + 'Honesty rule: a need no search covers goes into emit_preset\'s missing/missingEntries as a GAP — never force an unrelated '
+      + 'part, never invent ids. Lexical search misses paraphrases: try 2-3 phrasings before declaring a gap. '
+      + 'Escalation valve: after repeated searches you are still unsure or candidates conflict, call match_catalog once for an '
+      + 'expert LLM mapping of your whole spec (slower; normally unnecessary).',
     parameters: {
       query: { type: 'string', description: 'one search query — a capability need in natural language (Chinese or English); repeat the tool for each need', required: true },
       limit: { type: 'number', description: 'max results (default 10)' },
@@ -1079,12 +1176,117 @@ export function searchCatalogToolDefinition(_ctx: Context, config: Config): Tool
         if (!Array.isArray(decl) || decl.length === 0) return ''
         return `;凭证:${(decl as Array<{ env?: string; optional?: boolean }>).map((s) => `${s.env ?? '?'}${s.optional === true ? '(可选)' : ''}`).join(',')}`
       }
+      // 价签:工具说明书字节 → 估算 token(≈bytes/4;标"约");mcp 且非 host 挂载
+      // = 交付会话要拉一个零件进程(同服务器多件共享一个)。
+      const priceOf = (c: CapabilityEntry): string => {
+        if (c.via !== 'mcp') return c.via === 'frontend' ? `;${FRONTEND_FACT}` : ''
+        const bytes = typeof c.config?.toolBytes === 'number' ? c.config.toolBytes : undefined
+        const sv = c.config?.server as string | undefined
+        const hostMounted = sv !== undefined && servers[sv]?.hostMounted === true
+        const tax = bytes !== undefined ? `每轮约 ${String(Math.round(bytes / 4))} token` : '每轮 token 未标定'
+        return `;价签:${tax}${hostMounted ? '(host 平面,无新进程)' : ',+1 进程(同服务器零件共享)'}`
+      }
       appendOrchLedger({ tool: SEARCH_TOOL_NAME, query: query.slice(0, 120), hits: hits.length })
       if (hits.length === 0) {
         return `「${query}」检索 0 命中。换 2-3 种说法再试(同义词/英文词);仍无 → 这是真缺口,如实进 emit_preset 的 missing/missingEntries。`
       }
-      const rows = hits.map((h, i) => `${String(i + 1)}. ${h.entry.id} [${h.entry.via}](分 ${String(h.score)})— ${h.entry.description.slice(0, 110)}${secretOf(h.entry)}`).join('\n')
-      return `「${query}」top ${String(hits.length)}:\n${rows}\n(机械词法排名,分数只是线索——选不选、选哪个由你判断;别忘了 UI 需求配一个 via:frontend 模板、持久状态配存储零件。)`
+      const rows = hits.map((h, i) => `${String(i + 1)}. ${h.entry.id} [${h.entry.via}](分 ${String(h.score)})— ${h.entry.description.slice(0, 110)}${priceOf(h.entry)}${secretOf(h.entry)}`).join('\n')
+      return `「${query}」top ${String(hits.length)}:\n${rows}\n`
+        + `(BM25 词法排名,分数只是线索——选不选、选哪个由你判断。基线:交付 agent 的 LLM 自己能稳定做的不装零件;价签是它每轮 prompt 的固定税。UI 需求恰好配一个 via:frontend 模板、持久状态配存储零件。)`
+    },
+  })
+}
+
+// ── verify_shared_data:多 agent 班子的共享数据考官(FDE 闭环的 B 面)────────
+
+export function verifySharedDataToolDefinition(ctx: Context, config: Config): ToolDefinition {
+  return defineTool({
+    name: VERIFY_SHARED_TOOL_NAME,
+    description:
+      'INDEPENDENT examiner for MULTI-AGENT suites sharing one SQLite database (presets emitted with the same absolute sharedDb path): '
+      + 'proves that what one agent WRITES another agent can READ — real cross-preset sessions, black-box, no retry. '
+      + 'YOU design the handoff (you know the shared schema): writerTask = an EXPLICIT insert instruction for the writer agent, carrying an '
+      + 'invented KEY token (e.g. ORD-7788) AND an invented PAYLOAD string (e.g. HANDOFF-4821-OK) into real columns; '
+      + 'readerTask = an EXPLICIT query instruction for a DIFFERENT agent to fetch that row BY the token and report the payload column. '
+      + 'Mechanical gates: writerTask must contain both token and payload; readerTask must contain the token but NEVER the payload '
+      + '(otherwise the reader could parrot the instruction — the copy gate); the examiner judges the reader\'s reply for the payload. '
+      + 'PASS = data truly flows across the suite. Call after emitting all suite members.',
+    parameters: {
+      writerId: { type: 'string', description: 'preset id of the WRITING agent', required: true },
+      readerId: { type: 'string', description: 'preset id of the READING agent (must differ from writerId)', required: true },
+      token: { type: 'string', description: 'invented KEY token both tasks reference, e.g. ORD-7788', required: true },
+      payload: { type: 'string', description: 'invented PAYLOAD string the writer stores and the reader must report verbatim, e.g. HANDOFF-4821-OK', required: true },
+      writerTask: { type: 'string', description: 'explicit instruction for the writer: insert a row into a REAL shared table with <token> in the key column and <payload> in a text column, fill other NOT NULL columns with placeholders, then reply done', required: true },
+      readerTask: { type: 'string', description: 'explicit instruction for the reader: query the shared table for the row keyed <token> and report the payload column value verbatim; do not ask anyone', required: true },
+    },
+    output: {
+      schema: { type: 'string' as const },
+      render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
+    },
+    execute: async (args: unknown): Promise<string> => {
+      const a = args as Record<string, unknown> | null
+      const writerId = sanitizePresetName(String(a?.writerId ?? ''))
+      const readerId = sanitizePresetName(String(a?.readerId ?? ''))
+      const token = String(a?.token ?? '').trim()
+      const payload = String(a?.payload ?? '').trim()
+      const writerTask = String(a?.writerTask ?? '').trim()
+      const readerTask = String(a?.readerTask ?? '').trim()
+      if (writerId === '' || readerId === '' || writerId === readerId) {
+        throw new Error('verify_shared_data: writerId 与 readerId 必须是两个不同的已发射 preset id')
+      }
+      const presetRoot = presetRootOf(config)
+      for (const id of [writerId, readerId]) {
+        if (!existsSync(join(presetRoot, id, 'agent.cordis.yml'))) {
+          throw new Error(`verify_shared_data: preset「${id}」不存在——先用 emit_preset(带同一 sharedDb 绝对路径)发射全部班子成员`)
+        }
+      }
+      // 机械闸(每条都是共享探针战役的真坑):token/payload 自给自足;取回轮
+      // 不许携带 payload(照抄即假 PASS);标记消毒。
+      if (token.length < 3 || payload.length < 4) throw new Error('verify_shared_data: token ≥3 字符、payload ≥4 字符(要够独特,别用 ok/done)')
+      if (!writerTask.includes(token) || !writerTask.includes(payload)) {
+        throw new Error('verify_shared_data: writerTask 必须同时包含 token 与 payload(写入指令要自给自足)')
+      }
+      if (!readerTask.includes(token)) throw new Error('verify_shared_data: readerTask 必须包含 token(按键取行)')
+      if (readerTask.toLowerCase().includes(payload.toLowerCase())) {
+        throw new Error('verify_shared_data: readerTask 不许出现 payload——读取方必须从库里取,照抄指令即假 PASS(照抄闸)')
+      }
+      const marks = sanitizeMarks([payload])
+      if (marks.length === 0) throw new Error('verify_shared_data: payload 未过标记消毒(太短/纯符号)——换一个独特字符串')
+      const port = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
+      if (port === undefined) {
+        return '共享数据验收跳过:无 webServer 端口(headless?)——班子未经共享验收,不可当作打通。'
+      }
+      const t0 = Date.now()
+      const job = startJob(ctx, 'verify-shared-data', `共享数据验收 ${writerId}→${readerId}`)
+      const phase = (line: string): void => {
+        job.phase(line)
+        progressAppend(join(presetRoot, writerId), line)
+        progressAppend(join(presetRoot, readerId), line)
+      }
+      try {
+        const { runSharedDataProbe } = await import('./verify.js')
+        const result = await runSharedDataProbe(
+          port,
+          { writerId, writerTask, readerId, readerTask, mustInclude: marks },
+          join(presetRoot, writerId, 'workspace'),
+          join(presetRoot, readerId, 'workspace'),
+          config.verifyTimeoutMs ?? PROBE_TURN_BUDGET_MS,
+          phase,
+        )
+        const elapsed = Math.round((Date.now() - t0) / 1000)
+        job.settle(result.pass ? 'completed' : 'failed', result.pass ? 'PASS' : 'FAIL')
+        appendOrchLedger({ tool: VERIFY_SHARED_TOOL_NAME, writerId, readerId, pass: result.pass, reason: result.reason.slice(0, 160), elapsedSeconds: elapsed })
+        const contract = result.pass
+          ? '\n【接力棒】如实向用户转述:共享数据验收 PASS——班子真的读写同一份账。'
+          : '\n【外科决策归你——考官不重试】证据在上:先诊断(共享表没建?两台 preset 的 sharedDb 路径不一致?读取方查错表?),修正后重发相关 preset 再重验;修不了就如实报告用户。红线:禁止手改 preset 文件,禁止把 FAIL 说成通过。'
+        return `共享数据验收 ${result.pass ? 'PASS' : 'FAIL'}(${String(elapsed)}s)— ${result.reason}`
+          + (result.writerReply !== undefined ? `\n写入方回复摘录:「${result.writerReply.slice(0, 120)}」` : '')
+          + (result.readerReply !== undefined ? `\n读取方回复摘录:「${result.readerReply.slice(0, 120)}」` : '')
+          + contract
+      } catch (error: unknown) {
+        job.settle('failed', error instanceof Error ? error.message.slice(0, 120) : String(error))
+        throw error
+      }
     },
   })
 }

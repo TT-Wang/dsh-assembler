@@ -16,7 +16,7 @@
 import type { CapabilityEntry } from './index.js'
 
 export interface PersonaLintFinding {
-  kind: 'procedure-steps' | 'unknown-tool' | 'too-short' | 'too-long'
+  kind: 'procedure-steps' | 'unknown-tool' | 'too-short' | 'too-long' | 'missing-durability' | 'missing-safety-boundary'
   detail: string
 }
 
@@ -80,6 +80,27 @@ export function lintPersona(
     const server = ref.split('__')[1]
     if (hostSet.has(server)) continue
     findings.push({ kind: 'unknown-tool', detail: `persona 点名了未挂载的工具 ${ref}——要么补选零件,要么删引用` })
+  }
+
+  // ── 完备性骨架(阶段 1 ④:从"只查负面"升级到"查该有的有没有")────────────
+  // 机械可判的两维。判据保守(关键词在场即过),宁漏报不误报——lint 是提示面,
+  // 探针才是硬门。
+  // ① 持久化约束:挂了状态零件(sqlite/filesystem)的 agent,persona 必须有
+  //    "跨轮事实写进账本/文件,不靠记忆"一类约束(实测缺它 = agent 用会话记忆
+  //    冒充持久化,换个会话账就没了)。
+  const hasStatePart = selected.some((c) => {
+    const sv = (c.config?.server as string | undefined) ?? ''
+    return sv.includes('sqlite') || sv.includes('filesystem') || sv.includes('fs-')
+  })
+  if (hasStatePart && !/写入|存入|落库|入库|记入|保存|persist|write.*(记录|账|库|file)|数据库|账本/i.test(text)) {
+    findings.push({ kind: 'missing-durability', detail: '挂了状态零件但 persona 无持久化约束——加一句"跨轮事实必须写入库/文件,不依赖会话记忆"' })
+  }
+  // ② 安全合规边界:敏感领域(医疗/法律/金融投资/催收贷后)的 persona 必须有
+  //    否定式边界句(绝不/禁止/不得/仅限/拒绝)。领域判定看 persona 自身文本
+  //    (task-agnostic:不猜需求,只核对"你说你是医疗助手,那你得有边界句")。
+  const domainHit = /医疗|医院|诊|症状|用药|法律|律师|诉讼|投资|理财|证券|贷|催收|欠款/.test(text)
+  if (domainHit && !/绝不|禁止|不得|不做|仅限|不提供|拒绝|不能(诊断|开药|承诺|保证)/.test(text)) {
+    findings.push({ kind: 'missing-safety-boundary', detail: '敏感领域 persona 无安全边界句——医疗/法律/金融/催收类必须写明"绝不…/仅限…"的红线' })
   }
   return findings
 }

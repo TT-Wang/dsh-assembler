@@ -27,7 +27,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm/message'
 import yaml from 'js-yaml'
 import { assembleToolDefinition } from './assemble-tool.js'
 import { solutionToolDefinition } from './solution-tool.js'
-import { askCatalogToolDefinition, assemblerMode, draftAssemblyToolDefinition, emitPresetToolDefinition, matchCatalogToolDefinition, searchCatalogToolDefinition, verifyPresetToolDefinition } from './orchestrated-tools.js'
+import { askCatalogToolDefinition, assemblerMode, draftAssemblyToolDefinition, emitPresetToolDefinition, matchCatalogToolDefinition, searchCatalogToolDefinition, verifyPresetToolDefinition, verifySharedDataToolDefinition } from './orchestrated-tools.js'
 import { specExperimentToolDefinition, deriveArchSpec, validateArchProbe } from './arch-spec.js'
 import { shortlistCapabilities } from './capability-index.js'
 import { AUX_CALL_TIMEOUT_MS, addUsage, deriveProbePlan, parseModelJson, runFrontendGate, runProbe, runScenario, sanitizeMarks, usageDetail, type AuxUsage, type ProbePlan, type ProbeResult } from './verify.js'
@@ -1250,13 +1250,20 @@ function scrubbedEnv(): Record<string, string> {
 // assemble skips every connection. A TTL backstops remote (streamable-http)
 // servers whose toolset can change server-side without any local trace.
 
-/** Raw tool descriptor as cached — the minimal input `toolsToEntries` needs. */
-interface CachedTool { name: string; description?: string }
+/**
+ * Raw tool descriptor as cached — the minimal input `toolsToEntries` needs.
+ * `size` = 完整工具定义(名字+描述+inputSchema)的 JSON 字节数:检索价签的数据源
+ * ——挂载一个工具,它的说明书就进交付 agent 每一轮的 prompt,这个字节数就是
+ * 那笔"每轮税"的本体(先例:Anthropic 实测普通 MCP 每调用载入 ~15.4K token
+ * 工具定义;把税标在检索结果上,选型决策才看得见价格)。
+ */
+interface CachedTool { name: string; description?: string; size?: number }
 
 interface FedCacheEntry { key: string; fetchedAt: number; tools: CachedTool[] }
 interface FedCache { version: number; servers: Record<string, FedCacheEntry> }
 
-const FED_CACHE_VERSION = 1
+// v2:CachedTool 增 size(价签)。版本升档让旧缓存整体作废重探(一次 ~5s 冷启)。
+const FED_CACHE_VERSION = 2
 const FED_CACHE_PATH = join(REPO, '.cache', 'federation.json')
 const FED_CACHE_TTL_MS = 7 * 24 * 3600 * 1000
 
@@ -1322,7 +1329,7 @@ export function toolsToEntries(server: string, tools: CachedTool[]): CapabilityE
       tool: `mcp__${server}__${tool.name}`,
       description,
       tags: [...new Set([server.toLowerCase(), ...words.slice(0, 8)])],
-      config: { server },
+      config: { server, ...(typeof tool.size === 'number' ? { toolBytes: tool.size } : {}) },
     }
   })
 }
@@ -1424,6 +1431,10 @@ export async function federateMcpTools(catalog: Catalog): Promise<Catalog> {
           const raw: CachedTool[] = tools.tools.map((t) => ({
             name: t.name,
             ...(typeof t.description === 'string' ? { description: t.description } : {}),
+            // 完整定义字节(含 inputSchema):检索价签用。序列化失败就不标价,不炸联邦。
+            ...((): { size?: number } => {
+              try { return { size: JSON.stringify(t).length } } catch { return {} }
+            })(),
           }))
           collected.set(server, toolsToEntries(server, raw))
           cache.servers[server] = { key: keys.get(server) ?? '', fetchedAt: Date.now(), tools: raw }
@@ -2423,7 +2434,10 @@ export function apply(ctx: Context, config: Config = {}): void {
   } else {
     ctx.effect(() => ctx.tools.register(emitPresetToolDefinition(ctx, config)), 'assembler.tool.emit_preset()')
     ctx.effect(() => ctx.tools.register(verifyPresetToolDefinition(ctx, config)), 'assembler.tool.verify_preset()')
-    if (mode === 'orchestrated' || mode === 'dialogue') {
+    // 共享数据考官:多 agent 班子(同一 sharedDb)的 FDE 闭环,所有编排形态可用。
+    ctx.effect(() => ctx.tools.register(verifySharedDataToolDefinition(ctx, config)), 'assembler.tool.verify_shared_data()')
+    if (mode === 'search' || mode === 'orchestrated' || mode === 'dialogue') {
+      // search 默认形态里 match 是"专家精排"备用阀:平时零调用,检索拿不准时升级。
       ctx.effect(() => ctx.tools.register(matchCatalogToolDefinition(ctx, config)), 'assembler.tool.match_catalog()')
     }
     if (mode === 'dialogue') {
