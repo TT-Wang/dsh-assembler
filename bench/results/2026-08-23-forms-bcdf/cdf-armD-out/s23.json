@@ -1,0 +1,60 @@
+{
+  "scenario": {
+    "id": "s23",
+    "req": "文档翻译 agent:读取 docx 或 pdf,中英互译,按段落对照输出,专业术语要维护一个术语表保持一致",
+    "name": "dd-wendang-fanyi"
+  },
+  "arm": "D-dialogue",
+  "port": 3100,
+  "startedAt": "2026-08-23T08:56:18.982Z",
+  "sessionId": "session-8c0e3e6d-2c6d-48cc-b771-8b6315c3e353",
+  "prompt": "请帮我装配一个 agent:文档翻译 agent:读取 docx 或 pdf,中英互译,按段落对照输出,专业术语要维护一个术语表保持一致,preset 名字就叫「dd-wendang-fanyi」",
+  "__lastFrameCount": 8719,
+  "nudges": 0,
+  "clarifications": 0,
+  "timedOut": false,
+  "frameTypes": {
+    "agent/inbox/spliced": 2,
+    "turn/start": 1,
+    "step/start": 4,
+    "user/message": 5,
+    "session/title": 2,
+    "request/header": 1,
+    "request/context": 1,
+    "session/title-llm-request": 1,
+    "assistant/chunk": 8687,
+    "assistant/message": 4,
+    "tool/call": 3,
+    "tool/result": 3,
+    "step/end": 4,
+    "turn/end": 1
+  },
+  "mainAgentUsage": {
+    "inputTokens": 3942,
+    "outputTokens": 17686,
+    "reasoningTokens": 12974,
+    "cacheReadTokens": 143104,
+    "events": 8
+  },
+  "toolCalls": [
+    {
+      "name": "match_catalog",
+      "args": "{\"requirement\": \"文档翻译 agent:读取 docx 或 pdf,中英互译,按段落对照输出,专业术语维护术语表保持一致,preset 名 dd-wendang-fanyi\", \"spec\": {\"capabilities\": [{\"name\": \"extract text from .docx files paragraph by paragraph\", \"why\": \"user input documents are Word files; translation is per-paragraph so paragraph structure must be preserved\"}, {\"name\": \"extract text from .pdf files per page or paragraph\", \"why\": \"user input documents may be PDFs; text extraction is needed to translate their content\"}, {\"name\": \"persist records across sessions in a local database\", \"why\": \"the terminology glossary and translation history must survive across sessions to keep terminology consistent\"}, {\"name\": \"retrieve and search stored records\", \"why\": \"before translating each paragraph the agent must look up existing glossary entries and past tr"
+    },
+    {
+      "name": "emit_preset",
+      "args": "{\"name\": \"dd-wendang-fanyi\", \"requirement\": \"文档翻译 agent:读取 docx 或 pdf,中英互译,按段落对照输出,专业术语维护术语表保持一致\", \"capabilityIds\": [\"mcp-docx-extract-docx-to-text\", \"mcp-pdf-extract-get-pdf-text\", \"mcp-sqlite-query-execute\", \"mcp-sqlite-query-query\", \"mcp-docx-generate-docx-generate-text\", \"mcp-filesystem-list-directory\"], \"persona\": \"你是「文档翻译专员」,专职中英互译与文档对照输出,术语一致性是你的第一职责。\\n\\n- 角色:专业双语翻译与审校;对照输出固定为逐段「原文 / 译文」排版,段落一一对应,不合并、不遗漏。\\n- 语气:简洁、专业、准确;译文通顺地道,术语精确统一。\\n- 工具纪律:翻译 docx 必须用 docx 抽取零件取逐段文本;翻译 pdf 必须用 pdf 抽取零件取文本;抽取结果为空、乱码或明显缺段时,如实告知用户并建议改用 docx,绝不臆造原文;用户直接粘贴的文本可视为文档内容;导出对照文件必须用 docx 生成零件产出,不得手写二进制文件。\\n- 持久化约束:每份翻译过的文档都要把文档信息和逐段原文/译文写入数据库(documents、paragraphs 表);翻译任何段落之前必须先用数据库查询零件查术语表,命中术语一律采用术语表译法;翻译中遇到的专业术语(专有名词、机构名、产品名、法律/技术术语等)若无既定译法,确定译法后连同 lang_pair 写入 terms 表;术语表的一切查询与写入都经由数据库零件完成,不得仅凭记忆作答。\\n- 安全"
+    },
+    {
+      "name": "verify_preset",
+      "args": "{\"presetId\": \"dd-wendang-fanyi\", \"probe\": {\"kind\": \"scenario\", \"createTask\": \"请翻译下面这段英文文档(英译中),按段落对照输出:'The invoice number is INV-7781. The procurement contract covers the delivery of spare parts.' 翻译时把 'procurement contract' 统一译作 '采购合同' 并写入术语表,这份文档的原文和译文也请存档。\", \"retrieveTask\": \"请用术语表翻译这段新文本:'The procurement contract was renewed last week.',并告诉我术语表里 'procurement contract' 的译法,以及我之前翻译过的那份带编号 INV-7781 的文档叫什么。\", \"token\": \"INV-7781\", \"marks\": [\"INV-7781\", \"采购合同\"]}}"
+    }
+  ],
+  "toolResults": [
+    "{\"turn\":1,\"step\":1,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_pPNDFCfICAzS09EzAKSR9331\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_pPNDFCfICAzS09EzAKSR9331\",\"content\":[{\"type\":\"text\",\"text\":\"目录匹配完成:7 项架构需求 → 6 个零件 / 1 项缺口(159s,出21.2k/思20.8k/缓0)\\n覆盖明细:\\n  1. extract text from .docx files paragraph by paragraph — user input documents are Word files; translation is per-paragraph so paragraph structure must be preserved → mcp-docx-extract-docx-to-text(mcp)\\n  2. extract text from .pdf files per page or paragraph — user input documents may be PDFs; text extraction is needed to translate their content → mcp-pdf-extract-get-pdf-text(mcp)\\n  3. persist records across sessions in a local database — the terminology glossary and translation history must survive across sessions to keep terminology consistent → mcp-sqlite-query-execute(mcp)\\n  4. retrieve and search stored records — before translating each paragraph the agent must look up existing glossary entries and past translations → mcp-sqlite-query-query(mcp)\\n  5. generate and export files (docx or markdown) — the user wants the paragraph-aligned bilingual result as a downloadable document, not only chat text → mcp-docx-generate-docx-generate-text(mcp)\\n  6. handle user-provided files in the workspace — input arrives as docx/pdf files the user places in the session; the agent must locate and read them → mcp-filesystem-list-directory(mcp)\\n  7. translate text between Chinese and English — core function: the actual bilingual translation work → 【缺口】No catalog part provides Chinese-English machine translation between Chinese and English.\\n选中零件 capabilityIds:mcp-docx-extract-docx-to-text, mcp-pdf-extract-get-pdf-text, mcp-sqlite-query-execute, mcp-sqlite-query-query, mcp-docx-generate-docx-generate-text, mcp-filesystem-list-directory\\n缺件草案 missingEntries:[{\\\"id\\\":\\\"translation-engine\\\",\\\"via\\\":\\\"mcp\\\",\\\"description\\\":\\\"A Chinese-English / English-Chinese machine translation MCP tool that translates text paragraph by paragraph while preserving paragraph boundaries for aligned bilingual output.\\\",\\\"tags\\\":[\\\"translation\\\",\\\"machine-translation\\\",\\\"zh-en\\\",\\\"en-zh\\\",\\\"bilingual\\\",\\\"mt\\\"]}]\\n\\n【接力棒——编排者是你,匹配到此为止】\\n- 组装决策归你,现在做:写 persona(角色/语气/工具纪律/跨轮持久化约束/该领域的安全合规边界;写成随时可判的约束,禁止\\\"第一步…第二步…\\\"编舞);数据要跨会话留存则设计 stateSchema(只许幂等 CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS,英文列名、合理主键,按你 spec 的 dataModel 一比一落表);给 preset 起 kebab-case 名。\\n- 然后调 emit_preset(name, requirement, capabilityIds, persona[, stateSchema][, params][, missing, missingEntries])发射;发射后必须调 verify_preset 独立验收——你不能自己宣布 agent 可用。\\n- 缺口处置归你:或先照工单造件入库再装(emit 后 gaps/ 有施工单),或先装配、把缺口如实告知用户。\\n- 注意:若选中零件自带目录手写 persona(域验证过的安全文本),发射时它优先于你写的。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"f32535dc-7ebf-44bf-a1f6-f16f2277187c\"}}",
+    "{\"turn\":1,\"step\":2,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_NonMiHVAenOZGXMxcQn46452\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_NonMiHVAenOZGXMxcQn46452\",\"content\":[{\"type\":\"text\",\"text\":\"preset「dd-wendang-fanyi」已发射:mcp-docx-extract-docx-to-text, mcp-pdf-extract-get-pdf-text, mcp-sqlite-query-execute, mcp-sqlite-query-query, mcp-docx-generate-docx-generate-text, mcp-filesystem-list-directory(0s)\\npreset 文件:/Users/tongtao/.dsh/.agent-presets/dd-wendang-fanyi/agent.cordis.yml\\n前端页面:http://127.0.0.1:3100/assembler/ui/dd-wendang-fanyi(模板 chat-console)\\n装备:预建数据库 schema(equipment/init.sql,双次执行门 PASS)\\n缺件工单:1 份 → /Users/tongtao/.dsh/.agent-presets/dd-wendang-fanyi/gaps/\\n\\n【接力棒】\\n- 发射完成 ≠ 可用。立即调 verify_preset {\\\"presetId\\\": \\\"dd-wendang-fanyi\\\"} 独立验收(可附上你按主工作流设计的探针草图)。\\n- 红线:绝不手改 preset 目录下的任何文件(host 按字节代际挂载,手改必撞名);要改选型/persona/schema,一律重调 emit_preset 同名重发。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"f236c16d-c03c-4030-ad41-0bf77d41aa23\"}}",
+    "{\"turn\":1,\"step\":3,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_W0gOnZCg4hVGiNqnE8dF2656\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_W0gOnZCg4hVGiNqnE8dF2656\",\"content\":[{\"type\":\"text\",\"text\":\"验收 PASS(37s) — 多轮场景「架构直构:主工作流建档→取回(token 连续性)」共 2 轮逐轮通过\\n  第1轮 ✓ 「请翻译下面这段英文文档(英译中),按段落对照输出:'The invoice number is IN」标记 [INV-7781]\\n  第2轮 ✓ 「请用术语表翻译这段新文本:'The procurement contract was renewed」标记 [INV-7781, 采购合同]\\n前端验收:页面门+环路门 PASS\\n【接力棒】\\n- 如实向用户转述验收结论与前端 URL;验收已入台账,同字节 7 天内重验将自动沿用。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"41f3e9b2-2598-48f9-914e-6f48f64aad03\"}}"
+  ],
+  "assistantText": "我来装配这个「文档翻译 agent」。按照装配流程,先给出架构设计,再映射零件目录、落盘 preset 并做验收探针。\n\n## 架构设计:dd-wendang-fanyi\n\n**用途**:接收 docx/pdf 文档(或直接粘贴的文本),中英互译,按段落逐段「原文/译文」对照输出;专业术语通过持久化术语表跨文档、跨会话保持一致。\n\n**能力清单(架构需求)**:\n1. 逐段抽取 .docx 文本(保留段落结构)\n2. 抽取 .pdf 文本(按页/段落;抽取失败或乱码时如实报告,不臆造)\n3. 中英双向翻译(逐段执行)\n4. 术语表持久化(跨会话保存 source_term → translation)\n5. 术语检索(每段翻译前查表,保证一致性)\n6. 对照结果导出(docx/markdown 双语对照文件)\n7. 接收用户文件(会话工作区里的 docx/pdf,或粘贴文本)\n\n**数据模型**:\n- `documents`(id, filename, lang_pair, status, created_at)\n- `paragraphs`(doc_id, seq, source_text, translated_text)— 逐段对照的落库\n- `terms`(source_term, translation, lang_pair, notes)— 唯一键 (source_term, lang_pair)\n\n**主流程**:提供 docx/pdf 或文本 → 逐段抽取 → 每段先查术语表再翻译 → 新术语记入术语表 → 输出逐段对照 → 可按需导出对照文档\n\n**交互界面**:聊天内提供文件或粘贴文本;输出为逐段对照排版;可导出文件\n\n先让零件目录专家把这份需求映射到零件:\n---\n目录映射完成:**6 个零件覆盖 7 项需求,1 项缺口**(机器翻译引擎——由模型自身双语能力承担,记入 BOM 工单)。现在做组装决策并发射 preset。\n---\nPreset 已发射(6 零件 + 术语表 SQLite schema + 1 份缺件工单)。现在独立验收——用双轮场景探针:第一轮翻译一份带编号的文档并落库术语表,第二轮凭编号检索并核对术语译法:\n---\n✅ 验收通过 —— **dd-wendang-fanyi** 已装配完成并独立验收(PASS,双轮场景逐轮通过)。\n\n## 装配结果\n\n| 项目 | 内容 |\n|---|---|\n| **preset** | `dd-wendang-fanyi`(前端页面:http://127.0.0.1:3100/assembler/ui/dd-wendang-fanyi) |\n| **零件 ×6** | docx 逐段抽取 · pdf 文本抽取 · SQLite 写入 · SQLite 查询 · docx 对照文件生成 · 工作区文件定位 |\n| **术语表** | `terms` 表(source_term / translation / lang_pair,唯一键防重复)+ `documents` / `paragraphs` 逐段对照落库,跨会话持久 |\n| **验收** | 第 1 轮:翻译文档、按段落对照输出、术语「procurement contract → 采购合同」写入术语表并存档 ✓;第 2 轮:凭编号 INV-7781 取回文档、查术语表并用统一译法翻译新文本 ✓ |\n\n## 两点如实说明\n\n1. **机器翻译引擎是缺口**(已记入 BOM 缺件工单 `gaps/`):目录里没有中英互译零件,翻译由模型自身双语能力承担——对文档翻译场景这正合适(可结合术语表上下文),日后目录若出现翻译零件,重新装配时会自动提示。\n2. **PDF 抽取的固有限制**:扫描版/图片型 PDF 抽取不到文本,此时 agent 会如实告知并建议改用 docx,不会编造原文。\n\n使用方式:在页面里放入 docx/pdf(或直接粘贴文本),说「英译中/中译英」,即可得到逐段对照输出;术语表会随每次翻译自动积累,后续文档自动沿用统一译法。",
+  "seconds": 268
+}

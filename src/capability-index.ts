@@ -72,6 +72,29 @@ function isMcp(c: CapabilityEntry): boolean {
  *   全局最高分补到 maxMcp。命中 0 分的不进(纯噪音)。
  * - queries 为空(无 archSpec)时退化:只用 requirement 当单一 query。
  */
+/**
+ * 带排名的全目录检索(F 臂"纯检索制"的后端):对一个自然语言 query 返回
+ * 按分排序的 top-N 条目(含 frontend/knowledge/persona 等非 mcp 条目——
+ * 检索制下主 agent 要自己找到交互面和知识包,不能只搜库型工具)。
+ * 纯机械(tag ×3 / description ×1),零 LLM,毫秒级,确定性可单测。
+ * 与粗筛器(shortlistCapabilities)共用同一套分词与打分,岗位不同:
+ * 粗筛是选型 prompt 的减负器(负结果,默认关),检索是 F 臂的唯一目录入口。
+ */
+export function rankCapabilities(
+  capabilities: readonly CapabilityEntry[],
+  query: string,
+  topN = 12,
+): Array<{ entry: CapabilityEntry; score: number }> {
+  const qt = tokenize(query)
+  if (qt.length === 0) return []
+  return capabilities
+    .filter((c) => c.config?.enabled !== false)
+    .map((c) => ({ entry: c, score: score(buildDoc(c), qt) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score || a.entry.id.localeCompare(b.entry.id))
+    .slice(0, topN)
+}
+
 export function shortlistCapabilities(
   capabilities: readonly CapabilityEntry[],
   queries: readonly string[],

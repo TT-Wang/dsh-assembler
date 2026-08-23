@@ -1,0 +1,82 @@
+{
+  "scenario": {
+    "id": "s23",
+    "req": "文档翻译 agent:读取 docx 或 pdf,中英互译,按段落对照输出,专业术语要维护一个术语表保持一致",
+    "name": "b2-wendang-fanyi"
+  },
+  "arm": "B-orchestrated",
+  "port": 3098,
+  "startedAt": "2026-08-23T08:51:02.848Z",
+  "sessionId": "session-d68907b3-c2e2-4c7c-8e3d-597a9cbc5cd8",
+  "prompt": "请帮我装配一个 agent:文档翻译 agent:读取 docx 或 pdf,中英互译,按段落对照输出,专业术语要维护一个术语表保持一致,preset 名字就叫「b2-wendang-fanyi」",
+  "__lastFrameCount": 10787,
+  "clarifyQuestions": [
+    "[{\"id\":\"arch_confirm\",\"question\":\"以上架构是否符合你的预期?确认后我将进行能力匹配并装配 preset「b2-wendang-fanyi」。\",\"header\":\"确认架构\",\"options\":[{\"label\":\"按此架构装配 (Recommended)\",\"description\":\"术语表持久化 + 段落对照输出 + 新术语确认入库,涵盖你的全部需求。\"},{\"label\":\"需要调整\",\"description\":\"在回复中说明要修改的点(例如去掉翻译任务记录、简化流程),我改完再装配。\"}]}]"
+  ],
+  "answerReceipts": [
+    "{\"accepted\":true}"
+  ],
+  "nudges": 0,
+  "clarifications": 1,
+  "timedOut": false,
+  "frameTypes": {
+    "agent/inbox/spliced": 2,
+    "turn/start": 1,
+    "step/start": 7,
+    "user/message": 6,
+    "session/title": 2,
+    "request/header": 1,
+    "request/context": 1,
+    "session/title-llm-request": 1,
+    "assistant/chunk": 10738,
+    "assistant/message": 7,
+    "tool/call": 6,
+    "tool/result": 6,
+    "step/end": 7,
+    "__question": 1,
+    "turn/end": 1
+  },
+  "mainAgentUsage": {
+    "inputTokens": 11202,
+    "outputTokens": 21938,
+    "reasoningTokens": 12828,
+    "cacheReadTokens": 249856,
+    "events": 14
+  },
+  "toolCalls": [
+    {
+      "name": "validate_dsh_ui",
+      "args": "{\"spec\": {\"title\": \"b2-wendang-fanyi — 文档翻译 Agent 架构设计\", \"gap\": 14, \"items\": [{\"type\": \"card\", \"title\": \"目的\", \"items\": [{\"type\": \"text\", \"content\": \"读取 docx / pdf 文档,中英互译,按段落输出 原文|译文 对照;专业术语经持久化术语表约束,保证跨文档、跨会话译法一致。\"}]}, {\"type\": \"card\", \"title\": \"能力清单(架构需求)\", \"items\": [{\"type\": \"list\", \"items\": [\"解析 docx:抽取正文段落与标题文本\", \"解析 pdf:提取文本并按段落切分\", \"段落化:段落编号、长度与结构保留\", \"中英互译:双语翻译指令(风格、忠实度约束)\", \"术语表检索:翻译时命中术语强制统一译法\", \"术语表持久化:跨会话存储术语条目\", \"术语表管理:增/改/删/导出术语\", \"对照输出:按段落编号呈现 原文|译文\", \"新术语确认:翻译中发现未收录术语,向用户确认后入库\"]}]}, {\"type\": \"card\", \"title\": \"数据模型\", \"items\": [{\"type\": \"keyvalue\", \"items\": [{\"key\": \"glossary_term\", \"value\": \"id / 源词 / 译词 / 语向(zh-en|en-zh) / 领域 / 备注 / 创建时间\"}, {\"key\": \"translation_job\", \"value\": \"job_id / 文件名 / 语向 / 创建时间\"}, {\"key\": \"paragraph_record\", \"value\": \"job_id / 段落号 / 原文 / 译文 / 命中的术语\"}"
+    },
+    {
+      "name": "ask_user_question",
+      "args": "{\"questions\": [{\"id\": \"arch_confirm\", \"header\": \"确认架构\", \"question\": \"以上架构是否符合你的预期?确认后我将进行能力匹配并装配 preset「b2-wendang-fanyi」。\", \"options\": [{\"label\": \"按此架构装配 (Recommended)\", \"description\": \"术语表持久化 + 段落对照输出 + 新术语确认入库,涵盖你的全部需求。\"}, {\"label\": \"需要调整\", \"description\": \"在回复中说明要修改的点(例如去掉翻译任务记录、简化流程),我改完再装配。\"}]}]}"
+    },
+    {
+      "name": "match_catalog",
+      "args": "{\"requirement\": \"文档翻译 agent:读取 docx 或 pdf,中英互译,按段落对照输出(原文|译文),专业术语维护一个持久化术语表以保证跨文档翻译术语一致。preset 名为 b2-wendang-fanyi。\", \"spec\": {\"capabilities\": [{\"name\": \"解析 docx 文档并抽取段落文本\", \"why\": \"文档翻译的第一步,需要从 .docx 中读出正文段落与标题\"}, {\"name\": \"解析 pdf 文档并抽取段落文本\", \"why\": \"文档翻译的第一步,需要从 .pdf 中提取文本并按段落切分\"}, {\"name\": \"段落化与编号\", \"why\": \"对照输出需要按段落编号组织 原文|译文,保持文档结构\"}, {\"name\": \"中英互译(段落级翻译)\", \"why\": \"核心能力:按段落做 zh↔en 翻译,受术语约束\"}, {\"name\": \"术语表跨会话持久化存储\", \"why\": \"专业术语译法必须跨文档、跨会话保持一致,是用户的核心诉求\"}, {\"name\": \"术语表检索(翻译时查询)\", \"why\": \"翻译每个段落前查术语表,命中术语强制使用统一译法\"}, {\"name\": \"术语表管理(增/改/删/导出)\", \"why\": \"翻译中发现的新术语需确认后入库,用户也要能查看与维护术语表\"}, {\"name\": \"翻译任务与段落记录持久化\", \"why\": \"记录 job_id、文件名、语向、每段原文/译文,便于追溯与复现\"}, {\"name\": \"段落对照输出展示\", \"why\": \"以 段落号|原文|译文 的结构化方式呈现翻译结果,便于人工校对\"}], \"dataModel\": \"glossary_term(id, 源词, 译词, 语向 zh-en|en-zh, 领域, 备注, 创建时间)"
+    },
+    {
+      "name": "emit_preset",
+      "args": "{\"name\": \"b2-wendang-fanyi\", \"requirement\": \"文档翻译 agent:读取 docx 或 pdf,中英互译,按段落对照输出(原文|译文),专业术语维护一个持久化术语表以保证跨文档翻译术语一致。\", \"capabilityIds\": [\"mcp-docx-extract-docx-to-text\", \"mcp-pdf-extract-get-pdf-text\", \"mcp-sqlite-query-execute\", \"mcp-sqlite-query-query\", \"bilingual-reader-web-ui\"], \"persona\": \"你是「b2-wendang-fanyi」文档翻译 agent。职责:接收 docx/pdf 文档与语向(中→英 zh-en 或 英→中 en-zh),按段落输出「段落号|原文|译文」对照,并通过持久化术语表保证专业术语跨文档、跨会话译法一致。\\n\\n【角色与语气】以专业严谨的翻译与审校人员口吻工作:译文准确、通顺、忠实原文,不增删、不臆造。所有输出结构化呈现:段落对照按段落号从 1 起连续递增,不得合并、遗漏、重排或改写段落;未读取到内容时如实说明。\\n\\n【工具纪律】解析 .docx 必须使用 docx 抽取 MCP 工具,解析 .pdf 必须使用 pdf 抽取 MCP 工具;不得声称读取了未实际解析的文件,解析失败要如实报告。术语表与翻译记录的一切读写(查询、新增、修改、删除、导出)必须经过 sqlite MCP 工具;不得凭空记忆或杜撰术语表内容,不得绕过工具自行伪造存储结果。\\n\\n【术语一致性契约(核心)】每份文档翻译开始前,必须按语向查询术语表;翻译每个段落时,原文命中术语表条目的,译文必须使用表内登记译法,不得自创变体。原文出现未收录的专业术语时,先按领域常识给出初译并在输出中"
+    },
+    {
+      "name": "verify_preset",
+      "args": "{\"presetId\": \"b2-wendang-fanyi\", \"probe\": {\"createTask\": \"开始一个翻译任务:先把术语 Sonderweg 登记进术语表,译法为「特殊道路」;然后翻译下面这段英文为中文,并按段落对照输出。段落原文:The Sonderweg thesis shaped German historiography.\", \"kind\": \"scenario\", \"marks\": [\"特殊道路\"], \"retrieveTask\": \"查询术语表,报告术语 Sonderweg 的登记译法,并用该译法翻译这句话:Sonderweg scholarship remains influential.\", \"token\": \"Sonderweg\"}}"
+    },
+    {
+      "name": "validate_dsh_ui",
+      "args": "{\"spec\": {\"gap\": 14, \"items\": [{\"items\": [{\"items\": [{\"key\": \"独立验收\", \"value\": \"PASS — 2 轮跨会话探针:术语建档 → 按 token 取回并复用译法\"}, {\"key\": \"前端页面\", \"value\": \"http://127.0.0.1:3098/assembler/ui/b2-wendang-fanyi\"}, {\"key\": \"preset 文件\", \"value\": \"~/.dsh/.agent-presets/b2-wendang-fanyi/agent.cordis.yml\"}, {\"key\": \"数据表\", \"value\": \"glossary_term / translation_job / paragraph_record(已预建)\"}], \"type\": \"keyvalue\"}], \"title\": \"装配与验收结果\", \"type\": \"card\"}, {\"items\": [{\"items\": [\"docx 文本抽取 MCP\", \"pdf 文本抽取 MCP\", \"sqlite 读写 MCP(术语表 / 任务记录)\", \"术语表查询 MCP\", \"双语对照阅读前端 UI\"], \"type\": \"list\"}], \"title\": \"已装配零件(5)\", \"type\": \"card\"}, {\"items\": [{\"items\": [\"paragraph-splitter-numberer:段落切分与编号 — 当前由 persona 纪律约束完成,缺件工单已入 gaps/\", \"zh-en-paragraph-translator:受术语约束的翻译服务 — 当前由 agent 自身翻译能力 + 术语约束完成,缺件工单已入 gaps/\"], \"type\": \"list\"}],"
+    }
+  ],
+  "toolResults": [
+    "{\"turn\":1,\"step\":1,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_dM4JAp7EOnePwFqPN4Jc7956\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_dM4JAp7EOnePwFqPN4Jc7956\",\"content\":[{\"type\":\"text\",\"text\":\"✅ dsh-ui spec 合法（5 个组件），可以发出围栏。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"6948ada4-b6b7-49cb-abf8-b047e4b4581a\"}}",
+    "{\"turn\":1,\"step\":2,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_ygdjQR68ZG4Tgf3CHFwL1331\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_ygdjQR68ZG4Tgf3CHFwL1331\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"answers\\\":[{\\\"id\\\":\\\"arch_confirm\\\",\\\"selected\\\":[\\\"按此架构装配 (Recommended)\\\"]}]}\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"4f5bf15f-6cd5-4981-8077-0530d8419b1b\"}}",
+    "{\"turn\":1,\"step\":3,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_gp9tckot0Coe6xCPGm3v5347\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_gp9tckot0Coe6xCPGm3v5347\",\"content\":[{\"type\":\"text\",\"text\":\"目录匹配完成:9 项架构需求 → 5 个零件 / 2 项缺口(119s,出16.5k/思15.9k/缓0)\\n覆盖明细:\\n  1. 1. 解析 docx 文档并抽取段落文本 — 文档翻译的第一步,需要从 .docx 中读出正文段落与标题 → mcp-docx-extract-docx-to-text(mcp)\\n  2. 2. 解析 pdf 文档并抽取段落文本 — 文档翻译的第一步,需要从 .pdf 中提取文本并按段落切分 → mcp-pdf-extract-get-pdf-text(mcp)\\n  3. 3. 段落化与编号 — 对照输出需要按段落编号组织 原文|译文,保持文档结构 → 【缺口】缺少通用的文本按段落切分并编号的处理能力\\n  4. 4. 中英互译(段落级翻译) — 核心能力:按段落做 zh↔en 翻译,受术语约束 → 【缺口】缺少受术语约束的中英段落级机器翻译能力\\n  5. 5. 术语表跨会话持久化存储 — 专业术语译法必须跨文档、跨会话保持一致,是用户的核心诉求 → mcp-sqlite-query-execute(mcp)\\n  6. 6. 术语表检索(翻译时查询) — 翻译每个段落前查术语表,命中术语强制使用统一译法 → mcp-sqlite-query-query(mcp)\\n  7. 7. 术语表管理(增/改/删/导出) — 翻译中发现的新术语需确认后入库,用户也要能查看与维护术语表 → mcp-sqlite-query-execute(mcp)\\n  8. 8. 翻译任务与段落记录持久化 — 记录 job_id、文件名、语向、每段原文/译文,便于追溯与复现 → mcp-sqlite-query-execute(mcp)\\n  9. 9. 段落对照输出展示 — 以 段落号|原文|译文 的结构化方式呈现翻译结果,便于人工校对 → bilingual-reader-web-ui(frontend)\\n选中零件 capabilityIds:mcp-docx-extract-docx-to-text, mcp-pdf-extract-get-pdf-text, mcp-sqlite-query-execute, mcp-sqlite-query-query, bilingual-reader-web-ui\\n缺件草案 missingEntries:[{\\\"id\\\":\\\"paragraph-splitter-numberer\\\",\\\"via\\\":\\\"mcp\\\",\\\"description\\\":\\\"按段落切分文本并生成连续段落编号，供原文|译文对照输出保持文档结构\\\",\\\"tags\\\":[\\\"text\\\",\\\"paragraph\\\",\\\"split\\\",\\\"numbering\\\",\\\"document\\\"]},{\\\"id\\\":\\\"zh-en-paragraph-translator\\\",\\\"via\\\":\\\"mcp\\\",\\\"description\\\":\\\"提供受术语表约束的中英段落级互译能力，或封装外部翻译 API/LLM 服务\\\",\\\"tags\\\":[\\\"translation\\\",\\\"zh-en\\\",\\\"paragraph\\\",\\\"glossary\\\"]}]\\n\\n【接力棒——编排者是你,匹配到此为止】\\n- 组装决策归你,现在做:写 persona(角色/语气/工具纪律/跨轮持久化约束/该领域的安全合规边界;写成随时可判的约束,禁止\\\"第一步…第二步…\\\"编舞);数据要跨会话留存则设计 stateSchema(只许幂等 CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS,英文列名、合理主键,按你 spec 的 dataModel 一比一落表);给 preset 起 kebab-case 名。\\n- 然后调 emit_preset(name, requirement, capabilityIds, persona[, stateSchema][, params][, missing, missingEntries])发射;发射后必须调 verify_preset 独立验收——你不能自己宣布 agent 可用。\\n- 缺口处置归你:或先照工单造件入库再装(emit 后 gaps/ 有施工单),或先装配、把缺口如实告知用户。\\n- 注意:若选中零件自带目录手写 persona(域验证过的安全文本),发射时它优先于你写的。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"6f99fa88-a7f8-4679-868e-3324bec7e179\"}}",
+    "{\"turn\":1,\"step\":4,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_m0c9t5YTH85JrmJxtf232434\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_m0c9t5YTH85JrmJxtf232434\",\"content\":[{\"type\":\"text\",\"text\":\"preset「b2-wendang-fanyi」已发射:mcp-docx-extract-docx-to-text, mcp-pdf-extract-get-pdf-text, mcp-sqlite-query-execute, mcp-sqlite-query-query, bilingual-reader-web-ui(0s)\\npreset 文件:/Users/tongtao/.dsh/.agent-presets/b2-wendang-fanyi/agent.cordis.yml\\n前端页面:http://127.0.0.1:3098/assembler/ui/b2-wendang-fanyi(模板 bilingual-reader)\\n装备:预建数据库 schema(equipment/init.sql,双次执行门 PASS)\\n缺件工单:2 份 → /Users/tongtao/.dsh/.agent-presets/b2-wendang-fanyi/gaps/\\n\\n【接力棒】\\n- 发射完成 ≠ 可用。立即调 verify_preset {\\\"presetId\\\": \\\"b2-wendang-fanyi\\\"} 独立验收(可附上你按主工作流设计的探针草图)。\\n- 红线:绝不手改 preset 目录下的任何文件(host 按字节代际挂载,手改必撞名);要改选型/persona/schema,一律重调 emit_preset 同名重发。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"beed6c73-b3c5-4d97-bd49-233c11ed08b0\"}}",
+    "{\"turn\":1,\"step\":5,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_MdomvdynfqaXnCouZ9nB0511\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_MdomvdynfqaXnCouZ9nB0511\",\"content\":[{\"type\":\"text\",\"text\":\"验收 PASS(33s) — 多轮场景「架构直构:主工作流建档→取回(token 连续性)」共 2 轮逐轮通过\\n  第1轮 ✓ 「开始一个翻译任务:先把术语 Sonderweg 登记进术语表,译法为「特殊道路」;然后翻译下面这段英」标记 [Sonderweg]\\n  第2轮 ✓ 「查询术语表,报告术语 Sonderweg 的登记译法,并用该译法翻译这句话:Sonderweg sc」标记 [特殊道路]\\n前端验收:页面门+环路门 PASS\\n【接力棒】\\n- 如实向用户转述验收结论与前端 URL;验收已入台账,同字节 7 天内重验将自动沿用。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"c55af54e-5841-4fc6-9e9c-9af673f14bae\"}}",
+    "{\"turn\":1,\"step\":6,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_b14Sq7kzyXUQciajxqnT6859\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_b14Sq7kzyXUQciajxqnT6859\",\"content\":[{\"type\":\"text\",\"text\":\"✅ dsh-ui spec 合法（3 个组件），可以发出围栏。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"7c58e97d-1afd-428b-9e65-b0ee5d19fe35\"}}"
+  ],
+  "assistantText": "我先完成装配流程的第 1 步:在对话中设计该 agent 的架构,给你确认后再做能力匹配与装配。\n---\n```dsh-ui\n{\"title\":\"b2-wendang-fanyi — 文档翻译 Agent 架构设计\",\"gap\":14,\"items\":[{\"type\":\"card\",\"title\":\"目的\",\"items\":[{\"type\":\"text\",\"content\":\"读取 docx / pdf 文档,中英互译,按段落输出 原文|译文 对照;专业术语经持久化术语表约束,保证跨文档、跨会话译法一致。\"}]},{\"type\":\"card\",\"title\":\"能力清单(架构需求)\",\"items\":[{\"type\":\"list\",\"items\":[\"解析 docx:抽取正文段落与标题文本\",\"解析 pdf:提取文本并按段落切分\",\"段落化:段落编号、长度与结构保留\",\"中英互译:双语翻译指令(风格、忠实度约束)\",\"术语表检索:翻译时命中术语强制统一译法\",\"术语表持久化:跨会话存储术语条目\",\"术语表管理:增/改/删/导出术语\",\"对照输出:按段落编号呈现 原文|译文\",\"新术语确认:翻译中发现未收录术语,向用户确认后入库\"]}]},{\"type\":\"card\",\"title\":\"数据模型\",\"items\":[{\"type\":\"keyvalue\",\"items\":[{\"key\":\"glossary_term\",\"value\":\"id / 源词 / 译词 / 语向(zh-en|en-zh) / 领域 / 备注 / 创建时间\"},{\"key\":\"translation_job\",\"value\":\"job_id / 文件名 / 语向 / 创建时间\"},{\"key\":\"paragraph_record\",\"value\":\"job_id / 段落号 / 原文 / 译文 / 命中的术语\"}]}]},{\"type\":\"card\",\"title\":\"主流程\",\"items\":[{\"type\":\"steps\",\"items\":[\"上传/指定 docx 或 pdf + 选择语向\",\"解析文档,抽取段落\",\"查术语表,生成术语约束\",\"逐段翻译(术语强制一致)\",\"输出段落对照 + 术语命中标注\",\"用户确认新术语入库,供后续复用\"]}]},{\"type\":\"card\",\"title\":\"交互界面\",\"items\":[{\"type\":\"list\",\"items\":[\"文件上传 / 路径指定 + 语向选择\",\"对照结果展示(段落表格,可折叠)\",\"术语表面板(查看 / 增删 / 导出)\",\"对照文档导出(markdown)\"]}]}]}\n```\n\n架构设计如上。核心思路:**术语表是唯一跨会话持久状态**(SQLite),翻译任务记录可选但保留以便追溯;每次翻译先查表、命中术语强制统一译法,新术语经你确认后入库。\n---\n架构已确认。进入装配第 2 步:能力匹配。\n---\n匹配结果已出:9 项需求 → 5 个零件覆盖(docx 解析、pdf 解析、sqlite 读写、双语对照 UI),2 项缺口(段落切分编号、受术语约束的机器翻译)。这两项缺口我按「先装配 + 如实告知」处置:段落切分与翻译本身由 agent 的 persona 纪律约束完成(LLM 自读自译),缺口记录进 BOM 留作施工单。\n\n进入装配第 3 步:发射 preset。\n---\npreset 已发射(5 零件 + 预建 schema + 2 份缺件工单)。进入装配第 4 步:独立验收。\n---\n验收已通过。先快速校验一下汇报用的小面板,再给你完整结论。\n---\n```dsh-ui\n{\"gap\":14,\"items\":[{\"items\":[{\"items\":[{\"key\":\"独立验收\",\"value\":\"PASS — 2 轮跨会话探针:术语建档 → 按 token 取回并复用译法\"},{\"key\":\"前端页面\",\"value\":\"http://127.0.0.1:3098/assembler/ui/b2-wendang-fanyi\"},{\"key\":\"preset 文件\",\"value\":\"~/.dsh/.agent-presets/b2-wendang-fanyi/agent.cordis.yml\"},{\"key\":\"数据表\",\"value\":\"glossary_term / translation_job / paragraph_record(已预建)\"}],\"type\":\"keyvalue\"}],\"title\":\"装配与验收结果\",\"type\":\"card\"},{\"items\":[{\"items\":[\"docx 文本抽取 MCP\",\"pdf 文本抽取 MCP\",\"sqlite 读写 MCP(术语表 / 任务记录)\",\"术语表查询 MCP\",\"双语对照阅读前端 UI\"],\"type\":\"list\"}],\"title\":\"已装配零件(5)\",\"type\":\"card\"},{\"items\":[{\"items\":[\"paragraph-splitter-numberer:段落切分与编号 — 当前由 persona 纪律约束完成,缺件工单已入 gaps/\",\"zh-en-paragraph-translator:受术语约束的翻译服务 — 当前由 agent 自身翻译能力 + 术语约束完成,缺件工单已入 gaps/\"],\"type\":\"list\"}],\"title\":\"2 项缺件工单(已记录,待目录补件后重装)\",\"type\":\"card\"}],\"title\":\"b2-wendang-fanyi 装配完成\"}\n```\n\n装配完成,独立验收 **PASS**。总结:\n\n**✅ 已交付**\n- **preset「b2-wendang-fanyi」** 已发射至 `~/.dsh/.agent-presets/b2-wendang-fanyi/agent.cordis.yml`,含 5 个零件:docx 抽取、pdf 抽取、sqlite 读写、术语表查询、双语对照前端 UI\n- **数据层**:预建三张表 `glossary_term`(术语表)、`translation_job`、`paragraph_record`,术语表是唯一的跨会话事实源\n- **persona 核心契约**:每次翻译前必查术语表、命中术语强制用登记译法、新术语须经你确认才入库、段落对照编号连续不合并不遗漏、涉及敏感信息提示脱敏\n- **验收结果**:2 轮跨会话探针(第 1 轮把术语 Sonderweg→特殊道路 建档并翻译,第 2 轮按 token 取回译法并复用)全部通过;前端页面门+环路门 PASS\n- **前端页面**:http://127.0.0.1:3098/assembler/ui/b2-wendang-fanyi\n\n**⚠️ 如实告知的 2 项缺件**(已生成施工单在 `gaps/`,目录补件后重装即可消除):\n1. `paragraph-splitter-numberer` — 通用段落切分编号组件,当前由 persona 纪律约束保证\n2. `zh-en-paragraph-translator` — 受术语约束的机器翻译服务,当前由 agent 自身翻译能力 + 术语约束保证\n\n你可以直接打开前端页面上传 docx/pdf 开始翻译;术语表会随每次确认的术语持续积累,后续文档自动保持一致。",
+  "seconds": 233
+}

@@ -1,0 +1,77 @@
+{
+  "scenario": {
+    "id": "s23",
+    "req": "文档翻译 agent:读取 docx 或 pdf,中英互译,按段落对照输出,专业术语要维护一个术语表保持一致",
+    "name": "cc-wendang-fanyi"
+  },
+  "arm": "C-draft",
+  "port": 3099,
+  "startedAt": "2026-08-23T08:54:31.897Z",
+  "sessionId": "session-1435f27e-8ee4-4b14-9ffe-898513cc6f67",
+  "prompt": "请帮我装配一个 agent:文档翻译 agent:读取 docx 或 pdf,中英互译,按段落对照输出,专业术语要维护一个术语表保持一致,preset 名字就叫「cc-wendang-fanyi」",
+  "__lastFrameCount": 6247,
+  "clarifyQuestions": [
+    "[{\"id\":\"export\",\"question\":\"草案额外加了「导出为 Word 表格」能力(docx-generate + 二进制写入),你原始需求没提导出。要保留吗?\",\"header\":\"导出能力\",\"options\":[{\"label\":\"保留 Word 导出 (Recommended)\",\"description\":\"用户要求时可将段落对照导出为 .docx,工具已具备,代价是 persona 多一条纪律\"},{\"label\":\"去掉,只聊天输出\",\"description\":\"严格按需求,对照结果只在聊天中按段落展示,少挂两个零件\"}]},{\"id\":\"newterm\",\"question\":\"翻译中发现术语表里没有的新专业术语时,agent 应该怎么处理?\",\"header\":\"新术语处理\",\"options\":[{\"label\":\"先提议、确认后写入 (Recomme"
+  ],
+  "answerReceipts": [
+    "{\"accepted\":true}"
+  ],
+  "nudges": 0,
+  "clarifications": 1,
+  "timedOut": false,
+  "frameTypes": {
+    "agent/inbox/spliced": 2,
+    "turn/start": 1,
+    "step/start": 6,
+    "user/message": 6,
+    "session/title": 2,
+    "request/header": 1,
+    "request/context": 1,
+    "session/title-llm-request": 1,
+    "assistant/chunk": 6203,
+    "assistant/message": 6,
+    "tool/call": 5,
+    "tool/result": 5,
+    "step/end": 6,
+    "__question": 1,
+    "turn/end": 1
+  },
+  "mainAgentUsage": {
+    "inputTokens": 6202,
+    "outputTokens": 12810,
+    "reasoningTokens": 7516,
+    "cacheReadTokens": 192768,
+    "events": 12
+  },
+  "toolCalls": [
+    {
+      "name": "draft_assembly",
+      "args": "{\"requirement\": \"装配一个文档翻译 agent：读取 docx 或 pdf 文件，支持中英互译，按段落对照输出（原文段落与译文段落对照），专业术语需要维护一个术语表并在翻译中保持一致。preset 名字叫「cc-wendang-fanyi」。\"}"
+    },
+    {
+      "name": "ask_user_question",
+      "args": "{\"questions\": [{\"id\": \"export\", \"header\": \"导出能力\", \"question\": \"草案额外加了「导出为 Word 表格」能力(docx-generate + 二进制写入),你原始需求没提导出。要保留吗?\", \"options\": [{\"label\": \"保留 Word 导出 (Recommended)\", \"description\": \"用户要求时可将段落对照导出为 .docx,工具已具备,代价是 persona 多一条纪律\"}, {\"label\": \"去掉,只聊天输出\", \"description\": \"严格按需求,对照结果只在聊天中按段落展示,少挂两个零件\"}]}, {\"id\": \"newterm\", \"header\": \"新术语处理\", \"question\": \"翻译中发现术语表里没有的新专业术语时,agent 应该怎么处理?\", \"options\": [{\"label\": \"先提议、确认后写入 (Recommended)\", \"description\": \"agent 提出建议译法,用户确认后才写入 SQLite 术语表,避免污染术语表\"}, {\"label\": \"自动写入术语表\", \"description\": \"翻译时直接写入,效率高但可能积累未经确认的译法\"}, {\"label\": \"只提示、不写入\", \"description\": \"在输出里标出疑似新术语,不碰术语表\"}]}]}"
+    },
+    {
+      "name": "emit_preset",
+      "args": "{\"name\": \"cc-wendang-fanyi\", \"requirement\": \"文档翻译 agent:读取 docx 或 pdf 文件,中英互译,按段落对照输出,专业术语维护术语表保持一致,可导出 Word。\", \"capabilityIds\": [\"frontend-chat-console\", \"mcp-filesystem-list-directory\", \"mcp-docx-extract-docx-to-text\", \"mcp-pdf-extract-get-pdf-text\", \"mcp-sqlite-query-execute\", \"mcp-sqlite-query-query\", \"mcp-docx-generate-docx-generate-table\", \"mcp-filesystem-list-allowed-directories\", \"mcp-sqlite-query-list-tables\", \"mcp-binary-write-write-binary-file\"], \"persona\": \"你是文档翻译助手 cc-wendang-fanyi,用简体中文与用户交流,语气专业简洁。只翻译工作区内真实存在的 .docx/.pdf 文件;任何文件读取、术语查询/写入、结果落盘都必须调用对应工具,不得虚构读取结果。翻译流程纪律:先查询 SQLite 术语表识别原文中已收录的术语,再逐段翻译;输出必须按「原文段落 ↔ 译文段落」对照呈现,译文中的专业术语必须严格沿用术语表中已确认的译法,全篇保持一致。术语表里没有的新专业术语,先向用户提议建议译法,经用户确认后才写入 SQLite 术语表,未经确认不得写入。跨轮事实(术语表、翻译记录)必须写入 SQLite,不依赖对话记忆。如用户要求,将段落对照导出为 .docx 表格并落盘。涉及医疗、法律、"
+    },
+    {
+      "name": "verify_preset",
+      "args": "{\"presetId\": \"cc-wendang-fanyi\", \"probe\": {\"kind\": \"scenario\", \"createTask\": \"请记住一条术语:term_key 为 GLOSS-7781,英文原文 Transformer,中文译法 变换器,源语言 en,目标语言 zh,领域 ml。\", \"retrieveTask\": \"查一下 term_key 为 GLOSS-7781 的英文原文是什么,不要回填你记得的内容。\", \"token\": \"GLOSS-7781\", \"marks\": [\"Transformer\", \"变换器\", \"ml\"]}}"
+    },
+    {
+      "name": "verify_preset",
+      "args": "{\"presetId\": \"cc-wendang-fanyi\", \"probe\": {\"createTask\": \"请记住一条术语:term_key 为 GLOSS-7781,英文原文 Transformer,中文译法 变换器,源语言 en,目标语言 zh,领域 ml。\", \"kind\": \"scenario\", \"marks\": [\"Transformer\", \"变换器\", \"ml\"], \"retrieveTask\": \"查一下 term_key 为 GLOSS-7781 的完整记录:英文原文、中文译法、领域分别是什么,不要回填你记得的内容。\", \"token\": \"GLOSS-7781\"}}"
+    }
+  ],
+  "toolResults": [
+    "{\"turn\":1,\"step\":1,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_a8lZVPsA21YJUqkaIHhW7181\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_a8lZVPsA21YJUqkaIHhW7181\",\"content\":[{\"type\":\"text\",\"text\":\"方案书(120s,出15.5k/思13.6k/缓38.8k)——以下全部是**草案**,等你红笔:\\n用途:装配一个文档翻译 Agent：读取工作区中的 .docx/.pdf 文件，按段落进行中英互译，输出原文段落与译文段落对照；通过持久化术语表维护专业术语一致性，并可将对照结果导出为 Word。\\n数据模型:glossary_terms(term_key 唯一标识、source_text 原文术语、target_text 译文术语、source_lang、target_lang、domain、created_at、updated_at)；translation_docs(id、doc_name、source_lang、target_lang、created_at)；translation_paragraphs(id、doc_id、para_index、original_text、translated_text、glossary_hits)。其中 translation_paragraphs 用于保存每篇文档的段落级对照译文，glossary_terms 用于跨轮术语一致性。\\n工作流:1. 用户在聊天中给出要翻译的文档路径/文件名和目标语言。\\n2. Agent 列出/确认工作区文件，校验文件存在且为 .docx 或 .pdf。\\n3. 调用 docx 或 pdf 提取工具获取全文，并按空行/段落切分为段落序列。\\n4. 查询 SQLite 术语表，识别原文中的已收术语。\\n5. 对每个段落执行中英互译，严格沿用术语表译法，形成原文段落/译文段落对照。\\n6. 将翻译文档与段落结果写入 SQLite；若用户确认新术语，写入或更新术语表。\\n7. 在聊天界面输出段落对照结果；如用户要求导出，生成 Word 表格并落盘。\\n接口:独立聊天网页（frontend-chat-console）：支持流式回复、工具调用行、新会话。用户以自然语言给出工作区内的 docx/pdf 文件与目标语言；翻译结果以原文/译文段落对照形式展示；术语确认与导出请求同样在对话中完成。\\n覆盖明细:\\n  1. chat_frontend → frontend-chat-console(frontend)\\n  2. workspace_file_discovery → mcp-filesystem-list-directory(mcp)\\n  3. docx_text_extraction → mcp-docx-extract-docx-to-text(mcp)\\n  4. pdf_text_extraction → mcp-pdf-extract-get-pdf-text(mcp)\\n  5. paragraph_translation → 【缺口】没有现成的中英互译/段落对照 MCP；该能力由 agent 自身 LLM 实现，装配时必须在 system prompt 中要求：先查术语表再翻译、按段落对照输出、术语保持全篇一致。\\n  6. glossary_and_history_storage → mcp-sqlite-query-execute(mcp)\\n  7. glossary_and_history_retrieval → mcp-sqlite-query-query(mcp)\\n  8. export_result → mcp-docx-generate-docx-generate-table(mcp)\\n建议 preset 名:doc-paragraph-translator\\n选中零件 capabilityIds:frontend-chat-console, mcp-filesystem-list-directory, mcp-docx-extract-docx-to-text, mcp-pdf-extract-get-pdf-text, mcp-sqlite-query-execute, mcp-sqlite-query-query, mcp-docx-generate-docx-generate-table, mcp-filesystem-list-allowed-directories, mcp-sqlite-query-list-tables, mcp-binary-write-write-binary-file\\npersona 草案:\\n你是文档翻译助手 cc-wendang-fanyi。用简体中文与用户交流，语气专业、简洁。只翻译工作区内真实存在的 .docx/.pdf 文件；任何文件读取、术语查询/写入、结果落盘都必须调用对应工具，不得虚构读取结果。跨轮事实（术语表、翻译记录）必须写入 SQLite，不依赖对话记忆。翻译输出必须按原文段落与译文段落对照；专业术语沿用术语表中已确认译法，保持全篇一致。涉及医疗、法律、金融等专业内容时，你只做语言转换，不提供专业意见或保证。\\nstateSchema 草案:\\nCREATE TABLE IF NOT EXISTS glossary_terms (id INTEGER PRIMARY KEY AUTOINCREMENT, term_key TEXT NOT NULL UNIQUE, source_text TEXT NOT NULL, target_text TEXT NOT NULL, source_lang TEXT NOT NULL, target_lang TEXT NOT NULL, domain TEXT DEFAULT 'general', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));\\nCREATE INDEX IF NOT EXISTS idx_glossary_source_text ON glossary_terms(source_text, source_lang);\\nCREATE TABLE IF NOT EXISTS translation_docs (id INTEGER PRIMARY KEY AUTOINCREMENT, doc_name TEXT NOT NULL, source_lang TEXT NOT NULL, target_lang TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')));\\nCREATE TABLE IF NOT EXISTS translation_paragraphs (id INTEGER PRIMARY KEY AUTOINCREMENT, doc_id INTEGER NOT NULL REFERENCES translation_docs(id), para_index INTEGER NOT NULL, original_text TEXT NOT NULL, translated_text TEXT, glossary_hits TEXT);\\nCREATE INDEX IF NOT EXISTS idx_translation_paragraphs_doc ON translation_paragraphs(doc_id);\\n探针草图:{\\\"kind\\\":\\\"scenario\\\",\\\"createTask\\\":\\\"请记住一条术语：term_key 为 GLOSS-7781，英文原文 Transformer，中文译法 变换器，源语言 en，目标语言 zh，领域 ml。\\\",\\\"retrieveTask\\\":\\\"查一下 term_key 为 GLOSS-7781 的英文原文是什么，不要回填你记得的内容。\\\",\\\"token\\\":\\\"GLOSS-7781\\\",\\\"marks\\\":[\\\"Transformer\\\",\\\"变换器\\\",\\\"ml\\\"]}\\n\\n【接力棒——你是审阅人,不是传声筒】\\n- 逐项挑刺再放行:架构漏了/多了什么?缺口是不是其实有零件能覆盖(或反过来,真需求被静默丢了)?persona 有没有该领域的安全边界与持久化约束?schema 是否与数据模型一比一?\\n- 把架构要点给用户看一眼、允许当场改方向;然后带着(修订后的)字段调 emit_preset(name/requirement/capabilityIds/persona[/stateSchema][/missing,missingEntries]),再 verify_preset(可附探针草图)。\\n- 橡皮图章是这个流程的头号失败模式:草案没有一处要改,本身就值得怀疑。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"b3ab40a3-dc76-4a8d-a1ef-6593c67b72e0\"}}",
+    "{\"turn\":1,\"step\":2,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_7w9fba8U2un9sei6kR043811\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_7w9fba8U2un9sei6kR043811\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"answers\\\":[{\\\"id\\\":\\\"export\\\",\\\"selected\\\":[\\\"保留 Word 导出 (Recommended)\\\"]},{\\\"id\\\":\\\"newterm\\\",\\\"selected\\\":[\\\"先提议、确认后写入 (Recommended)\\\"]}]}\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"52d6c338-c255-459e-b667-d9234157f758\"}}",
+    "{\"turn\":1,\"step\":3,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_gXNocC5yj6Yx6XraSnsY8880\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_gXNocC5yj6Yx6XraSnsY8880\",\"content\":[{\"type\":\"text\",\"text\":\"preset「cc-wendang-fanyi」已发射:frontend-chat-console, mcp-filesystem-list-directory, mcp-docx-extract-docx-to-text, mcp-pdf-extract-get-pdf-text, mcp-sqlite-query-execute, mcp-sqlite-query-query, mcp-docx-generate-docx-generate-table, mcp-filesystem-list-allowed-directories, mcp-sqlite-query-list-tables, mcp-binary-write-write-binary-file(0s)\\npreset 文件:/Users/tongtao/.dsh/.agent-presets/cc-wendang-fanyi/agent.cordis.yml\\n前端页面:http://127.0.0.1:3099/assembler/ui/cc-wendang-fanyi(模板 chat-console)\\n装备:预建数据库 schema(equipment/init.sql,双次执行门 PASS)\\n\\n【接力棒】\\n- 发射完成 ≠ 可用。立即调 verify_preset {\\\"presetId\\\": \\\"cc-wendang-fanyi\\\"} 独立验收(可附上你按主工作流设计的探针草图)。\\n- 红线:绝不手改 preset 目录下的任何文件(host 按字节代际挂载,手改必撞名);要改选型/persona/schema,一律重调 emit_preset 同名重发。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"19b129cd-284a-4a7f-a01e-b3f5404c1645\"}}",
+    "{\"turn\":1,\"step\":4,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_ruKhvApfaJsC803hMThL9837\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_ruKhvApfaJsC803hMThL9837\",\"content\":[{\"type\":\"text\",\"text\":\"验收 FAIL(20s) — 第 2 轮未含验收标记 [Transformer, 变换器, ml]\\n  第1轮 ✓ 「请记住一条术语:term_key 为 GLOSS-7781,英文原文 Transformer,中文译」标记 [GLOSS-7781]\\n  第2轮 ✗ 「查一下 term_key 为 GLOSS-7781 的英文原文是什么,不要回填你记得的内容。」标记 [Transformer, 变换器, ml];回复摘录「好的，我只从数据库读取，不凭记忆作答：\\n根据术语表查询结果，term_key 为 **GLOSS-7781** 的英文原文是：\\n\\n**Transformer**\\n\\n（该结果直接来自 SQLite 术语表 `glossary_terms` 表」\\n前端验收:页面门+环路门 PASS\\n【外科决策归你——考官不重试,证据在上】\\n- 先诊断再动手:疑零件不匹配 → 调整 capabilityIds 重调 emit_preset(同名重发)再 verify_preset;疑缺件 → 先照 gaps/ 工单造件入库再重发重验;疑 persona 约束不足 → 改 persona 重发重验;修不了或拿不准 → 把失败原因与证据如实报给用户,等定夺。\\n- 红线:禁止手改 preset 目录文件;禁止绕开 verify_preset 自行开会话\\\"试一下就算过\\\";禁止把 FAIL 转述成通过。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"8bf9b3a4-6983-4e53-890d-e551022805f1\"}}",
+    "{\"turn\":1,\"step\":5,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_naysw4UrTCni9xI3soba0259\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_naysw4UrTCni9xI3soba0259\",\"content\":[{\"type\":\"text\",\"text\":\"验收 PASS(20s) — 多轮场景「架构直构:主工作流建档→取回(token 连续性)」共 2 轮逐轮通过\\n  第1轮 ✓ 「请记住一条术语:term_key 为 GLOSS-7781,英文原文 Transformer,中文译」标记 [GLOSS-7781]\\n  第2轮 ✓ 「查一下 term_key 为 GLOSS-7781 的完整记录:英文原文、中文译法、领域分别是什么,」标记 [Transformer, 变换器, ml]\\n前端验收:页面门+环路门 PASS\\n【接力棒】\\n- 如实向用户转述验收结论与前端 URL;验收已入台账,同字节 7 天内重验将自动沿用。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"b4218ac9-d169-42f6-9f63-8a528e46c67d\"}}"
+  ],
+  "assistantText": "\n---\n草案已返回,我按红笔逐项审了一遍:\n\n## 审阅意见\n\n| # | 项 | 判定 | 说明 |\n|---|----|------|------|\n| 1 | **preset 名** | ❌ 需修正 | 草案擅自建议 `doc-paragraph-translator`,与你指定的 **`cc-wendang-fanyi`** 冲突 → 按你的名字装配 |\n| 2 | **导出能力** | ⚠️ 疑似发明需求 | 草案额外挂了 Word 表格导出(docx-generate-table + binary-write)。你没要求\"导出\",只是\"按段落对照输出\"——需要你拍板 |\n| 3 | **新术语流程** | ⚠️ persona 缺纪律 | 工作流里写了\"用户确认后写入术语表\",但 persona 没钉死\"新术语先提议、确认后写入\"这一可判定的约束 |\n| 4 | **翻译能力缺口** | ✅ 处理正确 | 没有现成翻译 MCP,由 LLM 自身翻译;persona 强制\"先查术语表→再翻译→段落对照→全篇一致\",合理 |\n| 5 | **数据模型/schema** | ✅ 一致 | glossary_terms(term_key UNIQUE)/ translation_docs / translation_paragraphs,幂等 DDL,与模型一比一 |\n| 6 | **探针** | ✅ 合理 | 场景探针只测跨轮术语持久化(GLOSS-7781),翻译质量本就无法机械验收 |\n| 7 | **安全边界** | ✅ 已有 | 医疗/法律/金融只做语言转换、不给专业意见;跨轮事实必须落 SQLite 不靠对话记忆 |\n\n两个方向性问题需要你定:\n---\n两项都确认了:保留 Word 导出、新术语先提议确认后写入。现在带着修订后的字段装配:\n---\nPreset 已发射。现在跑独立验收探针:\n---\n验收 FAIL,但证据指向**探针草图设计问题,不是装配问题**:\n\n**诊断**:第 2 轮任务只问了「英文原文是什么」,agent 正确地从 SQLite 查出并回答 `Transformer`,还明确声明\"只从数据库读取,不凭记忆作答\"——这正是要验证的跨轮持久化行为。但探针的 marks 要求回复同时出现 `Transformer`、`变换器`、`ml` 三个串,而任务根本没问中文译法和领域——agent 不该吐出没被问的信息。**任务与标记不匹配,agent 行为无误。**\n\n修正探针:retrieveTask 改为一次性查询完整记录(英文原文、中文译法、领域),重跑验收:\n---\n✅ 装配完成,独立验收 **PASS**。\n\n## cc-wendang-fanyi — 文档翻译 agent\n\n**验收结论**:2 轮场景探针全部通过——第 1 轮写入术语 `GLOSS-7781`(Transformer → 变换器,领域 ml),第 2 轮从 SQLite 取回完整记录,agent 明确\"只从数据库读取,不凭记忆作答\"。首次 FAIL 是探针任务与标记不匹配(任务没问译法却要求回复含译法),修正探针后通过。前端页面门+环路门均 PASS。\n\n**挂载零件**(10 个):\n- 聊天前端:frontend-chat-console\n- 文件发现:mcp-filesystem-list-directory / list-allowed-directories\n- 文档提取:mcp-docx-extract-docx-to-text / mcp-pdf-extract-get-pdf-text\n- 术语持久化:mcp-sqlite-query-execute / mcp-sqlite-query-query / list-tables\n- Word 导出:mcp-docx-generate-docx-generate-table / mcp-binary-write-write-binary-file\n\n**Persona 关键纪律**(按你的两点确认落实):\n- 先查术语表 → 再逐段翻译 → 原文/译文段落对照输出,术语全篇一致\n- 新术语**先提议、确认后写入** SQLite,未经确认不得写入\n- 跨轮事实落库,不依赖对话记忆;文件操作必须走工具,不得虚构读取结果\n- 医疗/法律/金融只做语言转换,不给专业意见;未指明目标语言先询问\n\n**数据模型**:`glossary_terms`(term_key 唯一)、`translation_docs`、`translation_paragraphs`(段落级对照,含 glossary_hits),幂等 DDL 双次执行门 PASS。\n\n**已记录缺口**:段落级中英互译无现成 MCP 零件,由 LLM 自身实现,靠 persona 纪律约束——已写入 BOM,若将来目录新增翻译类零件会被重新评估。\n\n前端入口:`http://127.0.0.1:3099/assembler/ui/cc-wendang-fanyi`(chat-console 模板)\n\n之后若要调整(preset 名、零件选型、persona、schema),我会重调 emit_preset 同名重发——绝不手改 preset 文件。",
+  "seconds": 213
+}

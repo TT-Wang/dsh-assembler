@@ -27,7 +27,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm/message'
 import yaml from 'js-yaml'
 import { assembleToolDefinition } from './assemble-tool.js'
 import { solutionToolDefinition } from './solution-tool.js'
-import { emitPresetToolDefinition, matchCatalogToolDefinition, orchestratedMode, verifyPresetToolDefinition } from './orchestrated-tools.js'
+import { askCatalogToolDefinition, assemblerMode, draftAssemblyToolDefinition, emitPresetToolDefinition, matchCatalogToolDefinition, searchCatalogToolDefinition, verifyPresetToolDefinition } from './orchestrated-tools.js'
 import { specExperimentToolDefinition, deriveArchSpec, validateArchProbe } from './arch-spec.js'
 import { shortlistCapabilities } from './capability-index.js'
 import { AUX_CALL_TIMEOUT_MS, addUsage, deriveProbePlan, parseModelJson, runFrontendGate, runProbe, runScenario, sanitizeMarks, usageDetail, type AuxUsage, type ProbePlan, type ProbeResult } from './verify.js'
@@ -2406,15 +2406,13 @@ export const inject = ['commands', 'llm', 'tools']
 // `inject`/`name` exports from it (same trap as dsh-cs-tools).
 
 export function apply(ctx: Context, config: Config = {}): void {
-  if (orchestratedMode()) {
-    // ── B 臂(编排模式,DSH_ASSEMBLER_MODE=orchestrated)────────────────────
-    // A/B 实验(docs/ab-orchestrated-mode.md):assembler 退成"零件专家"三工具,
-    // 编排智力(spec/persona/schema/命名/缺件/重试)归主 agent。assemble/
-    // assemble_solution 在本模式**不注册**——两臂互斥,A/B 数据才干净。
-    ctx.effect(() => ctx.tools.register(matchCatalogToolDefinition(ctx, config)), 'assembler.tool.match_catalog()')
-    ctx.effect(() => ctx.tools.register(emitPresetToolDefinition(ctx, config)), 'assembler.tool.emit_preset()')
-    ctx.effect(() => ctx.tools.register(verifyPresetToolDefinition(ctx, config)), 'assembler.tool.verify_preset()')
-  } else {
+  // ── 配合形态注册矩阵(DSH_ASSEMBLER_MODE,一臂一台 host,互不污染)────────
+  // 形态探索(docs/ab-orchestrated-mode.md + C/D/F 扩展):pipeline = A 臂一条龙;
+  // orchestrated = B 臂三工具;draft = C 臂提案审阅;dialogue = D 臂对话专家;
+  // search = F 臂纯检索。非 pipeline 模式一律不注册 assemble*(臂间互斥,数据干净);
+  // emit_preset/verify_preset(哑发射+独立考官)是所有新形态的公共底座。
+  const mode = assemblerMode()
+  if (mode === 'pipeline') {
     // Agent-native path: the same capability as a tool, so the agent loop
     // renders the call (reasoning → tool card → result) in the conversation.
     // Registered on the host plane (like dsh-cs-tools), visible to every agent.
@@ -2422,6 +2420,21 @@ export function apply(ctx: Context, config: Config = {}): void {
     // 多 agent 方案交付:assemble 装一个,assemble_solution 装一整套班子 + HANDOVER。
     // FDE 级实测(f01)暴露:没有它,主 agent 面对多 agent 需求只能揉成巨型单体。
     ctx.effect(() => ctx.tools.register(solutionToolDefinition(ctx, config)), 'assembler.tool.assemble_solution()')
+  } else {
+    ctx.effect(() => ctx.tools.register(emitPresetToolDefinition(ctx, config)), 'assembler.tool.emit_preset()')
+    ctx.effect(() => ctx.tools.register(verifyPresetToolDefinition(ctx, config)), 'assembler.tool.verify_preset()')
+    if (mode === 'orchestrated' || mode === 'dialogue') {
+      ctx.effect(() => ctx.tools.register(matchCatalogToolDefinition(ctx, config)), 'assembler.tool.match_catalog()')
+    }
+    if (mode === 'dialogue') {
+      ctx.effect(() => ctx.tools.register(askCatalogToolDefinition(ctx, config)), 'assembler.tool.ask_catalog()')
+    }
+    if (mode === 'draft') {
+      ctx.effect(() => ctx.tools.register(draftAssemblyToolDefinition(ctx, config)), 'assembler.tool.draft_assembly()')
+    }
+    if (mode === 'search') {
+      ctx.effect(() => ctx.tools.register(searchCatalogToolDefinition(ctx, config)), 'assembler.tool.search_catalog()')
+    }
   }
   // 实验工具(flag 门控,不进正常面):DSH_ASSEMBLER_EXPERIMENT=1 才注册,验完即撤。
   // 对照"选型优先 vs 架构优先"的实际产出差异(用户 2026-08-22 提的架构-first 问题)。

@@ -5,9 +5,10 @@
  * (先 npm run build)。LLM 调用与探针执行不在此测(那是 E2E 与 A/B 战役的事)。
  */
 import {
-  buildMatchPrompt, normalizeProbeSketch, normalizeSpecInput, orchestratedMode,
-  parseMatchResponse, validateEmitArgs,
+  assemblerMode, buildDraftPrompt, buildMatchPrompt, normalizeProbeSketch, normalizeSpecInput,
+  orchestratedMode, parseDraftResponse, parseMatchResponse, validateEmitArgs,
 } from './lib/orchestrated-tools.js'
+import { rankCapabilities } from './lib/capability-index.js'
 
 let failures = 0
 const check = (name, ok, detail = '') => {
@@ -98,15 +99,50 @@ const sk2 = normalizeProbeSketch({ task: '算 1+1', marks: ['2'] })
 check('草图归一:只有 task → single', sk2?.kind === 'single')
 check('草图归一:非对象 = null', normalizeProbeSketch('x') === null && normalizeProbeSketch(null) === null)
 
-// ── orchestratedMode ────────────────────────────────────────────────────────
+// ── 模式矩阵 ────────────────────────────────────────────────────────────────
 const saved = process.env.DSH_ASSEMBLER_MODE
 delete process.env.DSH_ASSEMBLER_MODE
-const offDefault = orchestratedMode() === false
-process.env.DSH_ASSEMBLER_MODE = 'orchestrated'
-const onFlag = orchestratedMode() === true
+const modeDefault = assemblerMode() === 'pipeline' && orchestratedMode() === false
+const modeChecks = ['orchestrated', 'draft', 'dialogue', 'search'].every((m) => {
+  process.env.DSH_ASSEMBLER_MODE = m
+  return assemblerMode() === m
+})
+process.env.DSH_ASSEMBLER_MODE = 'bogus'
+const modeBogus = assemblerMode() === 'pipeline'
 if (saved === undefined) delete process.env.DSH_ASSEMBLER_MODE
 else process.env.DSH_ASSEMBLER_MODE = saved
-check('模式开关:默认关、=orchestrated 才开', offDefault && onFlag)
+check('模式矩阵:默认 pipeline、四形态各就位、非法值回退 pipeline', modeDefault && modeChecks && modeBogus)
+
+// ── C 臂:parseDraftResponse / buildDraftPrompt ─────────────────────────────
+const dp = buildDraftPrompt('记账 agent', catalog)
+check('C prompt:两遍法(先架构后映射)+ GAP DISCIPLINE + 探针规则齐', dp.prompt.includes('PASS 1') && dp.prompt.includes('GAP DISCIPLINE') && dp.prompt.includes('"probe"'))
+const draft = parseDraftResponse({
+  spec: { purpose: '记账', capabilities: [{ name: '持久保存流水', why: '' }, '语音识别'], dataModel: '流水表', workflow: '记→查', interfaces: '网页' },
+  coverage: [
+    { need: '持久保存流水', capabilityId: 'sqlite-store' },
+    { need: '语音识别', capabilityId: null, gap: '语音转文字' },
+  ],
+  extraIds: ['frontend-data-desk'],
+  name: 'Expense Butler!',
+  persona: ' 你是记账助手 ',
+  stateSchema: 'CREATE TABLE IF NOT EXISTS expenses(id INTEGER PRIMARY KEY)',
+  probe: { createTask: '记一笔 T-9 打车 30 元', retrieveTask: '查 T-9 那笔', token: 'T-9', marks: ['30'] },
+}, dp.ids)
+check('C 整形:spec 宽进(字符串能力也收)+ purpose 带出', draft.spec.capabilities.length === 2 && draft.spec.purpose === '记账')
+check('C 整形:coverage 走同一套调和,capabilityIds 并 extraIds', draft.capabilityIds.includes('sqlite-store') && draft.capabilityIds.includes('frontend-data-desk') && draft.missing.length === 1)
+check('C 整形:name 消毒成 kebab、persona 修剪、schema 带出', draft.name === 'expense-butler' && draft.persona === '你是记账助手' && draft.stateSchema?.startsWith('CREATE TABLE'))
+check('C 整形:探针草图归一(缺 kind 推断 scenario)', draft.probe?.kind === 'scenario' && draft.probe?.token === 'T-9')
+const draftEmpty = parseDraftResponse({}, dp.ids)
+check('C 整形:全缺字段不炸(空洞留给审阅人红笔)', draftEmpty.spec.capabilities.length === 0 && draftEmpty.name === '' && draftEmpty.persona === '' && draftEmpty.probe === null)
+
+// ── F 臂:rankCapabilities ──────────────────────────────────────────────────
+const hits1 = rankCapabilities(catalog.capabilities, 'sqlite 持久存储', 5)
+check('F 检索:sqlite 需求命中 sqlite 零件且排第一', hits1.length > 0 && hits1[0].entry.id === 'sqlite-store')
+const hitsFe = rankCapabilities(catalog.capabilities, '记录台 ui 前端', 5)
+check('F 检索:非 mcp 条目(frontend)也可检得', hitsFe.some((h) => h.entry.id === 'frontend-data-desk'))
+check('F 检索:停用件不出、空查询空结果、确定性(两跑同序)', !rankCapabilities(catalog.capabilities, '停用件', 5).some((h) => h.entry.id === 'disabled-part')
+  && rankCapabilities(catalog.capabilities, '', 5).length === 0
+  && JSON.stringify(rankCapabilities(catalog.capabilities, 'sqlite', 5)) === JSON.stringify(rankCapabilities(catalog.capabilities, 'sqlite', 5)))
 
 if (failures > 0) {
   console.error(`\ntests-orchestrated: ${failures} failure(s)`)

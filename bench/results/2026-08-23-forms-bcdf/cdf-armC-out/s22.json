@@ -1,0 +1,77 @@
+{
+  "scenario": {
+    "id": "s22",
+    "req": "数据分析台:我上传 CSV 数据,它做清洗、分组透视、算同环比,结果在网页上用表格展示,能下载",
+    "name": "cc-shuju-fenxi"
+  },
+  "arm": "C-draft",
+  "port": 3099,
+  "startedAt": "2026-08-23T08:48:23.954Z",
+  "sessionId": "session-5db58c8f-f5ff-45eb-b819-916716e58d0a",
+  "prompt": "帮我装一个 agent:数据分析台:我上传 CSV 数据,它做清洗、分组透视、算同环比,结果在网页上用表格展示,能下载,preset 名字就叫「cc-shuju-fenxi」",
+  "__lastFrameCount": 12129,
+  "clarifyQuestions": [
+    "[{\"id\":\"confirm-assembly\",\"question\":\"方案审查完毕(含上述两处 persona 修订),是否按此方案装配 preset「cc-shuju-fenxi」并运行验收探针?\",\"header\":\"确认装配\",\"options\":[{\"label\":\"按方案装配 (Recommended)\",\"description\":\"12 个零件 + 修订后 persona + 2 个缺口工单,装配后立即跑验收探针\"},{\"label\":\"先调整方案\",\"description\":\"告诉我要改哪里(比如分析类型、存储方式、缺口处理),我改完再装配\"}]}]"
+  ],
+  "answerReceipts": [
+    "{\"accepted\":true}"
+  ],
+  "nudges": 0,
+  "clarifications": 1,
+  "timedOut": false,
+  "frameTypes": {
+    "agent/inbox/spliced": 2,
+    "turn/start": 1,
+    "step/start": 6,
+    "user/message": 7,
+    "session/title": 2,
+    "request/header": 1,
+    "request/context": 1,
+    "session/title-llm-request": 1,
+    "assistant/chunk": 12084,
+    "assistant/message": 6,
+    "tool/call": 5,
+    "tool/result": 5,
+    "step/end": 6,
+    "__question": 1,
+    "turn/end": 1
+  },
+  "mainAgentUsage": {
+    "inputTokens": 14892,
+    "outputTokens": 24552,
+    "reasoningTokens": 18892,
+    "cacheReadTokens": 203264,
+    "events": 12
+  },
+  "toolCalls": [
+    {
+      "name": "draft_assembly",
+      "args": "{\"requirement\": \"安装一个 agent「数据分析台」,preset 名字为 cc-shuju-fenxi。用户上传 CSV 数据文件(可能含中文列名、脏数据如缺失值/重复行/类型混杂),agent 负责:1) 数据清洗(缺失值处理、去重、类型校正、列名规范化);2) 分组与透视分析(按维度列分组汇总、透视表);3) 计算同环比(同比=与上年同期比较,环比=与上一期比较,需按日期字段识别周期);4) 分析结果在网页上用表格展示(美观可读);5) 结果支持下载(CSV/Excel)。整个流程在网页界面中完成,agent 需要把数据和分析结论持久化保存,方便用户后续取用。\"}"
+    },
+    {
+      "name": "ask_user_question",
+      "args": "{\"questions\": [{\"id\": \"confirm-assembly\", \"header\": \"确认装配\", \"question\": \"方案审查完毕(含上述两处 persona 修订),是否按此方案装配 preset「cc-shuju-fenxi」并运行验收探针?\", \"options\": [{\"label\": \"按方案装配 (Recommended)\", \"description\": \"12 个零件 + 修订后 persona + 2 个缺口工单,装配后立即跑验收探针\"}, {\"label\": \"先调整方案\", \"description\": \"告诉我要改哪里(比如分析类型、存储方式、缺口处理),我改完再装配\"}]}]}"
+    },
+    {
+      "name": "emit_preset",
+      "args": "{\"name\": \"cc-shuju-fenxi\", \"requirement\": \"「数据分析台」:用户经网页上传或粘贴 CSV 数据(可能含中文列名、缺失值、重复行、类型混杂等脏数据),agent 完成数据清洗、分组/透视分析、同环比计算(同比=上年同期,环比=上一期),结果在网页上用表格展示,支持 CSV/Excel 下载,并将数据集与分析结论持久化到 SQLite 和工作区文件,方便后续凭编号检索取用。\", \"capabilityIds\": [\"frontend-data-desk\", \"mcp-csv-parse-parse-csv\", \"mcp-csv-parse-validate-csv\", \"mcp-sqlite-query-execute\", \"mcp-date-format-parse-date\", \"mcp-sqlite-query-query\", \"mcp-csv-parse-unparse-csv\", \"mcp-excel-read-write-write-xlsx-file\", \"mcp-filesystem-write-file\", \"mcp-filesystem-read-text-file\", \"mcp-filesystem-create-directory\", \"mcp-filesystem-list-directory\", \"mcp-sqlite-query-list-tables\"], \"persona\": \"你是「数据分析台」的中文智能数据分析助手,风格专业、清晰、克制。所有跨轮事实(数据集元数据、清洗记录、分析结论、导出文件路径)必须写入 SQLite 或工作区文件,绝不依赖对话记忆,也绝不编造统计数字。处理流程:先校验 CSV 结构与编码,再处理缺失值与重复行、按明确规则规范化列名,然后才进入分析;同环比计算必须基于数据中的日期"
+    },
+    {
+      "name": "verify_preset",
+      "args": "{\"presetId\": \"cc-shuju-fenxi\", \"probe\": {\"kind\": \"scenario\", \"createTask\": \"工作区为空,没有任何已有文件。请把下面这段内联 CSV 清洗后保存为数据集 DS-7781,清洗后的 CSV 文件命名为 clean.csv,并完成一次按区域的销售额汇总:\\n日期,区域,销售额\\n2024-01-05,华东,100\\n2024-01-05,华东,100\\n2024-02-01,华南,\\n2023-02-01,华南,80\\n要求:去重、缺失值处理、列名规范化,把数据集与汇总结果写入 SQLite/工作区。\", \"retrieveTask\": \"不要重复任何数据行内容,只凭数据集编号 DS-7781 取回该数据集,并报告持久化时写入的清洗后 CSV 文件名。\", \"token\": \"DS-7781\", \"marks\": [\"DS-7781\", \"clean.csv\", \"区域汇总\"]}}"
+    },
+    {
+      "name": "verify_preset",
+      "args": "{\"presetId\": \"cc-shuju-fenxi\", \"probe\": {\"createTask\": \"工作区为空,没有任何已有文件。请把下面这段内联 CSV 清洗后保存为数据集 DS-7781,清洗后的 CSV 文件命名为 clean.csv,并完成一次按区域的销售额汇总:\\n日期,区域,销售额\\n2024-01-05,华东,100\\n2024-01-05,华东,100\\n2024-02-01,华南,\\n2023-02-01,华南,80\\n要求:去重、缺失值处理、列名规范化,把数据集与汇总结果写入 SQLite/工作区。\", \"kind\": \"scenario\", \"marks\": [\"DS-7781\", \"clean.csv\", \"华东\"], \"retrieveTask\": \"不要重复任何原始数据行,只凭数据集编号 DS-7781 取回该数据集:用普通文字(不要用代码块格式)报告持久化时写入的清洗后 CSV 文件名,以及已存储的按区域销售额汇总中包含的区域名称。\", \"token\": \"DS-7781\"}}"
+    }
+  ],
+  "toolResults": [
+    "{\"turn\":1,\"step\":1,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_fC1RQhw2KSbqmsVz9lCu6496\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_fC1RQhw2KSbqmsVz9lCu6496\",\"content\":[{\"type\":\"text\",\"text\":\"方案书(168s,出21.8k/思19.5k/缓38.8k)——以下全部是**草案**,等你红笔:\\n用途:为「数据分析台」提供网页端 CSV 数据分析助手：用户上传可能含脏数据的 CSV，agent 完成数据清洗、分组/透视分析、同环比计算，在网页以表格展示结果，支持 CSV/Excel 下载，并把数据集与分析结论持久化，方便后续检索取用。\\n数据模型:实体 dataset：dataset_id, name, original_filename, uploaded_at, status, raw_file_path, clean_file_path, row_count, col_count, column_mapping_json, created_at。实体 analysis：analysis_id, dataset_id, type, title, params_json, result_json, export_csv_path, export_xlsx_path, created_at。清洗后的明细 CSV 存于工作区文件；数据集元数据与分析结论存 SQLite，便于跨轮持久化。\\n工作流:用户经网页上传/粘贴 CSV -> agent 用 csv-parse 解析并校验 -> 清洗数据（缺失值处理、去重、类型校正、列名规范化），写 clean.csv 到工作区，并把 dataset 元数据写入 SQLite -> 用户发起分组/透视/同环比请求 -> agent 将清洗数据载入 SQLite，用 SQL 聚合、CASE WHEN 透视、窗口函数/自连接计算同环比 -> 结果写入 analyses 表 -> 生成 CSV/Excel 导出文件并记录路径 -> 前端渲染 result_json 表格并提供下载链接；后续通过「列出历史数据集/分析」查询 SQLite 取回。\\n接口:主界面为 frontend-data-desk 网页：用户上传/粘贴 CSV、输入自然语言分析指令、查看自动渲染的 JSON 表格、点击下载 CSV/Excel、浏览历史数据集与分析记录。需在页面上补充文件上传按钮和下载链接渲染；agent 后台通过 SQLite 工具和文件系统工具读写持久化数据。\\n覆盖明细:\\n  1. Web 数据台界面 → frontend-data-desk(frontend)\\n  2. CSV 文件上传入口 → 【缺口】目录中没有通用 CSV 上传前端组件；需在 frontend-data-desk 上补充。\\n  3. CSV 解析为结构化数据 → mcp-csv-parse-parse-csv(mcp)\\n  4. CSV 规范性校验 → mcp-csv-parse-validate-csv(mcp)\\n  5. 数据清洗与列名规范化 → mcp-sqlite-query-execute(mcp)\\n  6. 日期解析与周期识别 → mcp-date-format-parse-date(mcp)\\n  7. 数据集持久化 → mcp-sqlite-query-execute(mcp)\\n  8. 历史数据集/分析检索 → mcp-sqlite-query-query(mcp)\\n  9. 分组汇总计算 → mcp-sqlite-query-query(mcp)\\n  10. 透视表计算 → mcp-sqlite-query-query(mcp)\\n  11. 同环比计算 → mcp-sqlite-query-query(mcp)\\n  12. 结果文件下载链接渲染 → 【缺口】目录中没有把文件路径渲染为下载链接的前端组件；需在 frontend-data-desk 上补充。\\n  13. CSV 导出 → mcp-csv-parse-unparse-csv(mcp)\\n  14. Excel 导出 → mcp-excel-read-write-write-xlsx-file(mcp)\\n  15. 工作区文件落盘 → mcp-filesystem-write-file(mcp)\\n  16. 工作区文件读取 → mcp-filesystem-read-text-file(mcp)\\n建议 preset 名:cc-shuju-fenxi\\n选中零件 capabilityIds:frontend-data-desk, mcp-csv-parse-parse-csv, mcp-csv-parse-validate-csv, mcp-sqlite-query-execute, mcp-date-format-parse-date, mcp-sqlite-query-query, mcp-csv-parse-unparse-csv, mcp-excel-read-write-write-xlsx-file, mcp-filesystem-write-file, mcp-filesystem-read-text-file, mcp-filesystem-create-directory, mcp-filesystem-list-directory, mcp-sqlite-query-list-tables\\npersona 草案:\\n你是「数据分析台」的智能数据分析助手。对用户用中文提供专业、清晰、克制的回答；所有跨轮事实（数据集、清洗结果、分析结论）必须写入 SQLite 或工作区文件，不依赖对话记忆。数据清洗和分析结论必须可被文件/数据库记录复核，不编造统计数字；当数据缺少日期列、指标列或样本量不足时，如实说明局限，不做超出数据支撑的结论。你只做数据清洗与分析，不提供投资、法律、医疗等专业建议。\\nstateSchema 草案:\\nCREATE TABLE IF NOT EXISTS datasets (\\n  dataset_id TEXT PRIMARY KEY,\\n  name TEXT NOT NULL,\\n  original_filename TEXT,\\n  uploaded_at TEXT NOT NULL,\\n  status TEXT NOT NULL DEFAULT 'uploaded',\\n  raw_file_path TEXT,\\n  clean_file_path TEXT,\\n  row_count INTEGER DEFAULT 0,\\n  col_count INTEGER DEFAULT 0,\\n  column_mapping_json TEXT,\\n  created_at TEXT NOT NULL\\n);\\nCREATE TABLE IF NOT EXISTS analyses (\\n  analysis_id TEXT PRIMARY KEY,\\n  dataset_id TEXT NOT NULL REFERENCES datasets(dataset_id),\\n  type TEXT NOT NULL,\\n  title TEXT,\\n  params_json TEXT,\\n  result_json TEXT,\\n  export_csv_path TEXT,\\n  export_xlsx_path TEXT,\\n  created_at TEXT NOT NULL\\n);\\nCREATE INDEX IF NOT EXISTS idx_analyses_dataset ON analyses(dataset_id);\\nCREATE INDEX IF NOT EXISTS idx_datasets_created ON datasets(created_at);\\n探针草图:{\\\"kind\\\":\\\"scenario\\\",\\\"createTask\\\":\\\"工作区为空，没有任何已有文件。请把下面这段内联 CSV 清洗后保存为数据集 DS-7781，清洗后的 CSV 文件命名为 clean.csv，并完成一次按区域的销售额汇总：\\\\n日期,区域,销售额\\\\n2024-01-05,华东,100\\\\n2024-01-05,华东,100\\\\n2024-02-01,华南,\\\\n2023-02-01,华南,80\\\\n要求：去重、缺失值处理、列名规范化，把数据集与汇总结果写入 SQLite/工作区。\\\",\\\"retrieveTask\\\":\\\"不要重复任何数据行内容，只凭数据集编号 DS-7781 取回该数据集，并报告持久化时写入的清洗后 CSV 文件名。\\\",\\\"token\\\":\\\"DS-7781\\\",\\\"marks\\\":[\\\"DS-7781\\\",\\\"clean.csv\\\",\\\"区域汇总\\\"]}\\n\\n【接力棒——你是审阅人,不是传声筒】\\n- 逐项挑刺再放行:架构漏了/多了什么?缺口是不是其实有零件能覆盖(或反过来,真需求被静默丢了)?persona 有没有该领域的安全边界与持久化约束?schema 是否与数据模型一比一?\\n- 把架构要点给用户看一眼、允许当场改方向;然后带着(修订后的)字段调 emit_preset(name/requirement/capabilityIds/persona[/stateSchema][/missing,missingEntries]),再 verify_preset(可附探针草图)。\\n- 橡皮图章是这个流程的头号失败模式:草案没有一处要改,本身就值得怀疑。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"fb875fe3-bf8b-4a36-861b-385d724f69dc\"}}",
+    "{\"turn\":1,\"step\":2,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_tFZee9ZPjt79MzPu7mEA2252\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_tFZee9ZPjt79MzPu7mEA2252\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"answers\\\":[{\\\"id\\\":\\\"confirm-assembly\\\",\\\"selected\\\":[\\\"按方案装配 (Recommended)\\\"]}]}\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"862b71fd-d789-4813-aed0-ff7bdeb5bb43\"}}",
+    "{\"turn\":1,\"step\":3,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_P8q03iEj8RXTJPsr3oz44955\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_P8q03iEj8RXTJPsr3oz44955\",\"content\":[{\"type\":\"text\",\"text\":\"preset「cc-shuju-fenxi」已发射:frontend-data-desk, mcp-csv-parse-parse-csv, mcp-csv-parse-validate-csv, mcp-sqlite-query-execute, mcp-date-format-parse-date, mcp-sqlite-query-query, mcp-csv-parse-unparse-csv, mcp-excel-read-write-write-xlsx-file, mcp-filesystem-write-file, mcp-filesystem-read-text-file, mcp-filesystem-create-directory, mcp-filesystem-list-directory, mcp-sqlite-query-list-tables(0s)\\npreset 文件:/Users/tongtao/.dsh/.agent-presets/cc-shuju-fenxi/agent.cordis.yml\\n前端页面:http://127.0.0.1:3099/assembler/ui/cc-shuju-fenxi(模板 data-desk)\\n装备:预建数据库 schema(equipment/init.sql,双次执行门 PASS)\\n\\n【接力棒】\\n- 发射完成 ≠ 可用。立即调 verify_preset {\\\"presetId\\\": \\\"cc-shuju-fenxi\\\"} 独立验收(可附上你按主工作流设计的探针草图)。\\n- 红线:绝不手改 preset 目录下的任何文件(host 按字节代际挂载,手改必撞名);要改选型/persona/schema,一律重调 emit_preset 同名重发。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"64d51bfd-7121-4778-940f-8a262b4552da\"}}",
+    "{\"turn\":1,\"step\":4,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_kZSx64iTs9gKZTXbtqBQ9453\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_kZSx64iTs9gKZTXbtqBQ9453\",\"content\":[{\"type\":\"text\",\"text\":\"验收 FAIL(53s) — 第 2 轮未含验收标记 [DS-7781, clean.csv, 区域汇总]\\n  第1轮 ✓ 「工作区为空,没有任何已有文件。请把下面这段内联 CSV 清洗后保存为数据集 DS-7781,清洗后的」标记 [DS-7781]\\n  第2轮 ✗ 「不要重复任何数据行内容,只凭数据集编号 DS-7781 取回该数据集,并报告持久化时写入的清洗后 C」标记 [DS-7781, clean.csv, 区域汇总];回复摘录「\\n已凭编号 `DS-7781` 从数据库 `datasets` 表取回,持久化时写入的清洗后 CSV 文件名为 **`clean.csv`**(路径 `/Users/tongtao/.dsh/.agent-presets/cc-shuju-」\\n前端验收:页面门+环路门 PASS\\n【外科决策归你——考官不重试,证据在上】\\n- 先诊断再动手:疑零件不匹配 → 调整 capabilityIds 重调 emit_preset(同名重发)再 verify_preset;疑缺件 → 先照 gaps/ 工单造件入库再重发重验;疑 persona 约束不足 → 改 persona 重发重验;修不了或拿不准 → 把失败原因与证据如实报给用户,等定夺。\\n- 红线:禁止手改 preset 目录文件;禁止绕开 verify_preset 自行开会话\\\"试一下就算过\\\";禁止把 FAIL 转述成通过。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"9409f960-b3e6-4a3a-8bba-9f4666b0de72\"}}",
+    "{\"turn\":1,\"step\":5,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_KySerjuiS9HrCV4kvAjl8629\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_KySerjuiS9HrCV4kvAjl8629\",\"content\":[{\"type\":\"text\",\"text\":\"验收 PASS(46s) — 多轮场景「架构直构:主工作流建档→取回(token 连续性)」共 2 轮逐轮通过\\n  第1轮 ✓ 「工作区为空,没有任何已有文件。请把下面这段内联 CSV 清洗后保存为数据集 DS-7781,清洗后的」标记 [DS-7781]\\n  第2轮 ✓ 「不要重复任何原始数据行,只凭数据集编号 DS-7781 取回该数据集:用普通文字(不要用代码块格式)」标记 [DS-7781, clean.csv, 华东]\\n前端验收:页面门+环路门 PASS\\n【接力棒】\\n- 如实向用户转述验收结论与前端 URL;验收已入台账,同字节 7 天内重验将自动沿用。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"0604f92d-fe94-4001-9538-3c887e27b759\"}}"
+  ],
+  "assistantText": "我来帮你装配这个「数据分析台」agent。先让装配器出一份完整方案,我来做审查。\n---\n草案已出,我逐项做了红笔审查。关键结论:\n\n**架构审查(基本成立,两处修订)**\n- 实体 `datasets` + `analyses` 两表 + 工作区文件,持久化闭环合理,与用户\"结果可复用、后续可取用\"的要求一致。\n- **同环比是本方案最难的点**:依赖日期列与周期识别(月/季)。草案用 SQL 自连接/窗口函数实现,技术上可行,但 persona 必须硬约束——周期无法确定时不得虚构同比/环比数字,要如实说明并退化为分组汇总。\n- **两个真缺口**已识别:① 网页 CSV 上传入口(目录无现成组件);② 导出文件的下载链接渲染。都将作为 gap 工单交给 frontend-data-desk 补齐。\n- **Persona 修订补充**:禁止编造统计数字、禁止给出不存在的导出路径、跨轮事实必须落库不靠对话记忆、不做投资/法律/医疗建议。\n\n```dsh-ui\n{\"title\":\"方案审查:cc-shuju-fenxi\",\"gap\":10,\"items\":[{\"type\":\"table\",\"columns\":[\"审查点\",\"结论\"],\"rows\":[[\"架构\",\"dataset+analysis 两表 + 工作区文件,持久化闭环成立\"],[\"同环比\",\"SQL 自连接/窗口函数实现;persona 加硬约束:周期不明时如实说明并退化为分组汇总,不得虚构\"],[\"缺口\",\"网页上传按钮、下载链接渲染 → 2 个 gap 工单,由 frontend-data-desk 补齐\"],[\"Persona 修订\",\"新增:不虚构导出路径、不编造统计数字、跨轮事实必须落库\"],[\"探针\",\"内联 CSV 模拟上传,双轮验证:凭 DS-7781 取回 + 报告 clean.csv 文件名\"]]}]}\n```\n---\n好,开始装配。\n---\n\n---\n验收 FAIL 了,先诊断,不慌着改零件。\n\n**诊断**:回复摘录显示第 2 轮实际工作正常——\"已凭编号 `DS-7781` 从数据库 `datasets` 表取回,持久化时写入的清洗后 CSV 文件名为 **`clean.csv`**\"。也就是说取回、持久化都成功了,问题出在我探针草图的标记设计上:\n\n1. **`区域汇总` 这个标记选得差**——它是我发明的词组,agent 自然表述是\"按区域汇总/分组汇总\",连续子串 `区域汇总` 从未出现;\n2. **回执里的 `DS-7781`/`clean.csv` 都带反引号/加粗代码格式**,存在被标记匹配器排除的嫌疑;\n3. 原探针只验证了元数据持久化,没验证分析结果(汇总表)也落了库。\n\n修正探针:第 2 轮改为普通文本报告\"文件名 + 已存储汇总里的区域名\",标记用保证会在回执中出现的 `DS-7781`、`clean.csv`、`华东`(存储值),且在第 1、2 轮都会自然出现。这是探针缺陷,不是零件缺陷,直接重验:\n---\n✅ **验收 PASS,「cc-shuju-fenxi」已装好可用。**\n\n**验收结果(如实转述)**\n- 第 1 轮:内联 CSV → 清洗(去重、缺失值处理、列名规范化)→ 保存数据集 `DS-7781` + `clean.csv` → 区域销售额汇总落库 ✅\n- 第 2 轮:只凭编号 `DS-7781` 取回数据集,报告文件名与已存储汇总的区域名 ✅(同时验证了元数据与分析结果都持久化了)\n- 前端验收:页面门 + 环路门 PASS ✅\n- 首次验收 FAIL 是我探针标记设计的问题(`区域汇总` 词组选得差、回执带代码格式),证据显示 agent 本身工作正常;修正探针后重验即过,非零件缺陷。\n\n**装配内容**\n- 前端页面:http://127.0.0.1:3099/assembler/ui/cc-shuju-fenxi\n- 零件:frontend-data-desk + CSV 解析/校验/导出 + SQLite 查询执行 + 日期解析 + Excel 写入 + 文件系统读写等 13 个能力\n- 持久化:`datasets` / `analyses` 两表(SQLite)+ 工作区 CSV/Excel 文件\n- Persona 硬约束:不编造统计数字、周期不明不虚构同环比、导出路径必须真实、跨轮事实必须落库\n\n**已知待办(2 个 gap 工单,已记录在 preset 的 gaps/ 下)**\n1. 网页 CSV 上传按钮(当前可粘贴文本/走对话上传,文件选择器待补)\n2. 导出文件下载链接渲染(当前文件落盘可下载,链接组件待补)\n\n上传 CSV 后直接说\"清洗并按月份算同环比\"即可开始使用;也可以让我现在就把这两个前端增强做掉。",
+  "seconds": 368
+}

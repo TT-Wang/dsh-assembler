@@ -1,0 +1,60 @@
+{
+  "scenario": {
+    "id": "s12",
+    "req": "给我的小团队装一个项目任务看板:建任务、指派人、拖动流转状态(待办/进行中/已完成),网页上直接操作",
+    "name": "cc-xiangmu-kanban"
+  },
+  "arm": "C-draft",
+  "port": 3099,
+  "startedAt": "2026-08-23T08:45:31.253Z",
+  "sessionId": "session-7a6b4d06-4bff-44df-9571-5912170e549f",
+  "prompt": "给我的小团队装一个项目任务看板:建任务、指派人、拖动流转状态(待办/进行中/已完成),网页上直接操作,preset 名字就叫「cc-xiangmu-kanban」。装配好之后告诉我怎么用。",
+  "__lastFrameCount": 5423,
+  "nudges": 0,
+  "clarifications": 0,
+  "timedOut": false,
+  "frameTypes": {
+    "agent/inbox/spliced": 2,
+    "turn/start": 1,
+    "step/start": 4,
+    "user/message": 5,
+    "session/title": 2,
+    "request/header": 1,
+    "request/context": 1,
+    "session/title-llm-request": 1,
+    "assistant/chunk": 5391,
+    "assistant/message": 4,
+    "tool/call": 3,
+    "tool/result": 3,
+    "step/end": 4,
+    "turn/end": 1
+  },
+  "mainAgentUsage": {
+    "inputTokens": 23834,
+    "outputTokens": 11016,
+    "reasoningTokens": 7628,
+    "cacheReadTokens": 96768,
+    "events": 8
+  },
+  "toolCalls": [
+    {
+      "name": "draft_assembly",
+      "args": "{\"requirement\": \"给我的小团队装一个项目任务看板:建任务、指派人、拖动流转状态(待办/进行中/已完成),网页上直接操作,preset 名字就叫「cc-xiangmu-kanban」。装配好之后告诉我怎么用。\"}"
+    },
+    {
+      "name": "emit_preset",
+      "args": "{\"name\": \"cc-xiangmu-kanban\", \"requirement\": \"给小团队一个网页版项目任务看板:建任务、指派负责人、拖动卡片在待办/进行中/已完成三列间流转状态,所有数据跨会话持久化,装配完成后在聊天窗说明使用方法。\", \"capabilityIds\": [\"frontend-kanban\", \"mcp-sqlite-query-query\", \"mcp-sqlite-query-execute\", \"frontend-chat-console\"], \"persona\": \"你是「cc-xiangmu-kanban」项目任务看板助手,服务一个小团队,用中文、简洁地交流。数据事实以 SQLite 账本为准:所有任务(标题、描述、状态、指派人、时间戳)必须持久化到 kanban_tasks 表,严禁只靠对话记忆;任何轮次结束前,该落库的写入(建任务、改标题/描述、改派、拖拽换列、删除)必须已执行,然后重新查询最新看板数据返回。看板状态只能是 todo/doing/done 三值,对应待办/进行中/已完成,不得发明其他状态。指派人必须来自用户提供的姓名,不得编造成员;用户没给指派人时留空。页面发来的建任务/改派/拖拽换列请求,先落库再回复,并附上最新看板数据。用户要求删除任务时,从账本删除并刷新看板。不知道或数据不一致时如实说明,不编造任务、指派人或状态。\", \"stateSchema\": \"CREATE TABLE IF NOT EXISTS kanban_tasks (\\n  id TEXT PRIMARY KEY,\\n  title TEXT NOT NULL,\\n  description TEXT NOT NULL DEFAULT '',\\n  status TEXT NOT NULL DEFAULT 'todo' CHECK(status "
+    },
+    {
+      "name": "verify_preset",
+      "args": "{\"presetId\": \"cc-xiangmu-kanban\", \"probe\": {\"kind\": \"scenario\", \"createTask\": \"帮我建一个任务,ID 用 KANBAN-7781,标题是「准备季度汇报」,描述是「整理各组数据」,指派给王芳,状态设为进行中。\", \"retrieveTask\": \"KANBAN-7781 现在的负责人是谁?\", \"token\": \"KANBAN-7781\", \"marks\": [\"KANBAN-7781\", \"准备季度汇报\", \"王芳\"]}}"
+    }
+  ],
+  "toolResults": [
+    "{\"turn\":1,\"step\":1,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_ZceHi44cQG26h4rraO6U2589\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_ZceHi44cQG26h4rraO6U2589\",\"content\":[{\"type\":\"text\",\"text\":\"方案书(109s,出13.5k/思12.5k/缓38.8k)——以下全部是**草案**,等你红笔:\\n用途:给一个小团队提供网页版项目任务看板：可建任务、指派负责人、通过拖拽在待办/进行中/已完成之间流转状态；所有数据跨会话持久化。\\n数据模型:实体 Task：id（文本主键，如 KANBAN-0001）、title（任务标题）、description（可选详情）、status（todo|doing|done，对应待办/进行中/已完成）、assignee（指派人文本）、sort_order（列内排序，默认0）、created_at、updated_at。团队成员不单设实体，直接用 assignee 文本。\\n工作流:用户打开 frontend-kanban 页面，页面加载时按 JSON 契约请求看板数据；agent 从 SQLite 读出全部任务，按 status 分组返回 todo/doing/done 三列。用户通过页面添加任务时，agent 解析标题/指派人/描述并 INSERT；用户拖拽卡片时，页面把 taskId+新状态传给 agent，agent UPDATE status 与 updated_at；用户要求改标题/指派人/描述时同理 UPDATE。每次写操作成功后，agent 重新查询并返回最新看板数据，确保页面与账本一致。装配完成后，agent 在默认聊天窗说明如何建任务、改派、拖拽流转。\\n接口:frontend-kanban 网页看板是主操作界面：三列卡片、添加任务、拖拽换列、显示指派人；默认聊天控制台用于装配后的使用说明和自然语言增删改查。\\n覆盖明细:\\n  1. 看板网页交互与拖拽流转 → frontend-kanban(frontend)\\n  2. 任务持久化读取与看板数据装配 → mcp-sqlite-query-query(mcp)\\n  3. 任务写入、更新状态与表结构初始化 → mcp-sqlite-query-execute(mcp)\\n建议 preset 名:cc-xiangmu-kanban\\n选中零件 capabilityIds:frontend-kanban, mcp-sqlite-query-query, mcp-sqlite-query-execute, frontend-chat-console\\npersona 草案:\\n你是「cc-xiangmu-kanban」项目任务看板助手，面向小团队，用中文回答，语气简洁。所有跨轮任务数据必须写入 SQLite 账本（kanban_tasks 表），不依赖对话记忆；网页上的建任务、改派、拖拽换列请求，必须先落库再返回最新看板数据；不得编造任务、指派人或状态。\\nstateSchema 草案:\\nCREATE TABLE IF NOT EXISTS kanban_tasks (\\n  id TEXT PRIMARY KEY,\\n  title TEXT NOT NULL,\\n  description TEXT NOT NULL DEFAULT '',\\n  status TEXT NOT NULL DEFAULT 'todo' CHECK(status IN ('todo','doing','done')),\\n  assignee TEXT NOT NULL DEFAULT '',\\n  sort_order INTEGER NOT NULL DEFAULT 0,\\n  created_at TEXT NOT NULL,\\n  updated_at TEXT NOT NULL\\n);\\nCREATE INDEX IF NOT EXISTS idx_kanban_tasks_status ON kanban_tasks(status);\\nCREATE INDEX IF NOT EXISTS idx_kanban_tasks_assignee ON kanban_tasks(assignee);\\n探针草图:{\\\"kind\\\":\\\"scenario\\\",\\\"createTask\\\":\\\"帮我建一个任务，ID 用 KANBAN-7781，标题是「准备季度汇报」，描述是「整理各组数据」，指派给王芳，状态设为进行中。\\\",\\\"retrieveTask\\\":\\\"KANBAN-7781 现在的负责人是谁？\\\",\\\"token\\\":\\\"KANBAN-7781\\\",\\\"marks\\\":[\\\"KANBAN-7781\\\",\\\"准备季度汇报\\\",\\\"王芳\\\"]}\\n\\n【接力棒——你是审阅人,不是传声筒】\\n- 逐项挑刺再放行:架构漏了/多了什么?缺口是不是其实有零件能覆盖(或反过来,真需求被静默丢了)?persona 有没有该领域的安全边界与持久化约束?schema 是否与数据模型一比一?\\n- 把架构要点给用户看一眼、允许当场改方向;然后带着(修订后的)字段调 emit_preset(name/requirement/capabilityIds/persona[/stateSchema][/missing,missingEntries]),再 verify_preset(可附探针草图)。\\n- 橡皮图章是这个流程的头号失败模式:草案没有一处要改,本身就值得怀疑。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"eab59a25-0236-4cc6-a63a-f299cf20212f\"}}",
+    "{\"turn\":1,\"step\":2,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_Ih54BKKGxEQndnjw2BAs7879\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_Ih54BKKGxEQndnjw2BAs7879\",\"content\":[{\"type\":\"text\",\"text\":\"preset「cc-xiangmu-kanban」已发射:frontend-kanban, mcp-sqlite-query-query, mcp-sqlite-query-execute, frontend-chat-console(0s)\\npreset 文件:/Users/tongtao/.dsh/.agent-presets/cc-xiangmu-kanban/agent.cordis.yml\\n前端页面:http://127.0.0.1:3099/assembler/ui/cc-xiangmu-kanban(模板 kanban)\\n装备:预建数据库 schema(equipment/init.sql,双次执行门 PASS)\\n\\n【接力棒】\\n- 发射完成 ≠ 可用。立即调 verify_preset {\\\"presetId\\\": \\\"cc-xiangmu-kanban\\\"} 独立验收(可附上你按主工作流设计的探针草图)。\\n- 红线:绝不手改 preset 目录下的任何文件(host 按字节代际挂载,手改必撞名);要改选型/persona/schema,一律重调 emit_preset 同名重发。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"bbd29468-e0c2-4c8c-8959-11e3513664b7\"}}",
+    "{\"turn\":1,\"step\":3,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_Jdz34kb1Fe2s1EQPNUWM4196\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_Jdz34kb1Fe2s1EQPNUWM4196\",\"content\":[{\"type\":\"text\",\"text\":\"验收 PASS(15s) — 多轮场景「架构直构:主工作流建档→取回(token 连续性)」共 2 轮逐轮通过\\n  第1轮 ✓ 「帮我建一个任务,ID 用 KANBAN-7781,标题是「准备季度汇报」,描述是「整理各组数据」,指」标记 [KANBAN-7781]\\n  第2轮 ✓ 「KANBAN-7781 现在的负责人是谁?」标记 [KANBAN-7781, 准备季度汇报, 王芳]\\n前端验收:页面门+环路门 PASS\\n【接力棒】\\n- 如实向用户转述验收结论与前端 URL;验收已入台账,同字节 7 天内重验将自动沿用。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"0458d8ba-b7f3-4092-9dd7-26da73f1864e\"}}"
+  ],
+  "assistantText": "\n---\n收到。装配流程开始:先审阅装配方案,再落盘 preset 并做验收探测。\n\n**方案审阅(红笔挑刺)**\n\n| 需求 | 方案覆盖 | 结论 |\n|---|---|---|\n| 建任务 | SQLite INSERT,页面表单提交 | ✅ |\n| 指派人 | `assignee` 字段,页面填写/改派 | ✅ |\n| 拖拽流转 待办/进行中/已完成 | `status` CHECK 约束三值,拖拽后 UPDATE | ✅ |\n| 网页直接操作 | frontend-kanban 页面(三列卡片+拖拽+加任务) | ✅ |\n| 数据跨会话持久化 | SQLite 账本,`kanban_tasks` 表,不依赖对话记忆 | ✅ |\n| 装配后教用法 | 默认聊天控制台交付说明 | ✅ |\n\n审阅中我认为需要加强/修正的点:\n1. **数据真相单一来源** — persona 必须写死「先落库、再回最新看板数据」,严禁编造任务/指派人/状态;\n2. **删除任务** — 用户没点名,但看板自然需要;通过聊天控制台以自然语言删(页面侧保持用户点名的三操作),persona 里补上;\n3. **schema 与数据模型一比一** — `id/title/description/status/assignee/sort_order/created_at/updated_at` + CHECK 约束 + 索引,无冗余,通过;\n4. **探针** — 第一轮建 KANBAN-7781(标题/描述/指派人/状态全部内联),第二轮只凭 ID 问负责人,验收「持久化+不编造」,设计合理。\n\n方案与用户需求一致、无明显缺口,方向无需改动,直接装配:\n---\nPreset 已发射。现在做独立验收探测:\n---\n验收通过。看板已装配完成 ✅\n\n---\n\n## 装配结果\n\n**验收结论(PASS)**:多轮场景探测全部通过 —— 第 1 轮创建任务 `KANBAN-7781`(标题「准备季度汇报」/ 描述 / 指派王芳 / 状态进行中),第 2 轮只凭任务 ID 取回负责人且数据完整,证明**持久化落库 + 不编造数据**两条红线都守住了;前端页面门与数据环路门也通过。\n\n**看板地址**: http://127.0.0.1:3099/assembler/ui/cc-xiangmu-kanban\n\n## 怎么用\n\n```dsh-ui\n{\"title\":\"cc-xiangmu-kanban 使用指南\",\"gap\":12,\"items\":[{\"type\":\"steps\",\"title\":\"三步上手\",\"items\":[{\"title\":\"打开看板\",\"description\":\"访问上方看板地址,页面分三列:待办 / 进行中 / 已完成\"},{\"title\":\"建任务\",\"description\":\"页面上填标题、指派人、描述,提交后出现在「待办」列\"},{\"title\":\"拖拽流转\",\"description\":\"按住卡片拖到其他列即改状态,数据自动保存\"}]},{\"type\":\"keyvalue\",\"title\":\"常用操作\",\"items\":[{\"label\":\"改派/改标题/删除\",\"value\":\"直接在聊天窗说,如「把 KANBAN-0001 改派给小李」\"},{\"label\":\"数据存储\",\"value\":\"SQLite 账本,刷新页面、重开会话都不丢\"},{\"label\":\"状态三值\",\"value\":\"待办 todo / 进行中 doing / 已完成 done\"}]}]}\n```\n\n**要点提醒**:\n- 页面负责**建任务、指派、拖拽换列**;改派、改名、**删除任务**这类操作在聊天窗用自然语言说即可,agent 会落库后刷新看板。\n- 指派人写成员姓名文本即可,不用事先登记名单。\n- 所有操作「先落库、再回显」,agent 不会编造任务或状态。\n\n需要调整(比如加截止日期、优先级字段,或让页面也能删卡片)随时说,我重新装配。",
+  "seconds": 173
+}
