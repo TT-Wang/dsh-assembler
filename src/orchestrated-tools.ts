@@ -36,7 +36,7 @@ import {
   type CapabilityEntry, type Catalog, type Config, type MissingDraft,
 } from './index.js'
 import {
-  AUX_CALL_TIMEOUT_MS, PROBE_TURN_BUDGET_MS, addUsage, deriveProbePlan, parseModelJson,
+  AUX_CALL_TIMEOUT_MS, PROBE_SKETCH_EXAMPLES, PROBE_TURN_BUDGET_MS, addUsage, deriveProbePlan, parseModelJson,
   runFrontendGate, runProbe, runScenario, sanitizeMarks, usageDetail,
   type AuxUsage, type ProbePlan, type ProbeResult,
 } from './verify.js'
@@ -76,15 +76,11 @@ export const FRONTEND_FACT = '每 preset 仅首个 frontend 模板生效——�
 
 /**
  * 探针草图范例(⑦出题辅助,范例优先于规则):先例 Anthropic Tool Use Examples
- * 实测复杂参数准确率 72%→90% 靠的是给 1-5 个真实示例而不是更多规则。两个范例
- * 覆盖两种形状,各自把易错点做对:token 两轮自足、取回轮不复述存储值、标记是
- * 内容型、数据全内嵌(空工作区)。
+ * 实测复杂参数准确率 72%→90% 靠的是给 1-5 个真实示例而不是更多规则。定义移居
+ * verify.ts(编排者出题与考官回退推导共用同一份——s23 实测回退推导没吃范例时
+ * 出过 base64 怪题);此处 re-export 保住既有引用与契约钉。
  */
-export const PROBE_SKETCH_EXAMPLES =
-  'GOOD scenario sketch: {"kind":"scenario","createTask":"新建一条采购单:单号 PO-4471,供应商晨光文具,金额 862 元,备注加急","retrieveTask":"查采购单 PO-4471,报出它的供应商和金额","token":"PO-4471","marks":["晨光文具","862"]} '
-  + '— the token appears in BOTH turns; the retrieve turn asks BY token without restating 晨光文具/862 (the agent must fetch them); marks are stored values, not "done". '
-  + 'GOOD single sketch: {"kind":"single","task":"把这段话按句拆行并编号后存为 notes.txt,完成后报文件名与行数:今天验收通过。明天发布。","marks":["notes.txt","2"]} '
-  + '— output goes to a file, so marks are the filename and a computed count, never the body text.'
+export { PROBE_SKETCH_EXAMPLES } from './verify.js'
 
 /**
  * 装配器与主 agent 的配合形态(host 级环境变量 DSH_ASSEMBLER_MODE):
@@ -392,7 +388,7 @@ export function validateEmitArgs(raw: unknown): EmitArgs {
   }
   const capabilityIds = (Array.isArray(a.capabilityIds) ? a.capabilityIds : []).map(String).filter((s) => s.trim() !== '')
   if (capabilityIds.length === 0) {
-    throw new Error('emit_preset 需要 "capabilityIds":match_catalog 给出的零件 id 清单(可增删——组装决策归你)')
+    throw new Error('emit_preset 需要 "capabilityIds":你从检索/映射结果里定下的零件 id 清单(组装决策归你)')
   }
   const persona = typeof a.persona === 'string' ? a.persona.trim() : ''
   if (persona === '') {
@@ -456,14 +452,13 @@ export function matchCatalogToolDefinition(ctx: Context, config: Config): ToolDe
   return defineTool({
     name: MATCH_TOOL_NAME,
     description:
-      'ORCHESTRATED ASSEMBLY step 2 of 4 (you are the orchestrator; this assembler only knows the parts catalog). '
-      + 'Step 1 is YOURS: when the user asks to build an agent, first design its architecture IN THE CONVERSATION — '
-      + 'purpose, the FULL list of capabilities it architecturally needs (generic descriptions with why, storage/retrieval/export included), '
-      + 'data model, main workflow, interfaces — and show it to the user so they can correct it BEFORE assembly. '
-      + 'Then call this tool with that spec: it maps EACH architectural need onto the parts catalog and returns, per need, '
-      + 'a capability id or a GAP. It does NOT write personas/schemas/names and does NOT assemble anything — '
-      + 'after it returns, YOU make the assembly decisions and call emit_preset, then verify_preset. '
-      + 'Never invent capability ids yourself: this catalog is the assembler\'s territory.',
+      'EXPERT LLM mapping of a whole architecture spec onto the parts catalog — the LAST-RESORT escalation, not the normal path. '
+      + 'When search_catalog is available, searching + your own judgment IS the selection path: do NOT call this for requirements you can '
+      + 'decide from search results (this is a 60-180s full-effort LLM call). Call it at most ONCE per assembly, and only when ≥2 '
+      + 'differently-phrased searches per still-uncovered need left you genuinely stuck or with conflicting candidates. '
+      + 'Input: your architecture spec (design it FIRST, show the user). Output: per need, a capability id or a GAP. '
+      + 'It does NOT write personas/schemas/names and does NOT assemble — after it returns, YOU decide and call emit_preset, then verify_preset. '
+      + 'Never invent capability ids yourself: ids come from search results or from this mapping.',
     parameters: {
       requirement: {
         type: 'string',
@@ -1152,8 +1147,10 @@ export function searchCatalogToolDefinition(_ctx: Context, config: Config): Tool
       + 'delivered agent, and whether it spawns a process), credential needs, and evidence. '
       + 'Honesty rule: a need no search covers goes into emit_preset\'s missing/missingEntries as a GAP — never force an unrelated '
       + 'part, never invent ids. Lexical search misses paraphrases: try 2-3 phrasings before declaring a gap. '
-      + 'Escalation valve: after repeated searches you are still unsure or candidates conflict, call match_catalog once for an '
-      + 'expert LLM mapping of your whole spec (slower; normally unnecessary).',
+      + 'THIS SEARCH IS THE SELECTION PATH — searching + your own judgment completes selection for ordinary requirements; results are '
+      + 'designed to be decided on directly. match_catalog is a LAST-RESORT escalation with a hard budget: at most ONE call per assembly, '
+      + 'and ONLY after ≥2 differently-phrased searches per still-uncovered need left you genuinely stuck (it costs a 60-180s full-effort '
+      + 'LLM call — calling it on a requirement you could decide from search results wastes the user\'s time).',
     parameters: {
       query: { type: 'string', description: 'one search query — a capability need in natural language (Chinese or English); repeat the tool for each need', required: true },
       limit: { type: 'number', description: 'max results (default 10)' },

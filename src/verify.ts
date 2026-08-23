@@ -221,6 +221,18 @@ export function evaluateScenario(turns: readonly TurnResult[], expected: number)
   return turns.length === expected && expected > 0 && turns.every((t) => t.pass);
 }
 
+/**
+ * 探针草图范例(范例优先于规则,先例:Anthropic Tool Use Examples 72%→90%)。
+ * 编排者出题(verify_preset 参数描述/emit 接力棒)与考官回退推导共用同一份——
+ * s23 实测:回退推导没吃范例时出过 base64 解码怪题,把装配 agent 逼到求助判负
+ * 烧掉 816s;范例在场的验收全部 18-55s。
+ */
+export const PROBE_SKETCH_EXAMPLES =
+  'GOOD scenario sketch: {"kind":"scenario","createTask":"新建一条采购单:单号 PO-4471,供应商晨光文具,金额 862 元,备注加急","retrieveTask":"查采购单 PO-4471,报出它的供应商和金额","token":"PO-4471","marks":["晨光文具","862"]} '
+  + '— the token appears in BOTH turns; the retrieve turn asks BY token without restating 晨光文具/862 (the agent must fetch them); marks are stored values, not "done". '
+  + 'GOOD single sketch: {"kind":"single","task":"把这段话按句拆行并编号后存为 notes.txt,完成后报文件名与行数:今天验收通过。明天发布。","marks":["notes.txt","2"]} '
+  + '— output goes to a file, so marks are the filename and a computed count, never the body text.';
+
 /** Shared mark-design rules — the same discipline governs single and scenario probes. */
 const MARK_RULES = [
   "- mustInclude: 1-3 content-bearing strings that will appear in the reply IFF the task truly succeeded (a computed value, a verbatim token from the task input). Never accept generic words like \"done\" or \"success\".",
@@ -461,6 +473,9 @@ export async function deriveProbePlan(
     "Then respond with JSON only, in ONE of these two shapes:",
     '{"kind": "single", "task": "...", "mustInclude": ["..."]}',
     '{"kind": "scenario", "goal": "one line: what this proves", "turns": [{"prompt": "...", "mustInclude": ["..."]}, ...]}',
+    "",
+    // 范例优先(与编排者出题共用同一份;回退推导没范例时出过 base64 怪题):
+    `Model your probe on these examples (translated into the requirement's domain and language): ${PROBE_SKETCH_EXAMPLES}`,
     "",
     "Rules:",
     "- Write prompts in the requirement's language.",

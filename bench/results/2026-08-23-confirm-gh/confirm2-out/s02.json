@@ -1,0 +1,69 @@
+{
+  "scenario": {
+    "id": "s02",
+    "req": "我想要一个个人记账管家,平时随手记收支,月底自动给我汇总各分类花了多少,超预算要提醒我"
+  },
+  "arm": "H-hardened",
+  "port": 3102,
+  "startedAt": "2026-08-23T10:40:29.463Z",
+  "sessionId": "session-48cdc30c-9bce-42e8-a84e-94458f5074b8",
+  "prompt": "请帮我装配一个 agent:我想要一个个人记账管家,平时随手记收支,月底自动给我汇总各分类花了多少,超预算要提醒我",
+  "__lastFrameCount": 6933,
+  "nudges": 0,
+  "clarifications": 0,
+  "timedOut": false,
+  "frameTypes": {
+    "agent/inbox/spliced": 2,
+    "turn/start": 1,
+    "step/start": 5,
+    "user/message": 5,
+    "session/title": 2,
+    "request/header": 1,
+    "request/context": 1,
+    "session/title-llm-request": 1,
+    "assistant/chunk": 6894,
+    "assistant/message": 5,
+    "tool/call": 5,
+    "tool/result": 5,
+    "step/end": 5,
+    "turn/end": 1
+  },
+  "mainAgentUsage": {
+    "inputTokens": 33320,
+    "outputTokens": 14212,
+    "reasoningTokens": 8406,
+    "cacheReadTokens": 154112,
+    "events": 10
+  },
+  "toolCalls": [
+    {
+      "name": "search_catalog",
+      "args": "{\"query\": \"持久化存储 SQLite 数据库 跨会话保存数据\"}"
+    },
+    {
+      "name": "search_catalog",
+      "args": "{\"query\": \"sqlite 读写 记录账目数据\"}"
+    },
+    {
+      "name": "emit_preset",
+      "args": "{\"name\": \"personal-ledger\", \"requirement\": \"个人记账管家:用户随手一句话记收支,月底自动汇总各分类支出,超预算时提醒用户\", \"capabilityIds\": [\"mcp-sqlite-query-query\", \"mcp-sqlite-query-execute\", \"frontend-data-desk\"], \"persona\": \"① 角色与辖区:你是用户的「个人记账管家」,职责限于:随手记录收支流水、维护各分类的月度预算、查询流水、按分类做月度/期间汇总、超支提醒。你不做投资理财建议、税务规划、借贷决策,也不代用户向任何外部平台记账或报账。\\n\\n② 语气与语言:全程用简体中文回复,语气简洁友好。金额一律用「元」,日期用 YYYY-MM-DD 或「X月X日」。每次记账后回一句确认(金额+分类+日期),让用户能立刻发现记错。\\n\\n③ 工具纪律:写入(新记账目、设置/修改预算、修改或删除账目)一律用 mcp-sqlite-query-execute;查询、汇总、预算比对一律用 mcp-sqlite-query-query,多个查询用 sqls 批量一次执行,不要逐条多次调用。不要传 database 参数,用部署固定的默认库。金额、收支类型(income/expense)、分类无法从用户的话里确定时,先问清楚再入库,不猜。\\n\\n④ 持久化约束:所有账目和预算必须写入 transactions / budgets 表,跨轮事实一律以数据库为准,绝不依赖对话记忆。任何汇总或超支判断前必须先查库,禁止凭印象报数。用户说「本月/月底/上个月」时,按当前日期算出对应月份再查询。\\n\\n⑤ 安全合规边界:这是个人财务数据,只能存于本地数据库;绝不索取、也不接受用户提供银行卡号、支付密码、验证码、身份证号等敏感信息;不把账目发送到任何外"
+    },
+    {
+      "name": "emit_preset",
+      "args": "{\"capabilityIds\": [\"mcp-sqlite-query-query\", \"mcp-sqlite-query-execute\", \"frontend-data-desk\"], \"name\": \"expense-butler\", \"params\": {\"currency\": \"CNY\", \"timezone\": \"Asia/Shanghai\"}, \"persona\": \"① 角色与辖区:你是用户的「个人记账管家」,职责限于:随手记录收支流水、维护各分类的月度预算、查询流水、按分类做月度/期间汇总、超支提醒。你不做投资理财建议、税务规划、借贷决策,也不代用户向任何外部平台记账或报账。\\n\\n② 语气与语言:全程用简体中文回复,语气简洁友好。金额一律用「元」,日期用 YYYY-MM-DD 或「X月X日」。每次记账后回一句确认(金额+分类+日期),让用户能立刻发现记错。\\n\\n③ 工具纪律:写入(新记账目、设置/修改预算、修改或删除账目)一律用 mcp-sqlite-query-execute;查询、汇总、预算比对一律用 mcp-sqlite-query-query,多个查询用 sqls 批量一次执行,不要逐条多次调用。不要传 database 参数,用部署固定的默认库。金额、收支类型(income/expense)、分类无法从用户的话里确定时,先问清楚再入库,不猜。\\n\\n④ 持久化约束:所有账目和预算必须写入 transactions / budgets 表,跨轮事实一律以数据库为准,绝不依赖对话记忆。任何汇总或超支判断前必须先查库,禁止凭印象报数。用户说「本月/月底/上个月」时,按当前日期算出对应月份再查询。\\n\\n⑤ 安全合规边界:这是个人财务数据,只能存于本地数据库;绝不索取、也不接受用户提供银行卡号、支付密码、验证码、身份证号等敏感信息;不把账目发送到任"
+    },
+    {
+      "name": "verify_preset",
+      "args": "{\"presetId\": \"expense-butler\", \"probe\": {\"kind\": \"scenario\", \"createTask\": \"记账:今天午餐 38 元,分类餐饮,备注 TICKET-LD-8841;今天收到朋友转账 200 元,分类收入。再给餐饮分类设置本月预算 1000 元。全部记完回复「已记」即可。\", \"retrieveTask\": \"查备注 TICKET-LD-8841 那笔账,报出它的金额和分类;再汇总本月餐饮分类的总支出,和数据库里设置的餐饮预算比一比,告诉我是否超支、具体数字是多少。\", \"token\": \"TICKET-LD-8841\", \"marks\": [\"38\", \"餐饮\", \"1000\"]}}"
+    }
+  ],
+  "toolResults": [
+    "{\"turn\":1,\"step\":1,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_9tvNix8wbtSaIuuX4uyZ6384\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_9tvNix8wbtSaIuuX4uyZ6384\",\"content\":[{\"type\":\"text\",\"text\":\"「持久化存储 SQLite 数据库 跨会话保存数据」top 10:\\n1. mcp-sqlite-query-query [mcp](分 22.9)— 对 SQLite 数据库执行只读 SQL（通常是 SELECT）并返回结果行。**默认数据库已由部署固定,常规使用请不要传 database 参数**。**需要多个查询时请用 sqls 数组一次批量执行，不要逐条多次调用;价签:每轮约 218 token,+1 进程(同服务器零件共享)\\n2. mcp-sqlite-query-execute [mcp](分 18.56)— 对 SQLite 数据库执行写操作或 DDL（INSERT/UPDATE/DELETE/CREATE/ALTER 等）并返回变更统计 JSON。**默认数据库已由部署固定,常规使用请不要传 database 参数**。*;价签:每轮约 218 token,+1 进程(同服务器零件共享)\\n3. mcp-sqlite-query-list-tables [mcp](分 18.56)— 列出 SQLite 数据库中所有的表和视图（来自 sqlite_master），返回 JSON 数组，每项包含 name（表/视图名）、type（table 或 view）、sql（建表/建视图语句，可为空）。适合在查询;价签:每轮约 103 token,+1 进程(同服务器零件共享)\\n4. frontend-file-desk [frontend](分 11.66)— 文件台前端:工作区文件清单可选中让 agent 读/总结,笔记一键存为文件(页面自带 json 契约)。需求含\\\"文件管理/文档整理/资料台\\\"类交互时选它。;每 preset 仅首个 frontend 模板生效——选恰好一个交互形状。\\n5. mcp-mysql-query-mysql-list-tables [mcp](分 5.54)— 连接 MySQL 并列出数据库中的全部表（SHOW TABLES），返回表名数组。适合在查询前探索库中有哪些表。参数: 连接配置同 mysql-test-connection（host/port/user/passwor;价签:每轮约 285 token,+1 进程(同服务器零件共享)\\n6. mcp-mysql-query-mysql-test-connection [mcp](分 5.54)— 测试到 MySQL 服务器的连接是否可用：建立连接并执行 SELECT VERSION()，返回服务器版本、连接 ID、当前数据库等诊断信息。适合在正式查询前先用它验证 host/port/user/password 等;价签:每轮约 284 token,+1 进程(同服务器零件共享)\\n7. mcp-postgres-query-postgres-test-connection [mcp](分 5.54)— 测试到 PostgreSQL 服务器的连接是否可用：建立连接并执行 SELECT version()，返回服务器版本、当前数据库、当前用户、服务器地址、服务器时间等诊断信息。适合在正式查询前先用它验证 connectio;价签:每轮约 359 token,+1 进程(同服务器零件共享)\\n8. mcp-readability-extract-extract-article [mcp](分 5.54)— 从网页 HTML 中自动提取正文（Readability 算法：自动识别正文块，剥离导航、广告、页脚、脚本等噪音），输出标题、作者、站点名、摘要与正文纯文本，支持中文与英文页面。纯本地执行，无网络依赖。参数：html（必;价签:每轮约 184 token,+1 进程(同服务器零件共享)\\n9. mcp-template-render-precompile-template [mcp](分 5.19)— 将 Handlebars 模板预编译为 TemplateSpecification 的 JavaScript 源码字符串（对象字面量，内含 main 编译函数），可在渲染前离线完成编译。输出可缓存、存储或写入文件，之后原;价签:每轮约 324 token,+1 进程(同服务器零件共享)\\n10. frontend-chat-console [frontend](分 4.34)— 独立聊天页前端:与该 agent 直接对话的干净网页(流式回复、工具调用行、新会话)。需求明确要\\\"一个聊天页面/网页对话界面\\\"时选它;不选它每个 preset 也会默认带上。;每 preset 仅首个 frontend 模板生效——选恰好一个交互形状。\\n(BM25 词法排名,分数只是线索——选不选、选哪个由你判断。基线:交付 agent 的 LLM 自己能稳定做的不装零件;价签是它每轮 prompt 的固定税。UI 需求恰好配一个 via:frontend 模板、持久状态配存储零件。)\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"67a474db-bbb1-4bbb-a187-83e7199ecb12\"}}",
+    "{\"turn\":1,\"step\":1,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_01_HxLVpV3UywkSjNESwgJ60825\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_01_HxLVpV3UywkSjNESwgJ60825\",\"content\":[{\"type\":\"text\",\"text\":\"「sqlite 读写 记录账目数据」top 10:\\n1. mcp-sqlite-query-execute [mcp](分 14.98)— 对 SQLite 数据库执行写操作或 DDL（INSERT/UPDATE/DELETE/CREATE/ALTER 等）并返回变更统计 JSON。**默认数据库已由部署固定,常规使用请不要传 database 参数**。*;价签:每轮约 218 token,+1 进程(同服务器零件共享)\\n2. mcp-sqlite-query-list-tables [mcp](分 14.98)— 列出 SQLite 数据库中所有的表和视图（来自 sqlite_master），返回 JSON 数组，每项包含 name（表/视图名）、type（table 或 view）、sql（建表/建视图语句，可为空）。适合在查询;价签:每轮约 103 token,+1 进程(同服务器零件共享)\\n3. mcp-sqlite-query-query [mcp](分 14.98)— 对 SQLite 数据库执行只读 SQL（通常是 SELECT）并返回结果行。**默认数据库已由部署固定,常规使用请不要传 database 参数**。**需要多个查询时请用 sqls 数组一次批量执行，不要逐条多次调用;价签:每轮约 218 token,+1 进程(同服务器零件共享)\\n4. frontend-data-desk [frontend](分 11.16)— 记录台前端:一句话记一笔 + 查询/汇总按钮,回复含 json 表格时自动渲染成表。记账/库存/通讯录/日志类\\\"记录+查询\\\"agent 的页面首选。;每 preset 仅首个 frontend 模板生效——选恰好一个交互形状。\\n5. mcp-pdf-generate-create-pdf [mcp](分 5.19)— 从零创建一个新的 PDF 文档，可包含多页，每页写入一组文本行。纯本地内存执行，无网络依赖。参数：pages（必填，页面数组，至少 1 页）。每页对象字段：size（可选，标准纸张名，如 \\\"A4\\\"、\\\"Letter\\\"、\\\"L;价签:每轮约 418 token,+1 进程(同服务器零件共享)\\n6. mcp-rss-parse-extract-feed-items [mcp](分 5.19)— 解析 RSS/Atom feed 的 XML 字符串并只返回紧凑条目列表（每条含 title/link/guid/pubDate/isoDate/creator/author/categories/summary/con;价签:每轮约 248 token,+1 进程(同服务器零件共享)\\n7. mcp-dns-lookup-resolve-domain [mcp](分 3.72)— 解析域名的 DNS 记录。type 支持 A/AAAA/MX/TXT/NS/CNAME;返回记录列表 JSON。域名不存在或该类型无记录时返回结构化说明(不是硬错误);输入不是域名(带协议/路径)才报错。;价签:每轮约 126 token,+1 进程(同服务器零件共享)\\n8. mcp-dns-lookup-reverse-lookup [mcp](分 3.72)— IP 反查主机名(PTR 记录)。查不到返回空列表说明,IP 格式非法报错。;价签:每轮约 80 token,+1 进程(同服务器零件共享)\\n9. mcp-fake-data-fake-records [mcp](分 3.72)— 按 schema 批量生成假记录,返回 JSON 数组。schema 是 {字段名: faker 方法路径} 映射,如 {\\\"name\\\":\\\"person.fullName\\\",\\\"email\\\":\\\"internet.email\\\";价签:每轮约 211 token,+1 进程(同服务器零件共享)\\n10. mcp-scholar-search-search-published [mcp](分 3.72)— 检索**已发表**文献(Crossref,覆盖期刊论文/会议论文/书章节等有 DOI 的正式出版物)。输入自然语言查询词与可选返回条数;返回裁剪后的列表:标题、作者、年份、类型、被引次数、出处(期刊/会议 + 出版方)、;价签:每轮约 147 token,+1 进程(同服务器零件共享)\\n(BM25 词法排名,分数只是线索——选不选、选哪个由你判断。基线:交付 agent 的 LLM 自己能稳定做的不装零件;价签是它每轮 prompt 的固定税。UI 需求恰好配一个 via:frontend 模板、持久状态配存储零件。)\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"3e0b957c-3a37-4c7e-b1c9-ad4f53fcc112\"}}",
+    "{\"turn\":1,\"step\":2,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_lw64Iho9WfviFQ8zBGJc5466\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_lw64Iho9WfviFQ8zBGJc5466\",\"content\":[{\"type\":\"text\",\"text\":\"Error: emit_preset: preset 名「personal-ledger」已存在,且承载的是另一个需求。三选一:换名字;确定覆盖旧概念就传 \\\"fresh\\\": true;或先问用户。绝不静默铸「personal-ledger-2」。\"}],\"isError\":true}],\"role\":\"user\",\"id\":\"c6f0659b-cc0e-4819-bf5d-8bed5587ae44\"}}",
+    "{\"turn\":1,\"step\":3,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_KOgV9h0mFVCdeC8UQ2MZ7620\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_KOgV9h0mFVCdeC8UQ2MZ7620\",\"content\":[{\"type\":\"text\",\"text\":\"preset「expense-butler」已发射:mcp-sqlite-query-query, mcp-sqlite-query-execute, frontend-data-desk(0s)\\npreset 文件:/Users/tongtao/.dsh/.agent-presets/expense-butler/agent.cordis.yml\\n前端页面:http://127.0.0.1:3102/assembler/ui/expense-butler(模板 data-desk)\\n装备:预建数据库 schema(equipment/init.sql,双次执行门 PASS)\\n\\n【接力棒】\\n- 发射完成 ≠ 可用。立即调 verify_preset {\\\"presetId\\\": \\\"expense-butler\\\"} 独立验收,并附上你按主工作流设计的探针草图(草图过机械闸 = 验收推导 0s;不给则考官满档自行推导,贵且慢)。\\n- 出题范例(照这个形状写):GOOD scenario sketch: {\\\"kind\\\":\\\"scenario\\\",\\\"createTask\\\":\\\"新建一条采购单:单号 PO-4471,供应商晨光文具,金额 862 元,备注加急\\\",\\\"retrieveTask\\\":\\\"查采购单 PO-4471,报出它的供应商和金额\\\",\\\"token\\\":\\\"PO-4471\\\",\\\"marks\\\":[\\\"晨光文具\\\",\\\"862\\\"]} — the token appears in BOTH turns; the retrieve turn asks BY token without restating 晨光文具/862 (the agent must fetch them); marks are stored values, not \\\"done\\\". GOOD single sketch: {\\\"kind\\\":\\\"single\\\",\\\"task\\\":\\\"把这段话按句拆行并编号后存为 notes.txt,完成后报文件名与行数:今天验收通过。明天发布。\\\",\\\"marks\\\":[\\\"notes.txt\\\",\\\"2\\\"]} — output goes to a file, so marks are the filename and a computed count, never the body text.\\n- 红线:绝不手改 preset 目录下的任何文件(host 按字节代际挂载,手改必撞名);要改选型/persona/schema,一律重调 emit_preset 同名重发。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"26f71459-67f1-47df-ae44-076156f5aaa9\"}}",
+    "{\"turn\":1,\"step\":4,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_yNtaNv9COicxiTgGHdxO6489\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_yNtaNv9COicxiTgGHdxO6489\",\"content\":[{\"type\":\"text\",\"text\":\"验收 PASS(95s,推导 出7.3k/思7.1k/缓0)(你的探针草图未过机械闸——token 两轮自足/取回轮不复述标记/长度与标记消毒,考官已自行推导) — 多轮场景「证明随手记账能持久化，并能按分类汇总支出、识别超预算提醒。」共 2 轮逐轮通过\\n  第1轮 ✓ 「请把以下内容记到账本 INV-7781：午餐（餐饮）88 元；课程（学习）220 元；工资（收入）5」标记 [INV-7781]\\n  第2轮 ✓ 「查一下账本 INV-7781 的分类支出合计、收入总额和预算，告诉我哪个分类超预算、超了多少。」标记 [学习, 20, 5000]\\n前端验收:页面门+环路门 PASS\\n动用率:2/2 个工具零件被探针动用\\n【接力棒】\\n- 如实向用户转述验收结论与前端 URL;验收已入台账,同字节 7 天内重验将自动沿用。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"4bc3117a-45ee-452a-bf73-c83a5c86f9f9\"}}"
+  ],
+  "assistantText": "我来帮你装配这个「个人记账管家」agent。先按装配流程走:设计架构 → 检索部件目录 → 装配 → 独立验收。\n\n**架构设计(先给你看):**\n\n| 维度 | 设计 |\n|---|---|\n| 数据模型 | `transactions`(日期/类型收支/金额/分类/备注)、`budgets`(分类+月预算额) |\n| 主流程 | 随手一句话记一笔 → 解析存入账本 → 月底汇总各分类支出 → 与预算比对,超支提醒 |\n| 能力需求 | 核心就一个:**跨会话持久化账本**(SQLite)。日期计算、分类汇总、预算比对都是 LLM 本身可靠的计算,不需要额外部件 |\n\n先检索目录,看有没有合适的持久化部件:\n---\n检索结果很清晰,两个需求都有现成部件,无需 gap:\n\n| 架构需求 | 选中的部件 | 理由 |\n|---|---|---|\n| 账本持久化(写入) | `mcp-sqlite-query-execute` | 记账/预算的 INSERT/UPDATE |\n| 账本查询与汇总 | `mcp-sqlite-query-query` | 流水查询、GROUP BY 分类汇总、预算比对(两者同进程共享,+1 进程) |\n| 随手记的交互界面 | `frontend-data-desk` | 目录明示「记账/库存类记录+查询 agent 的页面首选」:一句话记一笔 + 查询/汇总按钮 + 表格自动渲染 |\n\n月份计算、分类聚合、超支判断都是 LLM 可靠计算,不装多余部件(保持最小权限)。\n\n现在装配 preset:\n---\n名字 `personal-ledger` 已被占用且承载别的需求,不覆盖,换一个名字重新装配:\n---\n装配成功。现在附上我按主工作流设计的验收探针,做独立验收:\n\n- **createTask**: 记两笔账(午餐 38 元/餐饮、转账 200 元/收入,餐饮备注带 token)+ 设置餐饮本月预算 1000 元\n- **retrieveTask**: 只凭备注 token 查那笔账的金额与分类,再查库汇总本月餐饮支出、比对库里预算,报是否超支(不回述任何存储值)\n---\n验收通过 ✅ 你的「个人记账管家」已经装配完成并独立验收成功。\n\n**验收结论(考官独立出题,非我自测):**\n- 第 1 轮:随手记三笔账(午餐 88 元/餐饮、课程 220 元/学习、工资 5000 元/收入)→ 入库\n- 第 2 轮:凭账本编号查分类支出合计、收入总额、预算 → 正确报出**学习分类超预算 20 元**、收入 5000 元\n- 前端页面门 + 环路门 PASS;2/2 个工具零件都被实际动用\n\n```dsh-ui\n{\"gap\":10,\"items\":[{\"type\":\"keyvalue\",\"items\":[{\"key\":\"Agent\",\"value\":\"expense-butler 个人记账管家\"},{\"key\":\"数据\",\"value\":\"SQLite 账本:transactions + budgets 表(预建)\"},{\"key\":\"能力\",\"value\":\"随手记收支 · 分类汇总 · 超预算提醒\"},{\"key\":\"页面\",\"value\":\"http://127.0.0.1:3102/assembler/ui/expense-butler\"},{\"key\":\"验收\",\"value\":\"PASS(多轮场景 + 前端,95s)\"}]}]}\n```\n\n**装配内容:**\n- **工具**:`mcp-sqlite-query-execute`(写入账目/预算)+ `mcp-sqlite-query-query`(流水查询、按分类 GROUP BY 汇总、预算比对),两件共享同一进程\n- **前端**:`frontend-data-desk` 记录台模板 —— 一句话记一笔、查询/汇总按钮、回复里的数据表格自动渲染,正是记账场景的首选交互形状\n- **账本 schema**:`transactions`(日期/收支类型/金额/分类/备注)+ `budgets`(分类+月预算,唯一约束)\n- **persona 要点**:记账后回一句确认防记错;汇总前必查库不凭印象;月份按当前日期推算;不碰卡号/密码等敏感信息;拒答投资理财类请求\n\n**使用方式**:打开页面 http://127.0.0.1:3102/assembler/ui/expense-butler ,直接说「今天午餐 38 元」「给餐饮设置月预算 1000」这类话即可;月底问「本月总结」,它会按分类汇总支出并标出超预算的分类。\n\n预设文件在 `agent.cordis.yml`,7 天内同字节重验会自动沿用台账结果。需要调整(比如换分类体系、加收入汇总格式)随时说。",
+  "seconds": 161
+}
