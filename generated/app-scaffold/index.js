@@ -25,14 +25,14 @@ server.registerTool('scaffold-vite', {
     + '再用 static-deploy 部署为 preset 前端页。',
   inputSchema: {
     dir: z.string().describe('相对工作区的目标目录名,如 myapp(必须不存在)'),
-    template: z.string().optional().describe('vite 模板,默认 vanilla;可 vanilla-ts'),
+    template: z.string().optional().describe('vite 模板,默认 vanilla-ts(类型系统是 AI 生成代码的护栏——Lovable 换栈 TanStack 的官方理由);可 vanilla'),
   },
 }, async ({ dir, template }) => {
   const err = (t) => ({ isError: true, content: [{ type: 'text', text: `scaffold-vite: ${t}` }] });
   const target = resolve(PART_WORKDIR, String(dir || ''));
   if (!inside(PART_WORKDIR, target) || target === resolve(PART_WORKDIR)) return err('目标目录越界或为空');
   if (existsSync(target)) return err(`目录已存在:${dir}(不覆盖,换名)`);
-  const tpl = template === 'vanilla-ts' ? 'vanilla-ts' : 'vanilla';
+  const tpl = template === 'vanilla' ? 'vanilla' : 'vanilla-ts'; // 默认 TS:类型=护栏(§09 借法)
   const run = spawnSync('npm', ['create', 'vite@latest', String(dir), '--', '--template', tpl], {
     cwd: PART_WORKDIR, encoding: 'utf8', timeout: 120000, env: { ...process.env, npm_config_yes: 'true', CI: 'true' },
   });

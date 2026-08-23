@@ -320,25 +320,27 @@ export function buildMatchPrompt(requirement: string, spec: OrchSpec, catalog: C
   const ids = usable.map((c) => c.id)
   const tagsIndex = usable.map((c) => `${c.id}: ${c.tags.join(', ')} — ${c.description}`).join('\n')
   const need = spec.capabilities.map((c, i) => `${String(i + 1)}. ${c.name}${c.why !== '' ? ` — ${c.why}` : ''}`).join('\n')
+  // 段序即缓存工程(§09:静态前缀=缓存):目录+规则是字节稳定的大头,放最前;
+  // 每次不同的 needs/dataModel/requirement 全部沉尾。
   const prompt = [
     'You are the CATALOG EXPERT of an agent-assembly system. The ORCHESTRATOR (the calling agent) already designed this agent\'s architecture; your ONLY job is to map each architectural need onto the parts catalog. You do NOT write personas, schemas, names, or UIs — the orchestrator does.',
-    '',
-    'Architectural needs (from the orchestrator\'s spec):',
-    need,
-    spec.dataModel !== '' ? `Data model: ${spec.dataModel}` : '',
-    spec.interfaces !== '' ? `Interfaces: ${spec.interfaces}` : '',
     '',
     'Catalog:',
     tagsIndex,
     '',
     'Rules:',
     '- Respond with JSON only: {"coverage":[{"need":"...","capabilityId":"..."|null,"gap":"..."}],"extraIds":[...],"missingEntries":[...]}',
-    '- coverage MUST have exactly one row per architectural need above, in the same order. capabilityId is the ONE catalog id that covers the need; when NOTHING covers it, capabilityId is null and "gap" is a GENERIC one-line description of the missing capability.',
+    '- coverage MUST have exactly one row per architectural need (listed at the end of this prompt), in the same order. capabilityId is the ONE catalog id that covers the need; when NOTHING covers it, capabilityId is null and "gap" is a GENERIC one-line description of the missing capability.',
     `- Every capabilityId must come from this exact set: ${ids.join(', ')}`,
     '- GAP DISCIPLINE: before marking any need null, exhaustively check the catalog for an existing part covering it under another name — persistent state/ledgers → the SQLite parts; saving/reading workspace files → the filesystem parts; searching/citing imported docs → the kb/fs-search entries; document output → the docx/pdf/excel parts. Mark a gap ONLY when nothing plausibly covers it, and NEVER invent vendor-specific ids — describe the missing capability generically.',
     '- A need mentioning 网页/页面/看板/面板 usually means the DELIVERED web UI — cover it with EXACTLY ONE via:"frontend" template id whose interaction SHAPE fits (form submission → form desk; records & queries → data desk; metrics overview → dashboard; plain conversation → chat console). Do NOT select browser-automation/http parts for it; those are only for the AGENT itself visiting EXTERNAL sites. When the Interfaces line implies a UI but no need row says so, put the frontend id in extraIds instead.',
     '- extraIds: catalog ids needed beyond the listed needs — a domain persona/baseline entry that clearly matches this agent\'s domain, or the frontend template per the rule above. Empty array when none.',
     '- For every null coverage row, add one entry to "missingEntries": {id, via, description, tags, tool?, mount?} — id kebab-case; via "package" | "harness" | "mcp"; when you know a harness plugin package providing it, set mount.name, else omit mount. Empty array when nothing is missing.',
+    '',
+    'Architectural needs (from the orchestrator\'s spec — coverage rows follow THIS order):',
+    need,
+    spec.dataModel !== '' ? `Data model: ${spec.dataModel}` : '',
+    spec.interfaces !== '' ? `Interfaces: ${spec.interfaces}` : '',
     '',
     `Requirement (context only — the needs list above is authoritative): ${requirement}`,
   ].filter((s) => s !== '').join('\n')
@@ -907,6 +909,7 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
         '',
         '【外科决策归你——考官不重试,证据在上】',
         '- 先诊断再动手:疑零件不匹配 → 调整 capabilityIds 重调 emit_preset(同名重发)再 verify_preset;疑缺件 → 先照 gaps/ 工单造件入库再重发重验;疑 persona 约束不足 → 改 persona 重发重验;修不了或拿不准 → 把失败原因与证据如实报给用户,等定夺。',
+        '- 重试预算封顶:同一 preset 连续 3 次 FAIL 后必须停手上报用户——自愈死循环烧的是用户的钱(行业通行缓解就是重试限额,不要证明它是对的)。',
         '- 红线:禁止手改 preset 目录文件;禁止绕开 verify_preset 自行开会话"试一下就算过";禁止把 FAIL 转述成通过。',
       ].join('\n'))
       try {

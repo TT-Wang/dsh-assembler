@@ -406,17 +406,19 @@ export async function deriveProbe(
   onUsage?: (u: AuxUsage) => void,
 ): Promise<ProbeSpec> {
   const tools = selected.map((c) => `- ${c.tool ?? c.id}: ${c.description.slice(0, 120)}`).join("\n");
+  // 段序即缓存工程:静态规则前置,requirement/tools 沉尾(§09 借法)。
   const prompt = [
-    "You design a ONE-TURN smoke probe for a freshly assembled agent.",
-    `The agent was assembled for this requirement: ${requirement}`,
-    "Its tools:",
-    tools,
+    "You design a ONE-TURN smoke probe for a freshly assembled agent (its requirement and tools are at the END of this prompt).",
     "",
     "Rules:",
     '- Respond with JSON only: {"task": "...", "mustInclude": ["...", "..."]}',
-    "- task: a single instruction the agent can finish in one turn (< 2 minutes) using ONLY the tools above; write it in the requirement's language.",
+    "- task: a single instruction the agent can finish in one turn (< 2 minutes) using ONLY the listed tools; write it in the requirement's language.",
     "- Prefer self-contained work (compute, transform, generate). Use the network only when the agent's parts are network tools.",
     ...MARK_RULES,
+    "",
+    `The agent was assembled for this requirement: ${requirement}`,
+    "Its tools:",
+    tools,
   ].join("\n");
   const parsed = await callDeriver(ctx, prompt, llm, onUsage) as unknown as ProbeSpec;
   if (typeof parsed.task !== "string" || !Array.isArray(parsed.mustInclude)) {
@@ -471,12 +473,10 @@ export async function deriveProbePlan(
         "The scenario's turn 1 should CREATE the central record of this workflow; a later turn should RETRIEVE/USE it — this is the workflow's own happy path, the thing a real user does first.",
       ].filter((s) => s !== "").join("\n")
     : "";
+  // 段序即缓存工程(§09:静态前缀=缓存):形状说明/范例/MARK_RULES 全静态,
+  // 放最前吃前缀缓存;requirement/tools/archBlock 每次都变,沉到尾部。
   const prompt = [
-    "You design an acceptance probe for a freshly assembled agent.",
-    `The agent was assembled for this requirement: ${requirement}`,
-    "Its tools:",
-    tools,
-    archBlock,
+    "You design an acceptance probe for a freshly assembled agent (the requirement and its tools are listed at the END of this prompt).",
     "",
     "First DECIDE the probe shape:",
     '- "single" — one turn is enough to prove the agent works (pure compute/transform/generate agents).',
@@ -497,6 +497,11 @@ export async function deriveProbePlan(
     "- SCENARIO SHAPE: turn 1 creates state with a distinctive token you invent (e.g. INV-7781); a LATER turn must ask the agent to retrieve or use that state WITHOUT restating it — its marks are how state continuity is judged. Never make a later turn merely repeat turn 1's work.",
     "- Judging is black-box: only each turn's reply text is inspected. Never require the agent to follow specific steps or announce its plan.",
     ...MARK_RULES,
+    "",
+    `The agent was assembled for this requirement: ${requirement}`,
+    "Its tools:",
+    tools,
+    archBlock,
   ].join("\n");
 
   let parsed: Record<string, unknown>;

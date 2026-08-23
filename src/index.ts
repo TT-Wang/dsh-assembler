@@ -275,10 +275,13 @@ export async function llmMapRequirement(
         'GO THROUGH EVERY architectural need above: each must end up EITHER covered by a selected catalog id OR listed in "missing" — NEVER silently dropped. Still keep the selection minimal (smallest covering set; do not over-mount), but completeness on the gap axis is mandatory: an unmet need you neither select nor flag is the exact failure this step exists to prevent.',
       ].join('\n')
     : ''
+  // 段序即缓存工程(Prompt→App 工厂调研 §09:静态前缀 = 缓存,cache read ~0.1x;
+  // 全行业 scaffold 锁栈的第一收益就是它):巨大而字节稳定的目录+规则放最前,
+  // 每次都变的 archBlock/requirement 沉到尾部——此前 archBlock 插在目录前,
+  // 一字之动废掉整段前缀缓存。
   const prompt = [
     'You are the capability matcher of a vibe-assembly system. A user describes an agent they want to build.',
     'Pick which capabilities from the catalog are needed, and say which needed capabilities are MISSING.',
-    archBlock,
     '',
     'Catalog:',
     tagsIndex,
@@ -309,6 +312,7 @@ export async function llmMapRequirement(
     '- When NO catalog persona matches the requirement, write a "persona" string: a concise assistant persona for the assembled agent (role, tone, answer in the user\'s language, tool-use discipline). Omit it when a catalog persona IS selected — the catalog text wins.',
     '- Write a "name" for the assembled preset: a short kebab-case slug naming what the agent IS (2-5 words, lowercase letters, digits and hyphens only, e.g. "customer-service-bot", "web-research-assistant"). It becomes the preset id users pick in the roster.',
     '- For every item in "missing", add one matching entry to "missingEntries": {id, via, description, tags, tool?, mount?} — id is kebab-case; via is "package" | "harness" | "mcp"; when you know a harness plugin package that provides the capability, set mount.name to it (e.g. "@deepseek-ai/dsh-tool-fs-search"), else omit mount; set tool only for via: "package". Omit "missingEntries" entirely when nothing is missing.',
+    archBlock,
     '',
     `Requirement: ${requirement}`,
   ].join('\n')

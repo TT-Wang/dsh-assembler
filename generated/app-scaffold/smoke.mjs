@@ -20,7 +20,7 @@ await client.connect(new StdioClientTransport({
 ok('listTools 含 scaffold-vite', (await client.listTools()).tools.some((t) => t.name === 'scaffold-vite'))
 
 const r = JSON.parse((await client.callTool({ name: 'scaffold-vite', arguments: { dir: 'demo' } })).content[0].text)
-ok('骨架落盘(含 package.json/index.html)', r.ok === true && r.files.includes('package.json') && r.files.includes('index.html'), JSON.stringify(r).slice(0, 160))
+ok('骨架落盘(含 package.json/index.html,默认 TS 模板)', r.ok === true && r.files.includes('package.json') && r.files.includes('index.html') && r.template === 'vanilla-ts', JSON.stringify(r).slice(0, 160))
 const dup = await client.callTool({ name: 'scaffold-vite', arguments: { dir: 'demo' } })
 ok('已存在目录拒绝', dup.isError === true)
 const esc = await client.callTool({ name: 'scaffold-vite', arguments: { dir: '../evil' } })

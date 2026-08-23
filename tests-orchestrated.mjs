@@ -128,6 +128,9 @@ check('契约钉:缺口处置是用户选择(造件/降级/砍掉)+ 静默降级
 check('契约钉:三岔口路由在(应用型/个人即时/铸造三分 + 铸造非默认)', ARCHITECTURE_CONTRACT.includes('SHAPE ROUTING') && ARCHITECTURE_CONTRACT.includes('应用型') && ARCHITECTURE_CONTRACT.includes('个人即时') && ARCHITECTURE_CONTRACT.includes('NOT the'))
 check('契约钉:造件必须走 index-add 质检门', ARCHITECTURE_CONTRACT.includes('index-add.mjs') && ARCHITECTURE_CONTRACT.includes('bypasses the quality gate'))
 check('契约钉:夹具模式在范例里(禁内嵌大载荷)', PROBE_SKETCH_EXAMPLES.includes('LARGE FIXTURES') && PROBE_SKETCH_EXAMPLES.includes('NEVER paste'))
+// §09 借法钉:缓存段序(动态段沉尾)+ 重试预算封顶
+const bpCache = buildMatchPrompt('req-X', { capabilities: [{ name: 'NEED-Y', why: '' }], dataModel: '', workflow: '', interfaces: '' }, catalog)
+check('缓存段序:目录在前、动态需求沉尾(match)', bpCache.prompt.indexOf('Catalog:') < bpCache.prompt.indexOf('NEED-Y') && bpCache.prompt.indexOf('GAP DISCIPLINE') < bpCache.prompt.indexOf('NEED-Y'))
 
 // ── P0:BARE 消融 / 契约到期制 / 自检包 ─────────────────────────────────────
 const { bareMode, CONTRACT_TAGS, CONTRACT_GENERATION, planToSketch, renderSelfCheck, searchCatalogToolDefinition, matchCatalogToolDefinition } = await import('./lib/orchestrated-tools.js')
