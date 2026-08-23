@@ -492,6 +492,11 @@ mcp-servers:
     command: node
     args: ["/Users/tongtao/code/dsh-assembler/generated/static-deploy/index.js"]
 
+  app-scaffold:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/app-scaffold/index.js"]
+
 capabilities:
   # ── frontend templates(交互面零件:选形状,功能由其余零件供给)────────────
   # 装配时填参发射进 preset 的 frontend/,由 /assembler/ui/<preset> 同源伺服;

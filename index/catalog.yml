@@ -887,3 +887,10 @@
   license: "BSD-3-Clause"
   tools:
     - { name: "deploy-static", description: "把工作区内的静态站点目录(须含 index.html)部署为指定 preset 的前端页:整目录替换 <preset>/frontend/,host 即刻在 /" }
+
+- id: app-scaffold
+  repo: "vitejs/vite"
+  rev: "vlatest"
+  license: "MIT"
+  tools:
+    - { name: "scaffold-vite", description: "在工作区用官方 create-vite 生成一个 vanilla(纯 TS/JS)web 应用骨架:返回落盘目录与文件清单。之后由你写应用代码,npm inst" }

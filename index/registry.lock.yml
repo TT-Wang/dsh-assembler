@@ -1,0 +1,7 @@
+# 外部 registry 条目供应链锁(registry-add 维护)
+- name: shadcn/button
+  type: registry:ui
+  url: "https://ui.shadcn.com/r/styles/new-york-v4/button.json"
+  files: ["registry/new-york-v4/ui/button.tsx"]
+  dependencies: ["radix-ui"]
+  fetchedAt: "2026-08-23T16:11:38.079Z"

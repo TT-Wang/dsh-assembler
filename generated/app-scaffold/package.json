@@ -1,0 +1,9 @@
+{
+  "name": "@dsh-index/app-scaffold",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP stdio server:scaffold-as-part——用框架官方生成器(create-vite)在工作区落一个可构建的 web 应用骨架;配合 static-deploy 闭合 生成→构建→部署 环路。",
+  "main": "index.js",
+  "dependencies": { "@modelcontextprotocol/sdk": "*", "zod": "*" }
+}

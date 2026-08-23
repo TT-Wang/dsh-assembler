@@ -154,6 +154,16 @@ check('自检包:3+ 轮场景如实返回 null(rerun 走重推导)', planToSketc
 const scJson = JSON.parse(renderSelfCheck({ presetId: 'p1', presetSha256: 'abc', plan: planScn, verifiedAt: '2026-08-23T00:00:00Z' }))
 check('自检包:渲染带版本/代际/rerun 参数(reverify+probe)', scJson.version === 1 && scJson.generation === CONTRACT_GENERATION && scJson.rerun.args.reverify === true && scJson.rerun.args.probe.token === 'T-9')
 
+// ── P2:registry 联邦适配器(纯件)────────────────────────────────────────────
+const { validateRegistryItem, fileTargetOf } = await import('./scripts/registry-add.mjs')
+check('registry 校验:合法条目过门', validateRegistryItem({ name: 'button', type: 'registry:ui', files: [{ path: 'ui/button.tsx', content: 'x' }] }).length === 0)
+check('registry 校验:越界 target 拒绝', validateRegistryItem({ name: 'evil', type: 'registry:ui', files: [{ path: 'a', target: '../../etc/passwd', content: 'x' }] }).some((p) => p.includes('越界')))
+check('registry 校验:缺 content/坏 name/坏 type 全报', (() => {
+  const p = validateRegistryItem({ name: 'Bad Name', type: 'component', files: [{ path: 'a.tsx' }] })
+  return p.some((x) => x.includes('name')) && p.some((x) => x.includes('type')) && p.some((x) => x.includes('content'))
+})())
+check('registry 落盘名:target 优先且剥 ~/ 前缀', fileTargetOf({ path: 'r/x.tsx', target: '~/components/x.tsx' }) === 'components/x.tsx')
+
 // ── 大载荷机械闸 ────────────────────────────────────────────────────────────
 const { probePayloadViolation } = await import('./lib/verify.js')
 check('载荷闸:2KB base64 任务被抓', probePayloadViolation(['解析这本书:' + 'A'.repeat(80) + 'Zm9v'.repeat(60)]))

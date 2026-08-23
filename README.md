@@ -8,6 +8,8 @@ English | [中文](README.zh.md)
 
 The catalog grows through an **induction pipeline**: open-source libraries, public APIs, a client's own HTTP interfaces, and a client's documents all enter through one command each — and only past a quality gate. No glue code, only configuration.
 
+> **No graduation penalty(毕业不受惩罚):** unlike low-code platforms — whose known failure mode is the last-mile wall plus vendor lock-in (customizations deepen dependence until exit means rebuilding) — everything here is real, inspectable artifacts: parts are ordinary processes with pinned provenance, a delivered agent is a git-diffable text composition plus its BOM, and the execution layer is framework-agnostic. Outgrow the assembler and you keep everything: the parts keep running, the presets keep mounting, nothing is held hostage.
+
 > **Identity (2026-08-23, measured then ruled):** the assembler is the **search engine of the parts ecosystem** — it supplies facts (BM25-ranked part search with per-part price tags & evidence), deterministic emission with every gate intact, an independent black-box examiner, and the evidence ledger. The **thinking belongs to the main agent** you talk to: it designs the architecture, selects parts from search results, writes the persona/schema, and makes every retry decision. This search form is the **default** (`DSH_ASSEMBLER_MODE` unset); the classic one-shot pipeline described below survives behind `DSH_ASSEMBLER_MODE=pipeline` as the automation/regression lane. Why: a four-form head-to-head measured the search form **40% faster end-to-end with assembler-side LLM thinking cut from 114.5k to 7.8k tokens at equal quality** — see `docs/campaigns/forms-bcdf-8.md`, `docs/ab-orchestrated-mode.md`, and `docs/ROADMAP.md`.
 
 ---

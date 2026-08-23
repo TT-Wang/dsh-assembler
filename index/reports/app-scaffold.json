@@ -1,0 +1,12 @@
+{
+  "id": "app-scaffold",
+  "verifiedAt": "2026-08-23T16:13:04.226Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "scaffold-vite",
+      "description": "在工作区用官方 create-vite 生成一个 vanilla(纯 TS/JS)web 应用骨架:返回落盘目录与文件清单。之后由你写应用代码,npm install && npm run build 出 dist/,再用 static-deploy 部署为 preset 前端页。"
+    }
+  ]
+}
