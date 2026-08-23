@@ -49,6 +49,11 @@ mcp-servers:
     command: node
     args: ['/Users/tongtao/code/dsh-assembler/generated/binary-write/index.js']
 
+  book-intake:
+    transport: stdio
+    command: node
+    args: ['/Users/tongtao/code/dsh-assembler/generated/book-intake/index.js']
+
   email-send:
     transport: stdio
     command: node

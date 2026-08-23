@@ -320,6 +320,18 @@
     - name: write-binary-file
       description: 把 base64 内容解码写成二进制文件(限工作区内,拒绝路径穿越与非法 base64)
 
+- id: book-intake
+  repo: first-party
+  rev: "-"
+  license: BSD-3-Clause
+  tools:
+    - name: upload-info
+      description: 返回本会话文件接收服务的上传 URL(浏览器把书籍文件原始字节 POST 到该地址,落盘到工作区 uploads/ 目录,返回路径)
+    - name: extract-epub
+      description: 解析工作区内 EPUB 电子书(container.xml→content.opf spine 顺序),返回书名与章节列表(标题+正文纯文本);松散 zip 按条目名取 xhtml
+    - name: extract-text-file
+      description: 读取工作区内文本文件(支持 utf-8/gbk/big5/shift_jis 等编码),解码为 UTF-8 返回
+
 - id: text-diff
   repo: kpdecker/jsdiff
   rev: v9.0.0

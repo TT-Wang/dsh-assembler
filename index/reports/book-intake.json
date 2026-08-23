@@ -1,0 +1,20 @@
+{
+  "id": "book-intake",
+  "verifiedAt": "2026-08-23T13:31:17.854Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "upload-info",
+      "description": "返回本会话的文件接收服务信息:浏览器可把书籍文件 POST 到 url(参数 filename 或 X-Filename 头给文件名,body 为文件原始字节),文件会落盘到工作区 uploads/ 目录,返回其路径。agent 拿到路径后即可用 extract-epub / extract-text-file / 其他路径式解析工具处理,全程无需传输 base64。"
+    },
+    {
+      "name": "extract-epub",
+      "description": "解析工作区内(或 uploads/ 下)的 EPUB 电子书文件:读 container.xml → content.opf 的 spine 顺序,逐个提取 xhtml 章节为纯文本(标题取 h1/h2/h3,正文保留段落)。返回 {title, language, chapters:[{index,title,content}]}。无 container.xml 的松散 zip 按条目名顺序取所有 xhtml/html 文件。"
+    },
+    {
+      "name": "extract-text-file",
+      "description": "读取工作区内文本文件(书籍正文 txt/md 等),按指定编码解码为 UTF-8 返回。encoding 常用值:utf-8 / gbk / big5 / shift_jis(中文旧书常见 gbk/big5)。"
+    }
+  ]
+}

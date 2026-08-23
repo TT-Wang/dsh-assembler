@@ -124,6 +124,14 @@ const { ARCHITECTURE_CONTRACT } = await import('./lib/orchestrated-tools.js')
 check('契约钉:架构骨架六维在(数据模型/工作流/边界交付)', ARCHITECTURE_CONTRACT.includes('data model') && ARCHITECTURE_CONTRACT.includes('workflow') && ARCHITECTURE_CONTRACT.includes('boundary'))
 check('契约钉:确认检查点硬措辞在(点名 ask_user_question + STOP + 未批不许搜/发/验)', ARCHITECTURE_CONTRACT.includes('ask_user_question') && ARCHITECTURE_CONTRACT.includes('STOP') && ARCHITECTURE_CONTRACT.includes('do NOT search, emit, or verify'))
 check('契约钉:深度线在(五行清单不是架构)', ARCHITECTURE_CONTRACT.includes('NOT an architecture'))
+check('契约钉:缺口处置是用户选择(造件/降级/砍掉)+ 静默降级禁令', ARCHITECTURE_CONTRACT.includes('现场造件') && ARCHITECTURE_CONTRACT.includes('降级方案') && ARCHITECTURE_CONTRACT.includes('Silently downgrading'))
+check('契约钉:造件必须走 index-add 质检门', ARCHITECTURE_CONTRACT.includes('index-add.mjs') && ARCHITECTURE_CONTRACT.includes('bypasses the quality gate'))
+check('契约钉:夹具模式在范例里(禁内嵌大载荷)', PROBE_SKETCH_EXAMPLES.includes('LARGE FIXTURES') && PROBE_SKETCH_EXAMPLES.includes('NEVER paste'))
+
+// ── 大载荷机械闸 ────────────────────────────────────────────────────────────
+const { probePayloadViolation } = await import('./lib/verify.js')
+check('载荷闸:2KB base64 任务被抓', probePayloadViolation(['解析这本书:' + 'A'.repeat(80) + 'Zm9v'.repeat(60)]))
+check('载荷闸:正常任务不误伤(短 token/中文/路径)', !probePayloadViolation(['解析工作区 uploads/weichen.epub,报出书名与第二章标题', '记一笔 PO-4471 采购单', undefined]))
 
 // ── C 臂:parseDraftResponse / buildDraftPrompt ─────────────────────────────
 const dp = buildDraftPrompt('记账 agent', catalog)

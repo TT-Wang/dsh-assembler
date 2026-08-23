@@ -231,7 +231,21 @@ export const PROBE_SKETCH_EXAMPLES =
   'GOOD scenario sketch: {"kind":"scenario","createTask":"新建一条采购单:单号 PO-4471,供应商晨光文具,金额 862 元,备注加急","retrieveTask":"查采购单 PO-4471,报出它的供应商和金额","token":"PO-4471","marks":["晨光文具","862"]} '
   + '— the token appears in BOTH turns; the retrieve turn asks BY token without restating 晨光文具/862 (the agent must fetch them); marks are stored values, not "done". '
   + 'GOOD single sketch: {"kind":"single","task":"把这段话按句拆行并编号后存为 notes.txt,完成后报文件名与行数:今天验收通过。明天发布。","marks":["notes.txt","2"]} '
-  + '— output goes to a file, so marks are the filename and a computed count, never the body text.';
+  + '— output goes to a file, so marks are the filename and a computed count, never the body text. '
+  + 'LARGE FIXTURES (a real epub/csv/image): NEVER paste the payload (base64 etc.) into the task — no LLM copies 2KB of base64 byte-exactly '
+  + '(measured: transcription corrupts past ~1.2K chars and burns retries). Write the fixture INTO the preset workspace as a file first, '
+  + 'then reference its relative path in the task (e.g. "解析工作区 uploads/sample.epub,报出书名与第二章标题").';
+
+/**
+ * 大载荷机械闸:探针任务里出现 ≥200 连续 base64 形字符 = 有人在往指令里塞
+ * 文件本体。实测(读书助手 e2e):手抄 2132 字符 base64 三轮抄错三处,烧掉
+ * ~40 分钟 diff 自己的笔误——夹具走文件、任务引路径,是唯一可靠形状。
+ */
+export const PAYLOAD_RUN_RE = /[A-Za-z0-9+/=]{200,}/;
+
+export function probePayloadViolation(texts: ReadonlyArray<string | undefined>): boolean {
+  return texts.some((t) => t !== undefined && PAYLOAD_RUN_RE.test(t));
+}
 
 /** Shared mark-design rules — the same discipline governs single and scenario probes. */
 const MARK_RULES = [

@@ -37,7 +37,7 @@ import {
 } from './index.js'
 import {
   AUX_CALL_TIMEOUT_MS, PROBE_SKETCH_EXAMPLES, PROBE_TURN_BUDGET_MS, addUsage, deriveProbePlan, parseModelJson,
-  runFrontendGate, runProbe, runScenario, sanitizeMarks, usageDetail,
+  probePayloadViolation, runFrontendGate, runProbe, runScenario, sanitizeMarks, usageDetail,
   type AuxUsage, type ProbePlan, type ProbeResult,
 } from './verify.js'
 import { validateArchProbe } from './arch-spec.js'
@@ -87,8 +87,13 @@ export const ARCHITECTURE_CONTRACT =
   + 'data model (tables + key fields); workflow (how turns flow: who initiates, what gets reviewed, how state moves); interface shape; '
   + 'boundary & delivery semantics (what the agent does vs what stays human). A list of five one-liners is a sketch, NOT an architecture. '
   + '(2) PRESENT IT AND STOP: call ask_user_question (options like 按此装配/我要调整) and WAIT for approval — do NOT search, emit, or verify '
-  + 'before the user approves. Assembling an unapproved architecture spends five minutes of the user\'s time on a design they never accepted. '
-  + '(3) Only then search per need.'
+  + 'before the user approves. The presentation MUST include every gap the catalog cannot cover, each with its disposition as a USER choice: '
+  + '现场造件 (a gap work order; you build it through the induction pipeline) / 降级方案 (state exactly what degrades) / 砍掉. '
+  + 'Silently downgrading a gap the user never saw is the failure this checkpoint exists to prevent. '
+  + '(3) Only then search per need. Gaps agreed at the checkpoint MUST be passed to emit_preset as missing/missingEntries — that is what turns '
+  + 'them into work orders. (4) Building a part yourself goes ONLY through the work order + scripts/index-add.mjs scaffold/verify/register '
+  + 'pipeline — hand-editing capabilities.yml or index/catalog.yml bypasses the quality gate (live case: a bypassed gate hid a process-hang '
+  + 'defect and a copied-from-another-part smoke test).'
 
 /**
  * 探针草图范例(⑦出题辅助,范例优先于规则):先例 Anthropic Tool Use Examples
@@ -870,6 +875,15 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
         let plan: ProbePlan | null = null
         let sketchNote = ''
         const sketch = normalizeProbeSketch(a?.probe)
+        // 大载荷硬闸:任务里塞文件本体(≥200 连续 base64 形字符)直接报错并教
+        // 夹具模式——LLM 逐字节复制 2KB base64 必抄坏(读书助手 e2e 实测 40 分钟
+        // 三轮笔误),这不是质量问题是物理问题,回退推导也救不了它。
+        if (sketch !== null && probePayloadViolation([sketch.createTask, sketch.retrieveTask, sketch.task])) {
+          throw new Error(
+            'verify_preset: 探针任务里内嵌了大载荷(≥200 连续 base64 形字符)——LLM 无法逐字节复制这种长度,必抄坏。'
+            + '改用夹具模式:先把文件写进 preset 的 workspace(如 workspace/uploads/sample.epub),探针任务按相对路径引用它。',
+          )
+        }
         if (sketch !== null) {
           plan = validateArchProbe(sketch, sanitizeMarks)
           if (plan !== null) phase('验收探针:编排者草图过机械闸,直接执行(推导 0s)')
