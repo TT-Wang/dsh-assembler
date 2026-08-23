@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/webhook-intake",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP stdio server + 本机 webhook 接收口:外部事件 POST 直落工作区账本(接收不经模型),agent 增量拉取处理——trigger 类零件的最小闭环。",
+  "main": "index.js",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "*",
+    "zod": "*"
+  }
+}

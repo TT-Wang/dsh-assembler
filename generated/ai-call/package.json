@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/ai-call",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP stdio server:独立 AI 补全调用零件(摘要/分类/改写/抽取嵌进确定性流程,无需会话);密钥只走进程 env。",
+  "main": "index.js",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "*",
+    "zod": "*"
+  }
+}

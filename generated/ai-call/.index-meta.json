@@ -1,0 +1,16 @@
+{
+  "id": "ai-call",
+  "pkg": null,
+  "version": "0.0.1",
+  "kind": "service",
+  "service": "https://api.deepseek.com",
+  "provider": "DeepSeek",
+  "terms": "https://platform.deepseek.com/terms",
+  "rateLimit": "按 DeepSeek 平台账户配额",
+  "license": "BSD-3-Clause",
+  "firstParty": true,
+  "requiredSecrets": [
+    { "env": "DEEPSEEK_API_KEY", "purpose": "ai-complete 独立 AI 补全调用" }
+  ],
+  "scaffoldedAt": "2026-08-23T14:20:00.000Z"
+}

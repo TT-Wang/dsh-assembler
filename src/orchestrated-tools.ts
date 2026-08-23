@@ -113,7 +113,12 @@ export const FRONTEND_FACT = '每 preset 仅首个 frontend 模板生效——�
  *   5 行一句话清单,骨架六维 + 深度线写死。
  */
 export const ARCHITECTURE_CONTRACT =
-  'WORKFLOW CONTRACT — (1) ARCHITECTURE FIRST, to review depth: 用途 (purpose); capability list where EACH entry carries a why and is '
+  'WORKFLOW CONTRACT — (0) SHAPE ROUTING before anything: judge the requirement\'s shape and SAY it. 应用型 (interaction-dense, '
+  + 'deterministic UI/data flows; AI is a component) → assemble the service form: bytes/files flow through service parts (直传端点), '
+  + 'the model only where judgment lives — and when parts cannot cover the app shape, honestly recommend direct coding instead of assembling; '
+  + '个人即时型 (the user wants it done NOW, conversationally) → offer to just do it yourself in this session — minting an agent is NOT the '
+  + 'default for personal immediate needs; 无人值守/他人使用/交付型 → that is what minting is for. '
+  + '(1) ARCHITECTURE FIRST, to review depth: 用途 (purpose); capability list where EACH entry carries a why and is '
   + 'concrete enough to search (storage/retrieval/export included; a capability the catalog may lack still gets designed and flagged); '
   + 'data model (tables + key fields); workflow (how turns flow: who initiates, what gets reviewed, how state moves); interface shape; '
   + 'boundary & delivery semantics (what the agent does vs what stays human). A list of five one-liners is a sketch, NOT an architecture. '
@@ -1281,11 +1286,17 @@ export function searchCatalogToolDefinition(_ctx: Context, config: Config): Tool
         const tax = bytes !== undefined ? `每轮约 ${String(Math.round(bytes / 4))} token` : '每轮 token 未标定'
         return `;价签:${tax}${hostMounted ? '(host 平面,无新进程)' : ',+1 进程(同服务器零件共享)'}`
       }
+      // 服务面(P1):零件自带浏览器可直连的本机 HTTP 端点——数据流可不过模型。
+      const serviceOf = (c: CapabilityEntry): string => {
+        const sv = c.config?.server as string | undefined
+        const announce = sv !== undefined ? servers[sv]?.serviceAnnounce : undefined
+        return typeof announce === 'string' && announce !== '' ? `;服务面:浏览器可直连(经 ${announce} 工具发现端点,大文件/字节流走此通道不过模型)` : ''
+      }
       appendOrchLedger({ tool: SEARCH_TOOL_NAME, query: query.slice(0, 120), hits: hits.length })
       if (hits.length === 0) {
         return `「${query}」检索 0 命中。${prose('换 2-3 种说法再试(同义词/英文词);仍无 → 这是真缺口,如实进 emit_preset 的 missing/missingEntries。')}`
       }
-      const rows = hits.map((h, i) => `${String(i + 1)}. ${h.entry.id} [${h.entry.via}](分 ${String(h.score)})— ${h.entry.description.slice(0, 110)}${priceOf(h.entry)}${secretOf(h.entry)}`).join('\n')
+      const rows = hits.map((h, i) => `${String(i + 1)}. ${h.entry.id} [${h.entry.via}](分 ${String(h.score)})— ${h.entry.description.slice(0, 110)}${priceOf(h.entry)}${serviceOf(h.entry)}${secretOf(h.entry)}`).join('\n')
       return `「${query}」top ${String(hits.length)}:\n${rows}`
         + prose(`\n(BM25 词法排名,分数只是线索——选不选、选哪个由你判断。基线:交付 agent 的 LLM 自己能稳定做的不装零件;价签是它每轮 prompt 的固定税。UI 需求恰好配一个 via:frontend 模板、持久状态配存储零件。)`)
     },

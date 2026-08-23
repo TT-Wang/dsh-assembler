@@ -858,3 +858,25 @@
     - { name: "parse-mobi", description: "解析 MOBI/AZW3 电子书文件,返回书籍元数据(标题/作者/语言/出版日期/出版社/简介/标识符)与章节骨架(spine:每章 id、字节位置、大小)。适" }
     - { name: "read-chapter", description: "按章节 id 读取 MOBI/AZW3 书籍某一章的正文,HTML 已剥离为纯文本(保留段落换行)。章节 id 来自 parse-mobi 返回的 spine[" }
     - { name: "get-toc", description: "读取 MOBI/AZW3 书籍的目录树(TOC),返回层级结构:每项含 label(标题文字)与 href(内部链接);href 可用 parse-mobi 的" }
+
+- id: webhook-intake
+  repo: "TT-Wang/dsh-assembler"
+  rev: "v0.0.1"
+  license: "BSD-3-Clause"
+  tools:
+    - { name: "webhook-info", description: "返回本会话的 webhook 接收服务信息:外部系统把事件 POST 到 url + <钩子名>(body 为 JSON 或任意文本,≤256KB),事件带自增" }
+    - { name: "webhook-poll", description: "增量拉取已接收的 webhook 事件:返回 id > afterId 的事件(默认从头,limit 默认 20,最大 100)。" }
+    - { name: "webhook-clear", description: "清空已接收的事件账本(处理完毕归档后使用;清空不可逆)。" }
+
+- id: ai-call
+  kind: service
+  service: "https://api.deepseek.com"
+  provider: "DeepSeek"
+  license: "BSD-3-Clause"
+  terms: "https://platform.deepseek.com/terms"
+  rateLimit: "按 DeepSeek 平台账户配额"
+  network: true
+  requiredSecrets:
+    - { env: "DEEPSEEK_API_KEY", purpose: "ai-complete 独立 AI 补全调用" }
+  tools:
+    - { name: "ai-complete", description: "一次独立的 AI 补全调用(与当前会话完全无关的新调用):给 prompt(和可选 system),返回模型文本。用于把摘要/分类/改写/抽取等 AI 步骤嵌进" }

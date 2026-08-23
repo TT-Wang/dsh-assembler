@@ -53,6 +53,10 @@ mcp-servers:
     transport: stdio
     command: node
     args: ['/Users/tongtao/code/dsh-assembler/generated/book-intake/index.js']
+    # 服务面零件(P1 泛化第一台阶):除模型工具外,自带 127.0.0.1 HTTP 端点,
+    # 浏览器/其他零件可经 serviceAnnounce 指到的工具发现端点后直连——数据流
+    # 不过模型(治"LLM 复制 2KB base64 必坏"的物理限制)。
+    serviceAnnounce: upload-info
 
   email-send:
     transport: stdio
@@ -470,6 +474,18 @@ mcp-servers:
     transport: stdio
     command: node
     args: ["/Users/tongtao/code/dsh-assembler/generated/mobi-parser/index.js"]
+
+  webhook-intake:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/webhook-intake/index.js"]
+
+  ai-call:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/ai-call/index.js"]
+    requiredSecrets:
+      - { env: "DEEPSEEK_API_KEY", purpose: "ai-complete 独立 AI 补全调用" }
 
 capabilities:
   # ── frontend templates(交互面零件:选形状,功能由其余零件供给)────────────

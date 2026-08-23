@@ -125,6 +125,7 @@ check('契约钉:架构骨架六维在(数据模型/工作流/边界交付)', AR
 check('契约钉:确认检查点硬措辞在(点名 ask_user_question + STOP + 未批不许搜/发/验)', ARCHITECTURE_CONTRACT.includes('ask_user_question') && ARCHITECTURE_CONTRACT.includes('STOP') && ARCHITECTURE_CONTRACT.includes('do NOT search, emit, or verify'))
 check('契约钉:深度线在(五行清单不是架构)', ARCHITECTURE_CONTRACT.includes('NOT an architecture'))
 check('契约钉:缺口处置是用户选择(造件/降级/砍掉)+ 静默降级禁令', ARCHITECTURE_CONTRACT.includes('现场造件') && ARCHITECTURE_CONTRACT.includes('降级方案') && ARCHITECTURE_CONTRACT.includes('Silently downgrading'))
+check('契约钉:三岔口路由在(应用型/个人即时/铸造三分 + 铸造非默认)', ARCHITECTURE_CONTRACT.includes('SHAPE ROUTING') && ARCHITECTURE_CONTRACT.includes('应用型') && ARCHITECTURE_CONTRACT.includes('个人即时') && ARCHITECTURE_CONTRACT.includes('NOT the'))
 check('契约钉:造件必须走 index-add 质检门', ARCHITECTURE_CONTRACT.includes('index-add.mjs') && ARCHITECTURE_CONTRACT.includes('bypasses the quality gate'))
 check('契约钉:夹具模式在范例里(禁内嵌大载荷)', PROBE_SKETCH_EXAMPLES.includes('LARGE FIXTURES') && PROBE_SKETCH_EXAMPLES.includes('NEVER paste'))
 

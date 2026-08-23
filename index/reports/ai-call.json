@@ -1,0 +1,12 @@
+{
+  "id": "ai-call",
+  "verifiedAt": "2026-08-23T15:55:01.854Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "ai-complete",
+      "description": "一次独立的 AI 补全调用(与当前会话完全无关的新调用):给 prompt(和可选 system),返回模型文本。用于把摘要/分类/改写/抽取等 AI 步骤嵌进确定性流程——无需开会话。默认 deepseek-v4-flash;凭证走进程环境 DEEPSEEK_API_KEY,不经参数。"
+    }
+  ]
+}

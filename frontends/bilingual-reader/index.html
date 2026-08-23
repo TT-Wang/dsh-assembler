@@ -200,6 +200,12 @@ function afterReply() {
   if (fences.length === 0) { showToast('agent 未返回结构化数据,请重试'); return; }
   let data; try { data = JSON.parse(fences[fences.length - 1][1]); } catch { showToast('回复数据解析失败'); return; }
   const act = replyMeta.act;
+  if (act === 'endpoint') {
+    uploadUrl = (data && typeof data.url === 'string' && data.url.indexOf('http://127.0.0.1') === 0) ? data.url : null;
+    if (endpointWait) { endpointWait.resolve(uploadUrl); endpointWait = null; }
+    if (!uploadUrl) showToast('该 preset 无直传零件,小文件将走对话通道');
+    return;
+  }
   if (act === 'books') { books = data.books || []; renderBooks(); }
   else if (act === 'chapters') { chapters = data.chapters || []; curBook = curBook || {}; Object.assign(curBook, { title: data.title, author: data.author, language: data.language }); renderToc(); }
   else if (act === 'paras') { renderParas(data.paragraphs || [], data.title); }
@@ -406,15 +412,45 @@ const drop = $('drop');
 ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
 drop.addEventListener('drop', (e) => { const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) uploadFile(f); });
 drop.onclick = () => $('fileIn').click();
-function uploadFile(file) {
-  if (file.size > 5 * 1024 * 1024) { showErr('文件超过 5MB,请拆分后上传(当前 ' + Math.round(file.size / 1024) + ' KB)'); return; }
+/* ── 文件直传通道(泛化 agent P1:数据流不过模型)──
+ * 老路把整本书 base64 塞进对话:实测 LLM 无法逐字节复制 2KB 以上 base64,
+ * 上传必坏。新路:向 agent 要一次 upload-info(book-intake 零件通告的本机
+ * HTTP 端点),之后浏览器把文件字节直接 POST 落盘工作区,对话里只走路径。
+ * 端点按会话缓存;没有直传零件时,小文件(<64KB)退回 base64 老路,大文件
+ * 如实报缺。 */
+let uploadUrl = null, endpointWait = null;
+function ensureUploadEndpoint() {
+  if (uploadUrl) return Promise.resolve(uploadUrl);
+  if (endpointWait) return endpointWait.promise;
+  endpointWait = {};
+  endpointWait.promise = new Promise((resolve) => { endpointWait.resolve = resolve; });
+  ask('请调用 upload-info 工具,把它返回的 JSON 原样放进回复末尾的 ```json 围栏(不增删字段);若没有该工具,回复 ```json\n{"url":null}\n```。不要执行其他操作。', 'endpoint');
+  setTimeout(() => { if (endpointWait) { endpointWait.resolve(null); endpointWait = null; } }, 120000);
+  return endpointWait.promise;
+}
+async function uploadFile(file) {
+  if (file.size > 64 * 1024 * 1024) { showErr('文件超过 64MB(当前 ' + Math.round(file.size / 1048576) + ' MB)'); return; }
+  showStatus('🔎 询问直传端点…', 60000);
+  const url = await ensureUploadEndpoint();
+  $('fileIn').value = '';
+  if (url) {
+    try {
+      showStatus('⬆️ 直传中(不经对话)…', 30000);
+      const res = await fetch(url + encodeURIComponent(file.name), { method: 'POST', body: file });
+      const j = await res.json();
+      if (!res.ok || !j || !j.path) throw new Error((j && j.error) || ('HTTP ' + res.status));
+      ask('书籍文件已经由文件通道直传落盘(未经对话传输),工作区相对路径:uploads/' + file.name +
+        '。请解析这本书:提取正文、按标题自动分章节、把书籍元数据(标题/作者/章节数)与正文写入书库数据库(如尚未有表则建表),最后: ' + CONTRACT_BOOKS, 'books');
+      return;
+    } catch (e) { showErr('直传失败(' + String(e && e.message || e).slice(0, 120) + '),尝试回退…'); }
+  }
+  if (file.size > 64 * 1024) { showErr('该 preset 无文件直传零件(book-intake),大文件无法可靠上传——请重新装配加入 book-intake。'); return; }
   const reader = new FileReader();
   reader.onload = () => {
     const b64 = String(reader.result).split(',')[1] || '';
     ask('请把下面 base64 解码保存为文件「' + file.name + '」(用二进制写文件工具),然后解析这本书:' +
       '提取正文、按标题自动分章节、把书籍元数据(标题/作者/章节数)与正文写入书库数据库(如尚未有表则建表),最后: ' + CONTRACT_BOOKS +
       '\nBASE64 内容:\n' + b64, 'books');
-    $('fileIn').value = '';
   };
   reader.onerror = () => showErr('读取文件失败');
   reader.readAsDataURL(file);

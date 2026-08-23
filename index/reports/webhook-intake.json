@@ -1,0 +1,20 @@
+{
+  "id": "webhook-intake",
+  "verifiedAt": "2026-08-23T15:52:56.072Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "webhook-info",
+      "description": "返回本会话的 webhook 接收服务信息:外部系统把事件 POST 到 url + <钩子名>(body 为 JSON 或任意文本,≤256KB),事件带自增 id 落盘工作区 webhooks/events.jsonl。agent 之后用 webhook-poll 拉取处理——接收不经模型,处理才用模型。"
+    },
+    {
+      "name": "webhook-poll",
+      "description": "增量拉取已接收的 webhook 事件:返回 id > afterId 的事件(默认从头,limit 默认 20,最大 100)。"
+    },
+    {
+      "name": "webhook-clear",
+      "description": "清空已接收的事件账本(处理完毕归档后使用;清空不可逆)。"
+    }
+  ]
+}
