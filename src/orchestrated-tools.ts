@@ -54,6 +54,37 @@ export const ASK_TOOL_NAME = 'ask_catalog'
 export const SEARCH_TOOL_NAME = 'search_catalog'
 export const VERIFY_SHARED_TOOL_NAME = 'verify_shared_data'
 
+/**
+ * BARE 消融模式(ROADMAP v2 P0,Boris 减法纪律):DSH_ASSEMBLER_BARE=1 时全部
+ * 契约散文归零(基线判据/接力棒/范例/检查点文本),只留代码闸与事实输出——
+ * 我们的 CLAUDE_CODE_SIMPLE。用途:换模型代的消融轮(BARE vs 现契约,8 场景
+ * 战役)裁定每捆散文的真实边际;"没有这些 prompt 模型反而更聪明"要用数据核实,
+ * 不靠信仰。
+ */
+export function bareMode(): boolean {
+  return process.env.DSH_ASSEMBLER_BARE === '1'
+}
+
+/** 散文开关:BARE 下返回空串。事实(检索行/判决/证据/路径/价签)不过这个门。 */
+function prose(t: string): string {
+  return bareMode() ? '' : t
+}
+
+/**
+ * 契约到期制(P0):每条散文常量登记其"适用模型代"。换模型时这些默认全部
+ * 到期,消融轮重裁去留——为当代模型写的散文不许无限期活到下一代(Boris:
+ * 三个月前为某模型做的东西到下一个模型可能完全不迁移)。单测钉:每条导出
+ * 散文必须在此登记。
+ */
+export const CONTRACT_GENERATION = 'deepseek-v4'
+export const CONTRACT_TAGS: Record<string, string> = {
+  BASELINE_RULE: 'deepseek-v4',
+  MINIMAL_SET_RULE: 'deepseek-v4',
+  FRONTEND_FACT: 'deepseek-v4',
+  ARCHITECTURE_CONTRACT: 'deepseek-v4',
+  PROBE_SKETCH_EXAMPLES: 'deepseek-v4',
+}
+
 // ── 承重契约句(集中定义:单测钉住它们,契约改动掉了哪句立刻红)────────────
 // 超配病根定性为 context 缺口(2026-08-23 用户裁定):不设阈值不说教,把决策
 // 需要的事实放在决策发生的地方。三句分别补三个缺口:基线(何时才需要零件)、
@@ -467,19 +498,50 @@ export function normalizeProbeSketch(raw: unknown): { kind: 'scenario' | 'single
   }
 }
 
+// ── 自检包(P0:验证双轨的自验证半边)────────────────────────────────────────
+// Bun 重写的教训:模型长跑的前提是手里有自己的测试套件。考官的探针从"一次性
+// 考卷"升级为交付物随行的体检包:PASS 时把探针计划落进 preset(selfcheck.json),
+// 交付后的 agent/用户改 persona、升零件,可自跑同卷体检——独立验收台账照旧,
+// 自检不替代考官,只是把验证手段交到交付物自己手里。
+
+/** ProbePlan → verify_preset 可直接吃的草图(2 轮场景/单轮可表示;其余 null)。 */
+export function planToSketch(plan: ProbePlan): Record<string, unknown> | null {
+  if (plan.kind === 'single') return { kind: 'single', task: plan.probe.task, marks: plan.probe.mustInclude }
+  if (plan.scenario.turns.length === 2) {
+    const [t1, t2] = plan.scenario.turns
+    return { kind: 'scenario', createTask: t1.prompt, retrieveTask: t2.prompt, token: t1.mustInclude[0] ?? '', marks: t2.mustInclude }
+  }
+  return null
+}
+
+/** 体检包渲染(纯函数,单测覆盖)。 */
+export function renderSelfCheck(opts: { presetId: string; presetSha256: string; plan: ProbePlan; verifiedAt: string }): string {
+  const sketch = planToSketch(opts.plan)
+  return JSON.stringify({
+    version: 1,
+    presetId: opts.presetId,
+    presetSha256: opts.presetSha256,
+    verifiedAt: opts.verifiedAt,
+    generation: CONTRACT_GENERATION,
+    plan: opts.plan,
+    rerun: { tool: VERIFY_TOOL_NAME, args: { presetId: opts.presetId, reverify: true, ...(sketch !== null ? { probe: sketch } : {}) } },
+    note: '交付物随行体检包:改 persona/升零件后重跑同卷自检;独立验收台账(last-verify.json)仍以考官为准。',
+  }, null, 2) + '\n'
+}
+
 // ── 工具 1:match_catalog ────────────────────────────────────────────────────
 
 export function matchCatalogToolDefinition(ctx: Context, config: Config): ToolDefinition {
   return defineTool({
     name: MATCH_TOOL_NAME,
     description:
-      'EXPERT LLM mapping of a whole architecture spec onto the parts catalog — the LAST-RESORT escalation, not the normal path. '
-      + 'When search_catalog is available, searching + your own judgment IS the selection path: do NOT call this for requirements you can '
-      + 'decide from search results (this is a 60-180s full-effort LLM call). Call it at most ONCE per assembly, and only when ≥2 '
-      + 'differently-phrased searches per still-uncovered need left you genuinely stuck or with conflicting candidates. '
-      + 'Input: your architecture spec (design it FIRST, show the user). Output: per need, a capability id or a GAP. '
-      + 'It does NOT write personas/schemas/names and does NOT assemble — after it returns, YOU decide and call emit_preset, then verify_preset. '
-      + 'Never invent capability ids yourself: ids come from search results or from this mapping.',
+      'EXPERT LLM mapping of a whole architecture spec onto the parts catalog. Input: your architecture spec. Output: per need, a capability id or a GAP.'
+      + prose(' The LAST-RESORT escalation, not the normal path. '
+        + 'When search_catalog is available, searching + your own judgment IS the selection path: do NOT call this for requirements you can '
+        + 'decide from search results (this is a 60-180s full-effort LLM call). Call it at most ONCE per assembly, and only when ≥2 '
+        + 'differently-phrased searches per still-uncovered need left you genuinely stuck or with conflicting candidates. '
+        + 'Design the spec FIRST, show the user. It does NOT write personas/schemas/names and does NOT assemble — after it returns, YOU decide and call emit_preset, then verify_preset. '
+        + 'Never invent capability ids yourself: ids come from search results or from this mapping.'),
     parameters: {
       requirement: {
         type: 'string',
@@ -549,14 +611,14 @@ export function matchCatalogToolDefinition(ctx: Context, config: Config): ToolDe
           + `覆盖明细:\n${rows}${extraLine}\n`
           + `选中零件 capabilityIds:${outcome.capabilityIds.join(', ')}\n`
           + (outcome.missingEntries.length > 0 ? `缺件草案 missingEntries:${JSON.stringify(outcome.missingEntries)}\n` : '')
-          + [
+          + prose([
             '',
             '【接力棒——编排者是你,匹配到此为止】',
             '- 组装决策归你,现在做:写 persona(角色/语气/工具纪律/跨轮持久化约束/该领域的安全合规边界;写成随时可判的约束,禁止"第一步…第二步…"编舞);数据要跨会话留存则设计 stateSchema(只许幂等 CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS,英文列名、合理主键,按你 spec 的 dataModel 一比一落表);给 preset 起 kebab-case 名。',
             '- 然后调 emit_preset(name, requirement, capabilityIds, persona[, stateSchema][, params][, missing, missingEntries])发射;发射后必须调 verify_preset 独立验收——你不能自己宣布 agent 可用。',
             ...(outcome.missing.length > 0 ? ['- 缺口处置归你:或先照工单造件入库再装(emit 后 gaps/ 有施工单),或先装配、把缺口如实告知用户。'] : []),
             '- 注意:若选中零件自带目录手写 persona(域验证过的安全文本),发射时它优先于你写的。',
-          ].join('\n')
+          ].join('\n'))
       } catch (error: unknown) {
         job.settle('failed', error instanceof Error ? error.message.slice(0, 120) : String(error))
         throw error
@@ -571,13 +633,12 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
   return defineTool({
     name: EMIT_TOOL_NAME,
     description:
-      'ORCHESTRATED ASSEMBLY step 3 of 4: the DUMB deterministic printer. YOU already made the assembly decisions '
-      + '(capabilityIds from match_catalog — you may add/remove; persona YOU wrote; stateSchema YOU designed when state must persist; the preset name). '
-      + 'This tool only prints them into a mountable preset with every gate intact: secret-shaped params refused, YAML parse gate, '
-      + 'idempotent-DDL double-execution gate, persona lint, byte-deterministic serverNames, BOM (parts.lock.yml), gap work-orders. '
-      + 'It makes NO decisions and runs NO verification — after it returns you MUST call verify_preset. '
-      + 'NEVER hand-write or edit preset files yourself (the host pins mounted server names to file bytes; a hand edit collides its own generation) — '
-      + 'any change means calling emit_preset again with the same name.',
+      'The DUMB deterministic printer: prints your assembly decisions (name, capabilityIds, persona, stateSchema, params) into a mountable preset with every gate intact.'
+      + prose(' YOU already made the assembly decisions (capabilityIds from search/match — you may add/remove; persona YOU wrote; stateSchema YOU designed when state must persist; the preset name). '
+        + 'Gates: secret-shaped params refused, YAML parse gate, idempotent-DDL double-execution gate, persona lint, byte-deterministic serverNames, BOM (parts.lock.yml), gap work-orders. '
+        + 'It makes NO decisions and runs NO verification — after it returns you MUST call verify_preset. '
+        + 'NEVER hand-write or edit preset files yourself (the host pins mounted server names to file bytes; a hand edit collides its own generation) — '
+        + 'any change means calling emit_preset again with the same name.'),
     parameters: {
       name: { type: 'string', description: 'kebab-case preset id YOU chose, e.g. "expense-tracker"', required: true },
       requirement: { type: 'string', description: 'what this agent is for (goes into the BOM and roster description)', required: true },
@@ -590,10 +651,11 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
       persona: {
         type: 'string',
         description:
-          'the system persona YOU wrote for this agent. SKELETON — cover each dimension that applies: ① 角色与辖区 (what it is and is NOT for); '
-          + '② 语气 and answer language; ③ 工具纪律 (which tool for which job); ④ 持久化约束 when state parts are mounted (跨轮事实必须写入账本/文件,不依赖记忆); '
-          + '⑤ 安全合规边界 — MANDATORY for medical/legal/finance/collections domains (what it must never do, e.g. 绝不诊断开药/绝不联系第三方); '
-          + '⑥ 拒答范围 (out-of-scope requests it declines). Judgeable constraints only — never numbered procedures.',
+          'the system persona YOU wrote for this agent.'
+          + prose(' SKELETON — cover each dimension that applies: ① 角色与辖区 (what it is and is NOT for); '
+            + '② 语气 and answer language; ③ 工具纪律 (which tool for which job); ④ 持久化约束 when state parts are mounted (跨轮事实必须写入账本/文件,不依赖记忆); '
+            + '⑤ 安全合规边界 — MANDATORY for medical/legal/finance/collections domains (what it must never do, e.g. 绝不诊断开药/绝不联系第三方); '
+            + '⑥ 拒答范围 (out-of-scope requests it declines). Judgeable constraints only — never numbered procedures.'),
         required: true,
       },
       stateSchema: { type: 'string', description: 'optional idempotent SQLite DDL (only CREATE TABLE/INDEX IF NOT EXISTS) pre-building this agent\'s tables; required in practice whenever a SQLite part is selected — design it from your data model' },
@@ -718,13 +780,13 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
         + (screened.rejected.length > 0 ? `参数被拒:${screened.rejected.map((r) => `${r.key}(${r.reason})`).join(';')}\n` : '')
         + (personaFindings.length > 0 ? `persona 检查:${personaFindings.map((f) => f.detail).join(';')}\n` : '')
         + secretLines
-        + [
+        + prose([
           '',
           '【接力棒】',
           `- 发射完成 ≠ 可用。立即调 verify_preset {"presetId": "${id}"} 独立验收,并附上你按主工作流设计的探针草图(草图过机械闸 = 验收推导 0s;不给则考官满档自行推导,贵且慢)。`,
           `- 出题范例(照这个形状写):${PROBE_SKETCH_EXAMPLES}`,
           '- 红线:绝不手改 preset 目录下的任何文件(host 按字节代际挂载,手改必撞名);要改选型/persona/schema,一律重调 emit_preset 同名重发。',
-        ].join('\n')
+        ].join('\n'))
     },
   })
 }
@@ -735,17 +797,17 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
   return defineTool({
     name: VERIFY_TOOL_NAME,
     description:
-      'ORCHESTRATED ASSEMBLY step 4 of 4: the INDEPENDENT examiner. Runs a black-box acceptance probe against an emitted preset '
-      + 'in a REAL session (empty workspace, nobody attending; an agent that asks a human mid-probe FAILS). You may pass a probe sketch — '
-      + 'you know the user\'s intent best — but the verdict is the examiner\'s: you cannot grade your own assembly, and this tool NEVER retries. '
-      + 'On FAIL it returns the evidence (which turn, which missing mark, what the agent replied) and the surgical decision is YOURS: '
-      + 'swap parts and re-emit, build the missing part first, tighten the persona, or report honestly to the user. '
-      + 'Sketch by EXAMPLE (copy these shapes): ' + PROBE_SKETCH_EXAMPLES + ' '
-      + 'Rules the examples embody: invent ALL data inline (empty workspace, nobody attending); the retrieve turn asks BY the token without '
-      + 'restating stored values; marks are content-bearing — never invented dates as facts, never refusal wording, never UI/page words, '
-      + 'never formatted numbers, never long body text that goes to a file; size each turn under ~2 minutes. '
-      + 'A sketch that fails the mechanical gate falls back to the examiner\'s own derivation (slow, expensive). '
-      + 'A PASS on unchanged bytes within 7 days is carried from the ledger (honestly labeled); pass reverify=true to force a fresh probe.',
+      'The INDEPENDENT examiner: runs a black-box acceptance probe against an emitted preset in a real session and returns the verdict with evidence. Optional probe sketch accepted.'
+      + prose(' An agent that asks a human mid-probe FAILS (empty workspace, nobody attending). You may pass a probe sketch — '
+        + 'you know the user\'s intent best — but the verdict is the examiner\'s: you cannot grade your own assembly, and this tool NEVER retries. '
+        + 'On FAIL it returns the evidence (which turn, which missing mark, what the agent replied) and the surgical decision is YOURS: '
+        + 'swap parts and re-emit, build the missing part first, tighten the persona, or report honestly to the user. '
+        + 'Sketch by EXAMPLE (copy these shapes): ' + PROBE_SKETCH_EXAMPLES + ' '
+        + 'Rules the examples embody: invent ALL data inline (empty workspace, nobody attending); the retrieve turn asks BY the token without '
+        + 'restating stored values; marks are content-bearing — never invented dates as facts, never refusal wording, never UI/page words, '
+        + 'never formatted numbers, never long body text that goes to a file; size each turn under ~2 minutes. '
+        + 'A sketch that fails the mechanical gate falls back to the examiner\'s own derivation (slow, expensive). '
+        + 'A PASS on unchanged bytes within 7 days is carried from the ledger (honestly labeled); pass reverify=true to force a fresh probe.'),
     parameters: {
       presetId: { type: 'string', description: 'the emitted preset id to verify', required: true },
       probe: {
@@ -831,17 +893,17 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
       }
       const presetText = readFileSync(presetPath, 'utf8')
       const sha = presetSha(presetText)
-      const contractPass = [
+      const contractPass = prose([
         '',
         '【接力棒】',
         '- 如实向用户转述验收结论与前端 URL;验收已入台账,同字节 7 天内重验将自动沿用。',
-      ].join('\n')
-      const contractFail = [
+      ].join('\n'))
+      const contractFail = prose([
         '',
         '【外科决策归你——考官不重试,证据在上】',
         '- 先诊断再动手:疑零件不匹配 → 调整 capabilityIds 重调 emit_preset(同名重发)再 verify_preset;疑缺件 → 先照 gaps/ 工单造件入库再重发重验;疑 persona 约束不足 → 改 persona 重发重验;修不了或拿不准 → 把失败原因与证据如实报给用户,等定夺。',
         '- 红线:禁止手改 preset 目录文件;禁止绕开 verify_preset 自行开会话"试一下就算过";禁止把 FAIL 转述成通过。',
-      ].join('\n')
+      ].join('\n'))
       try {
         // 增量验收:同字节 + 台账 PASS + 未过期 ⇒ 沿用(明说,绝不冒充新跑)。
         const carry = a?.reverify === true
@@ -922,16 +984,21 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
             feLine = `\n前端验收:FAIL——${error instanceof Error ? error.message : String(error)}`
           }
         }
+        let selfCheckLine = ''
         if (verification.status === 'PASS') {
           try {
             const onDisk = readFileSync(presetPath, 'utf8')
             const summary = verification.kind === 'scenario' ? verification.scenario?.goal : verification.probe?.task
+            const verifiedAt = new Date().toISOString()
             saveVerifyLedger(dir, {
               presetSha256: presetSha(onDisk), status: 'PASS',
               ...(verification.kind !== undefined ? { kind: verification.kind } : {}),
-              verifiedAt: new Date().toISOString(),
+              verifiedAt,
               ...(typeof summary === 'string' && summary !== '' ? { summary: summary.slice(0, 120) } : {}),
             })
+            // 自检包随 PASS 落盘:考官的卷子沉淀为交付物自己的测试套件。
+            writeFileSync(join(dir, 'selfcheck.json'), renderSelfCheck({ presetId: id, presetSha256: presetSha(onDisk), plan, verifiedAt }))
+            selfCheckLine = '\n自检包:selfcheck.json 已随 preset 落盘(改 persona/升零件后可重跑同卷体检)'
           } catch (error: unknown) {
             console.error(`[assembler] verify ledger write failed: ${error instanceof Error ? error.message : String(error)}`)
           }
@@ -950,7 +1017,7 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
           ...(verification.toolsUsed !== undefined ? { toolExecutions: verification.toolsUsed.map((u) => ({ 'gen_ai.tool.name': u.name, calls: u.calls })) } : {}),
           ...(util !== null ? { utilization: { mounted: util.mounted, used: util.usedCount } } : {}),
         }, verification.status === 'PASS' ? 'completed' : 'failed', verification.status)
-        const utilLine = util === null ? '' : `\n动用率:${String(util.usedCount)}/${String(util.mounted)} 个工具零件被探针动用${util.unused.length > 0 ? `;未动用:${util.unused.slice(0, 12).join(', ')}(探针只走主流程,未动用≠无用——这是修剪线索:确认多余就调 emit_preset 去掉重发)` : ''}`
+        const utilLine = util === null ? '' : `\n动用率:${String(util.usedCount)}/${String(util.mounted)} 个工具零件被探针动用${util.unused.length > 0 ? `;未动用:${util.unused.slice(0, 12).join(', ')}${prose('(探针只走主流程,未动用≠无用——这是修剪线索:确认多余就调 emit_preset 去掉重发)')}` : ''}`
         const ladder = (verification.turns ?? [])
           .map((t) => `  第${String(t.index)}轮 ${t.pass ? '✓' : '✗'} 「${t.prompt.slice(0, 50)}」标记 [${t.mustInclude.join(', ')}]${t.pass ? '' : `;回复摘录「${t.reply.slice(0, 120)}」`}`)
           .join('\n')
@@ -960,7 +1027,7 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
           const evidence = verification.kind === 'scenario'
             ? `多轮场景「${verification.scenario?.goal.slice(0, 60) ?? ''}」共 ${String(verification.scenario?.turns.length ?? 0)} 轮逐轮通过\n${ladder}`
             : `探针「${verification.probe?.task.slice(0, 80) ?? ''}」通过;验收标记 [${verification.probe?.mustInclude.join(', ') ?? ''}]`
-          return `${head} — ${evidence}${feLine}${utilLine}${contractPass}`
+          return `${head} — ${evidence}${feLine}${utilLine}${selfCheckLine}${contractPass}`
         }
         const evidence = verification.kind === 'scenario'
           ? `${verification.reason ?? ''}\n${ladder}`
@@ -1169,19 +1236,19 @@ export function searchCatalogToolDefinition(_ctx: Context, config: Config): Tool
     name: SEARCH_TOOL_NAME,
     description:
       'The parts-ecosystem SEARCH ENGINE (mechanical BM25-weighted lexical search: zero LLM, instant, deterministic). '
-      + 'YOU are the selector — the assembler only supplies facts. '
-      + ARCHITECTURE_CONTRACT + ' '
-      + 'Search REPEATEDLY with different phrasings per architectural need (per-need queries beat one big query; try synonyms — '
-      + '持久存储/数据库/sqlite), decide the ids yourself, then emit_preset and verify_preset. '
-      + BASELINE_RULE + ' ' + MINIMAL_SET_RULE + ' '
-      + 'Each result row carries the FACTS for that decision: a price tag (≈prompt-tokens its tool manual adds to EVERY turn of the '
-      + 'delivered agent, and whether it spawns a process), credential needs, and evidence. '
-      + 'Honesty rule: a need no search covers goes into emit_preset\'s missing/missingEntries as a GAP — never force an unrelated '
-      + 'part, never invent ids. Lexical search misses paraphrases: try 2-3 phrasings before declaring a gap. '
-      + 'THIS SEARCH IS THE SELECTION PATH — searching + your own judgment completes selection for ordinary requirements; results are '
-      + 'designed to be decided on directly. match_catalog is a LAST-RESORT escalation with a hard budget: at most ONE call per assembly, '
-      + 'and ONLY after ≥2 differently-phrased searches per still-uncovered need left you genuinely stuck (it costs a 60-180s full-effort '
-      + 'LLM call — calling it on a requirement you could decide from search results wastes the user\'s time).',
+      + 'Search once per capability need; repeat with different phrasings.'
+      + prose(' YOU are the selector — the assembler only supplies facts. '
+        + ARCHITECTURE_CONTRACT + ' '
+        + 'Per-need queries beat one big query; try synonyms — 持久存储/数据库/sqlite. Decide the ids yourself, then emit_preset and verify_preset. '
+        + BASELINE_RULE + ' ' + MINIMAL_SET_RULE + ' '
+        + 'Each result row carries the FACTS for that decision: a price tag (≈prompt-tokens its tool manual adds to EVERY turn of the '
+        + 'delivered agent, and whether it spawns a process), credential needs, and evidence. '
+        + 'Honesty rule: a need no search covers goes into emit_preset\'s missing/missingEntries as a GAP — never force an unrelated '
+        + 'part, never invent ids. Lexical search misses paraphrases: try 2-3 phrasings before declaring a gap. '
+        + 'THIS SEARCH IS THE SELECTION PATH — searching + your own judgment completes selection for ordinary requirements; results are '
+        + 'designed to be decided on directly. match_catalog is a LAST-RESORT escalation with a hard budget: at most ONE call per assembly, '
+        + 'and ONLY after ≥2 differently-phrased searches per still-uncovered need left you genuinely stuck (it costs a 60-180s full-effort '
+        + 'LLM call — calling it on a requirement you could decide from search results wastes the user\'s time).'),
     parameters: {
       query: { type: 'string', description: 'one search query — a capability need in natural language (Chinese or English); repeat the tool for each need', required: true },
       limit: { type: 'number', description: 'max results (default 10)' },
@@ -1216,11 +1283,11 @@ export function searchCatalogToolDefinition(_ctx: Context, config: Config): Tool
       }
       appendOrchLedger({ tool: SEARCH_TOOL_NAME, query: query.slice(0, 120), hits: hits.length })
       if (hits.length === 0) {
-        return `「${query}」检索 0 命中。换 2-3 种说法再试(同义词/英文词);仍无 → 这是真缺口,如实进 emit_preset 的 missing/missingEntries。`
+        return `「${query}」检索 0 命中。${prose('换 2-3 种说法再试(同义词/英文词);仍无 → 这是真缺口,如实进 emit_preset 的 missing/missingEntries。')}`
       }
       const rows = hits.map((h, i) => `${String(i + 1)}. ${h.entry.id} [${h.entry.via}](分 ${String(h.score)})— ${h.entry.description.slice(0, 110)}${priceOf(h.entry)}${secretOf(h.entry)}`).join('\n')
-      return `「${query}」top ${String(hits.length)}:\n${rows}\n`
-        + `(BM25 词法排名,分数只是线索——选不选、选哪个由你判断。基线:交付 agent 的 LLM 自己能稳定做的不装零件;价签是它每轮 prompt 的固定税。UI 需求恰好配一个 via:frontend 模板、持久状态配存储零件。)`
+      return `「${query}」top ${String(hits.length)}:\n${rows}`
+        + prose(`\n(BM25 词法排名,分数只是线索——选不选、选哪个由你判断。基线:交付 agent 的 LLM 自己能稳定做的不装零件;价签是它每轮 prompt 的固定税。UI 需求恰好配一个 via:frontend 模板、持久状态配存储零件。)`)
     },
   })
 }
@@ -1304,9 +1371,9 @@ export function verifySharedDataToolDefinition(ctx: Context, config: Config): To
         const elapsed = Math.round((Date.now() - t0) / 1000)
         job.settle(result.pass ? 'completed' : 'failed', result.pass ? 'PASS' : 'FAIL')
         appendOrchLedger({ tool: VERIFY_SHARED_TOOL_NAME, writerId, readerId, pass: result.pass, reason: result.reason.slice(0, 160), elapsedSeconds: elapsed })
-        const contract = result.pass
+        const contract = prose(result.pass
           ? '\n【接力棒】如实向用户转述:共享数据验收 PASS——班子真的读写同一份账。'
-          : '\n【外科决策归你——考官不重试】证据在上:先诊断(共享表没建?两台 preset 的 sharedDb 路径不一致?读取方查错表?),修正后重发相关 preset 再重验;修不了就如实报告用户。红线:禁止手改 preset 文件,禁止把 FAIL 说成通过。'
+          : '\n【外科决策归你——考官不重试】证据在上:先诊断(共享表没建?两台 preset 的 sharedDb 路径不一致?读取方查错表?),修正后重发相关 preset 再重验;修不了就如实报告用户。红线:禁止手改 preset 文件,禁止把 FAIL 说成通过。')
         return `共享数据验收 ${result.pass ? 'PASS' : 'FAIL'}(${String(elapsed)}s)— ${result.reason}`
           + (result.writerReply !== undefined ? `\n写入方回复摘录:「${result.writerReply.slice(0, 120)}」` : '')
           + (result.readerReply !== undefined ? `\n读取方回复摘录:「${result.readerReply.slice(0, 120)}」` : '')

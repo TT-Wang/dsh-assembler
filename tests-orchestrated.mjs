@@ -128,6 +128,31 @@ check('契约钉:缺口处置是用户选择(造件/降级/砍掉)+ 静默降级
 check('契约钉:造件必须走 index-add 质检门', ARCHITECTURE_CONTRACT.includes('index-add.mjs') && ARCHITECTURE_CONTRACT.includes('bypasses the quality gate'))
 check('契约钉:夹具模式在范例里(禁内嵌大载荷)', PROBE_SKETCH_EXAMPLES.includes('LARGE FIXTURES') && PROBE_SKETCH_EXAMPLES.includes('NEVER paste'))
 
+// ── P0:BARE 消融 / 契约到期制 / 自检包 ─────────────────────────────────────
+const { bareMode, CONTRACT_TAGS, CONTRACT_GENERATION, planToSketch, renderSelfCheck, searchCatalogToolDefinition, matchCatalogToolDefinition } = await import('./lib/orchestrated-tools.js')
+const savedBare = process.env.DSH_ASSEMBLER_BARE
+const fakeCtx = { get: () => undefined, effect: () => {}, tools: { register: () => {} } }
+delete process.env.DSH_ASSEMBLER_BARE
+const descFull = searchCatalogToolDefinition(fakeCtx, {}).description
+process.env.DSH_ASSEMBLER_BARE = '1'
+const descBare = searchCatalogToolDefinition(fakeCtx, {}).description
+const matchBare = matchCatalogToolDefinition(fakeCtx, {}).description
+if (savedBare === undefined) delete process.env.DSH_ASSEMBLER_BARE
+else process.env.DSH_ASSEMBLER_BARE = savedBare
+check('BARE:默认关、=1 开', bareMode() === false)
+check('BARE:满装描述含契约散文(检查点/基线/硬预算)', descFull.includes('ask_user_question') && descFull.includes('real-world I/O') && descFull.includes('LAST-RESORT'))
+check('BARE:消融描述剥净散文、保留事实性一句话', !descBare.includes('ask_user_question') && !descBare.includes('real-world I/O') && descBare.includes('BM25') && descBare.length < descFull.length / 3)
+check('BARE:match 描述同样消融', !matchBare.includes('LAST-RESORT') && matchBare.includes('capability id or a GAP'))
+check('到期制:每条导出散文常量都登记了适用模型代', ['BASELINE_RULE', 'MINIMAL_SET_RULE', 'FRONTEND_FACT', 'ARCHITECTURE_CONTRACT', 'PROBE_SKETCH_EXAMPLES'].every((k) => typeof CONTRACT_TAGS[k] === 'string' && CONTRACT_TAGS[k] !== '') && CONTRACT_GENERATION === 'deepseek-v4')
+
+const planScn = { kind: 'scenario', scenario: { goal: 'g', turns: [{ prompt: '记 T-9 打车 30 元', mustInclude: ['T-9'] }, { prompt: '查 T-9 报分类', mustInclude: ['打车'] }] } }
+const sk = planToSketch(planScn)
+check('自检包:2 轮场景计划可还原成草图(token=轮1标记)', sk?.kind === 'scenario' && sk?.token === 'T-9' && sk?.createTask === '记 T-9 打车 30 元')
+check('自检包:单轮计划还原', planToSketch({ kind: 'single', probe: { task: '算 1+1', mustInclude: ['2'] } })?.kind === 'single')
+check('自检包:3+ 轮场景如实返回 null(rerun 走重推导)', planToSketch({ kind: 'scenario', scenario: { goal: 'g', turns: [{ prompt: 'a', mustInclude: ['x'] }, { prompt: 'b', mustInclude: ['y'] }, { prompt: 'c', mustInclude: ['z'] }] } }) === null)
+const scJson = JSON.parse(renderSelfCheck({ presetId: 'p1', presetSha256: 'abc', plan: planScn, verifiedAt: '2026-08-23T00:00:00Z' }))
+check('自检包:渲染带版本/代际/rerun 参数(reverify+probe)', scJson.version === 1 && scJson.generation === CONTRACT_GENERATION && scJson.rerun.args.reverify === true && scJson.rerun.args.probe.token === 'T-9')
+
 // ── 大载荷机械闸 ────────────────────────────────────────────────────────────
 const { probePayloadViolation } = await import('./lib/verify.js')
 check('载荷闸:2KB base64 任务被抓', probePayloadViolation(['解析这本书:' + 'A'.repeat(80) + 'Zm9v'.repeat(60)]))
