@@ -120,6 +120,10 @@ check('契约钉:基线判据在(LLM 能干的不装 + 10-15 件阈值文献)', 
 check('契约钉:最小覆盖集 + least-privilege 在', MINIMAL_SET_RULE.includes('least privilege') && MINIMAL_SET_RULE.includes('MINIMAL'))
 check('契约钉:前端物理事实在(仅首个模板生效)', FRONTEND_FACT.includes('首个') && FRONTEND_FACT.includes('生效'))
 check('契约钉:出题范例双形状在(scenario+single,token 两轮自足)', PROBE_SKETCH_EXAMPLES.includes('"kind":"scenario"') && PROBE_SKETCH_EXAMPLES.includes('"kind":"single"') && PROBE_SKETCH_EXAMPLES.includes('PO-4471'))
+const { ARCHITECTURE_CONTRACT } = await import('./lib/orchestrated-tools.js')
+check('契约钉:架构骨架六维在(数据模型/工作流/边界交付)', ARCHITECTURE_CONTRACT.includes('data model') && ARCHITECTURE_CONTRACT.includes('workflow') && ARCHITECTURE_CONTRACT.includes('boundary'))
+check('契约钉:确认检查点硬措辞在(点名 ask_user_question + STOP + 未批不许搜/发/验)', ARCHITECTURE_CONTRACT.includes('ask_user_question') && ARCHITECTURE_CONTRACT.includes('STOP') && ARCHITECTURE_CONTRACT.includes('do NOT search, emit, or verify'))
+check('契约钉:深度线在(五行清单不是架构)', ARCHITECTURE_CONTRACT.includes('NOT an architecture'))
 
 // ── C 臂:parseDraftResponse / buildDraftPrompt ─────────────────────────────
 const dp = buildDraftPrompt('记账 agent', catalog)

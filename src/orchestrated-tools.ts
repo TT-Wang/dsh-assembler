@@ -75,6 +75,22 @@ export const MINIMAL_SET_RULE =
 export const FRONTEND_FACT = '每 preset 仅首个 frontend 模板生效——选恰好一个交互形状。'
 
 /**
+ * 架构契约(2026-08-23 深夜,xhs 实测用户投诉后加):两个病一起治——
+ * ① 确认检查点原住 match 契约,match 降为备用阀后检查点失传(契约句搬家必丢
+ *   东西,当日第三案),现在钉死在检索契约里且点名 ask_user_question(软措辞
+ *   无效是当日另一实证);② "design the architecture yourself"一句软话产出
+ *   5 行一句话清单,骨架六维 + 深度线写死。
+ */
+export const ARCHITECTURE_CONTRACT =
+  'WORKFLOW CONTRACT — (1) ARCHITECTURE FIRST, to review depth: 用途 (purpose); capability list where EACH entry carries a why and is '
+  + 'concrete enough to search (storage/retrieval/export included; a capability the catalog may lack still gets designed and flagged); '
+  + 'data model (tables + key fields); workflow (how turns flow: who initiates, what gets reviewed, how state moves); interface shape; '
+  + 'boundary & delivery semantics (what the agent does vs what stays human). A list of five one-liners is a sketch, NOT an architecture. '
+  + '(2) PRESENT IT AND STOP: call ask_user_question (options like 按此装配/我要调整) and WAIT for approval — do NOT search, emit, or verify '
+  + 'before the user approves. Assembling an unapproved architecture spends five minutes of the user\'s time on a design they never accepted. '
+  + '(3) Only then search per need.'
+
+/**
  * 探针草图范例(⑦出题辅助,范例优先于规则):先例 Anthropic Tool Use Examples
  * 实测复杂参数准确率 72%→90% 靠的是给 1-5 个真实示例而不是更多规则。定义移居
  * verify.ts(编排者出题与考官回退推导共用同一份——s23 实测回退推导没吃范例时
@@ -1139,8 +1155,9 @@ export function searchCatalogToolDefinition(_ctx: Context, config: Config): Tool
     name: SEARCH_TOOL_NAME,
     description:
       'The parts-ecosystem SEARCH ENGINE (mechanical BM25-weighted lexical search: zero LLM, instant, deterministic). '
-      + 'YOU are the selector — the assembler only supplies facts. Flow: design the architecture yourself (show the user), '
-      + 'search REPEATEDLY with different phrasings per architectural need (per-need queries beat one big query; try synonyms — '
+      + 'YOU are the selector — the assembler only supplies facts. '
+      + ARCHITECTURE_CONTRACT + ' '
+      + 'Search REPEATEDLY with different phrasings per architectural need (per-need queries beat one big query; try synonyms — '
       + '持久存储/数据库/sqlite), decide the ids yourself, then emit_preset and verify_preset. '
       + BASELINE_RULE + ' ' + MINIMAL_SET_RULE + ' '
       + 'Each result row carries the FACTS for that decision: a price tag (≈prompt-tokens its tool manual adds to EVERY turn of the '
