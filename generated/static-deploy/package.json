@@ -1,0 +1,9 @@
+{
+  "name": "@dsh-index/static-deploy",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP stdio server:把工作区里的静态构建产物一键部署为某 preset 的前端页(host /assembler/ui/<id> 伺服)——预览→部署环路的本机闭合。",
+  "main": "index.js",
+  "dependencies": { "@modelcontextprotocol/sdk": "*", "zod": "*" }
+}
