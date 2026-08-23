@@ -1,0 +1,72 @@
+{
+  "scenario": {
+    "id": "h01",
+    "req": "装配一个 HR 全家桶:员工入职登记、考勤打卡统计、请假审批流、月度工资条生成导出 PDF、员工问答查公司制度(带出处)。数据持久化,有网页界面",
+    "name": "bb-hr-quanjia"
+  },
+  "arm": "B-orchestrated",
+  "port": 3098,
+  "startedAt": "2026-08-23T07:28:06.669Z",
+  "sessionId": "session-ffcd8316-a3e0-474c-a680-11c40e0d9aa5",
+  "prompt": "帮我装一个 agent:装配一个 HR 全家桶:员工入职登记、考勤打卡统计、请假审批流、月度工资条生成导出 PDF、员工问答查公司制度(带出处)。数据持久化,有网页界面,preset 名字就叫「bb-hr-quanjia」",
+  "__lastFrameCount": 7158,
+  "clarifyQuestions": [
+    "[{\"id\":\"arch_confirm\",\"question\":\"以上架构(5 大模块 + SQLite 数据模型 + 审批状态机 + PDF 导出 + 制度问答出处)是否符合你的预期?确认后我就开始装配。\",\"header\":\"架构确认\",\"options\":[{\"label\":\"确认,开始装配 (Recommended)\",\"description\":\"按上述架构直接装配 bb-hr-quanjia\"},{\"label\":\"需要调整\",\"description\":\"告诉我哪里要改(如增加模块、改审批流程、PDF 样式等),我修订架构后再装配\"}]}]"
+  ],
+  "answerReceipts": [
+    "{\"accepted\":true}"
+  ],
+  "nudges": 0,
+  "clarifications": 1,
+  "timedOut": false,
+  "frameTypes": {
+    "agent/inbox/spliced": 2,
+    "turn/start": 1,
+    "step/start": 5,
+    "user/message": 5,
+    "session/title": 2,
+    "request/header": 1,
+    "request/context": 1,
+    "session/title-llm-request": 1,
+    "assistant/chunk": 7120,
+    "assistant/message": 5,
+    "tool/call": 4,
+    "__question": 1,
+    "tool/result": 4,
+    "step/end": 5,
+    "turn/end": 1
+  },
+  "mainAgentUsage": {
+    "inputTokens": 4114,
+    "outputTokens": 14568,
+    "reasoningTokens": 8558,
+    "cacheReadTokens": 159488,
+    "events": 10
+  },
+  "toolCalls": [
+    {
+      "name": "ask_user_question",
+      "args": "{\"questions\": [{\"id\": \"arch_confirm\", \"header\": \"架构确认\", \"question\": \"以上架构(5 大模块 + SQLite 数据模型 + 审批状态机 + PDF 导出 + 制度问答出处)是否符合你的预期?确认后我就开始装配。\", \"options\": [{\"label\": \"确认,开始装配 (Recommended)\", \"description\": \"按上述架构直接装配 bb-hr-quanjia\"}, {\"label\": \"需要调整\", \"description\": \"告诉我哪里要改(如增加模块、改审批流程、PDF 样式等),我修订架构后再装配\"}]}]}"
+    },
+    {
+      "name": "match_catalog",
+      "args": "{\"requirement\": \"装配一个 HR 全家桶 agent:员工入职登记、考勤打卡统计、请假审批流、月度工资条生成导出 PDF、员工问答查公司制度(带出处)。数据持久化,有网页界面,preset 名字叫「bb-hr-quanjia」。\", \"spec\": {\"capabilities\": [{\"name\": \"跨会话持久化员工档案记录\", \"why\": \"入职登记后员工资料要能跨会话保存、更新与查询\"}, {\"name\": \"持久化每日考勤打卡记录\", \"why\": \"上下班打卡数据要落库,供按月统计\"}, {\"name\": \"持久化请假单及其审批状态\", \"why\": \"请假流程跨会话推进,状态(待审批/通过/驳回)必须可靠保存\"}, {\"name\": \"持久化工资与工资条数据\", \"why\": \"月度工资数据要保存,支持按月生成工资条\"}, {\"name\": \"持久化公司制度文档\", \"why\": \"员工问答要基于制度原文检索并引用出处\"}, {\"name\": \"按月聚合统计考勤\", \"why\": \"把打卡明细汇总为月度出勤/迟到/缺勤统计\"}, {\"name\": \"请假审批状态机\", \"why\": \"请假单在 待审批→通过/驳回 之间流转,记录审批人与时间\"}, {\"name\": \"按员工与月份生成工资条并导出 PDF 文件\", \"why\": \"工资条要按人按月生成并导出为 PDF 交付\"}, {\"name\": \"检索制度文档并附出处引用\", \"why\": \"回答员工制度问题时引用制度编号/条款作为出处\"}, {\"name\": \"网页交互界面\", \"why\": \"HR 与员工通过网页表单完成登记、打卡、审批操作\"}], \"dataModel\": \"employees(工号/姓名/部门/职位/入职日期/联系方式/基本工资)、attendance(员工/日期/上"
+    },
+    {
+      "name": "emit_preset",
+      "args": "{\"name\": \"bb-hr-quanjia\", \"requirement\": \"装配一个 HR 全家桶 agent:员工入职登记、考勤打卡统计、请假审批流、月度工资条生成导出 PDF、员工问答查公司制度(带出处)。数据持久化,有网页界面,preset 名字叫「bb-hr-quanjia」。\", \"capabilityIds\": [\"mcp-sqlite-query-execute\", \"mcp-filesystem-write-file\", \"mcp-sqlite-query-query\", \"mcp-pdf-report-create-report-pdf\", \"content-search\", \"frontend-form-desk\"], \"persona\": \"你是 bb-hr-quanjia,一家公司的 HR 全家桶助理,同时服务 HR 管理员(入职登记、审批请假、发工资条)和普通员工(打卡、请假、查制度)。语气专业、简洁,一律用中文回复;操作完成必须报出落库后的关键标识(工号、请假单号、工资条月份),禁止用「已处理」这类空话糊弄。\\n\\n工具纪律:\\n- 员工档案、考勤、请假、工资数据一律通过 SQLite MCP 工具读写,写入成功才算完成;查询只读库,严禁编造员工数据、打卡记录、工资数额。\\n- 公司制度文档存放在 policies/ 目录(文件名带制度编号);回答任何制度问题前必须先检索制度文件,并引用出处(制度编号/条款),查不到就明说制度库没有收录,禁止凭常识编造制度条文。\\n- 工资条必须用 PDF 报告工具生成文件交付,并给出文件路径;金额只能按库中工资数据计算,禁止估算。\\n\\n流程纪律:\\n- 请假审批:只有收到明确审批指令(通过/驳回)才允许变更状态,且必须记录审批人与时间;不得撤销或改写他人已审批的结论。\\n- 打卡登记:日期不明确时必须"
+    },
+    {
+      "name": "verify_preset",
+      "args": "{\"presetId\": \"bb-hr-quanjia\", \"probe\": {\"kind\": \"scenario\", \"createTask\": \"新员工入职登记:工号 EMP-7781,姓名 林小满,部门 技术研发部,职位 前端工程师,入职日期 2026-08-23,基本工资 12000 元,邮箱 xiaoman@example.com,电话 13800138000。登记完成后告诉我她的工号。\", \"retrieveTask\": \"查询工号 EMP-7781 的员工档案,不要念出我登记时给的信息,只告诉我她的部门是什么。\", \"token\": \"EMP-7781\", \"marks\": [\"EMP-7781\", \"林小满\", \"技术研发部\"]}}"
+    }
+  ],
+  "toolResults": [
+    "{\"turn\":1,\"step\":1,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_vGBnTVgMfwx1dL3zs0cp4648\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_vGBnTVgMfwx1dL3zs0cp4648\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"answers\\\":[{\\\"id\\\":\\\"arch_confirm\\\",\\\"selected\\\":[\\\"确认,开始装配 (Recommended)\\\"]}]}\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"1e96eac7-f166-4919-81b0-f73b8ab25a05\"}}",
+    "{\"turn\":1,\"step\":2,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_zdNM5bWgismxuR3ZTNt17894\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_zdNM5bWgismxuR3ZTNt17894\",\"content\":[{\"type\":\"text\",\"text\":\"目录匹配完成:10 项架构需求 → 6 个零件 / 0 项缺口(64s,出8.4k/思8.0k/缓0)\\n覆盖明细:\\n  1. 跨会话持久化员工档案记录 — 入职登记后员工资料要能跨会话保存、更新与查询 → mcp-sqlite-query-execute(mcp)\\n  2. 持久化每日考勤打卡记录 — 上下班打卡数据要落库,供按月统计 → mcp-sqlite-query-execute(mcp)\\n  3. 持久化请假单及其审批状态 — 请假流程跨会话推进,状态(待审批/通过/驳回)必须可靠保存 → mcp-sqlite-query-execute(mcp)\\n  4. 持久化工资与工资条数据 — 月度工资数据要保存,支持按月生成工资条 → mcp-sqlite-query-execute(mcp)\\n  5. 持久化公司制度文档 — 员工问答要基于制度原文检索并引用出处 → mcp-filesystem-write-file(mcp)\\n  6. 按月聚合统计考勤 — 把打卡明细汇总为月度出勤/迟到/缺勤统计 → mcp-sqlite-query-query(mcp)\\n  7. 请假审批状态机 — 请假单在 待审批→通过/驳回 之间流转,记录审批人与时间 → mcp-sqlite-query-execute(mcp)\\n  8. 按员工与月份生成工资条并导出 PDF 文件 — 工资条要按人按月生成并导出为 PDF 交付 → mcp-pdf-report-create-report-pdf(mcp)\\n  9. 检索制度文档并附出处引用 — 回答员工制度问题时引用制度编号/条款作为出处 → content-search(harness)\\n  10. 网页交互界面 — HR 与员工通过网页表单完成登记、打卡、审批操作 → frontend-form-desk(frontend)\\n选中零件 capabilityIds:mcp-sqlite-query-execute, mcp-filesystem-write-file, mcp-sqlite-query-query, mcp-pdf-report-create-report-pdf, content-search, frontend-form-desk\\n\\n【接力棒——编排者是你,匹配到此为止】\\n- 组装决策归你,现在做:写 persona(角色/语气/工具纪律/跨轮持久化约束/该领域的安全合规边界;写成随时可判的约束,禁止\\\"第一步…第二步…\\\"编舞);数据要跨会话留存则设计 stateSchema(只许幂等 CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS,英文列名、合理主键,按你 spec 的 dataModel 一比一落表);给 preset 起 kebab-case 名。\\n- 然后调 emit_preset(name, requirement, capabilityIds, persona[, stateSchema][, params][, missing, missingEntries])发射;发射后必须调 verify_preset 独立验收——你不能自己宣布 agent 可用。\\n- 注意:若选中零件自带目录手写 persona(域验证过的安全文本),发射时它优先于你写的。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"56a4171d-46c2-4a5a-98e4-cb955dd0c722\"}}",
+    "{\"turn\":1,\"step\":3,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_ms3KsoTNUNvVvWw8teMj4225\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_ms3KsoTNUNvVvWw8teMj4225\",\"content\":[{\"type\":\"text\",\"text\":\"preset「bb-hr-quanjia」已发射:mcp-sqlite-query-execute, mcp-filesystem-write-file, mcp-sqlite-query-query, mcp-pdf-report-create-report-pdf, content-search, frontend-form-desk(0s)\\npreset 文件:/Users/tongtao/.dsh/.agent-presets/bb-hr-quanjia/agent.cordis.yml\\n前端页面:http://127.0.0.1:3098/assembler/ui/bb-hr-quanjia(模板 form-desk)\\n装备:预建数据库 schema(equipment/init.sql,双次执行门 PASS)\\n\\n【接力棒】\\n- 发射完成 ≠ 可用。立即调 verify_preset {\\\"presetId\\\": \\\"bb-hr-quanjia\\\"} 独立验收(可附上你按主工作流设计的探针草图)。\\n- 红线:绝不手改 preset 目录下的任何文件(host 按字节代际挂载,手改必撞名);要改选型/persona/schema,一律重调 emit_preset 同名重发。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"4bf643a0-9bd9-4b7f-9202-722be64157e2\"}}",
+    "{\"turn\":1,\"step\":4,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_DrTuzSM7mrMLXctaB2pN2395\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_DrTuzSM7mrMLXctaB2pN2395\",\"content\":[{\"type\":\"text\",\"text\":\"验收 PASS(15s) — 多轮场景「架构直构:主工作流建档→取回(token 连续性)」共 2 轮逐轮通过\\n  第1轮 ✓ 「新员工入职登记:工号 EMP-7781,姓名 林小满,部门 技术研发部,职位 前端工程师,入职日期 」标记 [EMP-7781]\\n  第2轮 ✓ 「查询工号 EMP-7781 的员工档案,不要念出我登记时给的信息,只告诉我她的部门是什么。」标记 [EMP-7781, 林小满, 技术研发部]\\n前端验收:页面门+环路门 PASS\\n【接力棒】\\n- 如实向用户转述验收结论与前端 URL;验收已入台账,同字节 7 天内重验将自动沿用。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"f4d90e98-a995-4958-b40d-3deedc6f3cb9\"}}"
+  ],
+  "assistantText": "收到!装配「bb-hr-quanjia」之前,按装配流程我先在对话里给出架构设计,你确认或修正后我才开始匹配部件库、装配和验收。以下是设计:\n\n## 🏗️ 架构设计:bb-hr-quanjia(HR 全家桶)\n\n**定位**:一个 HR 助理 Agent,在网页界面里跑完 5 大业务模块,数据全部跨会话持久化。\n\n### 功能模块 → 架构能力需求\n\n| 模块 | 架构能力需求(为什么) |\n|---|---|\n| 员工入职登记 | 跨会话持久化员工档案记录(录入、更新、查询) |\n| 考勤打卡统计 | 持久化每日打卡记录 + 按月聚合统计(出勤/迟到/缺勤) |\n| 请假审批流 | 持久化请假单 + 审批状态机(待审批 → 通过/驳回,含审批人) |\n| 月度工资条导出 PDF | 持久化工资数据 + 按员工×月份生成工资条并导出 PDF 文件 |\n| 制度问答带出处 | 持久化公司制度文档 + 检索命中 + 回答附制度编号/出处 |\n\n### 数据模型(SQLite)\n\n- `employees`:工号 / 姓名 / 部门 / 职位 / 入职日期 / 联系方式 / 基本工资\n- `attendance`:员工 / 日期 / 上班打卡 / 下班打卡 / 状态\n- `leave_requests`:员工 / 类型 / 起止日期 / 理由 / 状态 / 审批人 / 时间\n- `payslips`:员工 / 月份 / 基本工资 / 津贴 / 扣款 / 个税 / 实发\n- `policies`:制度编号 / 标题 / 内容 / 生效日期(回答引出处)\n\n### 主流程\n\n入职登记 → 每日打卡 → 请假提交与审批 → 月末批量生成工资条 PDF → 制度问答(附出处)\n\n### 界面\n\n网页界面(表单登记、打卡、审批操作)+ PDF 文件交付工资条。\n---\n架构已确认 ✅。现在把架构需求映射到部件库。\n---\n匹配结果:10 项架构需求 → 6 个零件,零缺口 ✅\n\n| 架构需求 | 命中零件 |\n|---|---|\n| 员工/考勤/请假/工资持久化 + 状态机 + 聚合统计 | `mcp-sqlite-query-execute` / `mcp-sqlite-query-query` |\n| 制度文档持久化(文件形式) | `mcp-filesystem-write-file` |\n| 工资条 PDF 导出 | `mcp-pdf-report-create-report-pdf` |\n| 制度检索带出处 | `content-search` |\n| 网页表单界面 | `frontend-form-desk` |\n\n现在做装配决策:写 persona + 幂等 DDL(stateSchema),发射 preset。\n---\nPreset 已发射 ✅。现在独立验收——探针按主工作流设计:第 1 轮登记新员工(携带工号 token),第 2 轮仅凭工号取回档案并报告存档值。\n---\n🎉 验收 PASS —— **bb-hr-quanjia** 已装配完成并独立验收通过(15s,2 轮逐轮通过,台账已入)。\n\n## 验收结论\n\n- **跨轮持久化** ✅:第 1 轮登记员工 EMP-7781(林小满/技术研发部),第 2 轮仅凭工号取回档案,正确报告部门,未重复登记信息\n- **前端验收** ✅:页面门 + 环路门 PASS\n\n## 装配清单\n\n| 模块 | 实现 |\n|---|---|\n| 员工入职登记 | SQLite `employees` 表,按工号唯一 |\n| 考勤打卡统计 | `attendance` 表(按人×日唯一),月度聚合统计 |\n| 请假审批流 | `leave_requests` 表,状态机 待审批→通过/驳回,记录审批人与时间 |\n| 工资条 PDF | `payslips` 表 + PDF 报告零件导出文件 |\n| 制度问答带出处 | `policies/` 目录文件 + 内容检索,回答必引制度编号 |\n\n**数据模型**:4 张表(employees / attendance / leave_requests / payslips)+ 制度文件目录,全部跨会话持久化;预设时区 Asia/Shanghai。\n\n**网页界面**:http://127.0.0.1:3098/assembler/ui/bb-hr-quanjia (form-desk 模板)\n\n## 使用方式\n\n直接在对话里说人话即可,例如:\n- 「登记新员工:工号 A001,张三,销售部…」\n- 「A001 今天 9:02 打卡上班,18:30 下班」\n- 「A001 请年假 3 天,7 月 10 日到 12 日」→ 再由管理员「同意/驳回」\n- 「生成 7 月全员工资条 PDF」\n- 「年假怎么休?」→ 回答附制度出处\n\n有需要调整的(如加考勤规则、改工资条字段、换审批层级),告诉我,我重新装配同名 preset。",
+  "seconds": 135
+}

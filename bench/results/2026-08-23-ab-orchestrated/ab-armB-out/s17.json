@@ -1,0 +1,86 @@
+{
+  "scenario": {
+    "id": "s17",
+    "req": "研报阅读助手:读取我上传的券商研报 PDF,提炼核心观点、盈利预测和风险提示,生成摘要卡片存档。不要给任何投资建议",
+    "name": "bb-yanbao-zhaiyao"
+  },
+  "arm": "B-orchestrated",
+  "port": 3098,
+  "startedAt": "2026-08-23T07:14:35.992Z",
+  "sessionId": "session-15283e99-dfc4-47f3-ba8c-4e6fbfc97156",
+  "prompt": "研报阅读助手:读取我上传的券商研报 PDF,提炼核心观点、盈利预测和风险提示,生成摘要卡片存档。不要给任何投资建议,preset 名字就叫「bb-yanbao-zhaiyao」。装配好之后告诉我怎么用。",
+  "__lastFrameCount": 18476,
+  "nudges": 0,
+  "clarifications": 0,
+  "timedOut": false,
+  "frameTypes": {
+    "agent/inbox/spliced": 2,
+    "turn/start": 1,
+    "step/start": 7,
+    "user/message": 6,
+    "session/title": 2,
+    "request/header": 1,
+    "request/context": 1,
+    "session/title-llm-request": 1,
+    "assistant/chunk": 18422,
+    "assistant/message": 7,
+    "tool/call": 8,
+    "todo/write": 2,
+    "tool/result": 8,
+    "step/end": 7,
+    "turn/end": 1
+  },
+  "mainAgentUsage": {
+    "inputTokens": 5890,
+    "outputTokens": 37524,
+    "reasoningTokens": 27206,
+    "cacheReadTokens": 365568,
+    "events": 14
+  },
+  "toolCalls": [
+    {
+      "name": "todo_write",
+      "args": "{\"todos\": [{\"content\": \"展示架构设计并映射零件目录\", \"status\": \"in_progress\"}, {\"content\": \"装配 preset bb-yanbao-zhaiyao(emit_preset)\", \"status\": \"pending\"}, {\"content\": \"黑盒验收(verify_preset)\", \"status\": \"pending\"}, {\"content\": \"交付使用说明\", \"status\": \"pending\"}]}"
+    },
+    {
+      "name": "match_catalog",
+      "args": "{\"requirement\": \"研报阅读助手:读取用户上传的券商研报 PDF,提炼核心观点、盈利预测和风险提示,生成摘要卡片存档;不要给任何投资建议,preset 名字叫「bb-yanbao-zhaiyao」。\", \"spec\": {\"capabilities\": [{\"name\": \"read and extract text from uploaded PDF files\", \"why\": \"用户的输入是券商研报 PDF,必须先提取全文才能分析\"}, {\"name\": \"extract structured fields from financial research documents\", \"why\": \"需要从长文中抽出券商、分析师、报告日期、评级、核心观点、盈利预测、风险提示等固定字段\"}, {\"name\": \"summarize long documents into concise structured summaries\", \"why\": \"研报往往很长,摘要卡需要精炼压缩后的要点\"}, {\"name\": \"persist structured records across sessions\", \"why\": \"摘要卡必须存档,用户之后要能查回,不能只存在于单次对话\"}, {\"name\": \"search and retrieve stored records by keyword or field\", \"why\": \"用户会按公司名、报告日期、报告编号等查询历史摘要卡\"}, {\"name\": \"export records as portable files\", \"why\": \"用户可能想把摘要卡导出为 Markdown/JSON 副本\"}, {\"name\": \"detect duplicate uploads of the same document\""
+    },
+    {
+      "name": "emit_preset",
+      "args": "{\"name\": \"bb-yanbao-zhaiyao\", \"requirement\": \"研报阅读助手:读取用户上传的券商研报 PDF,提炼核心观点、盈利预测和风险提示,生成摘要卡片存档;不提供任何投资建议。\", \"capabilityIds\": [\"mcp-pdf-extract-get-pdf-text\", \"mcp-sqlite-query-execute\", \"mcp-sqlite-query-query\", \"mcp-filesystem-write-file\", \"mcp-crypto-hash-hash-text\", \"frontend-chat-console\", \"genui-fence-spec-kb\"], \"persona\": \"你是「研报阅读助手」,一位严谨、中立、只做信息整理的研报档案员。用户会给你券商研报(通常是上传的 PDF,也可能是粘贴的全文),你的职责是:通读全文,提炼核心观点、盈利预测与风险提示,按固定卡片结构生成摘要,先展示给用户再写入存档,并支持之后按公司、日期、编号或关键词随时查回历史卡片。\\n\\n信息纪律(随时可判):只依据研报原文提取信息,任何数字、评级、分析师名、观点都不得虚构、编造或凭印象补全;原文未提及的字段如实标注「未提及」,不猜测、不推断。盈利预测必须原样引用报告中的年份与数值,不换算、不加工、不补算。摘要卡固定包含:报告编号(如有)、标题、券商、分析师、报告日期、评级、核心观点、盈利预测、风险提示;输出用简洁中文,结构化呈现。\\n\\n安全边界(随时可判):绝不提供任何形式的投资建议——不评价买入/卖出/持有,不比较个股优劣,不预测股价,不给仓位或配置意见,不背书研报结论;用户索要投资建议时明确拒绝,并说明你只做研报信息的整理与存档。\\n\\n工具与数据纪律(随时可判):提取 PDF 文本必须使用提供的 PDF 提取工"
+    },
+    {
+      "name": "verify_preset",
+      "args": "{\"presetId\": \"bb-yanbao-zhaiyao\", \"probe\": {\"kind\": \"scenario\", \"createTask\": \"阅读以下券商研报全文(文本版,尚未转 PDF)并按你的标准流程生成摘要卡存档:报告编号 YB-7781;标题《测试证券-某新能源公司深度报告》;券商:测试证券;分析师:李四;报告日期:2026-08-01;评级:增持;核心观点:公司光伏胶膜产能扩张、市占率持续提升,盈利拐点确认;盈利预测:2026/2027/2028 年净利润分别约 12 亿元、16 亿元、21 亿元;风险提示:硅料价格波动、产能消化不及预期、海外贸易政策变化。\", \"retrieveTask\": \"请调出报告编号为 YB-7781 的那张研报摘要卡,告诉我它的评级是什么,以及分析师是谁。\", \"token\": \"YB-7781\", \"marks\": [\"YB-7781\", \"增持\", \"李四\"]}}"
+    },
+    {
+      "name": "emit_preset",
+      "args": "{\"capabilityIds\": [\"mcp-pdf-extract-get-pdf-text\", \"mcp-sqlite-query-execute\", \"mcp-sqlite-query-query\", \"mcp-filesystem-write-file\", \"mcp-crypto-hash-hash-text\", \"frontend-chat-console\", \"genui-fence-spec-kb\"], \"missing\": [\"提取研报固定字段(券商/分析师/日期/评级/核心观点/盈利预测/风险提示)目前无专门零件,由 agent 自身(LLM)承担,已写入 persona 信息纪律\", \"长研报精炼为结构化要点摘要目前无专门零件,由 agent 自身(LLM)承担,已写入 persona 信息纪律\"], \"missingEntries\": [{\"description\": \"Extract fixed structured fields (broker, analysts, report date, rating, core viewpoints, earnings forecast, risk warnings) from financial research report text\", \"id\": \"financial-research-field-extractor\", \"tags\": [\"finance\", \"research-report\", \"structured-field-extraction\", \"nlp\"], \"via\": \"package\"}, {\"description\": \"Summarize long financial research documents into concise structured key-point "
+    },
+    {
+      "name": "verify_preset",
+      "args": "{\"presetId\": \"bb-yanbao-zhaiyao\", \"probe\": {\"createTask\": \"阅读以下券商研报全文(文本版,尚未转 PDF)并按你的标准流程生成摘要卡存档:报告编号 YB-7781;标题《测试证券-某新能源公司深度报告》;券商:测试证券;分析师:李四;报告日期:2026-08-01;评级:增持;核心观点:公司光伏胶膜产能扩张、市占率持续提升,盈利拐点确认;盈利预测:2026/2027/2028 年净利润分别约 12 亿元、16 亿元、21 亿元;风险提示:硅料价格波动、产能消化不及预期、海外贸易政策变化。\", \"kind\": \"scenario\", \"marks\": [\"YB-7781\", \"增持\", \"李四\"], \"retrieveTask\": \"请调出报告编号为 YB-7781 的那张研报摘要卡,告诉我它的评级是什么,以及分析师是谁。\", \"token\": \"YB-7781\"}}"
+    },
+    {
+      "name": "todo_write",
+      "args": "{\"todos\": [{\"content\": \"展示架构设计并映射零件目录\", \"status\": \"completed\"}, {\"content\": \"装配 preset bb-yanbao-zhaiyao(emit_preset)\", \"status\": \"completed\"}, {\"content\": \"黑盒验收(verify_preset)\", \"status\": \"completed\"}, {\"content\": \"交付使用说明\", \"status\": \"in_progress\"}]}"
+    },
+    {
+      "name": "validate_dsh_ui",
+      "args": "{\"spec\": \"{\\\"title\\\":\\\"bb-yanbao-zhaiyao 使用说明\\\",\\\"gap\\\":12,\\\"items\\\":[{\\\"type\\\":\\\"steps\\\",\\\"steps\\\":[{\\\"title\\\":\\\"挂载 preset\\\",\\\"desc\\\":\\\"以 preset 名 bb-yanbao-zhaiyao 挂载;装配预览页 http://127.0.0.1:3098/assembler/ui/bb-yanbao-zhaiyao\\\"},{\\\"title\\\":\\\"上传研报\\\",\\\"desc\\\":\\\"在对话中直接上传券商研报 PDF,或粘贴研报全文文本\\\"},{\\\"title\\\":\\\"收摘要卡\\\",\\\"desc\\\":\\\"助手当轮提炼核心观点/盈利预测/风险提示,展示摘要卡并自动写入存档\\\"},{\\\"title\\\":\\\"查档与导出\\\",\\\"desc\\\":\\\"按公司名/日期/报告编号查回历史卡片;可导出 Markdown/JSON 副本\\\"}]},{\\\"type\\\":\\\"keyvalue\\\",\\\"rows\\\":[{\\\"k\\\":\\\"摘要卡字段\\\",\\\"v\\\":\\\"报告编号·标题·券商·分析师·报告日期·评级·核心观点·盈利预测·风险提示\\\"},{\\\"k\\\":\\\"去重机制\\\",\\\"v\\\":\\\"按文件指纹判断,同一研报重复上传只提示已有存档,不重复建卡\\\"},{\\\"k\\\":\\\"安全边界\\\",\\\"v\\\":\\\"只做信息整理,任何情况下不提供投资建议(由 persona 强制)\\\"}]}]}\"}"
+    }
+  ],
+  "toolResults": [
+    "{\"turn\":1,\"step\":1,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_AAbbvSPz4xSXrGRtMJtl7323\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_AAbbvSPz4xSXrGRtMJtl7323\",\"content\":[{\"type\":\"text\",\"text\":\"Updated todo list: 3 pending, 1 in progress, 0 completed.\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"383e19a4-d2f0-485a-99b6-e963b15be130\"}}",
+    "{\"turn\":1,\"step\":1,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_01_Rx1PsJrJ741q3f5ot3xd5425\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_01_Rx1PsJrJ741q3f5ot3xd5425\",\"content\":[{\"type\":\"text\",\"text\":\"目录匹配完成:8 项架构需求 → 7 个零件 / 2 项缺口(157s,出20.6k/思20.1k/缓0)\\n覆盖明细:\\n  1. read and extract text from uploaded PDF files → mcp-pdf-extract-get-pdf-text(mcp)\\n  2. extract structured fields from financial research documents → 【缺口】no dedicated part for extracting fixed financial-research fields (broker, analyst, report date, rating, core viewpoints, earnings forecast, risk warnings)\\n  3. summarize long documents into concise structured summaries → 【缺口】no dedicated part for summarization of long documents into concise structured key-point summaries\\n  4. persist structured records across sessions → mcp-sqlite-query-execute(mcp)\\n  5. search and retrieve stored records by keyword or field → mcp-sqlite-query-query(mcp)\\n  6. export records as portable files → mcp-filesystem-write-file(mcp)\\n  7. detect duplicate uploads of the same document → mcp-crypto-hash-hash-text(mcp)\\n  8. list archived records with an overview → mcp-sqlite-query-query(mcp)\\n额外零件(域基线/前端模板):frontend-chat-console, genui-fence-spec-kb\\n选中零件 capabilityIds:mcp-pdf-extract-get-pdf-text, mcp-sqlite-query-execute, mcp-sqlite-query-query, mcp-filesystem-write-file, mcp-crypto-hash-hash-text, frontend-chat-console, genui-fence-spec-kb\\n缺件草案 missingEntries:[{\\\"id\\\":\\\"financial-research-field-extractor\\\",\\\"via\\\":\\\"package\\\",\\\"description\\\":\\\"Extract fixed structured fields (broker, analysts, report date, rating, core viewpoints, earnings forecast, risk warnings) from financial research report text\\\",\\\"tags\\\":[\\\"finance\\\",\\\"research-report\\\",\\\"structured-field-extraction\\\",\\\"nlp\\\"]},{\\\"id\\\":\\\"long-document-summarizer\\\",\\\"via\\\":\\\"package\\\",\\\"description\\\":\\\"Summarize long financial research documents into concise structured key-point summaries\\\",\\\"tags\\\":[\\\"summarization\\\",\\\"long-document\\\",\\\"structured-summary\\\",\\\"nlp\\\"]}]\\n\\n【接力棒——编排者是你,匹配到此为止】\\n- 组装决策归你,现在做:写 persona(角色/语气/工具纪律/跨轮持久化约束/该领域的安全合规边界;写成随时可判的约束,禁止\\\"第一步…第二步…\\\"编舞);数据要跨会话留存则设计 stateSchema(只许幂等 CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS,英文列名、合理主键,按你 spec 的 dataModel 一比一落表);给 preset 起 kebab-case 名。\\n- 然后调 emit_preset(name, requirement, capabilityIds, persona[, stateSchema][, params][, missing, missingEntries])发射;发射后必须调 verify_preset 独立验收——你不能自己宣布 agent 可用。\\n- 缺口处置归你:或先照工单造件入库再装(emit 后 gaps/ 有施工单),或先装配、把缺口如实告知用户。\\n- 注意:若选中零件自带目录手写 persona(域验证过的安全文本),发射时它优先于你写的。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"f9b81dfc-dff0-4276-b5a5-df6cc6f92385\"}}",
+    "{\"turn\":1,\"step\":2,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_kyGg1UfYsOjESgURl4fq4206\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_kyGg1UfYsOjESgURl4fq4206\",\"content\":[{\"type\":\"text\",\"text\":\"preset「bb-yanbao-zhaiyao」已发射:mcp-pdf-extract-get-pdf-text, mcp-sqlite-query-execute, mcp-sqlite-query-query, mcp-filesystem-write-file, mcp-crypto-hash-hash-text, frontend-chat-console, genui-fence-spec-kb(0s)\\npreset 文件:/Users/tongtao/.dsh/.agent-presets/bb-yanbao-zhaiyao/agent.cordis.yml\\n前端页面:http://127.0.0.1:3098/assembler/ui/bb-yanbao-zhaiyao(模板 chat-console)\\n装备:预建数据库 schema(equipment/init.sql,双次执行门 PASS)\\n知识包:genui-fence-spec(2 篇)\\n缺件工单:2 份 → /Users/tongtao/.dsh/.agent-presets/bb-yanbao-zhaiyao/gaps/\\n\\n【接力棒】\\n- 发射完成 ≠ 可用。立即调 verify_preset {\\\"presetId\\\": \\\"bb-yanbao-zhaiyao\\\"} 独立验收(可附上你按主工作流设计的探针草图)。\\n- 红线:绝不手改 preset 目录下的任何文件(host 按字节代际挂载,手改必撞名);要改选型/persona/schema,一律重调 emit_preset 同名重发。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"5070975e-2880-4978-8ed1-35e7bf7ca3c4\"}}",
+    "{\"turn\":1,\"step\":3,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_DIdtJBUa8lIhvlFTjOh19961\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_DIdtJBUa8lIhvlFTjOh19961\",\"content\":[{\"type\":\"text\",\"text\":\"验收 FAIL(53s) — 第 1 轮 agent 求助用户而非自主完成:「以上摘要卡内容无误,是否确认写入存档(report_cards 表)?」——通常是能力面缺了它要的工具\\n\\n前端验收:页面门+环路门 PASS\\n【外科决策归你——考官不重试,证据在上】\\n- 先诊断再动手:疑零件不匹配 → 调整 capabilityIds 重调 emit_preset(同名重发)再 verify_preset;疑缺件 → 先照 gaps/ 工单造件入库再重发重验;疑 persona 约束不足 → 改 persona 重发重验;修不了或拿不准 → 把失败原因与证据如实报给用户,等定夺。\\n- 红线:禁止手改 preset 目录文件;禁止绕开 verify_preset 自行开会话\\\"试一下就算过\\\";禁止把 FAIL 转述成通过。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"0c0eaa2e-41b4-4a03-a868-073b09be31f1\"}}",
+    "{\"turn\":1,\"step\":4,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_QBHacCQ8uh7Y9VNEA4g42236\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_QBHacCQ8uh7Y9VNEA4g42236\",\"content\":[{\"type\":\"text\",\"text\":\"preset「bb-yanbao-zhaiyao」已发射:mcp-pdf-extract-get-pdf-text, mcp-sqlite-query-execute, mcp-sqlite-query-query, mcp-filesystem-write-file, mcp-crypto-hash-hash-text, frontend-chat-console, genui-fence-spec-kb(0s)\\npreset 文件:/Users/tongtao/.dsh/.agent-presets/bb-yanbao-zhaiyao/agent.cordis.yml\\n前端页面:http://127.0.0.1:3098/assembler/ui/bb-yanbao-zhaiyao(模板 chat-console)\\n装备:预建数据库 schema(equipment/init.sql,双次执行门 PASS)\\n知识包:genui-fence-spec(2 篇)\\n缺件工单:2 份 → /Users/tongtao/.dsh/.agent-presets/bb-yanbao-zhaiyao/gaps/\\n\\n【接力棒】\\n- 发射完成 ≠ 可用。立即调 verify_preset {\\\"presetId\\\": \\\"bb-yanbao-zhaiyao\\\"} 独立验收(可附上你按主工作流设计的探针草图)。\\n- 红线:绝不手改 preset 目录下的任何文件(host 按字节代际挂载,手改必撞名);要改选型/persona/schema,一律重调 emit_preset 同名重发。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"41aeeddf-f1ac-4f3c-8726-cf29067736f5\"}}",
+    "{\"turn\":1,\"step\":5,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_RExnSXthI0yTEpb12OBg4606\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_RExnSXthI0yTEpb12OBg4606\",\"content\":[{\"type\":\"text\",\"text\":\"验收 PASS(30s) — 多轮场景「架构直构:主工作流建档→取回(token 连续性)」共 2 轮逐轮通过\\n  第1轮 ✓ 「阅读以下券商研报全文(文本版,尚未转 PDF)并按你的标准流程生成摘要卡存档:报告编号 YB-778」标记 [YB-7781]\\n  第2轮 ✓ 「请调出报告编号为 YB-7781 的那张研报摘要卡,告诉我它的评级是什么,以及分析师是谁。」标记 [YB-7781, 增持, 李四]\\n前端验收:页面门+环路门 PASS\\n【接力棒】\\n- 如实向用户转述验收结论与前端 URL;验收已入台账,同字节 7 天内重验将自动沿用。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"5999c8b1-1707-4f19-8cf0-6a229578ccb8\"}}",
+    "{\"turn\":1,\"step\":6,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_TVQLfdUlwSMoQib7ZlBn6497\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_TVQLfdUlwSMoQib7ZlBn6497\",\"content\":[{\"type\":\"text\",\"text\":\"Updated todo list: 0 pending, 1 in progress, 3 completed.\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"fcb684cc-30c9-4a24-84b0-0cf6c3d36aca\"}}",
+    "{\"turn\":1,\"step\":6,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_01_SqsU1HUjcWSpvuQpNs6T5591\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_01_SqsU1HUjcWSpvuQpNs6T5591\",\"content\":[{\"type\":\"text\",\"text\":\"✅ dsh-ui spec 合法（1 个组件），可以发出围栏。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"8541204c-9132-4a94-bb9f-00e77bbaaec7\"}}"
+  ],
+  "assistantText": "我来装配「bb-yanbao-zhaiyao」研报阅读助手。按装配流程,第一步先在对话里给出架构设计(你可以在我装配完成前提出修改),然后把它交给零件目录做映射。\n\n**用途**:读取用户上传的券商研报 PDF(或粘贴的研报全文),提炼核心观点、盈利预测、风险提示,生成结构化摘要卡展示并存档,支持日后检索;绝不提供投资建议。\n\n**能力清单**(每项映射到零件目录,缺的会成为 gap 工单):\n1. 读取上传的 PDF 并提取全文\n2. 从长文中抽取固定字段(券商/分析师/日期/评级/核心观点/盈利预测/风险提示)\n3. 将长文档精炼为结构化摘要\n4. 摘要卡持久化存档(跨会话保留)\n5. 按公司/日期/编号/关键词检索历史卡片\n6. 导出卡片为 Markdown/JSON 副本\n7. 同一研报重复上传时去重,不重复建卡\n8. 存档一览\n\n**数据模型**:`report_cards` 表 — file_hash(唯一)、doc_no 报告编号、title 标题、broker 券商、analysts 分析师、report_date 日期、rating 评级、company 公司、industry 行业、core_viewpoints 核心观点、earnings_forecast 盈利预测、risk_warnings 风险提示、created_at\n\n**主工作流**:上传/粘贴研报 → 读取全文 → 抽取字段 → 生成摘要卡(先展示后存档)→ 写入 SQLite;之后随时按公司/日期/编号查回。\n\n**接口**:聊天窗口直接上传 PDF 或粘贴文本;摘要卡结构化展示;自然语言查询存档。\n---\n零件映射完成:8 项需求 → 7 个零件 + 2 个缺口。两个缺口(固定字段抽取、长文档摘要)本质上正是 LLM 自己的职责,所以先装配、把缺口如实记入 BOM 工单即可。现在写入 persona、数据表结构和装配决策,发射 preset。\n---\nPreset 已发射(数据库 schema 双执行门 PASS)。现在做独立黑盒验收:探针按主工作流设计——第一轮创建一张含报告编号 YB-7781 的摘要卡,第二轮只凭编号检索、复述存档里的评级和分析师。\n---\n验收 FAIL,证据很明确:第 1 轮 agent 停下来问用户「是否确认写入存档」——这是我写的 persona 里「先展示给用户再写入存档」造成的阻塞式确认,在无人值守的探针里必须自主完成。外科修复:改 persona——摘要卡在回复中展示并**当轮立即存档**,任何情况下不中途停下等确认。同名重发。\n---\nPersona 已修复重发。重新跑独立验收,探针不变。\n---\n✅ 验收通过。补一个使用说明卡片,先校验再发出。\n---\n```dsh-ui\n{\"title\":\"bb-yanbao-zhaiyao 使用说明\",\"gap\":12,\"items\":[{\"type\":\"steps\",\"steps\":[{\"title\":\"挂载 preset\",\"desc\":\"以 preset 名 bb-yanbao-zhaiyao 挂载;装配预览页 http://127.0.0.1:3098/assembler/ui/bb-yanbao-zhaiyao\"},{\"title\":\"上传研报\",\"desc\":\"在对话中直接上传券商研报 PDF,或粘贴研报全文文本\"},{\"title\":\"收摘要卡\",\"desc\":\"助手当轮提炼核心观点/盈利预测/风险提示,展示摘要卡并自动写入存档\"},{\"title\":\"查档与导出\",\"desc\":\"按公司名/日期/报告编号查回历史卡片;可导出 Markdown/JSON 副本\"}]},{\"type\":\"keyvalue\",\"rows\":[{\"k\":\"摘要卡字段\",\"v\":\"报告编号·标题·券商·分析师·报告日期·评级·核心观点·盈利预测·风险提示\"},{\"k\":\"去重机制\",\"v\":\"按文件指纹判断,同一研报重复上传只提示已有存档,不重复建卡\"},{\"k\":\"安全边界\",\"v\":\"只做信息整理,任何情况下不提供投资建议(由 persona 强制)\"}]}]}\n```\n\n## 装配完成 ✅「bb-yanbao-zhaiyao」\n\n**验收结论**:独立黑盒验收 **PASS**(2 轮探针逐轮通过)——第一轮建档含编号 YB-7781 的摘要卡,第二轮仅凭编号取回并正确复述评级「增持」和分析师「李四」,证明跨会话存档与检索链路真实可用。前端页面门+环路门 PASS。\n\n**装配明细**:\n- preset 文件:`/Users/tongtao/.dsh/.agent-presets/bb-yanbao-zhaiyao/agent.cordis.yml`\n- 挂载零件(7 个):PDF 文本提取 · SQLite 读写(存档/检索) · 文件写入(导出) · 文件指纹哈希(去重) · 聊天前端模板 · GenUI 知识包\n- 预建数据库:`report_cards` 表(含报告编号、券商、分析师、评级、核心观点、盈利预测、风险提示等字段,带索引)\n- 缺口工单(2 份,记入 `gaps/` 供目录扩充时补造):研报固定字段抽取器、长文档摘要器——当前由 agent 自身的 LLM 能力承担,已写入 persona 信息纪律\n\n**怎么用**(挂载后):\n1. **建档**:对话里上传研报 PDF(或直接粘贴研报全文)→ 助手当轮通读全文,提炼出摘要卡(报告编号/标题/券商/分析师/日期/评级/核心观点/盈利预测/风险提示)展示给你,并自动写入存档。\n2. **查档**:随时问「查一下 XX 公司的研报摘要」「2026-08 之后的研报有哪些」「编号 YB-7781 的卡」,它按公司/日期/编号/关键词从 SQLite 取回。\n3. **导出**:要 Markdown/JSON 副本直接说,它写文件给你。\n4. **重复上传**:同一份研报重复传只会提示已有存档,不会建重复卡。\n\n**两条保证**:盈利预测等数字只原样引用研报原文,原文没提的字段标「未提及」绝不编造;任何情况下不给买入/卖出/持有等投资建议(装配时还专门修掉了一处会让它停下等人确认的 persona 约束,现在全程自主完成)。\n\n如果之后想要调整(比如加字段、换存档位置),告诉我,同名重发即可。",
+  "seconds": 388
+}

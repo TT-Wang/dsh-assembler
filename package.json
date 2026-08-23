@@ -25,7 +25,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "link:dsh": "node scripts/link-dsh.mjs",
     "parts:install": "for d in generated/*/; do (cd \"$d\" && npm install --no-audit --no-fund); done",
-    "test": "npm run build && node scripts/lock-check.mjs && node scripts/catalog-report.mjs --check && node tests-naming.mjs && node tests-verify.mjs && node tests-federation.mjs && node tests-spec-intake.mjs && node tests-yaml-write.mjs && node tests-catalog-layer.mjs && node tests-incremental.mjs && node tests-equipment.mjs && node tests-frontend.mjs && node tests-solution.mjs && node tests-capability-index.mjs && node tests-arch-probe.mjs",
+    "test": "npm run build && node scripts/lock-check.mjs && node scripts/catalog-report.mjs --check && node tests-naming.mjs && node tests-verify.mjs && node tests-federation.mjs && node tests-spec-intake.mjs && node tests-yaml-write.mjs && node tests-catalog-layer.mjs && node tests-incremental.mjs && node tests-equipment.mjs && node tests-frontend.mjs && node tests-solution.mjs && node tests-capability-index.mjs && node tests-arch-probe.mjs && node tests-orchestrated.mjs",
     "lock:check": "node scripts/lock-check.mjs",
     "bench": "node scripts/assembly-bench.mjs",
     "index:add": "node scripts/index-add.mjs scaffold",

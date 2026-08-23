@@ -1,0 +1,72 @@
+{
+  "scenario": {
+    "id": "s23",
+    "req": "文档翻译 agent:读取 docx 或 pdf,中英互译,按段落对照输出,专业术语要维护一个术语表保持一致",
+    "name": "bb-wendang-fanyi"
+  },
+  "arm": "B-orchestrated",
+  "port": 3098,
+  "startedAt": "2026-08-23T07:21:04.190Z",
+  "sessionId": "session-9cc1a18c-70b0-4dbd-9b90-34aa02896eb1",
+  "prompt": "请帮我装配一个 agent:文档翻译 agent:读取 docx 或 pdf,中英互译,按段落对照输出,专业术语要维护一个术语表保持一致,preset 名字就叫「bb-wendang-fanyi」",
+  "__lastFrameCount": 10525,
+  "clarifyQuestions": [
+    "[{\"id\":\"arch\",\"question\":\"以上架构(6 项能力 + 3 张表的数据模型 + 逐段对照主流程)是否按此装配?\",\"header\":\"确认架构\",\"options\":[{\"label\":\"按此装配 (Recommended)\",\"description\":\"架构完整覆盖 docx/pdf 解析、互译、术语表、对照输出,直接进入装配。\"},{\"label\":\"需要调整\",\"description\":\"告诉我哪里改(如增加导出格式、支持更多文件类型等),我改完再装配。\"}]},{\"id\":\"glossary-policy\",\"question\":\"翻译时遇到术语表中没有的新术语,如何处理?\",\"header\":\"术语登记策略\",\"options\":[{\"label\":\"询问用户确认后登记 (Recommended)\",\"description\":\"准确性优先:新术语先问用"
+  ],
+  "answerReceipts": [
+    "{\"accepted\":true}"
+  ],
+  "nudges": 0,
+  "clarifications": 1,
+  "timedOut": false,
+  "frameTypes": {
+    "agent/inbox/spliced": 2,
+    "turn/start": 1,
+    "step/start": 5,
+    "user/message": 6,
+    "session/title": 2,
+    "request/header": 1,
+    "request/context": 1,
+    "session/title-llm-request": 1,
+    "assistant/chunk": 10486,
+    "assistant/message": 5,
+    "tool/call": 4,
+    "__question": 1,
+    "tool/result": 4,
+    "step/end": 5,
+    "turn/end": 1
+  },
+  "mainAgentUsage": {
+    "inputTokens": 4362,
+    "outputTokens": 21316,
+    "reasoningTokens": 15026,
+    "cacheReadTokens": 179712,
+    "events": 10
+  },
+  "toolCalls": [
+    {
+      "name": "ask_user_question",
+      "args": "{\"questions\": [{\"id\": \"arch\", \"header\": \"确认架构\", \"question\": \"以上架构(6 项能力 + 3 张表的数据模型 + 逐段对照主流程)是否按此装配?\", \"options\": [{\"label\": \"按此装配 (Recommended)\", \"description\": \"架构完整覆盖 docx/pdf 解析、互译、术语表、对照输出,直接进入装配。\"}, {\"label\": \"需要调整\", \"description\": \"告诉我哪里改(如增加导出格式、支持更多文件类型等),我改完再装配。\"}]}, {\"id\": \"glossary-policy\", \"header\": \"术语登记策略\", \"question\": \"翻译时遇到术语表中没有的新术语,如何处理?\", \"options\": [{\"label\": \"询问用户确认后登记 (Recommended)\", \"description\": \"准确性优先:新术语先问用户确认译法,再写入术语表,避免错误传播。\"}, {\"label\": \"自动登记入表\", \"description\": \"效率优先:翻译时自动登记新术语,后续段落自动保持一致。\"}, {\"label\": \"不登记,仅在报告里提示\", \"description\": \"术语表只做查询用,新术语在翻译报告中列出供人工处理。\"}]}]}"
+    },
+    {
+      "name": "match_catalog",
+      "args": "{\"requirement\": \"文档翻译 agent:读取 docx 或 pdf,中英互译,按段落对照输出,专业术语维护一个术语表保持一致。preset 名 bb-wendang-fanyi。\", \"spec\": {\"capabilities\": [{\"name\": \"extract text and structure from .docx documents\", \"why\": \"用户提供 docx 文档时需要解析出段落、表格等文本内容并保留顺序,才能逐段翻译\"}, {\"name\": \"extract text from .pdf documents and split into paragraphs\", \"why\": \"用户提供 pdf 文档时需要提取文本并按段落/页切分,才能逐段翻译\"}, {\"name\": \"translate text between Chinese and English in both directions\", \"why\": \"核心任务:自动检测源语言,按段落粒度完成中译英或英译中\"}, {\"name\": \"persist a terminology glossary across sessions\", \"why\": \"术语表必须跨会话保存(源词、译词、语向、备注),否则每次翻译术语无法保持一致\"}, {\"name\": \"look up and apply glossary terms during translation\", \"why\": \"逐段翻译时强制套用已登记术语,保证整篇文档术语一致\"}, {\"name\": \"register new glossary terms only after user confirmation\", \"why\": \"用户确认的术语登记策略:翻译中遇到新术语先询问用户确认译法再写入术语表\"}, {\"name\""
+    },
+    {
+      "name": "emit_preset",
+      "args": "{\"name\": \"bb-wendang-fanyi\", \"requirement\": \"文档翻译 agent:读取 docx 或 pdf,中英互译,按段落对照输出,专业术语维护一个术语表保持一致。术语登记策略:新术语需用户确认后才写入术语表。\", \"capabilityIds\": [\"mcp-docx-extract-docx-to-html\", \"mcp-pdf-extract-get-pdf-text\", \"mcp-sqlite-query-execute\", \"mcp-sqlite-query-query\", \"mcp-docx-generate-docx-generate-table\", \"frontend-chat-console\", \"mcp-binary-write-write-binary-file\"], \"persona\": \"你是 bb-wendang-fanyi,专业的文档翻译 agent,负责中英互译与术语一致性管理,工作语言为中文。约束:1) 文档解析——用户给出 docx/pdf 文件路径或上传文件后,必须先调用对应的 MCP 提取工具(mcp-docx-extract-docx-to-html / mcp-pdf-extract-get-pdf-text)解析出段落文本再翻译,不得臆测文档内容,不得跳过解析直接翻译;2) 语言方向——自动检测源语言,目标语言默认取另一方向(中文文档译成英文、英文文档译成中文),用户另有指定时遵用户指定;3) 逐段对照——译文必须按原文档段落顺序逐段输出「原文 ↔ 译文」对照并带段落编号,不合并、不跳段、不重排;4) 术语表纪律——翻译开始前先查术语表(glossary_terms),已登记术语必须使用登记译法、不得自行改译,同一术语在全文所有段落中译法必须一致;5) 新术语登记——翻译中遇到未登记的专有名词/"
+    },
+    {
+      "name": "verify_preset",
+      "args": "{\"presetId\": \"bb-wendang-fanyi\", \"probe\": {\"kind\": \"scenario\", \"createTask\": \"请执行登记:1) 把术语「Cold Fusion Cell」登记进术语表,译法为「冷聚变电池」,语向 en-zh,备注中写明标识 CFC-921;2) 记录文档信息:文件名 fusion-notes.docx,源语言 en,目标语言 zh,段落数 5。完成后简短确认即可。\", \"retrieveTask\": \"请从术语表查出标识为 CFC-921 的那条术语的登记译法,并报告文档 fusion-notes.docx 记录中的段落数。\", \"token\": \"CFC-921\", \"marks\": [\"冷聚变电池\", \"5\"]}}"
+    }
+  ],
+  "toolResults": [
+    "{\"turn\":1,\"step\":1,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_jU8Y4nQKbBkemhMIIUkI8238\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_jU8Y4nQKbBkemhMIIUkI8238\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"answers\\\":[{\\\"id\\\":\\\"arch\\\",\\\"selected\\\":[\\\"按此装配 (Recommended)\\\"]},{\\\"id\\\":\\\"glossary-policy\\\",\\\"selected\\\":[\\\"询问用户确认后登记 (Recommended)\\\"]}]}\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"828c8a07-a564-4c03-88fe-d49a0726818d\"}}",
+    "{\"turn\":1,\"step\":2,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_HTBcFUC0x0mPL1VYoEGl0970\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_HTBcFUC0x0mPL1VYoEGl0970\",\"content\":[{\"type\":\"text\",\"text\":\"目录匹配完成:8 项架构需求 → 7 个零件 / 1 项缺口(120s,出15.6k/思15.0k/缓0)\\n覆盖明细:\\n  1. extract text and structure from .docx documents — 用户提供 docx 文档时需要解析出段落、表格等文本内容并保留顺序,才能逐段翻译 → mcp-docx-extract-docx-to-html(mcp)\\n  2. extract text from .pdf documents and split into paragraphs — 用户提供 pdf 文档时需要提取文本并按段落/页切分,才能逐段翻译 → mcp-pdf-extract-get-pdf-text(mcp)\\n  3. translate text between Chinese and English in both directions — 核心任务:自动检测源语言,按段落粒度完成中译英或英译中 → 【缺口】No catalog part provides bidirectional Chinese-English translation with automatic source-language detection and paragraph-level output.\\n  4. persist a terminology glossary across sessions — 术语表必须跨会话保存(源词、译词、语向、备注),否则每次翻译术语无法保持一致 → mcp-sqlite-query-execute(mcp)\\n  5. look up and apply glossary terms during translation — 逐段翻译时强制套用已登记术语,保证整篇文档术语一致 → mcp-sqlite-query-query(mcp)\\n  6. register new glossary terms only after user confirmation — 用户确认的术语登记策略:翻译中遇到新术语先询问用户确认译法再写入术语表 → mcp-sqlite-query-execute(mcp)\\n  7. output translation as paragraph-aligned bilingual comparison — 交付形态:按段落编号输出原文/译文对照,可导出为文档 → mcp-docx-generate-docx-generate-table(mcp)\\n  8. record translation history per document — 记录每次翻译的文档、段落、原文译文,便于回查与复用 → mcp-sqlite-query-execute(mcp)\\n额外零件(域基线/前端模板):frontend-chat-console, mcp-binary-write-write-binary-file\\n选中零件 capabilityIds:mcp-docx-extract-docx-to-html, mcp-pdf-extract-get-pdf-text, mcp-sqlite-query-execute, mcp-sqlite-query-query, mcp-docx-generate-docx-generate-table, frontend-chat-console, mcp-binary-write-write-binary-file\\n缺件草案 missingEntries:[{\\\"id\\\":\\\"zh-en-translation-service\\\",\\\"via\\\":\\\"harness\\\",\\\"description\\\":\\\"Bidirectional Chinese-English paragraph translation with automatic source-language detection, used as the core translation step.\\\",\\\"tags\\\":[\\\"translation\\\",\\\"zh-en\\\",\\\"en-zh\\\",\\\"language-detection\\\",\\\"paragraph\\\"]}]\\n\\n【接力棒——编排者是你,匹配到此为止】\\n- 组装决策归你,现在做:写 persona(角色/语气/工具纪律/跨轮持久化约束/该领域的安全合规边界;写成随时可判的约束,禁止\\\"第一步…第二步…\\\"编舞);数据要跨会话留存则设计 stateSchema(只许幂等 CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS,英文列名、合理主键,按你 spec 的 dataModel 一比一落表);给 preset 起 kebab-case 名。\\n- 然后调 emit_preset(name, requirement, capabilityIds, persona[, stateSchema][, params][, missing, missingEntries])发射;发射后必须调 verify_preset 独立验收——你不能自己宣布 agent 可用。\\n- 缺口处置归你:或先照工单造件入库再装(emit 后 gaps/ 有施工单),或先装配、把缺口如实告知用户。\\n- 注意:若选中零件自带目录手写 persona(域验证过的安全文本),发射时它优先于你写的。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"53cd570d-1a1b-4bd1-b1ed-203e4836b441\"}}",
+    "{\"turn\":1,\"step\":3,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_0WUb8Ou75HneL6xibmdY6429\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_0WUb8Ou75HneL6xibmdY6429\",\"content\":[{\"type\":\"text\",\"text\":\"preset「bb-wendang-fanyi」已发射:mcp-docx-extract-docx-to-html, mcp-pdf-extract-get-pdf-text, mcp-sqlite-query-execute, mcp-sqlite-query-query, mcp-docx-generate-docx-generate-table, frontend-chat-console, mcp-binary-write-write-binary-file(0s)\\npreset 文件:/Users/tongtao/.dsh/.agent-presets/bb-wendang-fanyi/agent.cordis.yml\\n前端页面:http://127.0.0.1:3098/assembler/ui/bb-wendang-fanyi(模板 chat-console)\\n装备:预建数据库 schema(equipment/init.sql,双次执行门 PASS)\\n缺件工单:1 份 → /Users/tongtao/.dsh/.agent-presets/bb-wendang-fanyi/gaps/\\n\\n【接力棒】\\n- 发射完成 ≠ 可用。立即调 verify_preset {\\\"presetId\\\": \\\"bb-wendang-fanyi\\\"} 独立验收(可附上你按主工作流设计的探针草图)。\\n- 红线:绝不手改 preset 目录下的任何文件(host 按字节代际挂载,手改必撞名);要改选型/persona/schema,一律重调 emit_preset 同名重发。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"ad8108bc-8d14-4dd7-8024-24cbc581f4dd\"}}",
+    "{\"turn\":1,\"step\":4,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_KjDB5zzGjvZlwf8Nr7YC2888\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_KjDB5zzGjvZlwf8Nr7YC2888\",\"content\":[{\"type\":\"text\",\"text\":\"验收 PASS(24s) — 多轮场景「架构直构:主工作流建档→取回(token 连续性)」共 2 轮逐轮通过\\n  第1轮 ✓ 「请执行登记:1) 把术语「Cold Fusion Cell」登记进术语表,译法为「冷聚变电池」,语向」标记 [CFC-921]\\n  第2轮 ✓ 「请从术语表查出标识为 CFC-921 的那条术语的登记译法,并报告文档 fusion-notes.d」标记 [冷聚变电池]\\n前端验收:页面门+环路门 PASS\\n【接力棒】\\n- 如实向用户转述验收结论与前端 URL;验收已入台账,同字节 7 天内重验将自动沿用。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"a55cb431-7453-4374-8b97-9b5b5463172a\"}}"
+  ],
+  "assistantText": "好的,装配前我先按流程设计架构,请你确认或纠正后再组装。\n\n## 架构设计:bb-wendang-fanyi 文档翻译 Agent\n\n**定位**:读取 `.docx` / `.pdf` 文档,自动检测语言方向做中英互译,按段落输出「原文 ↔ 译文」对照,并维护持久化术语表保证术语前后一致。\n\n**能力需求清单**(每项都是架构必需):\n\n| # | 能力(通用描述) | 为什么需要 |\n|---|---|---|\n| 1 | 解析 .docx 文档文本 | 提取段落/表格文本,保留段落顺序与结构 |\n| 2 | 解析 .pdf 文档文本 | 提取 PDF 文本并按段落/页切分 |\n| 3 | 中英双向翻译 | 检测源语言、按段落粒度完成中↔英翻译 |\n| 4 | 术语表持久化存取 | 跨会话存储术语条目(源词、译词、语向、备注),支持增删查改 |\n| 5 | 翻译时套用术语表 | 逐段翻译强制使用已登记术语,保证全文一致 |\n| 6 | 逐段对照输出 + 导出 | 输出编号的原文/译文逐段对照,可导出为 docx |\n\n**数据模型**:`glossary_terms`(源词、译词、语言方向、备注、创建时间)、`documents`(文件名、源语言、目标语言、段落数、时间)、`translations`(文档、段落序号、原文、译文)。\n\n**主流程**:用户给出文件路径/上传 → 解析提取段落 → 确定语言方向 → 查询术语表 → 逐段翻译(套用术语)→ 输出逐段对照 → 新术语登记。\n\n**接口**:聊天中指定文件路径即可;输出为对照表(markdown),可选导出 docx。\n\n两个设计点需要你拍板:\n---\n架构已确认。现在把架构映射到部件目录:\n---\n目录映射完成:7 个零件全部命中,1 项缺口——「中英双向翻译服务」,目录里没有现成零件。这个缺口由 agent 模型本身承担翻译能力(LLM 天然具备),我会把它记入 BOM 工单并如实告知你。\n\n现在做组装决策并发射 preset:\n---\n发射成功。现在进行独立验收——按主工作流设计的探针:第一轮登记术语+文档记录(携带标识 CFC-921),第二轮仅凭标识取回存储值,验证跨轮持久化:\n---\n装配完成,独立验收 **PASS** ✅\n\n## 交付总结:`bb-wendang-fanyi` 文档翻译 Agent\n\n**验收结果**:双轮场景探针通过——第 1 轮登记术语「Cold Fusion Cell → 冷聚变电池」+ 文档记录(标识 CFC-921),第 2 轮仅凭标识 CFC-921 取回登记译法与段落数(冷聚变电池 / 5),术语表跨轮持久化验证成功;前端页面门+环路门 PASS。\n\n**已装载能力**(7 个零件):\n\n| 能力 | 零件 |\n|---|---|\n| docx 解析(段落/表格提取) | mcp-docx-extract-docx-to-html |\n| pdf 提取文本并切分段落 | mcp-pdf-extract-get-pdf-text |\n| 术语表持久化(增删查改) | mcp-sqlite-query-execute / query |\n| 文档信息 + 翻译记录持久化 | mcp-sqlite-query-execute |\n| 对照文档导出(docx 表格) | mcp-docx-generate-docx-generate-table |\n| 聊天界面 + 二进制落盘 | frontend-chat-console、mcp-binary-write |\n\n**数据模型**(已预建表,双次执行门 PASS):`glossary_terms`(源词/译词/语向/备注)、`documents`、`translations`(文档/段落序号/原文/译文)。\n\n**行为约束**:自动检测语言方向(默认中→英、英→中)→ 逐段编号对照输出 → 已登记术语强制套用、全文一致 → 新术语先询问你确认才写入 → 内容视为机密、不修改原始文件。\n\n**一处诚实说明**:目录中无「中英双向翻译服务」零件(含自动语检测)——该能力由模型本身承担,已按工单记入 BOM(`gaps/` 目录,待目录扩充后可替换为专门零件)。\n\n**入口**:前端页面 http://127.0.0.1:3098/assembler/ui/bb-wendang-fanyi(模板 chat-console);preset 文件位于 `/Users/tongtao/.dsh/.agent-presets/bb-wendang-fanyi/`。\n\n使用方式:在页面里直接给 docx/pdf 文件路径或上传文件,即可开始逐段对照翻译。",
+  "seconds": 231
+}

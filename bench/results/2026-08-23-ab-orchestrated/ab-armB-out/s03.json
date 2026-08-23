@@ -1,0 +1,82 @@
+{
+  "scenario": {
+    "id": "s03",
+    "req": "装配一个合同审查助手:读取我上传的 docx 合同,逐条标出风险条款(违约金、单方解除权、管辖等),最后生成一份审查意见书保存下来",
+    "name": "bb-hetong-shencha"
+  },
+  "arm": "B-orchestrated",
+  "port": 3098,
+  "startedAt": "2026-08-23T07:11:05.585Z",
+  "sessionId": "session-65a39211-6730-41b0-8222-d00cdc7eff73",
+  "prompt": "帮我装一个 agent:装配一个合同审查助手:读取我上传的 docx 合同,逐条标出风险条款(违约金、单方解除权、管辖等),最后生成一份审查意见书保存下来,preset 名字就叫「bb-hetong-shencha」",
+  "__lastFrameCount": 9349,
+  "clarifyQuestions": [
+    "[{\"id\":\"confirm-arch\",\"question\":\"以上架构是否符合你的预期?确认后我将执行:目录匹配 → 装配 preset(bb-hetong-shencha)→ 黑盒验收。\",\"header\":\"确认装配\",\"options\":[{\"label\":\"确认装配 (Recommended)\",\"description\":\"按上述 8 项能力、数据模型与流程装配并验收\"},{\"label\":\"增加立场审查\",\"description\":\"额外按甲方/乙方立场分别评估条款利弊(需在架构中加一项能力)\"},{\"label\":\"调整能力清单\",\"description\":\"在输入框里说明要增删或改动哪些能力\"}]}]"
+  ],
+  "answerReceipts": [
+    "{\"accepted\":true}"
+  ],
+  "nudges": 0,
+  "clarifications": 1,
+  "timedOut": false,
+  "frameTypes": {
+    "agent/inbox/spliced": 2,
+    "turn/start": 1,
+    "step/start": 7,
+    "user/message": 6,
+    "session/title": 2,
+    "request/header": 1,
+    "request/context": 1,
+    "session/title-llm-request": 1,
+    "assistant/chunk": 9300,
+    "assistant/message": 7,
+    "tool/call": 6,
+    "tool/result": 6,
+    "step/end": 7,
+    "__question": 1,
+    "turn/end": 1
+  },
+  "mainAgentUsage": {
+    "inputTokens": 10752,
+    "outputTokens": 19086,
+    "reasoningTokens": 10094,
+    "cacheReadTokens": 231168,
+    "events": 14
+  },
+  "toolCalls": [
+    {
+      "name": "validate_dsh_ui",
+      "args": "{\"spec\": {\"title\":\"合同审查助手 · 架构设计（bb-hetong-shencha）\",\"gap\":12,\"items\":[{\"type\":\"callout\",\"tone\":\"info\",\"title\":\"用途\",\"text\":\"读取上传的 docx 合同 → 逐条识别风险条款（违约金、单方解除权、管辖等）→ 分级标注 → 生成审查意见书保存到工作区，并支持检索历史审查记录\"},{\"type\":\"table\",\"columns\":[\"#\",\"能力（通用描述）\",\"为什么需要\"],\"rows\":[[\"1\",\"解析上传的 .docx 并提取全文（含表格）\",\"docx 是 zip+XML 打包，不解析就读不到合同内容，后续无从谈起\"],[\"2\",\"按条款编号将合同拆分为逐条单元\",\"逐条标注风险的前提，保证输出按条款组织\"],[\"3\",\"逐条法律风险分析（违约金、单方解除权、管辖等）\",\"核心审查能力：判定风险类型、依据与修改建议\"],[\"4\",\"风险分级与汇总统计\",\"意见书需要高/中/低分级与风险分布统计\"],[\"5\",\"持久化审查记录（跨会话存储）\",\"每次审查结果入库，之后可按文件名/日期检索回顾\"],[\"6\",\"导出审查意见书文件并保存到工作区\",\"交付物：Markdown/Word 意见书，可下载\"],[\"7\",\"检索历史审查（按文件名或日期）\",\"复用与回顾，避免重复审查\"],[\"8\",\"工作区文件管理（列出/定位上传文件）\",\"让 agent 能找到用户上传的 docx\"]]},{\"type\":\"steps\",\"items\":[\"上传 docx 合同\",\"解析全文（解包 docx / XML）\",\"按编号拆分条款\",\"逐条风险分析（类型 + 等级 + 建议）\",\"汇总生成审查意见书并保存入库\",\"对话内展示风险清单摘要\"]},{\"type\":\""
+    },
+    {
+      "name": "ask_user_question",
+      "args": "{\"questions\": [{\"id\": \"confirm-arch\", \"header\": \"确认装配\", \"question\": \"以上架构是否符合你的预期?确认后我将执行:目录匹配 → 装配 preset(bb-hetong-shencha)→ 黑盒验收。\", \"options\": [{\"label\": \"确认装配 (Recommended)\", \"description\": \"按上述 8 项能力、数据模型与流程装配并验收\"}, {\"label\": \"增加立场审查\", \"description\": \"额外按甲方/乙方立场分别评估条款利弊(需在架构中加一项能力)\"}, {\"label\": \"调整能力清单\", \"description\": \"在输入框里说明要增删或改动哪些能力\"}]}]}"
+    },
+    {
+      "name": "match_catalog",
+      "args": "{\"requirement\": \"装配一个合同审查助手:读取用户上传的 docx 合同,逐条标出风险条款(违约金、单方解除权、管辖等),最后生成一份审查意见书保存下来,preset 名字叫「bb-hetong-shencha」。\", \"spec\": {\"capabilities\": [{\"name\": \"解析上传的 .docx 文件并提取全文(含表格)\", \"why\": \"docx 是 zip+XML 打包格式,必须解包解析才能读到合同正文;读不到文件则无法审查\"}, {\"name\": \"按条款编号将合同文本拆分为逐条单元\", \"why\": \"逐条标注风险的前提,输出必须按条款号组织\"}, {\"name\": \"逐条法律风险分析(违约金、单方解除权、管辖等)\", \"why\": \"核心审查能力:识别风险类型、给出依据与修改建议\"}, {\"name\": \"风险分级与汇总统计\", \"why\": \"意见书需要高/中/低风险等级与风险分布统计\"}, {\"name\": \"持久化审查记录(跨会话存储)\", \"why\": \"每次审查结果入库,之后可按文件名/日期检索回顾\"}, {\"name\": \"导出审查意见书文件并保存到工作区\", \"why\": \"交付物:生成 Markdown/Word 意见书文件供用户下载\"}, {\"name\": \"检索历史审查(按文件名或日期)\", \"why\": \"复用与回顾历史审查,避免重复审查\"}, {\"name\": \"工作区文件管理(列出/定位用户上传的文件)\", \"why\": \"agent 需要找到用户上传的 docx 文件路径\"}], \"dataModel\": \"review 审查记录(id, contract_file, reviewed_at, overall_level, summary) + risk_item 风险条目(review_id, cla"
+    },
+    {
+      "name": "match_catalog",
+      "args": "{\"requirement\": \"装配一个合同审查助手:读取用户上传的 docx 合同,逐条标出风险条款(违约金、单方解除权、管辖等),最后生成一份审查意见书保存下来,preset 名字叫「bb-hetong-shencha」。\", \"spec\": {\"capabilities\": [{\"name\": \"解析上传的 .docx 文件并提取全文(含表格)\", \"why\": \"docx 是 zip+XML 打包格式,必须解包解析才能读到合同正文;读不到文件则无法审查\"}, {\"name\": \"按条款编号将合同文本拆分为逐条单元\", \"why\": \"逐条标注风险的前提,输出必须按条款号组织\"}, {\"name\": \"逐条法律风险分析(违约金、单方解除权、管辖等)\", \"why\": \"核心审查能力:识别风险类型、给出依据与修改建议\"}, {\"name\": \"风险分级与汇总统计\", \"why\": \"意见书需要高/中/低风险等级与风险分布统计\"}, {\"name\": \"持久化审查记录(跨会话存储)\", \"why\": \"每次审查结果入库,之后可按文件名/日期检索回顾\"}, {\"name\": \"导出审查意见书文件并保存到工作区\", \"why\": \"交付物:生成 Markdown/Word 意见书文件供用户下载\"}, {\"name\": \"检索历史审查(按文件名或日期)\", \"why\": \"复用与回顾历史审查,避免重复审查\"}, {\"name\": \"工作区文件管理(列出/定位用户上传的文件)\", \"why\": \"agent 需要找到用户上传的 docx 文件路径\"}], \"dataModel\": \"review 审查记录(id, contract_file, reviewed_at, overall_level, summary) + risk_item 风险条目(review_id, cla"
+    },
+    {
+      "name": "emit_preset",
+      "args": "{\"name\": \"bb-hetong-shencha\", \"requirement\": \"装配一个合同审查助手:读取用户上传的 docx 合同,逐条标出风险条款(违约金、单方解除权、管辖等),最后生成一份审查意见书保存下来,preset 名字叫「bb-hetong-shencha」。\", \"capabilityIds\": [\"mcp-docx-extract-docx-to-html\", \"mcp-sqlite-query-execute\", \"mcp-filesystem-write-file\", \"mcp-sqlite-query-query\", \"mcp-filesystem-list-directory\", \"frontend-chat-console\"], \"persona\": \"你是「合同审查助手」,一名严谨、中立、专业的合同风险审查助理。职责:帮助用户发现合同中的风险条款(违约金、单方解除权、管辖等)并给出可操作的修改建议;语气客观克制,不夸大风险,不替用户做商业决策,不给出最终法律结论。\\n\\n工具纪律(可判定约束):\\n- 读取 docx 合同必须通过 mcp-docx-extract-docx-to-html 解析,不得臆测或编造合同内容;用户指定的文件找不到时,先通过 mcp-filesystem-list-directory 列目录确认,而不是虚构路径。\\n- 每次审查完成,必须持久化:审查记录写入 SQLite 的 review 表,逐条风险项写入 risk_item 表且必须挂 review_id;之后任何历史检索一律从 SQLite 查询,不得凭记忆编造。\\n- 审查意见书必须通过 mcp-filesystem-write-file 保存为文件(默认保存到工作区 review_output_dir 参数指定的目录),并在回复中告知用户保存路径"
+    },
+    {
+      "name": "verify_preset",
+      "args": "{\"presetId\": \"bb-hetong-shencha\", \"probe\": {\"kind\": \"scenario\", \"createTask\": \"请审查以下合同文本并出具审查意见书保存到工作区,合同文件名记为 SC-8821.docx。第1条 标的:甲方向乙方采购服务器10台。第2条 违约金:乙方逾期交付的,每日按合同总额的5%向甲方支付违约金。第3条 解除权:甲方有权随时单方解除本合同,无需任何理由。第4条 管辖:争议由甲方所在地法院管辖。请逐条标注风险(类型+等级+修改建议),生成审查意见书文件保存,并把审查记录存档。\", \"retrieveTask\": \"检索我对 SC-8821 这份合同的历史审查记录,告诉我违约金条款被标注的风险等级以及该条款风险类型的原文表述。\", \"token\": \"SC-8821\", \"marks\": [\"SC-8821\", \"违约金\", \"高\"]}}"
+    }
+  ],
+  "toolResults": [
+    "{\"turn\":1,\"step\":1,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_WjscnRZ6Ley1hIwSE8w75894\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_WjscnRZ6Ley1hIwSE8w75894\",\"content\":[{\"type\":\"text\",\"text\":\"✅ dsh-ui spec 合法（1 个组件），可以发出围栏。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"530f45e4-d00e-4cd2-a3ef-81b0c184b7d7\"}}",
+    "{\"turn\":1,\"step\":2,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_a4jOpNTPO1AOQbUJgC6a8533\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_a4jOpNTPO1AOQbUJgC6a8533\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"answers\\\":[{\\\"id\\\":\\\"confirm-arch\\\",\\\"selected\\\":[\\\"确认装配 (Recommended)\\\"]}]}\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"ff2d0955-1758-41f9-ab14-28a9ba2da644\"}}",
+    "{\"turn\":1,\"step\":3,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_SYzZxBzSFY51TTvyA87Z5394\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_SYzZxBzSFY51TTvyA87Z5394\",\"content\":[{\"type\":\"text\",\"text\":\"Error: 模型未返回 JSON:\"}],\"isError\":true}],\"role\":\"user\",\"id\":\"ed8b4087-b024-47ab-b23a-607577756856\"}}",
+    "{\"turn\":1,\"step\":4,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_ani1TEoeQjaC4OBf2cia8672\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_ani1TEoeQjaC4OBf2cia8672\",\"content\":[{\"type\":\"text\",\"text\":\"目录匹配完成:8 项架构需求 → 6 个零件 / 3 项缺口(101s,出13.0k/思12.6k/缓38.9k)\\n覆盖明细:\\n  1. 解析上传的 .docx 文件并提取全文(含表格) → mcp-docx-extract-docx-to-html(mcp)\\n  2. 按条款编号将合同文本拆分为逐条单元 → 【缺口】缺少将合同全文按条款编号拆分为逐条单元的文本分割能力\\n  3. 逐条法律风险分析(违约金、单方解除权、管辖等) → 【缺口】缺少合同条款法律风险识别与审查规则能力(风险类型、依据与修改建议)\\n  4. 风险分级与汇总统计 → 【缺口】缺少按高/中/低风险等级分级并统计风险分布的能力\\n  5. 持久化审查记录(跨会话存储) → mcp-sqlite-query-execute(mcp)\\n  6. 导出审查意见书文件并保存到工作区 → mcp-filesystem-write-file(mcp)\\n  7. 检索历史审查(按文件名或日期) → mcp-sqlite-query-query(mcp)\\n  8. 工作区文件管理(列出/定位用户上传的文件) → mcp-filesystem-list-directory(mcp)\\n额外零件(域基线/前端模板):frontend-chat-console\\n选中零件 capabilityIds:mcp-docx-extract-docx-to-html, mcp-sqlite-query-execute, mcp-filesystem-write-file, mcp-sqlite-query-query, mcp-filesystem-list-directory, frontend-chat-console\\n缺件草案 missingEntries:[{\\\"id\\\":\\\"contract-clause-splitter\\\",\\\"via\\\":\\\"package\\\",\\\"description\\\":\\\"按条款编号(如第X条)将合同全文拆分为逐条单元的文本分割组件\\\",\\\"tags\\\":[\\\"contract\\\",\\\"clause\\\",\\\"splitter\\\",\\\"text\\\"]},{\\\"id\\\":\\\"contract-legal-risk-analyzer\\\",\\\"via\\\":\\\"harness\\\",\\\"description\\\":\\\"合同条款法律风险审查规则/领域能力:识别违约金、单方解除权、管辖等风险类型,给出法律依据与修改建议\\\",\\\"tags\\\":[\\\"legal\\\",\\\"contract\\\",\\\"risk-analysis\\\",\\\"compliance\\\"]},{\\\"id\\\":\\\"risk-level-aggregator\\\",\\\"via\\\":\\\"package\\\",\\\"description\\\":\\\"风险分级与汇总统计组件:将风险项按高/中/低分级并生成风险分布统计\\\",\\\"tags\\\":[\\\"risk\\\",\\\"stats\\\",\\\"aggregation\\\",\\\"report\\\"]}]\\n\\n【接力棒——编排者是你,匹配到此为止】\\n- 组装决策归你,现在做:写 persona(角色/语气/工具纪律/跨轮持久化约束/该领域的安全合规边界;写成随时可判的约束,禁止\\\"第一步…第二步…\\\"编舞);数据要跨会话留存则设计 stateSchema(只许幂等 CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS,英文列名、合理主键,按你 spec 的 dataModel 一比一落表);给 preset 起 kebab-case 名。\\n- 然后调 emit_preset(name, requirement, capabilityIds, persona[, stateSchema][, params][, missing, missingEntries])发射;发射后必须调 verify_preset 独立验收——你不能自己宣布 agent 可用。\\n- 缺口处置归你:或先照工单造件入库再装(emit 后 gaps/ 有施工单),或先装配、把缺口如实告知用户。\\n- 注意:若选中零件自带目录手写 persona(域验证过的安全文本),发射时它优先于你写的。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"d2c03316-4df8-40ea-bea6-125a625df17b\"}}",
+    "{\"turn\":1,\"step\":5,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_8gtXhYI5FYmpPUNW997C8079\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_8gtXhYI5FYmpPUNW997C8079\",\"content\":[{\"type\":\"text\",\"text\":\"preset「bb-hetong-shencha」已发射:mcp-docx-extract-docx-to-html, mcp-sqlite-query-execute, mcp-filesystem-write-file, mcp-sqlite-query-query, mcp-filesystem-list-directory, frontend-chat-console(0s)\\npreset 文件:/Users/tongtao/.dsh/.agent-presets/bb-hetong-shencha/agent.cordis.yml\\n前端页面:http://127.0.0.1:3098/assembler/ui/bb-hetong-shencha(模板 chat-console)\\n装备:预建数据库 schema(equipment/init.sql,双次执行门 PASS)\\n缺件工单:3 份 → /Users/tongtao/.dsh/.agent-presets/bb-hetong-shencha/gaps/\\n\\n【接力棒】\\n- 发射完成 ≠ 可用。立即调 verify_preset {\\\"presetId\\\": \\\"bb-hetong-shencha\\\"} 独立验收(可附上你按主工作流设计的探针草图)。\\n- 红线:绝不手改 preset 目录下的任何文件(host 按字节代际挂载,手改必撞名);要改选型/persona/schema,一律重调 emit_preset 同名重发。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"e19a9281-1d25-4fcf-8c71-fadca8380e34\"}}",
+    "{\"turn\":1,\"step\":6,\"message\":{\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_78RbZpgNHcmoq38GzvBj0500\"},\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_00_78RbZpgNHcmoq38GzvBj0500\",\"content\":[{\"type\":\"text\",\"text\":\"验收 PASS(289s,推导 出21.7k/思21.4k/缓0)(你的探针草图未过机械闸——token 两轮自足/取回轮不复述标记/长度与标记消毒,考官已自行推导) — 多轮场景「证明合同审查结果能保存到工作区并写入数据库，后续回合能检索到同一份审查结论」共 2 轮逐轮通过\\n  第1轮 ✓ 「请审查下面这份合同，逐条标出风险条款（至少包括违约金、单方解除权、管辖），生成审查意见书，保存到工作」标记 [bb-hetong-shencha-7781.md, BB-CON-7781]\\n  第2轮 ✓ 「请查看 SQLite 数据库里你上一次写入的那条合同审查记录，并列出工作区文件。回复该记录的合同编号」标记 [BB-CON-7781, 30%, bb-hetong-shencha-7781.md]\\n前端验收:页面门+环路门 PASS\\n【接力棒】\\n- 如实向用户转述验收结论与前端 URL;验收已入台账,同字节 7 天内重验将自动沿用。\"}],\"isError\":false}],\"role\":\"user\",\"id\":\"85943567-5533-4bb0-ac12-0a0708d41a5a\"}}"
+  ],
+  "assistantText": "好的,装配「合同审查助手」前,我先把架构设计拿出来给你过目——确认无误后再进入目录匹配、装配与验收。这是装配流程的第 1 步,先对齐设计再动手。\n---\n```dsh-ui\n{\"title\":\"合同审查助手 · 架构设计（bb-hetong-shencha）\",\"gap\":12,\"items\":[{\"type\":\"callout\",\"tone\":\"info\",\"title\":\"用途\",\"text\":\"读取上传的 docx 合同 → 逐条识别风险条款（违约金、单方解除权、管辖等）→ 分级标注 → 生成审查意见书保存到工作区，并支持检索历史审查记录\"},{\"type\":\"table\",\"columns\":[\"#\",\"能力（通用描述）\",\"为什么需要\"],\"rows\":[[\"1\",\"解析上传的 .docx 并提取全文（含表格）\",\"docx 是 zip+XML 打包，不解析就读不到合同内容，后续无从谈起\"],[\"2\",\"按条款编号将合同拆分为逐条单元\",\"逐条标注风险的前提，保证输出按条款组织\"],[\"3\",\"逐条法律风险分析（违约金、单方解除权、管辖等）\",\"核心审查能力：判定风险类型、依据与修改建议\"],[\"4\",\"风险分级与汇总统计\",\"意见书需要高/中/低分级与风险分布统计\"],[\"5\",\"持久化审查记录（跨会话存储）\",\"每次审查结果入库，之后可按文件名/日期检索回顾\"],[\"6\",\"导出审查意见书文件并保存到工作区\",\"交付物：Markdown/Word 意见书，可下载\"],[\"7\",\"检索历史审查（按文件名或日期）\",\"复用与回顾，避免重复审查\"],[\"8\",\"工作区文件管理（列出/定位上传文件）\",\"让 agent 能找到用户上传的 docx\"]]},{\"type\":\"steps\",\"items\":[\"上传 docx 合同\",\"解析全文（解包 docx / XML）\",\"按编号拆分条款\",\"逐条风险分析（类型 + 等级 + 建议）\",\"汇总生成审查意见书并保存入库\",\"对话内展示风险清单摘要\"]},{\"type\":\"keyvalue\",\"items\":[[\"review 审查记录\",\"id · 合同文件名 · 审查时间 · 总体结论 · 风险统计\"],[\"risk_item 风险条目\",\"条款号 · 原文摘录 · 风险类型 · 风险等级 · 分析 · 修改建议\"],[\"交互界面\",\"对话内上传 docx 或给出文件路径；输出为保存的意见书文件 + 对话内风险清单\"]]}]}\n```\n\n**审查范围预设**(内置检查清单):违约金过高/双向失衡 · 单方解除权行使条件 · 管辖法院/仲裁约定对己不利 · 付款与交付顺序 · 保密与知识产权归属 · 不可抗力 · 违约责任不对称 · 争议解决费用承担等。\n\n架构如上。请确认或提出修正:\n---\n已确认。现在执行装配第 2 步:把架构需求映射到部件目录。\n---\n目录匹配调用内部出错(未返回 JSON),重试一次:\n---\n目录匹配完成:**6 个零件命中 + 3 项缺口**。装配决策如下:\n\n- **命中零件**:docx 解析(mcp-docx-extract-docx-to-html)、SQLite 持久化与查询(mcp-sqlite-query-*)、文件写入与目录管理(mcp-filesystem-*)、对话前端(frontend-chat-console)\n- **3 项缺口**(条款拆分、法律风险分析、风险分级统计):这三项本质是 LLM 推理能力,将由 persona 约束 agent 自行完成;缺口记入 BOM 生成施工单,目录扩充后重装配会自动感知\n\n现在执行装配第 3 步——发射 preset:\n---\n发射成功(6 零件 + 预建数据库 + 3 份缺件工单)。执行装配第 4 步——独立黑盒验收:\n---\n✅ 装配完成,独立验收 **PASS**。\n\n## 验收结论(如实转述)\n\n**黑盒验收 PASS**(289s,2 轮场景逐轮通过):\n- 第 1 轮:审查一份合同 → 逐条标出风险(违约金/单方解除权/管辖)→ 生成审查意见书保存到工作区、审查记录写入 SQLite ✓\n- 第 2 轮:按记录检索,从 SQLite 取回同一份审查结论(合同编号 BB-CON-7781、违约金比例 30%、意见书文件 bb-hetong-shencha-7781.md 均准确回读)✓\n- 前端验收:页面门 + 环路门 PASS ✓\n\n一点说明:我提交的探针草图未过机械闸(考官按规则自行推导了探针),但验收标准不变,结论有效,已入台账(同字节 7 天内重验自动沿用)。\n\n## Preset 信息\n\n| 项目 | 内容 |\n|---|---|\n| preset | `bb-hetong-shencha` |\n| 文件 | `~/.dsh/.agent-presets/bb-hetong-shencha/agent.cordis.yml` |\n| 前端页面 | http://127.0.0.1:3098/assembler/ui/bb-hetong-shencha |\n| 零件 | docx 解析 · SQLite 存储/查询 · 文件写入/目录管理 · 对话前端(共 6 个) |\n| 数据库 | 预建 `review` + `risk_item` 两表(风险条目挂 review_id,幂等 DDL 双次执行门 PASS) |\n| 输出目录 | 工作区 `审查意见书/`(可通过参数 `review_output_dir` 调整) |\n\n## 如实告知:3 项目录缺口\n\n条款拆分、法律风险分析、风险分级统计这三项能力当前目录里没有对应零件,由 persona 约束 agent 以 LLM 推理完成(已通过验收证明可行)。缺口已作为 3 份施工单写入 `gaps/` 并记入 BOM——将来目录扩充补齐这些零件时,重新装配会自动感知。审查范围按 persona 覆盖:违约金、单方解除权、管辖/争议解决、付款交付、保密、知识产权、不可抗力、违约责任。\n\n**现在就能用**:上传或放置 docx 合同到工作区,让 agent 审查即可;输出为按条款组织的风险清单 + 保存的意见书文件,历史审查可随时检索。",
+  "seconds": 473
+}
