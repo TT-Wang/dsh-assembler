@@ -116,7 +116,7 @@ check('模式矩阵:默认 search(身份裁定)、五形态显式可选、非法
 // ── 承重契约句(改契约掉了哪句立刻红——阶段1 的回归底线)────────────────────
 import('./lib/orchestrated-tools.js').then(() => {})
 const { BASELINE_RULE, MINIMAL_SET_RULE, FRONTEND_FACT, PROBE_SKETCH_EXAMPLES } = await import('./lib/orchestrated-tools.js')
-check('契约钉:基线判据在(LLM 能干的不装 + 10-15 件阈值文献)', BASELINE_RULE.includes('real-world I/O') && BASELINE_RULE.includes('10-15'))
+check('契约钉:基线判据在(能力面 + 10-15 阈值 + 吞吐面"能做≠该走会话")', BASELINE_RULE.includes('real-world I/O') && BASELINE_RULE.includes('10-15') && BASELINE_RULE.includes('能做 ≠ 该走会话') && BASELINE_RULE.includes('ai-thin'))
 check('契约钉:最小覆盖集 + least-privilege 在', MINIMAL_SET_RULE.includes('least privilege') && MINIMAL_SET_RULE.includes('MINIMAL'))
 check('契约钉:前端物理事实在(仅首个模板生效)', FRONTEND_FACT.includes('首个') && FRONTEND_FACT.includes('生效'))
 check('契约钉:出题范例双形状在(scenario+single,token 两轮自足)', PROBE_SKETCH_EXAMPLES.includes('"kind":"scenario"') && PROBE_SKETCH_EXAMPLES.includes('"kind":"single"') && PROBE_SKETCH_EXAMPLES.includes('PO-4471'))

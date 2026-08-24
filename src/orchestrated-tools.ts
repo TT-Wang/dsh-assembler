@@ -99,7 +99,12 @@ export const CONTRACT_TAGS: Record<string, string> = {
 export const BASELINE_RULE =
   'MOUNT-OR-NOT BASELINE: parts exist for real-world I/O (files, network, processes, persistence) and hard deterministic computation. '
   + 'What the delivered agent\'s own LLM does reliably (date arithmetic, formatting, text transformation, simple parsing) needs NO part — '
-  + 'mounting one anyway is over-privilege, and research shows accuracy measurably degrades past ~10-15 mounted tools (tool-name confusion).'
+  + 'mounting one anyway is over-privilege, and research shows accuracy measurably degrades past ~10-15 mounted tools (tool-name confusion). '
+  + 'BUT: **能做 ≠ 该走会话**. If a judgment is BULK or HIGH-FREQUENCY — translating every paragraph of a chapter, classifying every row on '
+  + 'entry, summarising on each page load — routing it through conversation turns makes the product unusable (measured 2026-08-25: a '
+  + 'bilingual reader translated chapters through chat turns; the user\'s verdict was 完全不好用). Mount ai-call so the page can call the '
+  + 'AI service face directly (route ai-thin: one completion, no session), and let the page cache the result. The baseline rule is about '
+  + 'CAPABILITY, this one is about THROUGHPUT — both must hold.'
 
 /** 最小覆盖集:从 match prompt 移植出来的那条纪律,现在住在检索/发射契约里。 */
 export const MINIMAL_SET_RULE =

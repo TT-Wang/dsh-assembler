@@ -17,7 +17,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { resolve, dirname, sep, basename } from 'node:path';
+import { resolve, dirname, sep, basename, join } from 'node:path';
 import AdmZip from 'adm-zip';
 import * as cheerio from 'cheerio';
 import iconv from 'iconv-lite';
@@ -66,6 +66,17 @@ const httpServer = createServer((req, res) => {
 httpServer.listen(0, '127.0.0.1');
 httpServer.unref(); // 质检门契约:stdio 关闭进程必须退场,常驻监听不得钉住进程
 const httpPort = await new Promise((r) => httpServer.once('listening', () => r(httpServer.address().port)));
+
+// 端点档案:与其余带脸零件同款——页面经 host 的 /.service 路由零轮次发现本脸。
+// 病史:本件此前只用 upload-info 工具通告地址,页面为拿一个 URL 要先跟模型对一轮
+// (实测:双语读书助手每次上传都白付一轮会话)。写进档案后 SDK 的 face('book')
+// 直接取用。
+try {
+	const svcPath = join(PART_WORKDIR, '.service.json');
+	const existing = existsSync(svcPath) ? JSON.parse(readFileSync(svcPath, 'utf8')) : {};
+	existing.book = { url: `http://127.0.0.1:${httpPort}`, uploadPath: '/upload?filename=', dir: UPLOADS_DIR, pid: process.pid, startedAt: new Date().toISOString() };
+	writeFileSync(svcPath, JSON.stringify(existing, null, 2));
+} catch { /* 档案写不进不拦工具面 */ }
 
 /* ── MCP 工具 ─────────────────────────────────────────────────────────── */
 const server = new McpServer({ name: 'book-intake', version: '0.0.1' });
