@@ -1,0 +1,93 @@
+{
+  "id": "A2",
+  "tier": "A",
+  "name": "个人记账台",
+  "lane": "preset-only",
+  "checks": [
+    {
+      "name": "形态路由",
+      "ok": false,
+      "detail": "实得 preset-only,预期 recipe"
+    },
+    {
+      "name": "用对配方",
+      "ok": false,
+      "detail": "实得 null,预期 record-desk"
+    },
+    {
+      "name": "未写页(应零写码)",
+      "ok": true,
+      "detail": "写了 0 张页"
+    },
+    {
+      "name": "调了考官",
+      "ok": true,
+      "detail": "轨迹:verify_preset"
+    },
+    {
+      "name": "交付可达",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "资产全通",
+      "ok": true,
+      "detail": "全通"
+    },
+    {
+      "name": "自述判定",
+      "ok": true,
+      "detail": "PASS"
+    }
+  ],
+  "passed": 5,
+  "total": 7,
+  "verdict": "FAIL",
+  "elapsedSeconds": 102,
+  "tools": [
+    "ask_user_question",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "todo_write",
+    "emit_preset",
+    "verify_preset",
+    "todo_write"
+  ],
+  "usage": {
+    "input": 0,
+    "output": 0
+  },
+  "audit": {
+    "presetName": "g-a2-ledger",
+    "presetEmitted": true,
+    "apps": [],
+    "appEmitted": false,
+    "recipes": [],
+    "pagesWritten": 0,
+    "routes": {
+      "face": 0,
+      "wire": 0,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "sqlite-query",
+      "frontend-data-desk"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null
+  },
+  "sessionId": "session-7a4c18cd-761d-4eb8-b99e-c80928fadba7",
+  "questionTexts": [
+    "[{\"id\":\"approve-arch\",\"question\":\"按上面的架构装配 g-a2-ledger(预设 + 记账网页 + SQLite 一本账)吗?\",\"header\":\"确认装配方案\",\"options\":[{\"label\":\"按此装配(推荐)\",\"description\":\"预设双面交付:网页录入看台账 + 对话随手记/查账,数据落 SQLite\"},{\"label\":\"网页为主,对话口可省\",\"description\":\"更看重页面形态,装配会更简单\"},{\"label\":\"对话为主,网页可省\",\"description\":\"只留对话口记账查账,不建网页\"},{\"label\":\"我要调整\",\"description\":\"在回复里说明想改哪里(比如加编辑/删除)\"}]}]"
+  ],
+  "finalText": "✅ **g-a2-ledger 装配完成,验收 PASS**\n\n**验收证据**(19s,两轮场景探针逐轮通过):\n- 第 1 轮:记一笔\"午饭支出 32 元·餐饮·备注 TRAKT-1129\" → 落库 ✓\n- 第 2 轮:只凭备注 token 查账 → 报出金额 **32**、分类 **餐饮**(真从库里取回,不是复述)✓\n- 前端验收:页面门 + 环路门 PASS ✓\n\n**交付形态(双面共一账)**:\n\n| 入口 | 用法 |\n|---|---|\n| 📄 网页 | http://127.0.0.1:3097/assembler/ui/g-a2-ledger — 一句话记一笔 + 查询/汇总按钮,台账自动渲染成表 |\n| 💬 对话口 | 说\"记一笔:昨天买咖啡 28,餐饮\"或\"这个月餐饮花了多少\",agent 解析落库/查账汇总 |\n\n**底层**:SQLite `ledger` 表(id / kind 收入支出 / amount / category / note / book_date / created_at),日期、分类建索引;挂载 3 个 sqlite 工具零件 + data-desk 前端模板,无缺口。\n\n**两点说明**:\n- 首版只记只查,不做修改/删除(装配时定的边界);要加编辑、删除或导出,跟我说,重发 preset 即可(不能手改文件)。\n- `service-info`(网页直连端点)探针未动用——它是页面直连服务脸的备用通道,成本极低,我保留着;如果你觉得多余,也可以去掉。\n\n直接在网页或这里开聊就能记账了。",
+  "regradedAt": "2026-08-24T13:39:32.296Z",
+  "previous": {
+    "verdict": "FAIL",
+    "lane": "preset-only",
+    "passed": 5
+  }
+}

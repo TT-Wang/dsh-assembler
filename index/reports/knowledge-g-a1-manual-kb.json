@@ -1,0 +1,51 @@
+{
+  "id": "g-a1-manual-kb",
+  "kind": "knowledge",
+  "verifiedAt": "2026-08-24T11:55:10.985Z",
+  "probes": [
+    {
+      "question": "星轨 X1 的保修期多长?",
+      "hits": [
+        {
+          "mark": "十八个月",
+          "found": true,
+          "in": "产品手册.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "换芯后如何复位计数器?",
+      "hits": [
+        {
+          "mark": "长按机身「冲洗」键 5 秒复位计数器",
+          "found": true,
+          "in": "产品手册.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "出水变慢怎么处理?",
+      "hits": [
+        {
+          "mark": "多为 PP 棉堵塞,先换前置滤芯",
+          "found": true,
+          "in": "产品手册.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "持续报警红灯是什么原因?",
+      "hits": [
+        {
+          "mark": "水压不足,检查进水阀是否全开",
+          "found": true,
+          "in": "产品手册.md"
+        }
+      ],
+      "pass": true
+    }
+  ]
+}

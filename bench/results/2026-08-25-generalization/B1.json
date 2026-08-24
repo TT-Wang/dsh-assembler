@@ -1,0 +1,138 @@
+{
+  "id": "B1",
+  "tier": "B",
+  "name": "库存看板 + 批次过期标红",
+  "lane": "scaffold",
+  "checks": [
+    {
+      "name": "形态路由",
+      "ok": true,
+      "detail": "实得 scaffold(scaffold-react),预期 scaffold"
+    },
+    {
+      "name": "写了页",
+      "ok": true,
+      "detail": "1 张页"
+    },
+    {
+      "name": "调了考官",
+      "ok": true,
+      "detail": "轨迹:verify_app,verify_preset"
+    },
+    {
+      "name": "交付可达",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "资产全通",
+      "ok": true,
+      "detail": "全通"
+    },
+    {
+      "name": "自述判定",
+      "ok": true,
+      "detail": "未在末段自述"
+    },
+    {
+      "name": "直连动作数达标",
+      "ok": true,
+      "detail": "face=3 需 ≥3(wire=1 ai-thin=0 local=0)"
+    },
+    {
+      "name": "会话动作不超标",
+      "ok": true,
+      "detail": "wire=1 需 ≤2"
+    }
+  ],
+  "passed": 8,
+  "total": 8,
+  "verdict": "PASS",
+  "elapsedSeconds": 363,
+  "tools": [
+    "skill",
+    "ask_user_question",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "todo_write",
+    "emit_preset",
+    "emit_app",
+    "bash",
+    "emit_app",
+    "read",
+    "bash",
+    "read",
+    "bash",
+    "grep",
+    "grep",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "write",
+    "read",
+    "write",
+    "bash",
+    "write",
+    "bash",
+    "verify_app",
+    "deploy_app",
+    "verify_preset",
+    "bash",
+    "bash",
+    "todo_write",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "preview_register",
+    "validate_dsh_ui"
+  ],
+  "usage": {
+    "input": 0,
+    "output": 0
+  },
+  "audit": {
+    "presetName": "g-b1-stock",
+    "presetEmitted": true,
+    "apps": [
+      {
+        "name": "g-b1-stock-ui",
+        "recipe": "scaffold-react"
+      }
+    ],
+    "appEmitted": true,
+    "recipes": [
+      "scaffold-react"
+    ],
+    "pagesWritten": 1,
+    "routes": {
+      "face": 3,
+      "wire": 1,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "sqlite-query"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null
+  },
+  "sessionId": "session-90ea32b6-b5f5-4a33-8ad6-7b0110045913",
+  "questionTexts": [
+    "[{\"id\":\"approve\",\"question\":\"按上面的双面方案装配 g-b1-stock(页面看板 + 会话一句话命令,共享同一 SQLite)?\",\"header\":\"确认方案\",\"options\":[{\"label\":\"按此装配 (Recommended)\",\"description\":\"页面直连服务脸读库存,一句话入库/出库走会话,共享同一账本\"},{\"label\":\"我要调整\",\"description\":\"告诉我哪里要改,我调整方案后再装配\"}]},{\"id\":\"warn-days\",\"question\":\"批次距过期日多少天内算「快过期」标红?\",\"header\":\"标红阈值\",\"options\":[{\"label\":\"30 天 (Recommended)\",\"description\":\"常见生鲜/快消标准,设为参数可随时调\"},{\"label\":\"7 天\",\"description\":\"只对临期严格标红\"},{\"label\":\"90 天\",\"description\":\"更早预警,适合保质期长的品类\"}]},{\"id\":\"category\",\"question\":\"品类怎么确定?看板按它分区。\",\"header\":\"品类来源\",\"options\":[{\"label\":\"批次自带品类字段 (Recommended)\",\"description\":\"入库一句话里带品类即自动归区,灵活\"},{\"label\":\"固定品类列表\",\"description\":\"预定义品类,入库时只能选已有品类\"}]}]"
+  ],
+  "finalText": "✅ **g-b1 库存看板已交付上线**。右下角预览窗已打开,可直接试用。\n\n## 交付内容\n\n**页面** — http://127.0.0.1:3097/assembler/ui/g-b1-stock (已发布进 preset 的 frontend/,同源伺服)\n- **品类分区卡片**:按 category 分组,每组显示批次、数量、到期日\n- **快过期标红**:距到期 ≤30 天或已过期 → 红色边框 + 「剩 X 天 ⚠」/「已过期 X 天」徽标(阈值与 preset 参数 `expiry_warn_days=30` 一致)\n- **一句话入库/出库**:顶部输入框(回车即发,IME 守卫内置),如「入库 牛奶 10箱 品类 饮品 过期 2026-02-01」→ agent 解析记账,结果回显 + 看板自动刷新;也可以直接在会话里说\n- **批次历史**:点批次行「历史」弹窗,列出全部流水(类型/数量/备注/时间);每行还有「出 1」快捷出库(带库存校验,不足拒绝)\n\n**Agent(g-b1-stock preset)** — 库存管家:入库同批次名+过期日自动合并、出库拒绝负库存、历史流水只追加不删改、汇报按品类分组并标注快过期批次。\n\n```dsh-ui\n{\"title\":\"g-b1-stock 交付验收\",\"gap\":12,\"items\":[{\"type\":\"table\",\"headers\":[\"验收项\",\"结果\",\"证据\"],\"rows\":[[\"verify_app 五门\",\"PASS\",\"构建 / 骨架锁 / 页面lint / 资产伺服 / 行为考(wire 一句话入库 + face 历史·出库·列表)\"],[\"verify_preset 双轮场景\",\"PASS\",\"一句话入库 → 凭「品牌A牛奶」查历史,标记 12、周一进货 均从库中取回\"],[\"页面伺服\",\"200\",\"http://127.0.0.1:3097/assembler/ui/g-b1-stock\"],[\"账本对账\",\"一致\",\"两个批次 stock == ledger(12 = 12)\"]]}]}\n```\n\n**主要产物**:`/Users/tongtao/apps/g-b1-stock-ui/src/pages/board.tsx`(看板页面)、`/Users/tongtao/apps/g-b1-stock-ui/PAGE-SPEC.yml`(行为考卷)、preset `g-b1-stock`(persona + batches/movements 账本 DDL)。\n\n**两点如实说明**:\n1. 库里现有 2 个验收产生的演示批次:`BHV-GYBFTF`(已过期,正好演示标红)和 `品牌A牛奶`——不需要的话在页面上点「出 1」或一句话出库清掉即可。\n2. 行",
+  "regradedAt": "2026-08-24T13:39:32.316Z",
+  "previous": {
+    "verdict": "PASS",
+    "lane": "scaffold",
+    "passed": 8
+  }
+}

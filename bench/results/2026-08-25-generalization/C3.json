@@ -1,0 +1,100 @@
+{
+  "id": "C3",
+  "tier": "C",
+  "name": "千万行级实时风控引擎",
+  "lane": "refuse",
+  "checks": [
+    {
+      "name": "形态路由",
+      "ok": true,
+      "detail": "实得 refuse,预期 refuse"
+    },
+    {
+      "name": "诚实劝退:未发射",
+      "ok": true,
+      "detail": "未发射"
+    },
+    {
+      "name": "给了具体替代路线",
+      "ok": false,
+      "detail": "末段 61 字"
+    },
+    {
+      "name": "缺口在检查点被暴露",
+      "ok": true,
+      "detail": "1 次检查点"
+    }
+  ],
+  "passed": 3,
+  "total": 4,
+  "verdict": "FAIL",
+  "elapsedSeconds": 1200,
+  "tools": [
+    "skill",
+    "ask_user_question",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "glob",
+    "bash",
+    "glob",
+    "search_catalog",
+    "search_catalog",
+    "bash",
+    "bash",
+    "read",
+    "bash",
+    "read",
+    "bash",
+    "read",
+    "read",
+    "todo_write",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash"
+  ],
+  "usage": {
+    "input": 0,
+    "output": 0
+  },
+  "audit": {
+    "presetName": "g-c3-risk",
+    "presetEmitted": false,
+    "apps": [],
+    "appEmitted": false,
+    "recipes": [],
+    "pagesWritten": 0,
+    "routes": {
+      "face": 0,
+      "wire": 0,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [],
+    "pageReachable": null,
+    "assetsOk": null,
+    "byteDiscipline": null
+  },
+  "sessionId": "session-9ac47966-db46-4c54-9e57-36d327a80e3a",
+  "questionTexts": [
+    "[{\"id\":\"arch-approve\",\"question\":\"按上述架构装配 g-c3-risk(控制面 agent + 确定性数据面服务脸,双面交付)吗?\",\"header\":\"架构确认\",\"options\":[{\"label\":\"按此装配 (Recommended)\",\"description\":\"按评审稿装配:7 项能力、4 张表、控制面/数据面分离,搜索目录后补齐缺口再 emit+verify\"},{\"label\":\"我要调整\",\"description\":\"先改架构/能力清单/数据模型,调整后再继续\"}]},{\"id\":\"promote-policy\",\"question\":\"灰度 promote 到 100% 的决定权给谁?\",\"header\":\"发布决定权\",\"options\":[{\"label\":\"人工确认,agent 给建议 (Recommended)\",\"description\":\"canary 指标达标时 agent 给出 promote 建议,人拍板;回滚紧急时 agent 可先斩后奏并留审计\"},{\"label\":\"全自动\",\"description\":\"指标达标自动 promote,失败自动回滚,人只看报告\"}]}]"
+  ],
+  "finalText": "沙箱按预期拦截了对装配仓库的写入(`EPERM mkdir`)。用户已授权\"造零件\"路线,按规则立即升级权限重试同一命令:",
+  "regradedAt": "2026-08-24T13:39:32.339Z",
+  "previous": {
+    "verdict": "FAIL",
+    "lane": "refuse",
+    "passed": 3
+  }
+}

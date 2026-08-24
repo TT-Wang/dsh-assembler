@@ -1,0 +1,129 @@
+{
+  "id": "B2",
+  "tier": "B",
+  "name": "客服工单台 + SLA 倒计时",
+  "lane": "scaffold",
+  "checks": [
+    {
+      "name": "形态路由",
+      "ok": true,
+      "detail": "实得 scaffold(scaffold-react),预期 scaffold"
+    },
+    {
+      "name": "写了页",
+      "ok": true,
+      "detail": "1 张页"
+    },
+    {
+      "name": "调了考官",
+      "ok": true,
+      "detail": "轨迹:verify_preset,verify_app,verify_app"
+    },
+    {
+      "name": "交付可达",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "资产全通",
+      "ok": true,
+      "detail": "全通"
+    },
+    {
+      "name": "自述判定",
+      "ok": true,
+      "detail": "未在末段自述"
+    },
+    {
+      "name": "直连动作数达标",
+      "ok": true,
+      "detail": "face=5 需 ≥3(wire=1 ai-thin=0 local=0)"
+    },
+    {
+      "name": "会话动作不超标",
+      "ok": true,
+      "detail": "wire=1 需 ≤2"
+    }
+  ],
+  "passed": 8,
+  "total": 8,
+  "verdict": "PASS",
+  "elapsedSeconds": 287,
+  "tools": [
+    "skill",
+    "bash",
+    "ask_user_question",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "read",
+    "bash",
+    "bash",
+    "bash",
+    "search_catalog",
+    "emit_preset",
+    "verify_preset",
+    "emit_app",
+    "emit_app",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "write",
+    "read",
+    "write",
+    "write",
+    "verify_app",
+    "verify_app",
+    "deploy_app",
+    "bash",
+    "preview_register"
+  ],
+  "usage": {
+    "input": 0,
+    "output": 0
+  },
+  "audit": {
+    "presetName": "g-b2-ticket",
+    "presetEmitted": true,
+    "apps": [
+      {
+        "name": "g-b2-ticket-ui",
+        "recipe": "scaffold-react"
+      }
+    ],
+    "appEmitted": true,
+    "recipes": [
+      "scaffold-react"
+    ],
+    "pagesWritten": 1,
+    "routes": {
+      "face": 5,
+      "wire": 1,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "sqlite-query"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null
+  },
+  "sessionId": "session-24ba0c1c-7fe2-4a73-84fa-6aa9313677d5",
+  "questionTexts": [
+    "[{\"id\":\"arch-approve\",\"question\":\"按这个架构装配 g-b2-ticket(preset + ~/apps/g-b2-ticket-ui 前端)?SLA 规则默认 P0=4h/P1=8h/P2=24h/P3=72h,可改。\",\"header\":\"确认装配\",\"options\":[{\"label\":\"按此装配(推荐)\",\"description\":\"SQLite 工单表 + HTTP 服务脸 + 前端页面,转派/关单/新建全闭环\"},{\"label\":\"我要调整\",\"description\":\"告诉我哪部分要改(如 SLA 时长、字段、交互方式)\"}]}]"
+  ],
+  "finalText": "全部完成,整条链路已验证上线 ✅\n\n## 交付总结\n\n**🖥️ 页面:http://127.0.0.1:3097/assembler/ui/g-b2-ticket**(右下角预览已打开,可直接点用)\n\n**功能对照**\n- **新建工单**:标题 / 客户 / 优先级(P0~P3)+ 可选受理人;按 `P0=4h / P1=8h / P2=24h / P3=72h` 自动算好 SLA 截止时间入库\n- **列表剩余 SLA**:每行实时显示「剩余 Xh Ym」(不足 2h 变黄、超时变红显示「已超时」),每 30 秒自动刷新;顶部有超时计数徽章\n- **转派**:每行「转派」按钮 → 填新受理人 → 状态变「已转派」\n- **关单**:每行「关单」按钮(带确认)→ 状态变「已关闭」并记录 closed_at\n- 附赠:状态筛选 Tab、工单统计徽章、「SLA 盘点」按钮(对话面 agent 挑出最接近超时的工单给跟进建议)\n\n**装配与验收证据**\n| 环节 | 结果 |\n|---|---|\n| preset `g-b2-ticket`(sqlite 工单表 + 服务脸,最小零件集 3 件) | verify_preset **PASS**:建单 TK-7781 → 按单号取回客户/优先级/SLA 时长,2 轮全过 |\n| 前端 `~/apps/g-b2-ticket-ui`(scaffold-react 骨架 + 我写的 `src/pages/tickets.tsx` 与 `PAGE-SPEC.yml`) | verify_app **PASS**:构建 / 骨架锁 / 页面 lint / 资产可达 / 行为考(列出·新建·转派·关单·统计·SLA 盘点 六动作全过) |\n| 发布 `dist → preset/frontend/` | 页面 HTTP 200,服务脸在线(`/.service` 返回 sqlite 端点) |\n\n**说明**:首次 verify 因 wire 会话端口起不来失败一次,去掉 wirePort 重验后 wire 考照常通过;对话面(转派/建单也可直接对 agent 说)由 verify_preset 的会话考覆盖。改页面源码后重新 `verify_app` + `deploy_app` 即可更新。",
+  "regradedAt": "2026-08-24T13:39:32.326Z",
+  "previous": {
+    "verdict": "PASS",
+    "lane": "scaffold",
+    "passed": 8
+  }
+}

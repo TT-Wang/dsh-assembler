@@ -1,0 +1,93 @@
+{
+  "id": "C2",
+  "tier": "C",
+  "name": "手机原生 app + 推送",
+  "lane": "preset-only",
+  "checks": [
+    {
+      "name": "形态路由",
+      "ok": false,
+      "detail": "实得 preset-only,预期 refuse"
+    },
+    {
+      "name": "诚实劝退:未发射",
+      "ok": false,
+      "detail": "却发射了 preset"
+    },
+    {
+      "name": "给了具体替代路线",
+      "ok": true,
+      "detail": "末段 588 字"
+    },
+    {
+      "name": "缺口在检查点被暴露",
+      "ok": true,
+      "detail": "1 次检查点"
+    }
+  ],
+  "passed": 2,
+  "total": 4,
+  "verdict": "FAIL",
+  "elapsedSeconds": 413,
+  "tools": [
+    "skill",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "ask_user_question",
+    "todo_write",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "write",
+    "write",
+    "write",
+    "emit_preset",
+    "todo_write",
+    "verify_preset",
+    "subagent",
+    "subagent",
+    "write",
+    "write",
+    "write",
+    "write",
+    "todo_write"
+  ],
+  "usage": {
+    "input": 0,
+    "output": 0
+  },
+  "audit": {
+    "presetName": "g-c2-mobile",
+    "presetEmitted": true,
+    "apps": [],
+    "appEmitted": false,
+    "recipes": [],
+    "pagesWritten": 0,
+    "routes": {
+      "face": 0,
+      "wire": 0,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "sqlite-query",
+      "http-request",
+      "frontend-dashboard"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null
+  },
+  "sessionId": "session-5b029038-5433-482a-9d43-030cb53b63f1",
+  "questionTexts": [
+    "[{\"id\":\"lane\",\"question\":\"原生 App + 上架这件事,preset 机制只能覆盖「云端后端」这一半;手机端工程需要直接写代码,上架需要你本人的开发者账号执行。你选哪条路?\",\"header\":\"交付方式\",\"options\":[{\"label\":\"混合交付(Recommended)\",\"description\":\"preset g-c2-mobile 做推送+离线同步后端与运维台,我同时在工作区写 iOS(SwiftUI)和 Android(Kotlin)两套原生工程骨架+上架清单文档;你在 Xcode/Android Studio 里构建、签名、提交。\"},{\"label\":\"只做后端 preset\",\"description\":\"只装配 g-c2-mobile 作为后端/运维台(设备注册、推送派发、离线同步 API),原生工程你自己或另找人写。\"},{\"label\":\"不要 preset\",\"description\":\"跳过 preset 机制,我直接在工作区写两套原生工程 + 后端 API 设计文档,后端你用自己的服务器部署。\"}]},{\"id\":\"push_scope\",\"question\":\"推送功能按什么规模做?(影响后端数据模型和 App 端代码量)\",\"header\":\"推送范围\",\"options\":[{\"label\":\"全量广播(Recommended)\",\"description\":\"所有注册设备接收同一条推送,数据模型最简单,先跑通闭环,以后可扩展。\"},{\"label\":\"按标签分组\",\"description\":\"设备可打标签(如 iOS/Android、地区、版本),按标签定向推送,数据模型稍复杂。\"},{\"label\":\"按用户定向\",\"description\":\"每台设备绑定用户 ID,单用户定向推送,需要用户体系。\"}]}]"
+  ],
+  "finalText": "当前进度小结(两个子代理还在后台写工程,完成后我会继续):\n\n**已交付 ✅**\n- **后端 preset `g-c2-mobile`** — 装配完成,独立验收 **PASS**(设备注册→sync_ledger→推送记录→按标识检索,2 轮全过;前端页面门+环路门 PASS)。运维台:**http://127.0.0.1:3097/assembler/ui/g-c2-mobile**\n- **契约与文档** — `docs/API.md`(后端↔App 契约 v1)、`plan/SEAMS.md`(接缝决策)、`SOURCING.md`、`MAP.md`、`docs/RUNBOOK-BACKEND.md`(部署+FCM 接通)、`docs/RUNBOOK-STORE.md`(双商店上架清单)、总 `README.md`\n\n**进行中 🔧**\n- iOS(SwiftUI + FirebaseMessaging,离线缓存 + 同步引擎)与 Android(Kotlin/Compose + Room + WorkManager)两个原生工程由子代理并行编写中。\n\n**边界(不变)** — 双端代码本环境无法编译,构建验证在你机器上做;真实推送需要你配 Firebase 凭据(未配→入队不发出);上架由你按清单执行。子代理一回来我就做代码抽查并给你最终报告。",
+  "regradedAt": "2026-08-24T13:39:32.338Z",
+  "previous": {
+    "verdict": "FAIL",
+    "lane": "preset-only",
+    "passed": 2
+  }
+}
