@@ -1,0 +1,11 @@
+{ "id": "im-bot", "pkg": null, "version": "0.0.1", "kind": "service",
+  "service": "企业微信/钉钉/飞书 群机器人 webhook", "provider": "腾讯 / 阿里 / 字节(各自开放平台)",
+  "terms": "各家群机器人使用条款(频率限制通常 20 条/分钟)", "rateLimit": "按各家群机器人限制",
+  "license": "BSD-3-Clause", "network": true,
+  "requiredSecrets": [
+    { "env": "WECOM_WEBHOOK", "purpose": "企业微信群机器人 webhook URL", "optional": true },
+    { "env": "DINGTALK_WEBHOOK", "purpose": "钉钉群机器人 webhook URL", "optional": true },
+    { "env": "DINGTALK_SECRET", "purpose": "钉钉加签密钥(开启加签时)", "optional": true },
+    { "env": "FEISHU_WEBHOOK", "purpose": "飞书群机器人 webhook URL", "optional": true }
+  ],
+  "scaffoldedAt": "2026-08-25T13:35:00.000Z" }

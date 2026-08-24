@@ -1,0 +1,20 @@
+{
+  "id": "route-plan",
+  "verifiedAt": "2026-08-24T09:41:02.394Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "route-info",
+      "description": "报告当前 OSRM 端点与可用出行方式(driving/walking/cycling)。坐标一律 [经度, 纬度](与 geocode 零件的输出顺序一致)。"
+    },
+    {
+      "name": "plan-route",
+      "description": "规划一条经过若干点的路线,返回总距离(米)、总时长(秒)与分段转向指引。坐标 [经度, 纬度],2..25 个点。"
+    },
+    {
+      "name": "travel-matrix",
+      "description": "多点之间的行程时长/距离矩阵(排班、就近派单、路线取舍用)。坐标 [经度, 纬度],2..12 个点。"
+    }
+  ]
+}

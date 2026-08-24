@@ -381,6 +381,26 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   check('adopt:入口指向包内 bin(不是自造 index.js)', JSON.stringify((cat4['mcp-servers'] ?? {})['kg-memory'] ?? {}).includes('node_modules/@modelcontextprotocol/server-memory'))
 }
 
+
+// ── 采购批(2026-08-25):目录出处 + 服务脸声明 + 凭证声明 ────────────────────
+{
+  const cat5 = (await import('./lib/index.js')).loadCatalog('capabilities.yml')
+  const servers5 = cat5['mcp-servers'] ?? {}
+  const NEW = ['speech-io', 'vector-store', 'embed-text', 'translate-text', 'route-plan', 'im-bot', 'object-store']
+  check('采购批:7 件全部登记进联邦面', NEW.every((k) => servers5[k] !== undefined), NEW.filter((k) => servers5[k] === undefined).join(','))
+  check('采购批:该长服务脸的两件声明了(音频/向量),该单脸的没乱长', servers5['speech-io']?.serviceAnnounce === 'speech-info' && servers5['vector-store']?.serviceAnnounce === 'vector-info' && servers5['translate-text']?.serviceAnnounce === undefined && servers5['route-plan']?.serviceAnnounce === undefined)
+  const secretOf = (k) => (servers5[k]?.requiredSecrets ?? []).map((x) => x.env)
+  check('采购批:凭证只声明名字(值不进目录)', secretOf('object-store').includes('S3_ACCESS_KEY') && secretOf('im-bot').includes('WECOM_WEBHOOK') && secretOf('embed-text').includes('EMBED_API_KEY') && !JSON.stringify(servers5).includes('sk-'))
+  check('采购批:零凭证件不声明凭证(translate/route/vector 干净)', ['translate-text', 'route-plan', 'vector-store'].every((k) => secretOf(k).length === 0))
+  const catalogText5 = (await import('node:fs')).readFileSync('index/catalog.yml', 'utf8')
+  check('采购批:服务型出处带条款与速率(供应链诚实)', /- id: translate-text\n  kind: service\n[\s\S]*?terms: "https:\/\/mymemory/.test(catalogText5) && /- id: route-plan\n  kind: service\n[\s\S]*?Api-usage-policy/.test(catalogText5))
+  // 检索可见性:mcp 件的能力条目由装配时的联邦实探生成(federateMcpTools),
+  // 不落静态 capabilities.yml——这里验"联邦所需的两件事都在":连接配置 + 目录
+  // 里登记的工具清单(带描述,检索靠它)。
+  const toolsOf = (id) => { const m = new RegExp(`- id: ${id}\\n(?:  .*\\n)*?  tools:\\n((?:    - .*\\n)+)`).exec(catalogText5); return m === null ? [] : m[1].trim().split('\n') }
+  check('采购批:目录登记了工具清单(联邦检索的素材)', toolsOf('speech-io').length === 4 && toolsOf('speech-io').some((l) => l.includes('speak')) && toolsOf('vector-store').length === 4)
+}
+
 if (failures > 0) {
   console.error(`\ntests-orchestrated: ${failures} failure(s)`)
   process.exit(1)

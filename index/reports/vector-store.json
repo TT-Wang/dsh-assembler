@@ -1,0 +1,24 @@
+{
+  "id": "vector-store",
+  "verifiedAt": "2026-08-24T09:40:53.020Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "vector-info",
+      "description": "向量库直连端点(服务脸)与各集合概况。页面可经 POST /search 直接做语义检索(拿到查询向量后),不必开会话。"
+    },
+    {
+      "name": "vector-add",
+      "description": "把若干条(id + 向量 + 可选原文/元数据)写入集合;同 id 覆盖(幂等重灌)。向量由 embed-text 零件或任何嵌入服务产出——本零件不负责生成向量。"
+    },
+    {
+      "name": "vector-search",
+      "description": "按查询向量做余弦相似检索,返回 topK 命中(id/score/原文/元数据;不回原向量)。维度不匹配会明确报错而不是给出无意义的分数。"
+    },
+    {
+      "name": "vector-delete",
+      "description": "按 id 删除条目,或整集合删除(dropCollection=true)。"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "embed-text",
+  "verifiedAt": "2026-08-24T09:40:53.831Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "embed-info",
+      "description": "报告当前嵌入端点、模型与凭证状态(不回显密钥值)。装配前用它确认\"接口是否就位\"。"
+    },
+    {
+      "name": "embed-texts",
+      "description": "把若干段文本转成向量(OpenAI 兼容 /embeddings)。返回每段的向量与维度——直接可喂 vector-store 的 vector-add。凭证走进程环境 EMBED_API_KEY,不经参数。"
+    }
+  ]
+}

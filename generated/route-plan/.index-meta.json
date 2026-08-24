@@ -1,0 +1,5 @@
+{ "id": "route-plan", "pkg": null, "version": "0.0.1", "kind": "service",
+  "service": "https://router.project-osrm.org", "provider": "Project OSRM(公共演示实例)",
+  "terms": "https://github.com/Project-OSRM/osrm-backend/wiki/Api-usage-policy(演示实例仅供轻量使用;生产请自建,OSRM_BASE 可切)",
+  "rateLimit": "演示实例自律使用,重载请自建实例", "license": "BSD-3-Clause", "network": true,
+  "scaffoldedAt": "2026-08-25T13:30:00.000Z" }

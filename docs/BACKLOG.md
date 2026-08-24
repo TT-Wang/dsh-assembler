@@ -60,9 +60,17 @@
       ——装包锁实际版本 → 找包内 bin → **独立实探 listTools + 真调一发**(报错即拒)
       → 出处链(adopted/pkg/rev/repo/license)→ register 直接可用。首收
       `kg-memory`(官方知识图谱 server,9 工具,v2026.7.4)。
-- [ ] 头部缺件按序采购:**TTS/ASR** → **embedding+向量检索**(兼作目录规模化前置)
-      → **S3 兼容对象存储** → **日历写入** → **企微/钉钉**(国内交付刚需)→ **翻译**
-      → Notion/飞书文档写。每件走"采→转→造"三级,能采不造。
+- [x] **头部缺件采购完成**(2026-08-25,7 件入库,`bench/verify-faces.mjs` 按脸
+      验收 12/12):`speech-io`(TTS 零凭证真出音频 + ASR 凭证契约 + 服务脸传字节)·
+      `vector-store`(本地向量索引,跨进程持久,服务脸零模型语义搜索)· `embed-text`
+      (OpenAI 兼容嵌入,凭证契约)· `translate-text`(MyMemory 免费,真调双向)·
+      `route-plan`(OSRM 真调,北京→天津 125km 量级正确)· `im-bot`(企微/钉钉/飞书
+      群机器人,mock 真推 + 钉钉加签)· `object-store`(S3 兼容,presign 直取,
+      凭证契约含"半配置也拒")。**采-vs-造 诚实记录**:npm 上这批缺件没有可采的
+      成品 MCP server(TTS 只有库、IM 只有需凭证的第三方件),故走"造";
+      `node-edge-tts`(库)与 `minio`(库)是借来的实现,出处已入 BOM。
+- [ ] 下一批候选:日历写入(CalDAV)· Notion/飞书文档写 · 快递物流 · A股行情
+      (前两者需凭证,后两者上游质量待评估)。
 
 ## P5|产品体验与迭代回路
 

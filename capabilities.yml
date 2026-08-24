@@ -518,6 +518,58 @@ mcp-servers:
     command: node
     args: ["/Users/tongtao/code/dsh-assembler/generated/kg-memory/node_modules/@modelcontextprotocol/server-memory/dist/index.js"]
 
+  speech-io:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/speech-io/index.js"]
+    requiredSecrets:
+      - { env: "SPEECH_API_KEY", purpose: "语音转文本(transcribe);TTS 不需要" }
+    # 语音服务脸:GET /speak 直回 mp3 字节、POST /transcribe 直传录音——音频不过模型。
+    serviceAnnounce: speech-info
+
+  vector-store:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/vector-store/index.js"]
+    # 向量库服务脸:页面可直接做语义检索(POST /search),确定性流不开会话。
+    serviceAnnounce: vector-info
+
+  embed-text:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/embed-text/index.js"]
+    requiredSecrets:
+      - { env: "EMBED_API_KEY", purpose: "文本嵌入调用" }
+
+  translate-text:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/translate-text/index.js"]
+
+  route-plan:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/route-plan/index.js"]
+
+  im-bot:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/im-bot/index.js"]
+    requiredSecrets:
+      - { env: "WECOM_WEBHOOK", purpose: "企业微信群机器人 webhook URL" }
+      - { env: "DINGTALK_WEBHOOK", purpose: "钉钉群机器人 webhook URL" }
+      - { env: "DINGTALK_SECRET", purpose: "钉钉加签密钥(开启加签时)" }
+      - { env: "FEISHU_WEBHOOK", purpose: "飞书群机器人 webhook URL" }
+
+  object-store:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/object-store/index.js"]
+    requiredSecrets:
+      - { env: "S3_ENDPOINT", purpose: "对象存储端点" }
+      - { env: "S3_ACCESS_KEY", purpose: "访问密钥 ID" }
+      - { env: "S3_SECRET_KEY", purpose: "访问密钥" }
+
 capabilities:
   # ── frontend templates(交互面零件:选形状,功能由其余零件供给)────────────
   # 装配时填参发射进 preset 的 frontend/,由 /assembler/ui/<preset> 同源伺服;

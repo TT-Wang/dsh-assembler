@@ -1,0 +1,4 @@
+{ "id": "translate-text", "pkg": null, "version": "0.0.1", "kind": "service",
+  "service": "https://api.mymemory.translated.net", "provider": "Translated s.r.l. (MyMemory)",
+  "terms": "https://mymemory.translated.net/doc/usagelimits.php", "rateLimit": "匿名 5000 字/日;配 TRANSLATE_EMAIL 进礼貌池 50000 字/日",
+  "license": "BSD-3-Clause", "network": true, "scaffoldedAt": "2026-08-25T13:25:00.000Z" }

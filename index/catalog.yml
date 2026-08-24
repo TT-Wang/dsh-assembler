@@ -956,3 +956,104 @@
     - { name: "read_graph", description: "Read the entire knowledge graph" }
     - { name: "search_nodes", description: "Search for nodes in the knowledge graph based on a query" }
     - { name: "open_nodes", description: "Open specific nodes in the knowledge graph by their names" }
+
+- id: speech-io
+  kind: service
+  service: "https://speech.platform.bing.com (Edge TTS) + OpenAI 兼容 /audio/transcriptions"
+  provider: "Microsoft Edge TTS / OpenAI-compatible ASR"
+  license: "MIT"
+  terms: "Edge TTS:微软在线服务条款(非官方接口,勿商用重载);ASR:所选上游条款"
+  rateLimit: "Edge TTS 公共端点自律使用;ASR 按上游账户配额"
+  network: true
+  requiredSecrets:
+    - { env: "SPEECH_API_KEY", purpose: "语音转文本(transcribe);TTS 不需要" }
+  tools:
+    - { name: "speech-info", description: "语音直连端点(服务脸):GET /speak?text=…(回 mp3 字节,页面可直接播)· GET /audio/<name> · POST /transc" }
+    - { name: "speak", description: "文本转语音:合成 mp3 落到工作区 audio/,返回路径与字节数(**不返回音频内容**——字节请用服务脸取)。无需凭证。voice 例:zh-CN-Xia" }
+    - { name: "transcribe", description: "语音转文本:读工作区里的音频文件,返回转写文本。凭证走进程环境 SPEECH_API_KEY(OpenAI 兼容 /audio/transcriptions;S" }
+    - { name: "delete-audio", description: "删除工作区 audio/ 下的一个音频文件。" }
+
+- id: vector-store
+  repo: "TT-Wang/dsh-assembler"
+  rev: "v0.0.1"
+  license: "BSD-3-Clause"
+  tools:
+    - { name: "vector-info", description: "向量库直连端点(服务脸)与各集合概况。页面可经 POST /search 直接做语义检索(拿到查询向量后),不必开会话。" }
+    - { name: "vector-add", description: "把若干条(id + 向量 + 可选原文/元数据)写入集合;同 id 覆盖(幂等重灌)。向量由 embed-text 零件或任何嵌入服务产出——本零件不负责生成向" }
+    - { name: "vector-search", description: "按查询向量做余弦相似检索,返回 topK 命中(id/score/原文/元数据;不回原向量)。维度不匹配会明确报错而不是给出无意义的分数。" }
+    - { name: "vector-delete", description: "按 id 删除条目,或整集合删除(dropCollection=true)。" }
+
+- id: embed-text
+  kind: service
+  service: "OpenAI 兼容 /embeddings(EMBED_API_BASE 可切)"
+  provider: "可配置(OpenAI/硅基流动/本地 vLLM 等)"
+  license: "BSD-3-Clause"
+  terms: "所选上游条款"
+  rateLimit: "按上游账户配额"
+  network: true
+  requiredSecrets:
+    - { env: "EMBED_API_KEY", purpose: "文本嵌入调用" }
+  tools:
+    - { name: "embed-info", description: "报告当前嵌入端点、模型与凭证状态(不回显密钥值)。装配前用它确认\"接口是否就位\"。" }
+    - { name: "embed-texts", description: "把若干段文本转成向量(OpenAI 兼容 /embeddings)。返回每段的向量与维度——直接可喂 vector-store 的 vector-add。凭证走" }
+
+- id: translate-text
+  kind: service
+  service: "https://api.mymemory.translated.net"
+  provider: "Translated s.r.l. (MyMemory)"
+  license: "BSD-3-Clause"
+  terms: "https://mymemory.translated.net/doc/usagelimits.php"
+  rateLimit: "匿名 5000 字/日;配 TRANSLATE_EMAIL 进礼貌池 50000 字/日"
+  network: true
+  tools:
+    - { name: "translate", description: "翻译一段文本(≤500 字符)。langpair 用两字母代码:zh/en/ja/fr/de/es…。免费公共服务,无需凭证;配 TRANSLATE_EMAIL" }
+    - { name: "translate-batch", description: "批量翻译多段文本(单次 ≤20 段,每段 ≤500 字符;顺序返回)。批量接口替模型省 roundtrip。" }
+
+- id: route-plan
+  kind: service
+  service: "https://router.project-osrm.org"
+  provider: "Project OSRM(公共演示实例)"
+  license: "BSD-3-Clause"
+  terms: "https://github.com/Project-OSRM/osrm-backend/wiki/Api-usage-policy(演示实例仅供轻量使用;生产请自建,OSRM_BASE 可切)"
+  rateLimit: "演示实例自律使用,重载请自建实例"
+  network: true
+  tools:
+    - { name: "route-info", description: "报告当前 OSRM 端点与可用出行方式(driving/walking/cycling)。坐标一律 [经度, 纬度](与 geocode 零件的输出顺序一致)。" }
+    - { name: "plan-route", description: "规划一条经过若干点的路线,返回总距离(米)、总时长(秒)与分段转向指引。坐标 [经度, 纬度],2..25 个点。" }
+    - { name: "travel-matrix", description: "多点之间的行程时长/距离矩阵(排班、就近派单、路线取舍用)。坐标 [经度, 纬度],2..12 个点。" }
+
+- id: im-bot
+  kind: service
+  service: "企业微信/钉钉/飞书 群机器人 webhook"
+  provider: "腾讯 / 阿里 / 字节(各自开放平台)"
+  license: "BSD-3-Clause"
+  terms: "各家群机器人使用条款(频率限制通常 20 条/分钟)"
+  rateLimit: "按各家群机器人限制"
+  network: true
+  requiredSecrets:
+    - { env: "WECOM_WEBHOOK", purpose: "企业微信群机器人 webhook URL" }
+    - { env: "DINGTALK_WEBHOOK", purpose: "钉钉群机器人 webhook URL" }
+    - { env: "DINGTALK_SECRET", purpose: "钉钉加签密钥(开启加签时)" }
+    - { env: "FEISHU_WEBHOOK", purpose: "飞书群机器人 webhook URL" }
+  tools:
+    - { name: "imbot-info", description: "报告各供应商的配置状态(哪些 webhook 已配、钉钉是否加签)——**不回显 URL 与密钥**。装配前用它确认\"接口是否就位\"。" }
+    - { name: "imbot-send", description: "往群机器人推一条文本消息(告警/日报/审批结果)。provider:wecom|dingtalk|feishu|mock。URL 走进程环境,不经参数。支持 @" }
+
+- id: object-store
+  kind: service
+  service: "S3 兼容端点(S3_ENDPOINT 可切:MinIO/OSS/COS/R2/AWS)"
+  provider: "所选对象存储服务商"
+  license: "Apache-2.0(minio 客户端)"
+  terms: "所选服务商条款"
+  rateLimit: "按所选服务商配额"
+  network: true
+  requiredSecrets:
+    - { env: "S3_ENDPOINT", purpose: "对象存储端点" }
+    - { env: "S3_ACCESS_KEY", purpose: "访问密钥 ID" }
+    - { env: "S3_SECRET_KEY", purpose: "访问密钥" }
+  tools:
+    - { name: "s3-info", description: "报告对象存储端点/区域与凭证状态(**不回显密钥**)。装配前用它确认\"接口是否就位\"。" }
+    - { name: "s3-list", description: "列出桶内对象(可给前缀),返回名字/大小/修改时间。" }
+    - { name: "s3-upload", description: "把工作区里的文件上传为对象(路径进,不读内容进上下文)。" }
+    - { name: "s3-download", description: "把对象下载到工作区(路径出,不返回内容)。下载后可直接交给解析类零件。" }
+    - { name: "s3-presign", description: "生成对象的临时直取 URL(默认 1 小时)。给浏览器/第三方直接下载——**字节既不过模型也不过 host**。" }

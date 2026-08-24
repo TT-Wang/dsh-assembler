@@ -1,0 +1,24 @@
+{
+  "id": "speech-io",
+  "verifiedAt": "2026-08-24T09:40:49.620Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "speech-info",
+      "description": "语音直连端点(服务脸):GET /speak?text=…(回 mp3 字节,页面可直接播)· GET /audio/<name> · POST /transcribe/<name>(直传录音)。**音频字节走这条,不要让模型转述 base64**。同时报告 TTS/ASR 各自的凭证状态。"
+    },
+    {
+      "name": "speak",
+      "description": "文本转语音:合成 mp3 落到工作区 audio/,返回路径与字节数(**不返回音频内容**——字节请用服务脸取)。无需凭证。voice 例:zh-CN-XiaoxiaoNeural(女)/zh-CN-YunxiNeural(男)/en-US-AriaNeural。"
+    },
+    {
+      "name": "transcribe",
+      "description": "语音转文本:读工作区里的音频文件,返回转写文本。凭证走进程环境 SPEECH_API_KEY(OpenAI 兼容 /audio/transcriptions;SPEECH_API_BASE/SPEECH_ASR_MODEL 可换端点与模型)。未配凭证时返回可行动错误,不崩。"
+    },
+    {
+      "name": "delete-audio",
+      "description": "删除工作区 audio/ 下的一个音频文件。"
+    }
+  ]
+}

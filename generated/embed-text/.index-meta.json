@@ -1,0 +1,5 @@
+{ "id": "embed-text", "pkg": null, "version": "0.0.1", "kind": "service",
+  "service": "OpenAI 兼容 /embeddings(EMBED_API_BASE 可切)", "provider": "可配置(OpenAI/硅基流动/本地 vLLM 等)",
+  "terms": "所选上游条款", "rateLimit": "按上游账户配额", "license": "BSD-3-Clause", "network": true,
+  "requiredSecrets": [{ "env": "EMBED_API_KEY", "purpose": "文本嵌入调用" }],
+  "scaffoldedAt": "2026-08-25T13:20:00.000Z" }

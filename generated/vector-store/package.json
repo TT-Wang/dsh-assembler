@@ -1,0 +1,8 @@
+{
+  "name": "@dsh-index/vector-store",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "description": "MCP stdio server:本地向量索引(余弦检索,零凭证零网络)+ 服务脸(页面直接语义搜索)",
+  "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0", "zod": "^3.23.0" }
+}

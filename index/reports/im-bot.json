@@ -1,0 +1,16 @@
+{
+  "id": "im-bot",
+  "verifiedAt": "2026-08-24T09:41:03.300Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "imbot-info",
+      "description": "报告各供应商的配置状态(哪些 webhook 已配、钉钉是否加签)——**不回显 URL 与密钥**。装配前用它确认\"接口是否就位\"。"
+    },
+    {
+      "name": "imbot-send",
+      "description": "往群机器人推一条文本消息(告警/日报/审批结果)。provider:wecom|dingtalk|feishu|mock。URL 走进程环境,不经参数。支持 @手机号 或 @所有人。未配对应 env 时返回可行动错误。"
+    }
+  ]
+}

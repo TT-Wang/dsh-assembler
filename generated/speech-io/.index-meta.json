@@ -1,0 +1,16 @@
+{
+  "id": "speech-io",
+  "pkg": "node-edge-tts",
+  "version": "0.0.1",
+  "kind": "service",
+  "service": "https://speech.platform.bing.com (Edge TTS) + OpenAI 兼容 /audio/transcriptions",
+  "provider": "Microsoft Edge TTS / OpenAI-compatible ASR",
+  "terms": "Edge TTS:微软在线服务条款(非官方接口,勿商用重载);ASR:所选上游条款",
+  "rateLimit": "Edge TTS 公共端点自律使用;ASR 按上游账户配额",
+  "license": "MIT",
+  "network": true,
+  "requiredSecrets": [
+    { "env": "SPEECH_API_KEY", "purpose": "语音转文本(transcribe);TTS 不需要", "optional": true }
+  ],
+  "scaffoldedAt": "2026-08-25T13:00:00.000Z"
+}

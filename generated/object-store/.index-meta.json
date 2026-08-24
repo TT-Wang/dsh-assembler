@@ -1,0 +1,9 @@
+{ "id": "object-store", "pkg": "minio", "version": "0.0.1", "kind": "service",
+  "service": "S3 兼容端点(S3_ENDPOINT 可切:MinIO/OSS/COS/R2/AWS)", "provider": "所选对象存储服务商",
+  "terms": "所选服务商条款", "rateLimit": "按所选服务商配额", "license": "Apache-2.0(minio 客户端)", "network": true,
+  "requiredSecrets": [
+    { "env": "S3_ENDPOINT", "purpose": "对象存储端点" },
+    { "env": "S3_ACCESS_KEY", "purpose": "访问密钥 ID" },
+    { "env": "S3_SECRET_KEY", "purpose": "访问密钥" }
+  ],
+  "scaffoldedAt": "2026-08-25T13:40:00.000Z" }
