@@ -693,3 +693,9 @@ capabilities:
       recipe: "record-desk"
       requiredSecrets:
         - { env: "DEEPSEEK_API_KEY", purpose: "一句话解析入库(缺时表单直录/SQL/台账浏览照常,解析返回可行动指引)" }
+  - id: recipe-scaffold-react
+    via: recipe
+    description: "配方:定制前端骨架:Vite + React + shadcn/ui + Tailwind v4(13 件词汇已联邦入库)+ 固定通信 SDK(wire 会话/服务脸直连/围栏出声/IME 守卫)。主 agent 在 src/pages/ 照 PAGE-SPEC(动作路由标注:face/wire/ai-thin)写任意形状的页面;骨架锁字节, 五道门验收(构建/骨架锁/页面 lint/可达/行为考)。"
+    tags: ["配方", "scaffold", "前端", "react", "shadcn", "tailwind", "vite", "定制页面", "词汇表", "app", "ui", "骨架"]
+    config:
+      recipe: "scaffold-react"

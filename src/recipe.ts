@@ -30,6 +30,7 @@ import { homedir } from 'node:os'
 import { dirname, extname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import yaml from 'js-yaml'
+import { runScenario, sanitizeMarks } from './verify.js'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 export const RECIPES_DIR = join(REPO, 'recipes')
@@ -53,8 +54,14 @@ export interface RecipeCheck {
    * healthz = readyPath 结构检查;ask = 真问真答(SSE 流 + 来源可核 + 内容标记);
    * record = 一句话入库(POST /api/record 走 AI 薄判断 → /api/rows 黑盒验行;
    * 无 key 时降级考存储半边:/api/sql 直插标记 + 读回)。
+   * scaffold 车道五考:build = run.build 零错误(先于起服执行);skeleton-lock =
+   * lockPaths 哈希与实例化时一致(写手不许越自由区);pages-lint = src/pages 机械
+   * 纪律(禁裸 fetch/WebSocket/dangerouslySetInnerHTML/外链);static-reach =
+   * 静态产物真伺服(GET / 200 且含挂载点);behavior = 按 PAGE-SPEC 逐动作验——
+   * face 动作经配套 preset 的服务脸执行 sql 并跑 effect 断言(考 SDK 之下的真实
+   * 链路;零件不在场时考官自己拉起),wire 动作跑单轮场景探针(需 wirePort)。
    */
-  kind: 'healthz' | 'ask' | 'record'
+  kind: 'healthz' | 'ask' | 'record' | 'build' | 'skeleton-lock' | 'pages-lint' | 'static-reach' | 'behavior'
   /** kind:'ask' 时:哪个参数是问题、哪个参数是必须出现在回答里的标记。 */
   questionParam?: string
   /** kind:'record' 时:哪个参数是考句(自然语言记录)。 */
@@ -75,16 +82,22 @@ export interface RecipeSpec {
   params: RecipeParamSpec[]
   requiredSecrets: Array<{ env: string; purpose: string }>
   run: {
-    /** 确定性预计算(装配时预思考):emit_app 实例化后立即执行,如 ingest。 */
+    /** 确定性预计算(装配时预思考):emit_app 实例化后立即执行,如 ingest / npm install。 */
     ingest?: string[]
-    /** 启动命令(argv 形式,cwd = app 目录)。 */
+    /** ingest 输出必须报数("indexed N",N>0)——rag/record 类配方开;scaffold(npm install)不开。 */
+    ingestCounts?: boolean
+    /** 构建命令(argv):考官在起服前执行(kind:'build' 考它);写手改完页后的必经门。 */
+    build?: string[]
+    /** 启动命令(argv 形式,cwd = app 目录;'@@PORT@@' 由考官替换为实际端口)。 */
     start: string[]
     /** 就绪探测路径(GET 该路径 200 即认为已起)。 */
     readyPath: string
   }
+  /** skeleton-lock 考的锁定面(相对 app 根的文件/目录清单):写手自由区之外的一切。 */
+  lockPaths?: string[]
   selftest: { checks: RecipeCheck[] }
-  /** 入库门用的样例实例化输入(params 全填 + 配方内相对语料目录/表结构文件)。 */
-  sample: { params: Record<string, string>; corpusDir?: string; schemaFile?: string }
+  /** 入库门用的样例实例化输入(params 全填 + 配方内相对语料/表结构/页面目录)。 */
+  sample: { params: Record<string, string>; corpusDir?: string; schemaFile?: string; pagesDir?: string }
 }
 
 export function loadRecipe(id: string, recipesRoot: string = RECIPES_DIR): RecipeSpec {
@@ -101,6 +114,7 @@ export function loadRecipe(id: string, recipesRoot: string = RECIPES_DIR): Recip
     ...(typeof raw.inspiredBy === 'string' ? { inspiredBy: raw.inspiredBy } : {}),
     params: Array.isArray(raw.params) ? raw.params as RecipeParamSpec[] : [],
     requiredSecrets: Array.isArray(raw.requiredSecrets) ? raw.requiredSecrets as RecipeSpec['requiredSecrets'] : [],
+    ...(Array.isArray(raw.lockPaths) ? { lockPaths: raw.lockPaths.map(String) } : {}),
     run: (raw.run ?? {}) as RecipeSpec['run'],
     selftest: (raw.selftest ?? { checks: [] }) as RecipeSpec['selftest'],
     sample: (raw.sample ?? { params: {} }) as RecipeSpec['sample'],
@@ -136,6 +150,8 @@ export interface MaterializeInput {
   corpusDir?: string
   /** 表结构文件(绝对路径),拷进 app 的 schema.sql(记录形配方:装配器的装备 DDL 对位物)。 */
   schemaFile?: string
+  /** 页面目录(绝对路径),拷进 app 的 src/pages/(scaffold 配方:入库门样例页/写手成品迁入)。 */
+  pagesDir?: string
   fresh?: boolean
   recipesRoot?: string
 }
@@ -165,6 +181,24 @@ function walkFiles(dir: string): string[] {
     else if (e.isFile()) out.push(p)
   }
   return out
+}
+
+/** 锁定面哈希:lockPaths 里的文件/目录(相对 app 根)全体字节,路径排序后逐个喂。 */
+export function hashLockPaths(appDir: string, lockPaths: readonly string[]): string {
+  const h = createHash('sha256')
+  const files: string[] = []
+  for (const rel of lockPaths) {
+    const p = join(appDir, rel)
+    if (!existsSync(p)) { h.update(`MISSING:${rel}\0`); continue }
+    if (statSync(p).isDirectory()) files.push(...walkFiles(p))
+    else files.push(p)
+  }
+  for (const f of files.sort()) {
+    h.update(relative(appDir, f))
+    h.update('\0')
+    h.update(readFileSync(f))
+  }
+  return h.digest('hex').slice(0, 16)
 }
 
 /** 模板全体字节的稳定哈希(文件相对路径排序后逐个喂)——进 lock,配方代际可核。 */
@@ -239,6 +273,17 @@ export function materializeApp(input: MaterializeInput): MaterializeResult {
     if (!sf.startsWith('/') || !existsSync(sf)) throw new Error(`emit_app: schemaFile 不存在:${sf}`)
     cpSync(sf, join(norm, 'schema.sql'))
   }
+  if (input.pagesDir !== undefined && input.pagesDir !== '') {
+    const pd = resolve(input.pagesDir)
+    if (!pd.startsWith('/') || !existsSync(pd) || !statSync(pd).isDirectory()) throw new Error(`emit_app: pagesDir 不存在:${pd}`)
+    cpSync(pd, join(norm, 'src', 'pages'), { recursive: true })
+    // 约定:pagesDir 里的 PAGE-SPEC.yml 是这批页面的考卷,迁到 app 根(覆盖模板空卷)
+    const movedSpec = join(norm, 'src', 'pages', 'PAGE-SPEC.yml')
+    if (existsSync(movedSpec)) {
+      cpSync(movedSpec, join(norm, 'PAGE-SPEC.yml'))
+      rmSync(movedSpec)
+    }
+  }
 
   // 参数经配置文件注入(模板文件零替换 ⇒ 模板字节稳定、配方哈希有意义)。
   writeFileSync(join(norm, 'app.config.json'), JSON.stringify({ recipe: spec.id, ...params }, null, 2) + '\n')
@@ -255,15 +300,23 @@ export function materializeApp(input: MaterializeInput): MaterializeResult {
     }
     const m = /indexed (\d+)/.exec(stdout)
     chunks = m !== null ? Number(m[1]) : null
-    if (chunks === null || chunks === 0) throw new Error(`emit_app: ingest 产出 0 块(语料是空的还是格式不对?ingest 输出:${stdout.slice(0, 200)})`)
+    // 报数纪律按配方声明:rag/record 类的 ingest 必须报 indexed N 且 N>0;
+    // scaffold 类的 ingest 是 npm install,不报数不算病。
+    if (spec.run.ingestCounts === true && (chunks === null || chunks === 0)) {
+      throw new Error(`emit_app: ingest 产出 0 块(语料是空的还是格式不对?ingest 输出:${stdout.slice(0, 200)})`)
+    }
   }
 
   const templateHash = hashTemplate(templateDir)
+  // 骨架锁(scaffold 车道):锁定面哈希入 lock,验收时重算——写手的自由区之外
+  // 动一个字节都会被 skeleton-lock 考抓住。node_modules 不在 lockPaths 内。
+  const skeletonHash = spec.lockPaths !== undefined ? hashLockPaths(norm, spec.lockPaths) : null
   const pendingSecrets = spec.requiredSecrets.map((sret) => ({ ...sret, configured: (process.env[sret.env] ?? '') !== '' }))
   const lock = {
     recipe: spec.id,
     version: spec.version,
     templateHash,
+    ...(skeletonHash !== null ? { skeletonHash } : {}),
     materializedAt: new Date().toISOString(),
     params,
     ...(corpus !== null ? { corpus } : {}),
@@ -355,7 +408,16 @@ async function collectAsk(base: string, question: string, timeoutMs: number): Pr
  */
 export async function runAppSelftest(
   targetDir: string,
-  opts: { recipesRoot?: string; onPhase?: (line: string) => void; startTimeoutMs?: number; askTimeoutMs?: number } = {},
+  opts: {
+    recipesRoot?: string
+    onPhase?: (line: string) => void
+    startTimeoutMs?: number
+    askTimeoutMs?: number
+    /** behavior 考:配套 preset 的根(默认 $DSH_HOME/.agent-presets)。 */
+    presetRoot?: string
+    /** behavior 考:wire 动作用的 host 端口;缺省时 wire 动作 SKIPPED(face 动作照考)。 */
+    wirePort?: number
+  } = {},
 ): Promise<AppSelftestResult> {
   const t0 = Date.now()
   const lockPath = join(targetDir, 'recipe.lock.yml')
@@ -367,16 +429,35 @@ export async function runAppSelftest(
   const port = await getFreePort()
   const base = `http://127.0.0.1:${String(port)}`
   const phase = (line: string): void => { opts.onPhase?.(line) }
+  const preChecks: AppCheckResult[] = []
 
-  phase(`启动 app:${spec.run.start.join(' ')}(cwd=${targetDir},PORT=${String(port)})`)
-  const child = spawn(spec.run.start[0] as string, spec.run.start.slice(1), {
+  // 构建门先于起服(scaffold:preview 伺服的是 dist,必须先 build;失败带出编译器原文)
+  if (spec.selftest.checks.some((c) => c.kind === 'build')) {
+    if (!Array.isArray(spec.run.build) || spec.run.build.length === 0) {
+      return { status: 'FAIL', checks: [{ check: 'build', status: 'FAIL', evidence: '配方声明了 build 考但 run.build 缺失' }], elapsedSeconds: Math.round((Date.now() - t0) / 1000), port }
+    }
+    phase(`构建门:${spec.run.build.join(' ')}`)
+    const tb = Date.now()
+    try {
+      execFileSync(spec.run.build[0] as string, spec.run.build.slice(1), { cwd: targetDir, encoding: 'utf8', timeout: 300_000, stdio: ['ignore', 'pipe', 'pipe'] })
+      preChecks.push({ check: 'build', status: 'PASS', evidence: `构建零错误(${String(Math.round((Date.now() - tb) / 1000))}s)` })
+    } catch (error: unknown) {
+      const e = error as { stderr?: string; stdout?: string; message?: string }
+      const detail = `${String(e.stdout ?? '')}\n${String(e.stderr ?? '')}`.trim().slice(-600)
+      return { status: 'FAIL', checks: [{ check: 'build', status: 'FAIL', evidence: `构建失败:${detail !== '' ? detail : String(e.message ?? '')}` }], elapsedSeconds: Math.round((Date.now() - t0) / 1000), port }
+    }
+  }
+
+  const startArgv = spec.run.start.map((a) => a.replace(/@@PORT@@/g, String(port)))
+  phase(`启动 app:${startArgv.join(' ')}(cwd=${targetDir},PORT=${String(port)})`)
+  const child = spawn(startArgv[0] as string, startArgv.slice(1), {
     cwd: targetDir,
     env: { ...process.env, PORT: String(port) },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   let childErr = ''
   child.stderr.on('data', (d: Buffer) => { childErr = (childErr + d.toString()).slice(-1000) })
-  const checks: AppCheckResult[] = []
+  const checks: AppCheckResult[] = [...preChecks]
   try {
     let health: Record<string, unknown>
     try {
@@ -506,6 +587,162 @@ export async function runAppSelftest(
           })
           if (!stored) break
         }
+      } else if (c.kind === 'build') {
+        continue // 已在起服前执行(preChecks)
+      } else if (c.kind === 'skeleton-lock') {
+        const lockedHash = (lock as { skeletonHash?: string }).skeletonHash
+        if (typeof lockedHash !== 'string' || spec.lockPaths === undefined) {
+          checks.push({ check: 'skeleton-lock', status: 'FAIL', evidence: 'lock 里没有 skeletonHash(配方缺 lockPaths?重新 emit_app)' })
+          break
+        }
+        const now = hashLockPaths(targetDir, spec.lockPaths)
+        const ok = now === lockedHash
+        checks.push({
+          check: 'skeleton-lock',
+          status: ok ? 'PASS' : 'FAIL',
+          evidence: ok ? `骨架/SDK/词汇字节未被越界改动(${lockedHash})` : `骨架被改动(${lockedHash} → ${now})——写手自由区只有 src/pages/ 与 PAGE-SPEC.yml,改骨架请回配方车道升版本`,
+        })
+        if (!ok) break
+      } else if (c.kind === 'pages-lint') {
+        const pagesDir = join(targetDir, 'src', 'pages')
+        const offenses: string[] = []
+        if (existsSync(pagesDir)) {
+          for (const f of walkFiles(pagesDir).filter((x) => /\.(tsx|ts|jsx|js)$/.test(x))) {
+            const text = readFileSync(f, 'utf8')
+            const rel = relative(targetDir, f)
+            for (const [re, why] of [
+              [/(?<![.\w])fetch\s*\(/, '裸 fetch(出网必须经 @/sdk/assembler-sdk)'],
+              [/new\s+WebSocket/, '裸 WebSocket(出网必须经 SDK)'],
+              [/dangerouslySetInnerHTML/, 'dangerouslySetInnerHTML(注入面,禁)'],
+              [/https?:\/\//, '外链 URL(离线交付,禁外部资源)'],
+            ] as Array<[RegExp, string]>) {
+              const m = re.exec(text)
+              if (m !== null) offenses.push(`${rel}:${String(text.slice(0, m.index).split('\n').length)} ${why}`)
+            }
+          }
+        }
+        checks.push({
+          check: 'pages-lint',
+          status: offenses.length === 0 ? 'PASS' : 'FAIL',
+          evidence: offenses.length === 0 ? '页面纪律干净(无裸出网/注入面/外链)' : offenses.slice(0, 5).join(';'),
+        })
+        if (offenses.length > 0) break
+      } else if (c.kind === 'static-reach') {
+        try {
+          const r = await fetch(base + '/', { signal: AbortSignal.timeout(5000) })
+          const html = await r.text()
+          const ok = r.ok && html.includes('id="root"')
+          checks.push({ check: 'static-reach', status: ok ? 'PASS' : 'FAIL', evidence: ok ? '静态产物真伺服(200 + 挂载点在)' : `GET / → ${String(r.status)},挂载点${html.includes('id="root"') ? '在' : '缺'}` })
+          if (!ok) break
+        } catch (error) {
+          checks.push({ check: 'static-reach', status: 'FAIL', evidence: `GET / 失败:${error instanceof Error ? error.message : String(error)}` })
+          break
+        }
+      } else if (c.kind === 'behavior') {
+        // 行为考:PAGE-SPEC 的动作路由标注是考卷——face 动作打服务脸验库效,
+        // wire 动作跑真会话。不点 DOM(无浏览器驱动,已知诚实边界):页面层由
+        // lint 门"动作必经 SDK"+构建门类型检查夹住,SDK 之下的链路在此真跑。
+        const specPath = join(targetDir, 'PAGE-SPEC.yml')
+        if (!existsSync(specPath)) {
+          checks.push({ check: 'behavior', status: 'FAIL', evidence: '缺 PAGE-SPEC.yml——写页之前先写动作路由标注(它就是这场考试的考卷)' })
+          break
+        }
+        const pageSpec = (yaml.load(readFileSync(specPath, 'utf8')) ?? {}) as { pages?: Array<{ id?: string; actions?: Array<Record<string, unknown>> }> }
+        const actions = (pageSpec.pages ?? []).flatMap((p) => (p.actions ?? []).map((a2) => ({ ...a2, page: String(p.id ?? '?') } as Record<string, unknown>)))
+        if (actions.length === 0) {
+          const pageFiles = existsSync(join(targetDir, 'src', 'pages')) ? walkFiles(join(targetDir, 'src', 'pages')).filter((x) => /\.(tsx|jsx)$/.test(x)).length : 0
+          if (pageFiles > 0) {
+            checks.push({ check: 'behavior', status: 'FAIL', evidence: `有 ${String(pageFiles)} 张页面但 PAGE-SPEC 没有任何动作——没有考卷的页面不算交付(纯展示动作也要标 route: local)` })
+            break
+          }
+          checks.push({ check: 'behavior', status: 'SKIPPED', evidence: '骨架态(尚无页面)——写页后按 PAGE-SPEC 重验' })
+          continue
+        }
+        const presetId = params.PRESET_ID ?? ''
+        const presetDir = join(opts.presetRoot ?? join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), '.agent-presets'), presetId)
+        // 服务脸:优先读在场的 .service.json;零件不在场则考官自己拉起(自给自足)
+        let facePart: ReturnType<typeof spawn> | null = null
+        const readFace = (): { url: string; token: string } | null => {
+          const svcPath = join(presetDir, 'workspace', '.service.json')
+          if (!existsSync(svcPath)) return null
+          try {
+            const svc = (JSON.parse(readFileSync(svcPath, 'utf8')) as { sqlite?: { url: string; token: string } }).sqlite
+            return svc ?? null
+          } catch { return null }
+        }
+        const faceAlive = async (f: { url: string; token: string } | null): Promise<boolean> => {
+          if (f === null) return false
+          try { return (await fetch(`${f.url}/schema`, { headers: { 'x-service-token': f.token }, signal: AbortSignal.timeout(1500) })).ok } catch { return false }
+        }
+        let face = readFace()
+        if (!(await faceAlive(face))) {
+          const partJs = join(REPO, 'generated', 'sqlite-query', 'index.js')
+          const env: Record<string, string> = {
+            ...process.env as Record<string, string>,
+            PART_WORKDIR: join(presetDir, 'workspace'),
+            SQLITE_DEFAULT_DB: join(presetDir, 'workspace', 'data.db'),
+          }
+          if (existsSync(join(presetDir, 'equipment', 'init.sql'))) env.SQLITE_INIT_DDL_FILE = join(presetDir, 'equipment', 'init.sql')
+          phase('服务脸不在场——考官自行拉起 sqlite 零件')
+          facePart = spawn('node', [partJs], { env, stdio: ['pipe', 'pipe', 'pipe'] })
+          for (let i = 0; i < 20; i++) {
+            await new Promise((r) => setTimeout(r, 250))
+            face = readFace()
+            if (await faceAlive(face)) break
+          }
+        }
+        const results: string[] = []
+        let behaviorFail = ''
+        try {
+          const token = `BHV-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
+          const sub = (v: unknown): unknown => typeof v === 'string' ? v.replace(/@@TOKEN@@/g, token) : Array.isArray(v) ? v.map(sub) : v
+          for (const a2 of actions) {
+            const route = String(a2.route ?? '')
+            const name = String(a2.name ?? '?')
+            if (route === 'face') {
+              if (!(await faceAlive(face)) || face === null) { behaviorFail = `face 动作「${name}」:服务脸不可达(preset ${presetId} 的 sqlite 零件拉不起来)`; break }
+              const doSql = async (sql: string, sqlParams: unknown[]): Promise<Record<string, unknown>> => {
+                const r = await fetch(`${face.url}/sql`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-token': face.token }, body: JSON.stringify({ sql, params: sqlParams }), signal: AbortSignal.timeout(8000) })
+                const j = (await r.json()) as Record<string, unknown>
+                if (typeof j.error === 'string') throw new Error(j.error)
+                return j
+              }
+              try {
+                await doSql(String(sub(a2.sql)), (sub(a2.sampleParams) as unknown[] | undefined) ?? [])
+                const eff = a2.effect as { sql?: string; sampleParams?: unknown[]; expect?: string } | undefined
+                if (eff?.sql !== undefined) {
+                  const out = await doSql(String(sub(eff.sql)), (sub(eff.sampleParams) as unknown[] | undefined) ?? [])
+                  const hay = JSON.stringify(out.rows ?? [])
+                  if (eff.expect !== undefined && !hay.includes(String(sub(eff.expect)))) { behaviorFail = `face 动作「${name}」:效果断言失败(期望含「${String(eff.expect)}」,实得 ${hay.slice(0, 120)})`; break }
+                }
+                results.push(`face「${name}」✓`)
+              } catch (error) {
+                behaviorFail = `face 动作「${name}」:${error instanceof Error ? error.message : String(error)}`
+                break
+              }
+            } else if (route === 'wire') {
+              if (opts.wirePort === undefined) { results.push(`wire「${name}」SKIPPED(未给 wirePort)`); continue }
+              const probe = String(sub(a2.probe ?? ''))
+              const marks = sanitizeMarks(((sub(a2.marks) as unknown[] | undefined) ?? []).map(String))
+              if (probe === '' || marks.length === 0) { behaviorFail = `wire 动作「${name}」:缺 probe/marks 考题`; break }
+              const w = await runScenario(opts.wirePort, presetId, { goal: `行为考·${name}`, turns: [{ prompt: probe, mustInclude: marks }] }, opts.askTimeoutMs ?? 180_000, undefined, join(presetDir, 'workspace'))
+              if (w.status !== 'PASS') { behaviorFail = `wire 动作「${name}」:${w.reason ?? w.status}`; break }
+              results.push(`wire「${name}」✓`)
+            } else if (route === 'local') {
+              results.push(`local「${name}」(纯本地 UI,无出网,免考)`)
+            } else {
+              results.push(`「${name}」route=${route}(ai-thin v1 经 wire 承载,标注留档)`)
+            }
+          }
+        } finally {
+          facePart?.kill('SIGTERM')
+        }
+        checks.push({
+          check: 'behavior',
+          status: behaviorFail !== '' ? 'FAIL' : results.some((r) => r.includes('SKIPPED')) ? 'SKIPPED' : 'PASS',
+          evidence: behaviorFail !== '' ? behaviorFail : results.join(';'),
+        })
+        if (behaviorFail !== '') break
       } else {
         checks.push({ check: String(c.kind), status: 'SKIPPED', evidence: '未知检查类型(配方比考官新?升级装配器后重验)' })
       }
@@ -537,12 +774,14 @@ export async function runRecipeGate(
   const recipeDir = join(opts.recipesRoot ?? RECIPES_DIR, id)
   const corpusDir = spec.sample.corpusDir !== undefined ? join(recipeDir, spec.sample.corpusDir) : undefined
   const schemaFile = spec.sample.schemaFile !== undefined ? join(recipeDir, spec.sample.schemaFile) : undefined
+  const pagesDir = spec.sample.pagesDir !== undefined ? join(recipeDir, spec.sample.pagesDir) : undefined
   const materialize = materializeApp({
     recipeId: id,
     targetDir: tmp,
     params: spec.sample.params,
     ...(corpusDir !== undefined ? { corpusDir } : {}),
     ...(schemaFile !== undefined ? { schemaFile } : {}),
+    ...(pagesDir !== undefined ? { pagesDir } : {}),
     fresh: true,
     ...(opts.recipesRoot !== undefined ? { recipesRoot: opts.recipesRoot } : {}),
   })

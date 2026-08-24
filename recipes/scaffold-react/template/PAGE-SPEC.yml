@@ -1,0 +1,24 @@
+# PAGE-SPEC — 页面动作路由标注(写页之前先写这份;它同时是行为考的考卷种子)。
+# 每个动作声明三件事:干什么、走哪条路由、怎么验效。
+#   route: face    确定性流(SQL 直连服务脸)—— 必须给 sql;可给 effect(考官验效查询)
+#   route: wire    判断流(真 agent 会话)   —— 必须给 probe(单轮考题)与 marks(验收标记)
+#   route: ai-thin 薄判断(一次补全)        —— v1 经 wire 承载,标注留档
+# 写手纪律:确定性动作(增删改查/汇总/渲染)一律 face;只有真需要判断的动作才 wire。
+pages: []
+# 示例:
+# pages:
+#   - id: board
+#     shape: 看板
+#     actions:
+#       - name: 列出任务
+#         route: face
+#         sql: SELECT id, title, status FROM tasks ORDER BY id
+#       - name: 拖卡改状态
+#         route: face
+#         sql: UPDATE tasks SET status = ? WHERE id = ?
+#         sampleParams: ['进行中', 1]
+#         effect: { sql: "SELECT status FROM tasks WHERE id = ?", sampleParams: [1], expect: '进行中' }
+#       - name: 帮我排优先级
+#         route: wire
+#         probe: 请查看 tasks 表全部任务,给出优先级排序建议,并原样报出口令 @@TOKEN@@
+#         marks: ['@@TOKEN@@']

@@ -44,6 +44,7 @@ requiredSecrets:
     purpose: 回答生成(缺时服务照起:检索/引用可用,/api/ask 返回可行动配置指引)
 
 run:
+  ingestCounts: true
   ingest: [node, ingest.mjs]
   start: [node, server.mjs]
   readyPath: /healthz

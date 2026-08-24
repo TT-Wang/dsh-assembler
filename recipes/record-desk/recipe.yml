@@ -47,6 +47,7 @@ requiredSecrets:
     purpose: 一句话解析入库(缺时表单直录/SQL/台账浏览照常,解析返回可行动指引)
 
 run:
+  ingestCounts: true
   ingest: [node, --no-warnings, ingest.mjs]
   start: [node, --no-warnings, server.mjs]
   readyPath: /healthz

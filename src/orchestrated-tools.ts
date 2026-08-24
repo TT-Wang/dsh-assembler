@@ -1557,17 +1557,19 @@ export function verifyAppToolDefinition(_ctx: Context, _config: Config): ToolDef
         + 'still pass (interface-first credential contract). 同一 app 连续 3 次 FAIL 后停手上报,不要无脑重验。'),
     parameters: {
       targetDir: { type: 'string', description: 'the app directory emit_app produced (holds recipe.lock.yml)', required: true },
+      wirePort: { type: 'number', description: 'host port for behavior-exam wire actions (scaffold deliveries; omit → wire actions report SKIPPED)' },
     },
     output: {
       schema: { type: 'string' as const },
       render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
     },
     execute: async (args: unknown): Promise<string> => {
-      const a = args as { targetDir?: unknown }
+      const a = args as { targetDir?: unknown; wirePort?: unknown }
       const targetDir = String(a.targetDir ?? '').trim()
       if (targetDir === '' || !targetDir.startsWith('/')) throw new Error('verify_app 需要绝对路径 targetDir(emit_app 结果里的 app 目录)')
       const t0 = Date.now()
-      const result = await runAppSelftest(targetDir)
+      const wirePort = typeof a.wirePort === 'number' ? a.wirePort : (_ctx.get?.('webServer') as { port?: number } | undefined)?.port
+      const result = await runAppSelftest(targetDir, { ...(wirePort !== undefined ? { wirePort } : {}) })
       appendOrchLedger({ tool: VERIFY_APP_TOOL_NAME, targetDir, verdict: result.status, elapsedSeconds: Math.round((Date.now() - t0) / 1000) })
       const lines = result.checks.map((c) => `- [${c.status}] ${c.check}:${c.evidence}`)
       const head = result.status === 'PASS'

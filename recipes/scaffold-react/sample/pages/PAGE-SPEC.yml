@@ -1,0 +1,10 @@
+# 样例考卷:demo 页是纯本地 UI(词汇表/骨架/构建链的活体证明),动作全 local 免考。
+# 真交付的页必须给 face/wire 动作与验效——见模板根 PAGE-SPEC.yml 的示例。
+pages:
+  - id: demo
+    shape: 样例
+    actions:
+      - name: 本地添加条目
+        route: local
+      - name: 清单/表格切换
+        route: local

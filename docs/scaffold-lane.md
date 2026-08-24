@@ -1,5 +1,12 @@
 # scaffold 车道设计稿(2026-08-25)
 
+> **执行状态(同日)**:S1-S4 已落地并实战——13 件 shadcn 词汇联邦入库
+> (scaffold-sync-vocab 同步进模板);scaffold-react 配方入库门五考 PASS;
+> 行为考(face 验库效 + wire 场景探针 + 考官自拉零件自给自足)进考官;
+> **S4 真装**:kb-sdk-e2e 定制看板页全链 PASS 并经 static-deploy 上线,
+> **拖卡 face 直连 5.1ms vs 模板版整轮会话 4-20s(三个数量级)**。
+> S5(模板转 few-shot)与写手提示词待下批。
+
 > 产品定位(用户裁定):**内嵌 agent 能力的 web app**。前端 = Vite + React +
 > shadcn/ui + Tailwind(Lovable 同款词汇,模型语料熟悉度最高);后端 = 双层运行
 > 时(托管态:host 里装配的零件服务脸 + wire 会话面;独立态:配方 app);每个

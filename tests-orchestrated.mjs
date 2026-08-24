@@ -304,6 +304,24 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   check('检索:app 型问答需求 → 配方第一名', hits2[0]?.entry.id === 'recipe-rag-qa')
 }
 
+
+// ── scaffold 车道(S1-S3:词汇/骨架/五考)────────────────────────────────────
+{
+  const { loadRecipe, hashLockPaths, RECIPES_DIR } = await import('./lib/recipe.js')
+  const { join } = await import('node:path')
+  const { existsSync, readdirSync, readFileSync: rf2 } = await import('node:fs')
+  const sc = loadRecipe('scaffold-react')
+  check('scaffold:配方加载,五考齐(build/skeleton-lock/pages-lint/static-reach/behavior)', ['build','skeleton-lock','pages-lint','static-reach','behavior'].every((k) => sc.selftest.checks.some((c) => c.kind === k)))
+  check('scaffold:lockPaths 覆盖骨架/SDK/词汇', Array.isArray(sc.lockPaths) && ['src/sdk','src/components','src/App.tsx'].every((k) => sc.lockPaths.includes(k)))
+  check('scaffold:词汇表 ≥13 件(shadcn 联邦入库)', readdirSync(join(RECIPES_DIR,'scaffold-react','template','src','components','ui')).filter((f) => f.endsWith('.tsx')).length >= 13)
+  check('scaffold:TS 版 SDK 三纪律在(围栏出声/IME 守卫/服务脸)', (() => { const t = rf2(join(RECIPES_DIR,'scaffold-react','template','src','sdk','assembler-sdk.ts'),'utf8'); return t.includes('extractFence') && t.includes('isComposing') && t.includes('/.service') })())
+  const h1 = hashLockPaths(join(RECIPES_DIR,'scaffold-react','template'), sc.lockPaths)
+  check('scaffold:锁定面哈希确定性', h1 === hashLockPaths(join(RECIPES_DIR,'scaffold-react','template'), sc.lockPaths) && /^[0-9a-f]{16}$/.test(h1))
+  const cat3 = (await import('./lib/index.js')).loadCatalog('capabilities.yml')
+  const hits3 = rankCapabilities(cat3.capabilities, '定制前端页面 react 界面', 3)
+  check('scaffold:目录已登记且可检得', cat3.capabilities.some((c) => c.id === 'recipe-scaffold-react') && hits3.some((h) => h.entry.id === 'recipe-scaffold-react'))
+}
+
 if (failures > 0) {
   console.error(`\ntests-orchestrated: ${failures} failure(s)`)
   process.exit(1)
