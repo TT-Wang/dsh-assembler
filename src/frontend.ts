@@ -68,6 +68,15 @@ export function listFrontendTemplates(templatesDir = FRONTEND_TEMPLATES_DIR): st
  * (与 writePresetFile 同款纪律)——模板确定性 ⇒ 复用轮重发 no-op,老 preset
  * 缺页时又能自动补齐。返回落盘文件清单与是否有变更。
  */
+/** 需求 → 页头短名:切在第一个自然断句处,过长再截断。 */
+export function shortTitle(requirement: string): string {
+  const flat = String(requirement ?? '').replace(/\s+/g, ' ').trim()
+  if (flat === '') return 'agent'
+  const head = flat.split(/[::,,;;。.]/)[0]?.trim() ?? flat
+  const pick = head.length >= 2 && head.length <= 20 ? head : flat.slice(0, 16)
+  return pick.replace(/[((【[]$/, '').trim()
+}
+
 export function emitFrontend(opts: {
   template: string
   presetDir: string
@@ -84,7 +93,10 @@ export function emitFrontend(opts: {
   const outDir = join(opts.presetDir, 'frontend')
   mkdirSync(outDir, { recursive: true })
   // 标题取需求前段:页面自己的身份行,不另开 LLM 调用。
-  const title = opts.requirement.replace(/\s+/g, ' ').trim().slice(0, 24)
+  // 标题槽 = 短名字,不是需求原文。病史:曾把需求前 24 字硬切进页头,长需求就成了
+  // 残句(实测:「中英双语读书助手:用户上传书籍源文件(EPUB/」把整个页头挤爆)。
+  // 取法:第一个自然短语(冒号/逗号/分号/句号之前),再退回硬切兜底。
+  const title = shortTitle(opts.requirement)
   const slots: Record<string, string> = {
     presetId: opts.presetId,
     title,

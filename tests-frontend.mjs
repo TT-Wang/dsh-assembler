@@ -4,7 +4,7 @@
  * 安全包含闸(id/asset 双正则 + resolve 越界拒绝)。全部离线。
  */
 import {
-  listFrontendTemplates, emitFrontend, fillTemplate, resolveFrontendFile, listAssemblyProgress,
+  listFrontendTemplates, emitFrontend, fillTemplate, resolveFrontendFile, shortTitle, listAssemblyProgress,
   FRONTEND_ROUTE, DEFAULT_FRONTEND_TEMPLATE,
 } from './lib/index.js'
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, statSync, rmSync, existsSync } from 'node:fs'
@@ -37,6 +37,7 @@ for (const t of templates) {
 }
 
 // ── 2. 填参与发射 ──────────────────────────────────────────────────────────
+check('短标题:切在第一个自然断句,不出残句', shortTitle('中英双语读书助手:用户上传书籍源文件(EPUB/TXT/MD),自动解析') === '中英双语读书助手' && shortTitle('记账 agent:随手记收支') === '记账 agent' && shortTitle('') === 'agent')
 check('fillTemplate 逐槽替换', fillTemplate('a {{x}} b {{y}} {{x}}', { x: '1', y: '2' }) === 'a 1 b 2 1')
 check('未提供的槽位置空', fillTemplate('[{{nope}}]', {}) === '[]')
 

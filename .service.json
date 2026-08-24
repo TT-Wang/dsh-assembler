@@ -1,10 +1,10 @@
 {
   "speech": {
-    "url": "http://127.0.0.1:55797",
-    "token": "9b20a42eeb3bc48f122ec724f47fcfae",
+    "url": "http://127.0.0.1:56154",
+    "token": "8542b35cf2a66d6c8ae34d4f130586ce",
     "dir": "/Users/tongtao/code/dsh-assembler/audio",
-    "pid": 18654,
-    "startedAt": "2026-08-24T09:40:49.601Z"
+    "pid": 86928,
+    "startedAt": "2026-08-24T14:40:05.049Z"
   },
   "vectors": {
     "url": "http://127.0.0.1:55822",

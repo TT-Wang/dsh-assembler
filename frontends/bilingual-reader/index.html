@@ -503,17 +503,18 @@ const splitParas = (text) => String(text || '').split(/\n\s*\n/).map((x) => x.tr
 /* 书库:直连 */
 async function refreshBooksDirect() {
   const r = await SQLF.sql(
-    'SELECT b.id, b.title, b.author, COALESCE(b.source_lang, "en") AS language, b.file_name AS file,'
-    + ' (SELECT COUNT(*) FROM chapters c WHERE c.book_id = b.id) AS chapters,'
-    + ' COALESCE((SELECT p.chapter_idx FROM progress p WHERE p.book_id = b.id), 0) AS readIdx'
-    + ' FROM books b ORDER BY b.id DESC');
+    "SELECT b.id, b.title, b.author, COALESCE(b.source_lang, 'en') AS language, b.file_name AS file,"
+    + " (SELECT COUNT(*) FROM chapters c WHERE c.book_id = b.id) AS chapters,"
+    + " COALESCE((SELECT p.chapter_idx FROM progress p WHERE p.book_id = b.id), 0) AS readIdx"
+    + " FROM books b ORDER BY b.id DESC");
   books = (r.rows || []).map((b) => ({ ...b, progressPercent: b.chapters ? Math.round(((b.readIdx + 1) / b.chapters) * 100) : 0 }));
   renderBooks();
 }
 
 /* 章节表:直连 */
 async function openBookDirect(b) {
-  const r = await SQLF.sql('SELECT idx AS "index", title FROM chapters WHERE book_id = ? ORDER BY idx', [b.id]);
+  const r = await SQLF.sql("SELECT idx AS chapterIdx, title FROM chapters WHERE book_id = ? ORDER BY idx", [b.id]);
+  (r.rows || []).forEach((x) => { x.index = x.chapterIdx; });
   chapters = r.rows || [];
   renderToc();
 }
@@ -526,14 +527,14 @@ async function loadChapterDirect(i) {
   $('dstCol').innerHTML = '';
   const idx = c.index ?? i;
   const row = (await SQLF.sql(
-    'SELECT ch.id, ch.content, (SELECT t.content FROM translations t WHERE t.chapter_id = ch.id AND t.lang = "zh") AS dst'
-    + ' FROM chapters ch WHERE ch.book_id = ? AND ch.idx = ?', [curBook.id, idx])).rows?.[0];
+    "SELECT ch.id, ch.content, (SELECT t.content FROM translations t WHERE t.chapter_id = ch.id AND t.lang = 'zh') AS dst"
+    + " FROM chapters ch WHERE ch.book_id = ? AND ch.idx = ?", [curBook.id, idx])).rows?.[0];
   if (!row) { showErr('这一章在库里没有正文'); return; }
   const src = splitParas(row.content);
   let dst = [];
   if (row.dst) { try { const j = JSON.parse(row.dst); if (Array.isArray(j)) dst = j.map(String); } catch { dst = splitParas(row.dst); } }
   renderParas(src.map((t, n) => ({ n: n + 1, src: t, dst: dst[n] || '' })), c.title);
-  SQLF.sql('INSERT INTO progress(book_id, chapter_idx) VALUES(?, ?) ON CONFLICT(book_id) DO UPDATE SET chapter_idx = excluded.chapter_idx, updated_at = datetime("now")', [curBook.id, idx]).catch(() => {});
+  SQLF.sql("INSERT INTO progress(book_id, chapter_idx) VALUES(?, ?) ON CONFLICT(book_id) DO UPDATE SET chapter_idx = excluded.chapter_idx, updated_at = datetime('now')", [curBook.id, idx]).catch(() => {});
   if (dst.length >= src.length || !AIF) {
     if (!AIF && dst.length < src.length) showStatus('未挂 AI 零件,本章暂无译文(重新装配时加入 ai-call 即可)', 5000);
     return;
@@ -551,7 +552,7 @@ async function loadChapterDirect(i) {
     } catch (e) { showErr('翻译失败:' + String(e && e.message || e).slice(0, 100)); break; }
     renderParas(src.map((t, n) => ({ n: n + 1, src: t, dst: dst[n] || '' })), c.title);
   }
-  SQLF.sql('INSERT INTO translations(chapter_id, lang, content) VALUES(?, "zh", ?) ON CONFLICT(chapter_id, lang) DO UPDATE SET content = excluded.content, updated_at = datetime("now")',
+  SQLF.sql("INSERT INTO translations(chapter_id, lang, content) VALUES(?, 'zh', ?) ON CONFLICT(chapter_id, lang) DO UPDATE SET content = excluded.content, updated_at = datetime('now')",
     [row.id, JSON.stringify(dst)]).catch(() => {});
   showStatus('✅ 本章译文已缓存,下次秒开', 3000);
 }
@@ -559,27 +560,27 @@ async function loadChapterDirect(i) {
 /* 摘抄:直连读写 */
 async function refreshExcerptsDirect() {
   const r = await SQLF.sql(
-    'SELECT e.id, COALESCE(b.title, "") AS book, COALESCE(ch.title, "第" || (e.chapter_idx + 1) || "章") AS chapter,'
-    + ' e.source_text AS src, e.translation AS dst, e.created_at AS createdAt'
-    + ' FROM excerpts e LEFT JOIN books b ON b.id = e.book_id'
-    + ' LEFT JOIN chapters ch ON ch.book_id = e.book_id AND ch.idx = e.chapter_idx'
-    + ' ORDER BY e.id DESC LIMIT 300');
+    "SELECT e.id, COALESCE(b.title, '') AS book, COALESCE(ch.title, '第' || (e.chapter_idx + 1) || '章') AS chapter,"
+    + " e.source_text AS src, e.translation AS dst, e.created_at AS createdAt"
+    + " FROM excerpts e LEFT JOIN books b ON b.id = e.book_id"
+    + " LEFT JOIN chapters ch ON ch.book_id = e.book_id AND ch.idx = e.chapter_idx"
+    + " ORDER BY e.id DESC LIMIT 300");
   renderExcerpts(r.rows || []);
 }
 
 /* ── 覆盖八个动作:能直连的直连,不能的退回会话 ── */
 const _refreshBooks = refreshBooks, _openBook = openBook, _loadChapter = loadChapter, _refreshExcerpts = refreshExcerpts, _deleteBook = deleteBook;
-refreshBooks = function () { if (!DIRECT) return _refreshBooks(); refreshBooksDirect().catch((e) => { showErr('直连读书库失败:' + e.message); _refreshBooks(); }); };
+refreshBooks = function () { if (!DIRECT) return _refreshBooks(); refreshBooksDirect().catch((e) => { console.error('[direct] books', e); showErr('直连读书库失败(已退回会话模式):' + e.message); _refreshBooks(); }); };
 openBook = function (b) {
   curBook = b; curChapter = null;
   $('bookTitle').textContent = b.title || b.file || '(未命名)';
   $('bookMeta').textContent = (b.author ? b.author + ' · ' : '') + '共 ' + (b.chapters || 0) + ' 章';
   switchView('read');
   if (!DIRECT || !b.id) return _openBook(b);
-  openBookDirect(b).catch((e) => { showErr('直连读章节失败:' + e.message); _openBook(b); });
+  openBookDirect(b).catch((e) => { console.error('[direct] chapters', e); showErr('直连读章节失败(已退回会话模式):' + e.message); _openBook(b); });
 };
-loadChapter = function (i) { if (!DIRECT) return _loadChapter(i); loadChapterDirect(i).catch((e) => { showErr('直连读正文失败:' + e.message); _loadChapter(i); }); };
-refreshExcerpts = function () { if (!DIRECT) return _refreshExcerpts(); refreshExcerptsDirect().catch((e) => { showErr('直连读摘抄失败:' + e.message); _refreshExcerpts(); }); };
+loadChapter = function (i) { if (!DIRECT) return _loadChapter(i); loadChapterDirect(i).catch((e) => { console.error('[direct] chapter', e); showErr('直连读正文失败(已退回会话模式):' + e.message); _loadChapter(i); }); };
+refreshExcerpts = function () { if (!DIRECT) return _refreshExcerpts(); refreshExcerptsDirect().catch((e) => { console.error('[direct] excerpts', e); showErr('直连读摘抄失败(已退回会话模式):' + e.message); _refreshExcerpts(); }); };
 deleteBook = function (b) {
   if (!confirm('确定删除《' + (b.title || b.file) + '》及其章节、译文与摘抄吗?')) return;
   if (!DIRECT || !b.id) return _deleteBook(b);
