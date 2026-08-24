@@ -27,7 +27,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm/message'
 import yaml from 'js-yaml'
 import { assembleToolDefinition } from './assemble-tool.js'
 import { solutionToolDefinition } from './solution-tool.js'
-import { askCatalogToolDefinition, assemblerMode, draftAssemblyToolDefinition, emitAppToolDefinition, emitPresetToolDefinition, matchCatalogToolDefinition, searchCatalogToolDefinition, verifyAppToolDefinition, verifyPresetToolDefinition, verifySharedDataToolDefinition } from './orchestrated-tools.js'
+import { askCatalogToolDefinition, assemblerMode, deployAppToolDefinition, draftAssemblyToolDefinition, emitAppToolDefinition, emitPresetToolDefinition, matchCatalogToolDefinition, searchCatalogToolDefinition, verifyAppToolDefinition, verifyPresetToolDefinition, verifySharedDataToolDefinition } from './orchestrated-tools.js'
 import { specExperimentToolDefinition, deriveArchSpec, validateArchProbe } from './arch-spec.js'
 import { shortlistCapabilities } from './capability-index.js'
 import { AUX_CALL_TIMEOUT_MS, addUsage, deriveProbePlan, parseModelJson, runFrontendGate, runProbe, runScenario, sanitizeMarks, usageDetail, type AuxUsage, type ProbePlan, type ProbeResult } from './verify.js'
@@ -2453,6 +2453,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     // 配方车道(app 形态):哑实例化 + app 独立考官,与 preset 车道同构。
     ctx.effect(() => ctx.tools.register(emitAppToolDefinition(ctx, config)), 'assembler.tool.emit_app()')
     ctx.effect(() => ctx.tools.register(verifyAppToolDefinition(ctx, config)), 'assembler.tool.verify_app()')
+    ctx.effect(() => ctx.tools.register(deployAppToolDefinition(ctx, config)), 'assembler.tool.deploy_app()')
     if (mode === 'search' || mode === 'orchestrated' || mode === 'dialogue') {
       // search 默认形态里 match 是"专家精排"备用阀:平时零调用,检索拿不准时升级。
       ctx.effect(() => ctx.tools.register(matchCatalogToolDefinition(ctx, config)), 'assembler.tool.match_catalog()')

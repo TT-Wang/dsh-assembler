@@ -322,6 +322,22 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   check('scaffold:目录已登记且可检得', cat3.capabilities.some((c) => c.id === 'recipe-scaffold-react') && hits3.some((h) => h.entry.id === 'recipe-scaffold-react'))
 }
 
+
+// ── 写手席(WRITE-ME/接力棒/deploy_app)──────────────────────────────────────
+{
+  const { SCAFFOLD_BATON, CONTRACT_TAGS: tags2, deployAppToolDefinition } = await import('./lib/orchestrated-tools.js')
+  const { RECIPES_DIR } = await import('./lib/recipe.js')
+  const { readFileSync: rf3, existsSync: ex3 } = await import('node:fs')
+  const { join: j3 } = await import('node:path')
+  const wm = rf3(j3(RECIPES_DIR, 'scaffold-react', 'template', 'WRITE-ME.md'), 'utf8')
+  check('写手席:WRITE-ME 事实齐(自由区/词汇/SDK/考卷/交付流/范例)', ['自由区', 'PAGE-SPEC', 'sqliteFace', 'bindEnter', 'deploy_app', 'examples/board.tsx'].every((k) => wm.includes(k)))
+  check('写手席:范例两张在模板内且被骨架锁覆盖', ex3(j3(RECIPES_DIR, 'scaffold-react', 'template', 'examples', 'board.tsx')) && ex3(j3(RECIPES_DIR, 'scaffold-react', 'template', 'examples', 'records.tsx')))
+  check('契约钉:SCAFFOLD_BATON 承重句(读手册/先考卷后页面/自由区/列名照抄/3 次停手/deploy)', ['WRITE-ME.md', 'PAGE-SPEC.yml first', 'Free zone', 'never invent', '3 次 FAIL', 'deploy_app'].every((k) => SCAFFOLD_BATON.includes(k)) && tags2.SCAFFOLD_BATON === 'deepseek-v4')
+  const dep = deployAppToolDefinition(fakeCtx, {}).description
+  check('契约钉:deploy_app = 确定性发布 + 先考后发', dep.includes('Deterministic copy') && dep.includes('verify_app PASS'))
+  check('deploy_app:无 dist 报可行动错误', await deployAppToolDefinition(fakeCtx, {}).execute({ targetDir: '/tmp/no-such-app-x', presetId: 'x' }).then(() => false, (e) => e.message.includes('verify_app')))
+}
+
 if (failures > 0) {
   console.error(`\ntests-orchestrated: ${failures} failure(s)`)
   process.exit(1)

@@ -924,8 +924,8 @@
 
 - id: recipe-scaffold-react
   kind: recipe
-  version: 2
-  templateHash: "53bc4cf335e81637"
+  version: 3
+  templateHash: "00a39ae789605d65"
   license: "BSD-3-Clause"
   selftest: "pass"
   inspiredBy: "Lovable 的 scaffold+词汇表形态(shadcn 源码预拷为 AI 写页词汇);组件经 registry-add 联邦进货(index/registry.lock.yml 供应链锁),差异化 = 每张生成页 过独立考官(行为考:face 动作验库效,wire 动作跑场景探针)。"

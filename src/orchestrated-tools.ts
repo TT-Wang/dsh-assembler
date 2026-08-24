@@ -18,7 +18,7 @@
  * assemble_solution(两臂互斥,A/B 数据才干净)。验收机器与 A 臂共用同一套
  * (runProbe/runScenario/validateArchProbe/marksPresent)——两臂同一张考卷。
  */
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -43,7 +43,7 @@ import {
 import { validateArchProbe } from './arch-spec.js'
 import { rankCapabilities } from './capability-index.js'
 import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend } from './frontend.js'
-import { materializeApp, runAppSelftest } from './recipe.js'
+import { loadRecipe, materializeApp, runAppSelftest } from './recipe.js'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -83,6 +83,7 @@ export const CONTRACT_TAGS: Record<string, string> = {
   MINIMAL_SET_RULE: 'deepseek-v4',
   FRONTEND_FACT: 'deepseek-v4',
   RECIPE_FACT: 'deepseek-v4',
+  SCAFFOLD_BATON: 'deepseek-v4',
   ARCHITECTURE_CONTRACT: 'deepseek-v4',
   PROBE_SKETCH_EXAMPLES: 'deepseek-v4',
 }
@@ -109,6 +110,21 @@ export const FRONTEND_FACT = '每 preset 仅首个 frontend 模板生效——�
 
 /** 配方物理事实:app 图纸不进 preset,零对话 token 税——检索行价签用。 */
 export const RECIPE_FACT = '独立 app 图纸:emit_app 实例化成独立进程交付物(不占任何 agent 的对话 token),verify_app 独立验收。'
+
+/**
+ * 写手席接力棒(scaffold 族配方专用):骨架落地后主 agent 就是写手——流程知识
+ * 靠结果接力棒传,不靠 agent 读 docs(接力棒断链实录:通用接力棒直奔 verify,
+ * 得到"骨架态 SKIPPED",写手不知道中间该写页)。
+ */
+export const SCAFFOLD_BATON =
+  '【接力棒·写手席】骨架已就位,YOU are now the page writer. NEXT: (1) READ <targetDir>/WRITE-ME.md — it lists the exact vocabulary '
+  + '(13 shadcn components), the SDK API, the PAGE-SPEC exam format, and two golden examples in examples/. '
+  + '(2) WRITE PAGE-SPEC.yml first (every action tagged face/wire/local; face carries sql+effect, wire carries probe+marks — the examiner '
+  + 'runs YOUR exam verbatim), then write src/pages/*.tsx. Free zone is ONLY PAGE-SPEC.yml and src/pages/ — everything else is hash-locked. '
+  + 'Column names come from the paired preset\'s equipment DDL — copy them, never invent. Do NOT run npm/vite yourself. '
+  + '(3) verify_app {"targetDir": "<targetDir>"} — five gates incl. the behavior exam; FAIL comes back with evidence, fix surgically, '
+  + '同一 app 连续 3 次 FAIL 后停手上报. (4) deploy_app {"targetDir", "presetId"} publishes the built dist into the preset, same-origin. '
+  + '(5) Report the page URL and what was examined, honestly.'
 
 /**
  * 架构契约(2026-08-23 深夜,xhs 实测用户投诉后加):两个病一起治——
@@ -1538,7 +1554,9 @@ export function emitAppToolDefinition(_ctx: Context, _config: Config): ToolDefin
         ...(pending.length > 0
           ? [`待配凭证:${pending.map((sm) => `${sm.env}(${sm.purpose})`).join(';')} —— 值只进启动环境变量,不落文件`]
           : ['凭证:所需环境变量当前均已配置']),
-        prose(`【接力棒】立即 ${VERIFY_APP_TOOL_NAME} {"targetDir": "${result.targetDir}"} 独立验收——未验收的 app 不是交付物。启动方式:cd ${result.targetDir} && npm start`),
+        loadRecipe(recipeId).lockPaths !== undefined
+          ? prose(SCAFFOLD_BATON.replace(/<targetDir>/g, result.targetDir))
+          : prose(`【接力棒】立即 ${VERIFY_APP_TOOL_NAME} {"targetDir": "${result.targetDir}"} 独立验收——未验收的 app 不是交付物。启动方式:cd ${result.targetDir} && npm start`),
       ].filter((l) => l !== '').join('\n')
     },
   })
@@ -1578,6 +1596,55 @@ export function verifyAppToolDefinition(_ctx: Context, _config: Config): ToolDef
           ? `app 验收 SKIPPED(接口半边已核实,AI 半边待凭证;${String(result.elapsedSeconds)}s)`
           : `app 验收 FAIL(${String(result.elapsedSeconds)}s)`
       return [head, ...lines].join('\n')
+    },
+  })
+}
+
+// ── deploy_app:构建产物发布进 preset(写手席交付流第 4 步)────────────────────
+// static-deploy 零件是给"交付出去的 agent 自建自发"用的(挂在 preset 里);
+// 主 agent 在装配现场没有它的工具面,发布这步由本 host 面工具承接,闸门同款:
+// preset 必须存在、dist/index.html 必须在、路径守卫。发布 = 确定性拷贝,印刷机职权。
+export const DEPLOY_APP_TOOL_NAME = 'deploy_app'
+
+export function deployAppToolDefinition(_ctx: Context, config: Config): ToolDefinition {
+  return defineTool({
+    name: DEPLOY_APP_TOOL_NAME,
+    description:
+      'Publish a scaffold app\'s BUILT dist/ into its paired preset\'s frontend/ (served same-origin at /assembler/ui/<presetId>). '
+      + 'Deterministic copy with gates: preset must exist, dist/index.html must exist (run verify_app first — its build gate produces dist), '
+      + 'paths guarded.'
+      + prose(' Call ONLY after verify_app PASS — publishing an unexamined page defeats the entire lane. '
+        + 'After deploying, report the URL and the exam verdict to the user honestly.'),
+    parameters: {
+      targetDir: { type: 'string', description: 'the scaffold app directory (holds dist/ after verify_app\'s build gate)', required: true },
+      presetId: { type: 'string', description: 'the paired preset id to publish into', required: true },
+    },
+    output: {
+      schema: { type: 'string' as const },
+      render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
+    },
+    execute: async (args: unknown): Promise<string> => {
+      const a = args as { targetDir?: unknown; presetId?: unknown }
+      const targetDir = String(a.targetDir ?? '').trim()
+      const presetId = sanitizePresetName(String(a.presetId ?? ''))
+      if (targetDir === '' || !targetDir.startsWith('/')) throw new Error('deploy_app 需要绝对路径 targetDir')
+      if (presetId === '') throw new Error('deploy_app 需要 presetId')
+      const dist = join(resolve(targetDir), 'dist')
+      if (!existsSync(join(dist, 'index.html'))) {
+        throw new Error(`deploy_app: ${dist}/index.html 不存在——先 verify_app(它的构建门产出 dist),PASS 后再发布`)
+      }
+      const presetRoot = presetRootOf(config)
+      const presetDir = join(presetRoot, presetId)
+      if (!existsSync(join(presetDir, 'agent.cordis.yml'))) {
+        throw new Error(`deploy_app: preset「${presetId}」不存在——前端要发布进一个已发射的 preset`)
+      }
+      const target = join(presetDir, 'frontend')
+      rmSync(target, { recursive: true, force: true })
+      cpSync(dist, target, { recursive: true })
+      const port = (_ctx.get?.('webServer') as { port?: number } | undefined)?.port
+      const url = port !== undefined ? `http://127.0.0.1:${String(port)}/assembler/ui/${presetId}` : `/assembler/ui/${presetId}`
+      appendOrchLedger({ tool: DEPLOY_APP_TOOL_NAME, presetId, targetDir, url })
+      return `已发布:${dist} → ${target}\n页面:${url}${prose('\n【接力棒】向用户如实报告页面 URL 与验收结论;页面动作的行为考证据在 verify_app 的结果里。')}`
     },
   })
 }

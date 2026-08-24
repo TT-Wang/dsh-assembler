@@ -5,7 +5,7 @@
 # 改 template/ 任何字节(含 scaffold-sync-vocab 重同步)必须升 version 重过门:
 #   node scripts/index-add.mjs recipe scaffold-react
 id: scaffold-react
-version: 2
+version: 3
 description: >-
   定制前端骨架:Vite + React + shadcn/ui + Tailwind v4(13 件词汇已联邦入库)+
   固定通信 SDK(wire 会话/服务脸直连/围栏出声/IME 守卫)。主 agent 在 src/pages/
@@ -37,6 +37,8 @@ requiredSecrets: []
 # skeleton-lock 考的锁定面:实例化时对这些路径算哈希入 lock,验收时重算比对——
 # 写手越界改骨架/SDK/词汇 = FAIL(自由区只有 src/pages/ 与 PAGE-SPEC.yml)。
 lockPaths:
+  - WRITE-ME.md
+  - examples
   - index.html
   - vite.config.ts
   - tsconfig.json
