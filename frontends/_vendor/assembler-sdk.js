@@ -126,6 +126,40 @@
       .then(function (svc) { svcCache[presetId] = svc; return svc; });
   }
 
+  // ── 通用取脸口(不是每来一件零件就加一个函数)────────────────────────────
+  // faces(svc) 列出这个 preset 挂载的全部服务脸名字;face(svc, name) 取任意一张。
+  // 病史:SDK 曾只有 sqlite/ai/files 三个固定口,写手要用语音脸时够不着,转去补
+  // 骨架撞沙箱,整题颗粒无收。取脸口通用化后,**新采购的带脸零件自动可用**。
+  function faces(svc) { return svc ? Object.keys(svc) : []; }
+
+  function face(svc, name) {
+    if (!svc || !svc[name] || !svc[name].url) return null;
+    var base = svc[name].url, token = svc[name].token;
+    var withToken = function (path) {
+      var sep = path.indexOf('?') >= 0 ? '&' : '?';
+      return base + path + sep + 'token=' + encodeURIComponent(token);
+    };
+    var call = function (path, opts) {
+      opts = opts || {};
+      opts.headers = Object.assign({ 'X-Service-Token': token }, opts.headers || {});
+      return fetch(base + path, opts).then(function (r) {
+        var ct = r.headers.get('content-type') || '';
+        if (ct.indexOf('application/json') < 0) return r.ok ? r : Promise.reject(new Error(name + path + ' HTTP ' + r.status));
+        return r.json().then(function (j) { if (j.error) throw new Error(j.error); return j; });
+      });
+    };
+    return {
+      name: name, url: base, meta: svc[name],
+      get: function (path) { return call(path, {}); },
+      post: function (path, body) {
+        return call(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+      },
+      send: function (path, raw) { return call(path, { method: 'POST', body: raw }); },
+      // 给 <audio src> / <img src> / 下载链接用:token 进 URL(自定义头这些场景带不了)
+      mediaUrl: withToken,
+    };
+  }
+
   // ai 服务脸:薄判断直连(ai-thin 路由)——一次补全,不开会话。
   function aiFace(svc) {
     if (!svc || !svc.ai) return null;
@@ -236,6 +270,8 @@
     sqliteFace: sqliteFace,
     aiFace: aiFace,
     filesFace: filesFace,
+    faces: faces,
+    face: face,
     bindEnter: bindEnter,
     renderRowsTable: renderRowsTable,
     mountLiveLedger: mountLiveLedger,

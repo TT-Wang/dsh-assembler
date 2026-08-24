@@ -1057,3 +1057,4 @@
     - { name: "s3-upload", description: "把工作区里的文件上传为对象(路径进,不读内容进上下文)。" }
     - { name: "s3-download", description: "把对象下载到工作区(路径出,不返回内容)。下载后可直接交给解析类零件。" }
     - { name: "s3-presign", description: "生成对象的临时直取 URL(默认 1 小时)。给浏览器/第三方直接下载——**字节既不过模型也不过 host**。" }
+

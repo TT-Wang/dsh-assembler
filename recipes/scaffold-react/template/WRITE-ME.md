@@ -60,6 +60,12 @@ const out = await client.ask('…')                   // → { reply, fence };fe
 const ai = await aiFace()                           // null = 未挂 ai-call 零件(降级:让用户填表单)
 await ai.complete({ prompt: '…', system: '…' })     // → { text };薄判断走这里,不要为一次解析开会话
 
+await faces()                                       // → ['sqlite','ai','files','speech',…] 先问有哪些脸
+const sp = await face('speech')                     // 通用取脸:任意零件的服务脸都这么取
+await sp.post('/transcribe/rec.webm', blob)         // JSON 面
+sp.mediaUrl('/speak?text=你好')                      // ← <audio src> 用这个(token 进 URL)
+// SDK 里没有的脸 = 缺口,如实上报,**不要去改骨架/SDK**(骨架锁会 FAIL,且沙箱也不让)
+
 const files = await filesFace()                     // null = 未挂 file-channel 零件
 await files.upload('report.pdf', fileFromInput)     // 大字节直传,**绝不过模型**;落盘路径可交给解析零件
 files.fileUrl('report.pdf')                         // 取回/预览用的 URL
@@ -75,7 +81,7 @@ APP.PRESET_ID / APP.APP_NAME                        // 实例参数
 
 ## 词汇表(仅此 13 件 + 两库,别 import 不存在的)
 
-SDK 出口:`sqliteFace` `aiFace` `filesFace` `createClient` `bindEnter` `extractFence` `APP`。
+SDK 出口:`faces` `face`(通用)· `sqliteFace` `aiFace` `filesFace`(便捷)· `createClient` `bindEnter` `extractFence` `APP`。
 
 `@/components/ui/`:badge · button · card · checkbox · dialog · dropdown-menu ·
 input · label · select · separator · table · tabs · textarea

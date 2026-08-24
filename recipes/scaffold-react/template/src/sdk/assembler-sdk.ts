@@ -141,6 +141,53 @@ export async function sqliteFace(): Promise<SqliteFace | null> {
   }
 }
 
+// ── 通用取脸口(不是每来一件零件就加一个函数)──────────────────────────────
+// 病史:SDK 曾只有 sqlite/ai/files 三个固定口,写手要用语音脸时够不着,转去补骨架
+// 撞沙箱、整题颗粒无收。通用化后**新采购的带脸零件自动可用**。
+// 用法:const f = await face('speech'); await f.get('/audio/x.mp3');
+//       <audio src={f.mediaUrl('/speak?text=你好')} />   ← token 进 URL,标签带不了头
+export interface Face {
+  name: string
+  url: string
+  meta: Record<string, unknown>
+  get: (path: string) => Promise<any>
+  post: (path: string, body?: unknown) => Promise<any>
+  send: (path: string, raw: BodyInit) => Promise<any>
+  mediaUrl: (path: string) => string
+}
+
+/** 这个 preset 挂载了哪些服务脸(名字表)——写手先问这个,再决定怎么写。 */
+export async function faces(): Promise<string[]> {
+  const svc = await discoverServices()
+  return svc ? Object.keys(svc) : []
+}
+
+export async function face(name: string): Promise<Face | null> {
+  const svc = await discoverServices()
+  const entry = svc?.[name]
+  if (!entry?.url) return null
+  const base: string = entry.url
+  const token: string = entry.token
+  const call = async (path: string, init: RequestInit = {}) => {
+    const r = await fetch(base + path, { ...init, headers: { 'X-Service-Token': token, ...(init.headers ?? {}) } })
+    const ct = r.headers.get('content-type') ?? ''
+    if (!ct.includes('application/json')) {
+      if (!r.ok) throw new Error(`${name}${path} HTTP ${r.status}`)
+      return r
+    }
+    const j = await r.json()
+    if (j.error) throw new Error(j.error)
+    return j
+  }
+  return {
+    name, url: base, meta: entry,
+    get: (path) => call(path),
+    post: (path, body) => call(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) }),
+    send: (path, raw) => call(path, { method: 'POST', body: raw }),
+    mediaUrl: (path) => base + path + (path.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token),
+  }
+}
+
 /** ai 服务脸(ai-thin 路由):一次补全,不开会话——薄判断的正确档位。 */
 export interface AiFace {
   complete: (req: { prompt: string; system?: string; model?: string; maxTokens?: number }) => Promise<{ model: string; text: string; usage?: { prompt: number; completion: number } }>

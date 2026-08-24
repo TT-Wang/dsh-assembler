@@ -93,7 +93,11 @@ const aiFace = createServer((req, res) => {
 	};
 	const json = (code, obj) => { cors(); res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); };
 	if (req.method === 'OPTIONS') { cors(); res.writeHead(204); res.end(); return; }
-	if (req.headers['x-service-token'] !== AI_TOKEN) return json(401, { error: 'bad or missing X-Service-Token' });
+	// 鉴权:头 X-Service-Token 或查询串 ?token=(二者等价)。查询串是必要的——
+	// <audio src>/<img src>/下载链接无法带自定义头,只认 URL;字节类服务脸若只收头,
+	// 页面就永远取不到字节(实测:B3 语音便签墙因取不到脸整题颗粒无收)。
+	const presented = req.headers['x-service-token'] ?? (() => { try { return new URL(req.url ?? '/', 'http://local').searchParams.get('token'); } catch { return null; } })();
+	if (presented !== AI_TOKEN) return json(401, { error: 'bad or missing service token(头 X-Service-Token 或 ?token= 均可)' });
 	if (req.method !== 'POST' || (req.url ?? '/').split('?')[0] !== '/complete') return json(404, { error: 'POST /complete only' });
 	let body = '';
 	req.on('data', (d) => { body += d; if (body.length > 128 * 1024) req.destroy(); });

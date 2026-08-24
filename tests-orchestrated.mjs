@@ -126,7 +126,7 @@ check('契约钉:确认检查点硬措辞在(点名 ask_user_question + STOP + �
 check('契约钉:深度线在(五行清单不是架构)', ARCHITECTURE_CONTRACT.includes('NOT an architecture'))
 check('契约钉:缺口处置是用户选择(造件/降级/砍掉)+ 静默降级禁令', ARCHITECTURE_CONTRACT.includes('现场造件') && ARCHITECTURE_CONTRACT.includes('降级方案') && ARCHITECTURE_CONTRACT.includes('Silently downgrading'))
 check('契约钉:三岔口路由在(应用型/个人即时/铸造三分 + 铸造非默认)', ARCHITECTURE_CONTRACT.includes('SHAPE ROUTING') && ARCHITECTURE_CONTRACT.includes('应用型') && ARCHITECTURE_CONTRACT.includes('个人即时') && ARCHITECTURE_CONTRACT.includes('NOT the'))
-check('契约钉:造件必须走 index-add 质检门', ARCHITECTURE_CONTRACT.includes('index-add.mjs') && ARCHITECTURE_CONTRACT.includes('bypasses the quality gate'))
+check('契约钉:造件必须过门(submit_part)且禁手改目录', ARCHITECTURE_CONTRACT.includes('submit_part') && ARCHITECTURE_CONTRACT.includes('Never hand-edit capabilities.yml'))
 check('契约钉:夹具模式在范例里(禁内嵌大载荷)', PROBE_SKETCH_EXAMPLES.includes('LARGE FIXTURES') && PROBE_SKETCH_EXAMPLES.includes('NEVER paste'))
 // §09 借法钉:缓存段序(动态段沉尾)+ 重试预算封顶
 const bpCache = buildMatchPrompt('req-X', { capabilities: [{ name: 'NEED-Y', why: '' }], dataModel: '', workflow: '', interfaces: '' }, catalog)
@@ -406,12 +406,36 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
 {
   const { ARCHITECTURE_CONTRACT: AC, addKnowledgeToolDefinition, ADD_KNOWLEDGE_TOOL_NAME } = await import('./lib/orchestrated-tools.js')
   check('契约钉:配方 vs preset 车道判据在(重叠时怎么选 + 要说出来)', AC.includes('LANE TIE-BREAK') && AC.includes('RECIPE (self-contained') && AC.includes('PRESET (双面交付') && AC.includes('SAY which lane you picked'))
-  check('契约钉:知识包走工具面(沙箱现实),造件仍走管道且够不着就上报', AC.includes('add_knowledge TOOL') && AC.includes('sandbox cannot reach') && AC.includes('hand the work order to the user'))
+  check('契约钉:装配器资源只经工具面(三件齐)+ 沙箱拒绝时停手', ['add_knowledge', 'read_preset', 'submit_part', 'TOOL-SURFACE ONLY', 'do not retry'].every((k) => ARCHITECTURE_CONTRACT.includes(k)))
   const ak = addKnowledgeToolDefinition(fakeCtx, {}).description
   check('契约钉:add_knowledge = 工具面孪生 + 检索门 + 自己写考题', ak.includes('tool-surface twin') && ak.includes('RETRIEVAL GATE') && ak.includes('YOU write the probes') && ADD_KNOWLEDGE_TOOL_NAME === 'add_knowledge')
   const throwsK = async (args, needle) => addKnowledgeToolDefinition(fakeCtx, {}).execute(args).then(() => false, (e) => String(e.message).includes(needle))
   check('add_knowledge 闸:无考题拒', await throwsK({ docsDir: '/tmp', id: 'x', description: 'd', probes: [] }, '没有考题'))
   check('add_knowledge 闸:相对路径拒', await throwsK({ docsDir: 'rel/path', id: 'x', description: 'd', probes: [{ question: 'q', mustInclude: ['m'] }] }, '绝对路径'))
+}
+
+
+// ── 机械闸:契约要求的动作,逐条必须有够得着的工具面 ─────────────────────────
+{
+  const M = await import('./lib/orchestrated-tools.js')
+  const { CONTRACT_ACTIONS, ARCHITECTURE_CONTRACT: AC2 } = M
+  const { readFileSync: rf5 } = await import('node:fs')
+  const indexSrc = rf5('src/index.ts', 'utf8')
+  check('闸:契约动作表非空且每条有 action/tool/why', CONTRACT_ACTIONS.length >= 10 && CONTRACT_ACTIONS.every((x) => x.action && x.tool && x.why))
+  const unregistered = CONTRACT_ACTIONS.filter((x) => !indexSrc.includes(`assembler.tool.${x.tool}()`))
+  check('闸:每个契约动作的工具都真被注册(忘配工具即红)', unregistered.length === 0, unregistered.map((x) => `${x.action}→${x.tool}`).join(', '))
+  // 碰装配器资源的三件必须在契约里被点名(否则 agent 不知道有这条路,还会去啃 shell)
+  const mustName = ['add_knowledge', 'read_preset', 'submit_part']
+  const unnamed = mustName.filter((t) => !AC2.includes(t))
+  check('闸:资源类工具在契约里被点名(不点名 = agent 仍会去撞沙箱)', unnamed.length === 0, unnamed.join(', '))
+  check('闸:契约禁止提权重试(沙箱拒绝时停手/报工单)', AC2.includes('do not retry') && AC2.includes('work order saying'))
+  // 契约不得再把 agent 指向仓库脚本路径(那是沙箱够不着的死结)
+  check('闸:契约不再指向仓库脚本路径', !/scripts\/index-add\.mjs/.test(AC2), '契约里仍出现 scripts/index-add.mjs')
+  const { readPresetToolDefinition, submitPartToolDefinition } = M
+  const rpDesc = readPresetToolDefinition(fakeCtx, {}).description
+  const spDesc = submitPartToolDefinition(fakeCtx, {}).description
+  check('契约钉:read_preset = 沙箱外资源的读窗(点名装备 DDL)', rpDesc.includes('equipment DDL') && rpDesc.includes('outside your shell sandbox'))
+  check('契约钉:submit_part = 你写码/门执行,不过门不入库', spDesc.includes('tool-surface twin') && spDesc.includes('registers it only if every gate passes') && spDesc.includes('Nothing is registered on failure'))
 }
 
 if (failures > 0) {

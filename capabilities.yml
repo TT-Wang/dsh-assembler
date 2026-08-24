@@ -570,6 +570,7 @@ mcp-servers:
       - { env: "S3_ACCESS_KEY", purpose: "访问密钥 ID" }
       - { env: "S3_SECRET_KEY", purpose: "访问密钥" }
 
+
 capabilities:
   # ── frontend templates(交互面零件:选形状,功能由其余零件供给)────────────
   # 装配时填参发射进 preset 的 frontend/,由 /assembler/ui/<preset> 同源伺服;

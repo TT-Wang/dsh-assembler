@@ -225,7 +225,11 @@ const faceServer = createServer((req, res) => {
 	};
 	if (req.method === 'OPTIONS') { cors(); res.writeHead(204); res.end(); return; }
 	const pathname = (req.url ?? '/').split('?')[0];
-	if (req.headers['x-service-token'] !== SERVICE_TOKEN) return json(401, { error: 'bad or missing X-Service-Token' });
+	// 鉴权:头 X-Service-Token 或查询串 ?token=(二者等价)。查询串是必要的——
+	// <audio src>/<img src>/下载链接无法带自定义头,只认 URL;字节类服务脸若只收头,
+	// 页面就永远取不到字节(实测:B3 语音便签墙因取不到脸整题颗粒无收)。
+	const presented = req.headers['x-service-token'] ?? (() => { try { return new URL(req.url ?? '/', 'http://local').searchParams.get('token'); } catch { return null; } })();
+	if (presented !== SERVICE_TOKEN) return json(401, { error: 'bad or missing service token(头 X-Service-Token 或 ?token= 均可)' });
 
 	if (req.method === 'GET' && pathname === '/schema') {
 		try {

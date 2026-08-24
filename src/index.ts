@@ -27,7 +27,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm/message'
 import yaml from 'js-yaml'
 import { assembleToolDefinition } from './assemble-tool.js'
 import { solutionToolDefinition } from './solution-tool.js'
-import { addKnowledgeToolDefinition, askCatalogToolDefinition, assemblerMode, deployAppToolDefinition, draftAssemblyToolDefinition, emitAppToolDefinition, emitPresetToolDefinition, matchCatalogToolDefinition, searchCatalogToolDefinition, verifyAppToolDefinition, verifyPresetToolDefinition, verifyTriggerToolDefinition, verifySharedDataToolDefinition } from './orchestrated-tools.js'
+import { addKnowledgeToolDefinition, askCatalogToolDefinition, readPresetToolDefinition, submitPartToolDefinition, assemblerMode, deployAppToolDefinition, draftAssemblyToolDefinition, emitAppToolDefinition, emitPresetToolDefinition, matchCatalogToolDefinition, searchCatalogToolDefinition, verifyAppToolDefinition, verifyPresetToolDefinition, verifyTriggerToolDefinition, verifySharedDataToolDefinition } from './orchestrated-tools.js'
 import { specExperimentToolDefinition, deriveArchSpec, validateArchProbe } from './arch-spec.js'
 import { shortlistCapabilities } from './capability-index.js'
 import { AUX_CALL_TIMEOUT_MS, addUsage, deriveProbePlan, parseModelJson, runFrontendGate, runProbe, runScenario, sanitizeMarks, usageDetail, type AuxUsage, type ProbePlan, type ProbeResult } from './verify.js'
@@ -2458,6 +2458,9 @@ export function apply(ctx: Context, config: Config = {}): void {
     ctx.effect(() => ctx.tools.register(verifyTriggerToolDefinition(ctx, config)), 'assembler.tool.verify_trigger()')
     // 知识包入库的工具面:治"造件管道住在仓库里、会话沙箱够不着"(泛化战役 A1 实录)。
     ctx.effect(() => ctx.tools.register(addKnowledgeToolDefinition(ctx, config)), 'assembler.tool.add_knowledge()')
+    // 装配器资源只经工具面读写:读 preset(装备 DDL/BOM/persona)、造零件(过门入库)。
+    ctx.effect(() => ctx.tools.register(readPresetToolDefinition(ctx, config)), 'assembler.tool.read_preset()')
+    ctx.effect(() => ctx.tools.register(submitPartToolDefinition(ctx, config)), 'assembler.tool.submit_part()')
     if (mode === 'search' || mode === 'orchestrated' || mode === 'dialogue') {
       // search 默认形态里 match 是"专家精排"备用阀:平时零调用,检索拿不准时升级。
       ctx.effect(() => ctx.tools.register(matchCatalogToolDefinition(ctx, config)), 'assembler.tool.match_catalog()')

@@ -18,7 +18,7 @@
  * assemble_solution(两臂互斥,A/B 数据才干净)。验收机器与 A 臂共用同一套
  * (runProbe/runScenario/validateArchProbe/marksPresent)——两臂同一张考卷。
  */
-import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -43,7 +43,7 @@ import {
 import { validateArchProbe } from './arch-spec.js'
 import { rankCapabilities } from './capability-index.js'
 import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend } from './frontend.js'
-import { spawn as spawnPart } from 'node:child_process'
+import { execFileSync, spawn as spawnPart } from 'node:child_process'
 import { loadRecipe, materializeApp, runAppSelftest } from './recipe.js'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -150,8 +150,8 @@ export const ARCHITECTURE_CONTRACT =
   + '现场造件 (a gap work order; you build it through the induction pipeline) / 降级方案 (state exactly what degrades) / 砍掉. '
   + 'Silently downgrading a gap the user never saw is the failure this checkpoint exists to prevent. '
   + '(3) Only then search per need. Gaps agreed at the checkpoint MUST be passed to emit_preset as missing/missingEntries — that is what turns '
-  + 'them into work orders. (4) Growing the catalog: knowledge packs go through the add_knowledge TOOL (tool surface — works from any session; the CLI lives in the assembler repo which your shell sandbox cannot reach, measured 2026-08-25: an agent burned 15 minutes fighting permissions). Building a PART still goes through the work order + scripts/index-add.mjs scaffold/verify/register '
-  + 'pipeline — if your shell cannot reach that path, say so and hand the work order to the user rather than hand-editing anything. Hand-editing capabilities.yml or index/catalog.yml bypasses the quality gate (live case: a bypassed gate hid a process-hang '
+  + 'them into work orders. (4) ASSEMBLER RESOURCES ARE TOOL-SURFACE ONLY: the catalog, presets, recipes and knowledge live OUTSIDE your shell sandbox — read a preset with read_preset (persona/装备 DDL/BOM/faces), ingest docs with add_knowledge, submit a part you wrote with submit_part (it installs, runs YOUR smoke, probes listTools independently, and registers only on a clean pass). If a shell command is denied because a path is outside the workspace, that is the sandbox working as designed: **stop, do not retry with escalated permissions** — either use the tool for that job, or hand the user a work order saying exactly what is needed (measured 2026-08-25: two scenarios burned 30 minutes each on escalation retries and delivered nothing). Knowledge packs go through the add_knowledge TOOL (tool surface — works from any session). Never hand-edit capabilities.yml or index/catalog.yml — that bypasses the quality gate '
+  + '(live case: a bypassed gate hid a process-hang '
   + 'defect and a copied-from-another-part smoke test).'
 
 /**
@@ -1867,6 +1867,196 @@ export function addKnowledgeToolDefinition(_ctx: Context, config: Config): ToolD
       return `知识包 ${id} 已入库:${String(docs.length)} 份文档 / ${String(totalBytes)} 字节;检索门 ${String(results.length)}/${String(results.length)} 条考题命中`
         + `\n目录条目:${capId}${registered ? '(已登记)' : '(已存在)'}`
         + prose(`\n【接力棒】现在可以 ${EMIT_TOOL_NAME} 时把 "${capId}" 放进 capabilityIds——它会被拷进 preset 的 kb/,交付物自包含。`)
+    },
+  })
+}
+
+export const READ_PRESET_TOOL_NAME = 'read_preset'
+export const SUBMIT_PART_TOOL_NAME = 'submit_part'
+
+/**
+ * 契约动作 ↔ 工具面 对照表(机械闸的数据源)。
+ *
+ * 铁律:**契约要求 agent 做的每个动作,都必须有一张够得着的工具面**——契约住在
+ * prompt 里,而 agent 的 shell 关在会话沙箱里;凡是要碰装配器资源(目录/preset/
+ * 配方/知识包)的动作,只要没有工具面,agent 就只能撞墙提权重试。实测代价:两道
+ * 题各烧 30 分钟、颗粒无收(2026-08-25 泛化战役 B3/C3)。
+ *
+ * 加新动作进契约时,同时在这里登记它的工具;单测逐条断言工具真被注册、且契约
+ * 里真点名了它——忘了配工具,测试当场红。
+ */
+export const CONTRACT_ACTIONS: ReadonlyArray<{ action: string; tool: string; why: string }> = [
+  { action: '选型(检索零件)', tool: SEARCH_TOOL_NAME, why: '目录在装配器进程里,不在会话文件系统里' },
+  { action: '发射 preset', tool: EMIT_TOOL_NAME, why: 'preset 目录在 $DSH_HOME 下,沙箱之外' },
+  { action: '独立验收 preset', tool: VERIFY_TOOL_NAME, why: '要开真会话,只有 host 能开' },
+  { action: '实例化 app(配方)', tool: EMIT_APP_TOOL_NAME, why: '配方模板在装配器仓库里' },
+  { action: '独立验收 app', tool: VERIFY_APP_TOOL_NAME, why: '要拉起进程并黑盒考' },
+  { action: '发布前端进 preset', tool: DEPLOY_APP_TOOL_NAME, why: '目标目录在沙箱外' },
+  { action: '验收多 agent 共享数据', tool: VERIFY_SHARED_TOOL_NAME, why: '跨 preset 会话,只有 host 能开' },
+  { action: '验收无人值守触发', tool: VERIFY_TRIGGER_TOOL_NAME, why: '要经 wire 唤醒并验落库效果' },
+  { action: '收知识包进目录', tool: ADD_KNOWLEDGE_TOOL_NAME, why: '目录与知识区在仓库里,沙箱够不着(实测烧 15 分钟)' },
+  { action: '读 preset 的装备 DDL/BOM/persona', tool: READ_PRESET_TOOL_NAME, why: '契约要求"列名照抄装备 DDL",但那目录沙箱读不到' },
+  { action: '把自己写的零件收进目录', tool: SUBMIT_PART_TOOL_NAME, why: 'CLI 住在仓库里;沙箱够不着(实测两题各烧 30 分钟)' },
+]
+
+// ── 装配器资源只经装配器工具面读写(泛化战役的通用结论)────────────────────────
+// 原则:装配器自己的资源(目录、preset、配方、知识包)住在会话沙箱之外,契约
+// **不得指向文件路径**,一律经工具面读写。实测代价:契约点名 scripts/index-add.mjs,
+// agent 照做 → 沙箱拒 → 86 次 bash 提权重试 → 整题颗粒无收(B3/C3 同病)。
+// 下面两个工具补齐"读 preset"与"造零件"两条路。
+
+export function readPresetToolDefinition(_ctx: Context, config: Config): ToolDefinition {
+  return defineTool({
+    name: READ_PRESET_TOOL_NAME,
+    description:
+      'Read an emitted preset\'s artifacts: persona, equipment DDL (the table schema its pages must copy column names from), parts BOM, '
+      + 'selfcheck plan, mounted service faces, and frontend info. The preset lives outside your shell sandbox — this tool is how you see it.'
+      + prose(' Use before writing pages against a preset\'s database (column names come from the DDL, never invent), before re-emitting '
+        + '(read the current persona first), and when reporting a delivery (BOM + verdict are the evidence).'),
+    parameters: {
+      presetId: { type: 'string', description: 'the preset id', required: true },
+      include: { type: 'array', items: { type: 'string' }, description: 'optional subset: persona | ddl | bom | selfcheck | faces | frontend (default: all)' },
+    },
+    output: {
+      schema: { type: 'string' as const },
+      render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
+    },
+    execute: async (args: unknown): Promise<string> => {
+      const a = args as { presetId?: unknown; include?: unknown }
+      const presetId = sanitizePresetName(String(a?.presetId ?? ''))
+      if (presetId === '') throw new Error('read_preset 需要 presetId')
+      const dir = join(presetRootOf(config), presetId)
+      if (!existsSync(join(dir, 'agent.cordis.yml'))) throw new Error(`read_preset: preset「${presetId}」不存在(先 emit_preset,或核对名字)`)
+      const want = Array.isArray(a?.include) && a.include.length > 0 ? new Set(a.include.map(String)) : null
+      const on = (k: string): boolean => want === null || want.has(k)
+      const out: string[] = [`preset ${presetId}(${dir})`]
+      if (on('persona')) {
+        const rows = yaml.load(readFileSync(join(dir, 'agent.cordis.yml'), 'utf8')) as Array<Record<string, any>> | null
+        const persona = (rows ?? []).find((r) => r?.id === 'persona')?.config?.text
+        out.push(`\n【persona】\n${typeof persona === 'string' ? persona : '(无)'}`)
+      }
+      if (on('ddl')) {
+        const ddlPath = join(dir, 'equipment', 'init.sql')
+        out.push(`\n【装备 DDL(表结构;列名照抄这里,别发明)】\n${existsSync(ddlPath) ? readFileSync(ddlPath, 'utf8') : '(该 preset 没有状态零件/装备)'}`)
+      }
+      if (on('bom')) {
+        const bomPath = join(dir, 'parts.lock.yml')
+        out.push(`\n【BOM】\n${existsSync(bomPath) ? readFileSync(bomPath, 'utf8').slice(0, 4000) : '(无)'}`)
+      }
+      if (on('selfcheck')) {
+        const scPath = join(dir, 'selfcheck.json')
+        out.push(`\n【自检包(随件考卷)】\n${existsSync(scPath) ? readFileSync(scPath, 'utf8').slice(0, 2000) : '(尚未验收通过)'}`)
+      }
+      if (on('faces')) {
+        const svcPath = join(dir, 'workspace', '.service.json')
+        out.push(`\n【服务脸(页面可直连的零件面)】\n${existsSync(svcPath)
+          ? Object.entries(JSON.parse(readFileSync(svcPath, 'utf8')) as Record<string, { url?: string }>)
+            .map(([k, v]) => `${k}: ${v.url ?? '?'}`).join('\n')
+          : '(尚未开过会话——挂载后才有;页面里用 SDK 的 faces()/face(name) 取)'}`)
+      }
+      if (on('frontend')) {
+        const fePath = join(dir, 'frontend', 'index.html')
+        out.push(`\n【前端】${existsSync(fePath) ? `已发射(${statSync(fePath).size} 字节)· /assembler/ui/${presetId}` : '(无)'}`)
+      }
+      appendOrchLedger({ tool: READ_PRESET_TOOL_NAME, presetId })
+      return out.join('\n')
+    },
+  })
+}
+
+export function submitPartToolDefinition(_ctx: Context, config: Config): ToolDefinition {
+  return defineTool({
+    name: SUBMIT_PART_TOOL_NAME,
+    description:
+      'Submit a NEW PART you wrote (an MCP stdio server) into the catalog — the tool-surface twin of the induction CLI, because the '
+      + 'catalog lives outside your shell sandbox. You supply the source; this tool writes it into the catalog, installs deps, runs YOUR '
+      + 'smoke (exit 0 required), independently probes listTools, and registers it only if every gate passes. Nothing is registered on failure.'
+      + prose(' 分工不变:写代码是你的活(你有全套 coding harness),执行与质检门是装配器的活。'
+        + 'smoke 必须真调工具、断言真结果——照抄别的零件的 smoke 或只断言"没抛错"会让缺陷溜进目录(实录:一次被绕过的门藏了个进程悬挂缺陷)。'
+        + 'FAIL 带冒烟原文返回,修好再交;连续 3 次不过就停手上报,不要盲改。'),
+    parameters: {
+      id: { type: 'string', description: 'kebab-case part id (becomes generated/<id>/)', required: true },
+      indexJs: { type: 'string', description: 'the MCP stdio server source (index.js, ESM)', required: true },
+      smokeMjs: { type: 'string', description: 'smoke.mjs — real calls with real assertions; exit non-zero on failure', required: true },
+      dependencies: { type: 'object', additionalProperties: true, description: 'npm deps map, e.g. {"zod":"^3.23.0"} (@modelcontextprotocol/sdk is added automatically)' },
+      meta: { type: 'object', additionalProperties: true, description: 'provenance: {repo, license, kind?:"service", service?, terms?, rateLimit?, requiredSecrets?:[{env,purpose}]}', required: true },
+    },
+    output: {
+      schema: { type: 'string' as const },
+      render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
+    },
+    execute: async (args: unknown): Promise<string> => {
+      const a = args as Record<string, unknown> | null
+      const id = String(a?.id ?? '').trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48)
+      const indexJs = String(a?.indexJs ?? '')
+      const smokeMjs = String(a?.smokeMjs ?? '')
+      const meta = (a?.meta ?? {}) as Record<string, unknown>
+      if (id === '') throw new Error('submit_part 需要 id(kebab-case)')
+      if (indexJs.trim() === '' || smokeMjs.trim() === '') throw new Error('submit_part 需要 indexJs 与 smokeMjs(没有冒烟的零件不许入库——验收永远归门,不归自述)')
+      if (typeof meta.license !== 'string' || String(meta.license).trim() === '') throw new Error('submit_part 需要 meta.license(供应链出处:许可证必填)')
+      const dir = join(REPO, 'generated', id)
+      if (existsSync(join(dir, '.index-meta.json'))) throw new Error(`submit_part: 零件 ${id} 已存在——换 id,或先与用户确认是否取代旧件(装配器不静默覆盖既有零件)`)
+
+      mkdirSync(dir, { recursive: true })
+      const deps = { '@modelcontextprotocol/sdk': '^1.0.0', ...(a?.dependencies !== null && typeof a?.dependencies === 'object' ? a.dependencies as Record<string, string> : {}) }
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({
+        name: `@dsh-index/${id}`, version: '0.0.1', type: 'module', private: true,
+        description: String(meta.description ?? `MCP stdio server: ${id}`), dependencies: deps,
+      }, null, 2) + '\n')
+      writeFileSync(join(dir, 'index.js'), indexJs.endsWith('\n') ? indexJs : indexJs + '\n')
+      writeFileSync(join(dir, 'smoke.mjs'), smokeMjs.endsWith('\n') ? smokeMjs : smokeMjs + '\n')
+      writeFileSync(join(dir, '.index-meta.json'), JSON.stringify({
+        id, pkg: meta.pkg ?? null, version: '0.0.1',
+        repo: meta.repo ?? 'TT-Wang/dsh-assembler', license: meta.license,
+        ...(meta.kind === 'service' ? { kind: 'service', service: meta.service ?? '', provider: meta.provider ?? '', terms: meta.terms ?? '', rateLimit: meta.rateLimit ?? '', network: true } : {}),
+        ...(Array.isArray(meta.requiredSecrets) ? { requiredSecrets: meta.requiredSecrets } : {}),
+        submittedByAgent: true, scaffoldedAt: new Date().toISOString(),
+      }, null, 2) + '\n')
+
+      const fail = (why: string): never => {
+        rmSync(dir, { recursive: true, force: true })
+        throw new Error(`submit_part: ${why}(零件已丢弃,目录未被污染)`)
+      }
+      try {
+        execFileSync('npm', ['install', '--no-audit', '--no-fund'], { cwd: dir, encoding: 'utf8', timeout: 300_000, stdio: ['ignore', 'pipe', 'pipe'] })
+      } catch (error: unknown) {
+        const e = error as { stderr?: string; stdout?: string }
+        fail(`npm install 失败:${String(e.stderr ?? e.stdout ?? '').slice(-400)}`)
+      }
+      try {
+        execFileSync('node', ['smoke.mjs'], { cwd: dir, encoding: 'utf8', timeout: 180_000, stdio: ['ignore', 'pipe', 'pipe'] })
+      } catch (error: unknown) {
+        const e = error as { stderr?: string; stdout?: string }
+        fail(`冒烟未过——原文:\n${`${String(e.stdout ?? '')}\n${String(e.stderr ?? '')}`.trim().slice(-800)}`)
+      }
+      // 独立实探:不信 smoke 自报,从装配器自身依赖直连
+      let tools: Array<{ name: string; description: string }> = []
+      try {
+        const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
+        const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js')
+        const c = new Client({ name: 'submit-part-probe', version: '0.0.1' })
+        await c.connect(new StdioClientTransport({ command: 'node', args: [join(dir, 'index.js')], env: process.env as Record<string, string> }))
+        tools = (await c.listTools()).tools.map((t) => ({ name: t.name, description: (t.description ?? '').replace(/\n[\s\S]*/, '').slice(0, 120) }))
+        await c.close()
+      } catch (error: unknown) {
+        fail(`独立实探失败(listTools):${error instanceof Error ? error.message.slice(0, 300) : String(error)}`)
+      }
+      if (tools.length === 0) fail('listTools 为空——不是可用的 MCP server')
+
+      mkdirSync(join(REPO, 'index', 'reports'), { recursive: true })
+      writeFileSync(join(REPO, 'index', 'reports', `${id}.json`), JSON.stringify({ id, verifiedAt: new Date().toISOString(), node: process.version, smoke: 'pass', submittedByAgent: true, tools }, null, 2) + '\n')
+      // 登记走既有 CLI(幂等命令,与人手入库同一条路——一个零件一种登记法)
+      let registered: string
+      try {
+        const outText = execFileSync('node', [join(REPO, 'scripts', 'index-add.mjs'), 'register', id], { cwd: REPO, encoding: 'utf8', timeout: 60_000 })
+        const j = JSON.parse(outText.trim().split('\n').pop() ?? '{}') as { ok?: boolean; registered?: string[]; error?: string }
+        registered = j.ok === true ? `已登记(${(j.registered ?? []).join(', ') || '幂等无改动'})` : `登记未完成:${String(j.error ?? '').slice(0, 160)}`
+      } catch (error: unknown) {
+        registered = `已过门但登记未完成:${error instanceof Error ? error.message.slice(0, 160) : String(error)}(工件在 generated/${id},可手工 register)`
+      }
+      appendOrchLedger({ tool: SUBMIT_PART_TOOL_NAME, id, tools: tools.length })
+      return `零件 ${id} 已过门入库:${String(tools.length)} 个工具(${tools.map((t) => t.name).join(', ')})\n冒烟 PASS · 独立实探 PASS · ${registered}`
+        + prose(`\n【接力棒】现在 search_catalog 能检得它;要用就把它的能力 id 放进 emit_preset 的 capabilityIds。`)
     },
   })
 }
