@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="_vendor/core.min.css">
 <link rel="stylesheet" href="_vendor/utilities.min.css">
 <script src="_vendor/core.iife.js" defer></script>
+<script src="_vendor/assembler-sdk.js"></script>
 <style>
   .dot{width:9px;height:9px;border-radius:9999px;background:hsl(var(--muted-foreground));flex:none}
   .dot.busy{background:hsl(var(--primary));animation:pulse 1.1s infinite}
@@ -38,43 +39,38 @@
     <div class="uk-card-body">
       <div class="overflow-x-auto" id="tableHost"><div class="text-center text-muted-foreground py-8">暂无明细。</div></div>
       <div class="flex flex-wrap gap-1 mt-3" id="tools"></div>
-      <details class="mt-3"><summary class="text-xs text-muted-foreground cursor-pointer">agent 原文</summary>
+      <div class="max-w-5xl mx-auto px-5 pb-5">  <div class="uk-card" id="liveCard" style="display:none">
+    <div class="uk-card-header flex items-center justify-between">
+      <h2 class="uk-card-title text-sm">实时台账 <span class="text-xs text-muted-foreground">(直连,不经模型)</span></h2>
+      <span class="flex items-center gap-2"><select id="liveTable" class="uk-select uk-btn-sm" style="width:auto"></select><button class="uk-btn uk-btn-default uk-btn-sm" id="liveRefresh">刷新</button></span>
+    </div>
+    <div class="uk-card-body"><div class="overflow-x-auto" id="liveHost"></div></div>
+  </div>
+</div>
+<details class="mt-3"><summary class="text-xs text-muted-foreground cursor-pointer">agent 原文</summary>
         <div class="prewrap text-sm text-muted-foreground mt-2" id="raw"></div></details>
     </div>
   </div>
 </div>
 <script>
 const CFG = { presetId: '{{presetId}}', workdir: '{{workdir}}' };
-let sessionId = null, ws = null, busy = false, replyBuf = '';
 const $ = (id) => document.getElementById(id);
 const dot = $('dot'), cards = $('cards'), tableHost = $('tableHost'), raw = $('raw'), tools = $('tools');
 const CONTRACT = '请汇总当前数据,给出概览。回复末尾必须附一个 ```json 围栏,形如:\n' +
   '```json\n{"cards":[{"label":"指标名","value":"数值","hint":"补充说明"}],"table":{"columns":["列1","列2"],"rows":[["a","b"]]}}\n```\n' +
   'cards 是 3-6 个最重要的指标;没有数据就如实给零值卡,不要编造。';
 
-function setBusy(b) { busy = b; dot.className = 'dot ' + (b ? 'busy' : 'ok'); $('refreshBtn').disabled = b; }
+function setBusy(b) { dot.className = 'dot ' + (b ? 'busy' : 'ok'); $('refreshBtn').disabled = b; }
 function showErr(m) { const e = $('err'); e.textContent = m; e.style.display = 'block'; setTimeout(() => e.style.display = 'none', 8000); }
-async function rpc(method, payload) {
-  const res = await fetch('/api/' + method, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'client-request', rpcId: 'fe-' + Date.now() + '-' + Math.random().toString(36).slice(2), method, payload }) });
-  const j = await res.json();
-  if (!j.result || !j.result.ok) throw new Error(method + ' 失败: ' + JSON.stringify(j.result && j.result.error || j).slice(0, 200));
-  return j.result.value;
-}
-function openWs() {
-  ws = new WebSocket(location.origin.replace(/^http/, 'ws') + '/api/events.mux');
-  ws.onmessage = (m) => { let f; try { f = JSON.parse(String(m.data)); } catch { return; }
-    const p = f.payload; if (!p || p.type !== 'session/event' || p.sessionId !== sessionId) return; handle(p.event); };
-  ws.onclose = () => { if (sessionId) setTimeout(openWs, 1500); };
-}
-function textOf(e) { const c = e.data && e.data.message && e.data.message.content;
-  if (typeof c === 'string') return c;
-  if (Array.isArray(c)) return c.map((b) => b && b.type === 'text' ? b.text : '').join(''); return ''; }
-function render() {
-  raw.textContent = replyBuf;
-  const fences = [...replyBuf.matchAll(/```json\s*([\s\S]*?)```/g)];
-  if (fences.length === 0) return;
-  let data; try { data = JSON.parse(fences[fences.length - 1][1]); } catch { return; }
+
+const client = AssemblerSDK.createClient({
+  presetId: CFG.presetId, workdir: CFG.workdir,
+  onToolCall: (name) => { const c = document.createElement('span'); c.className = 'uk-badge uk-badge-secondary'; c.textContent = '🔧 ' + name; tools.appendChild(c); },
+  onError: (m) => { setBusy(false); showErr(m); },
+});
+const ledger = AssemblerSDK.mountLiveLedger({ presetId: CFG.presetId, cardEl: $('liveCard'), tableSel: $('liveTable'), hostEl: $('liveHost'), refreshBtn: $('liveRefresh') });
+
+function render(data) {
   if (Array.isArray(data.cards) && data.cards.length > 0) {
     cards.innerHTML = '';
     for (const c of data.cards.slice(0, 8)) {
@@ -101,26 +97,20 @@ function render() {
     tableHost.appendChild(el);
   }
 }
-function handle(e) {
-  if (e.type === 'assistant/message') { const t = textOf(e); if (t) replyBuf += (replyBuf === '' ? '' : '\n') + t; }
-  else if (e.type === 'tool/call') {
-    const name = (e.data && e.data.name || '?').replace(/^mcp__/, '').replace(/__/, ' · ');
-    const c = document.createElement('span'); c.className = 'uk-badge uk-badge-secondary'; c.textContent = '🔧 ' + name; tools.appendChild(c);
-  } else if (e.type === 'turn/end') { setBusy(false); render(); }
-}
-async function ensureSession() {
-  if (sessionId) return;
-  const v = await rpc('session.create', { cwd: CFG.workdir, agentPreset: CFG.presetId });
-  sessionId = v.sessionId; openWs();
-  await new Promise((r) => { const t = setInterval(() => { if (ws && ws.readyState === 1) { clearInterval(t); r(); } }, 50); });
-}
-window.addEventListener('load', () => setTimeout(() => $('refreshBtn').click(), 300));
+
 $('refreshBtn').onclick = async () => {
-  if (busy) return;
-  replyBuf = ''; tools.innerHTML = ''; setBusy(true);
-  try { await ensureSession(); await rpc('session.prompt', { sessionId, mode: 'queue', content: [{ type: 'text', text: CONTRACT }] }); }
-  catch (err) { setBusy(false); showErr(String(err && err.message || err)); }
+  if (client.busy) return;
+  tools.innerHTML = ''; setBusy(true);
+  try {
+    const r = await client.ask(CONTRACT);
+    setBusy(false);
+    raw.textContent = r.reply;
+    if (!r.fence.ok) { showErr('概览未更新:' + r.fence.reason); return; }
+    render(r.fence.data);
+    ledger.refresh();
+  } catch (_) { /* onError 已出声 */ }
 };
+window.addEventListener('load', () => setTimeout(() => $('refreshBtn').click(), 300));
 </script>
 </body>
 </html>

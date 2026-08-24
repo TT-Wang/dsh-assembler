@@ -114,7 +114,7 @@ async function send() {
   catch (err) { setBusy(false); showErr(String(err && err.message || err)); }
 }
 sendBtn.onclick = send;
-box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+box.addEventListener('keydown', (e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
 box.addEventListener('input', () => { box.style.height = 'auto'; box.style.height = Math.min(box.scrollHeight, 160) + 'px'; });
 $('newBtn').onclick = () => { sessionId = null; agentBubble = null; if (ws) ws.close(); lane.innerHTML = ''; setBusy(false); dot.className = 'dot'; };
 </script>

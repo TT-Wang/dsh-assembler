@@ -22,11 +22,16 @@ const templates = listFrontendTemplates()
 check('模板库含七张模板', ['approval-desk', 'chat-console', 'dashboard', 'data-desk', 'file-desk', 'form-desk', 'kanban'].every((t) => templates.includes(t)), templates.join(','))
 check('_ 开头目录不算模板(_vendor/_console 是基础设施)', !templates.includes('_vendor') && !templates.includes('_console'))
 check('兜底模板存在于库中', templates.includes(DEFAULT_FRONTEND_TEMPLATE))
+// SDK 蒸馏(2026-08-25):通信层住进 _vendor/assembler-sdk.js,模板可二选一——
+// 引 SDK(新形态)或自带 wire 三件套(特化页过渡形态);槽位与 turn 语义必须在。
+const sdkSrc = readFileSync(join('frontends', '_vendor', 'assembler-sdk.js'), 'utf8')
+check('SDK:wire 三件套 + 服务脸 + 围栏出声 + IME 守卫齐备', ['session.create', 'session.prompt', 'events.mux', 'turn/end', '/.service', 'extractFence', 'isComposing'].every((k) => sdkSrc.includes(k)))
 for (const t of templates) {
   const html = readFileSync(join('frontends', t, 'index.html'), 'utf8')
-  const wired = html.includes('session.create') && html.includes('session.prompt') && html.includes('events.mux')
-    && html.includes('{{presetId}}') && html.includes('{{workdir}}') && html.includes('turn/end')
-  check(`模板 ${t}:wire 三件套 + 槽位齐全`, wired)
+  const viaSdk = html.includes('_vendor/assembler-sdk.js') && html.includes('AssemblerSDK.createClient')
+  const inline = html.includes('session.create') && html.includes('session.prompt') && html.includes('events.mux') && html.includes('turn/end')
+  const wired = (viaSdk || inline) && html.includes('{{presetId}}') && html.includes('{{workdir}}')
+  check(`模板 ${t}:通信层就位(SDK 或内联)+ 槽位齐全`, wired)
   check(`模板 ${t}:亮暗双主题`, html.includes('prefers-color-scheme'))
   check(`模板 ${t}:引用本地 vendor 组件库`, html.includes('_vendor/core.min.css') && html.includes('_vendor/utilities.min.css') && html.includes('uk-theme-zinc'))
 }
