@@ -902,3 +902,22 @@
   license: "BSD-3-Clause"
   selftest: "pass"
   inspiredBy: "形态借鉴 penguin-harness(Apache-2.0)penguin-sdk skill 的 RAG 配方与其工程坑注释; 代码为本仓库重写,检索用本仓库 BM25 谱系(单字+双字 CJK 分词),纪律对齐 ai-call 零件。"
+
+- id: recipe-record-desk
+  kind: recipe
+  version: 1
+  templateHash: "bdfb748c9a7cee74"
+  license: "BSD-3-Clause"
+  selftest: "pass"
+  inspiredBy: "形状取自本仓库 data-desk 前端模板的实战需求聚类;schema 驱动渲染治\"字段各异\" 的形内泛化,不开结构参数槽。"
+
+- id: cron-trigger
+  repo: "harrisiirak/cron-parser"
+  rev: "v0.0.1"
+  license: "BSD-3-Clause"
+  tools:
+    - { name: "cron-info", description: "本零件让 preset 获得定时无人值守能力:schedule-task 登记 cron 任务(到点自动开真会话执行),list/cancel 管理,fire-" }
+    - { name: "schedule-task", description: "登记一个 cron 定时任务:到点自动以指定 preset 开一个真会话执行 prompt(无人值守)。cron 用五段表达式(分 时 日 月 周,如 \"0 9" }
+    - { name: "list-tasks", description: "列出全部已登记的定时任务(id/cron/下次触发/累计触发次数)。" }
+    - { name: "cancel-task", description: "按 id 取消一个定时任务。" }
+    - { name: "fire-task", description: "不等到点,立即触发一次指定任务(触发面考官用:打一发,然后到库里/工作区验后果)。fire-and-forget:返回被开会话的 sessionId,任务执行的" }

@@ -10,7 +10,10 @@
 // 同样的活批成 3-5 次调用,探针墙钟近乎减半。先例:CodeAct(arXiv 2402.01030,
 // 循环即批量,步数 −30%)与 Anthropic writing-tools-for-agents(一个调用吃掉一串
 // 常见连招)。
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { randomBytes } from 'node:crypto';
+import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -195,6 +198,102 @@ server.tool(
 			.all();
 		return { content: [{ type: 'text', text: JSON.stringify(rows, null, 2) }] };
 	})
+);
+
+
+// ── 服务脸(进程脸直连账的物理通道;零件分类法 2026-08-24)─────────────────
+// 页面/机器可绕开模型直接读写本 preset 的账:确定性流(查/汇总/表渲染)不再
+// 每次烧一个 agent 回合。安全模型:127.0.0.1 随机端口 + 每次启动随机 token;
+// token 经两条同信任域通道分发——workspace/.service.json(host 的 /.service
+// 路由同源伺服给页面)与 service-info 工具(agent 侧发现)。写入安全靠装备
+// DDL 的 CHECK/NOT NULL 自卫:不管哪张脸来写,坏数据进不了库。
+// 契约:单条语句;ATTACH/DETACH/VACUUM 拒;返回行数上限 500(返回体裁剪铁律)。
+const SERVICE_TOKEN = randomBytes(16).toString('hex');
+const FORBIDDEN_SQL = /^\s*(ATTACH|DETACH|VACUUM)\b/i;
+const MAX_FACE_ROWS = 500;
+
+const faceServer = createServer((req, res) => {
+	const cors = () => {
+		res.setHeader('Access-Control-Allow-Origin', '*');
+		res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+		res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Service-Token');
+	};
+	const json = (code, obj) => {
+		cors();
+		res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' });
+		res.end(JSON.stringify(obj));
+	};
+	if (req.method === 'OPTIONS') { cors(); res.writeHead(204); res.end(); return; }
+	const pathname = (req.url ?? '/').split('?')[0];
+	if (req.headers['x-service-token'] !== SERVICE_TOKEN) return json(401, { error: 'bad or missing X-Service-Token' });
+
+	if (req.method === 'GET' && pathname === '/schema') {
+		try {
+			const db = getDb(undefined);
+			const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all();
+			const out = tables.map((t) => ({
+				name: t.name,
+				columns: db.prepare(`PRAGMA table_info("${t.name.replace(/"/g, '""')}")`).all()
+					.map((c) => ({ name: c.name, type: c.type, notnull: c.notnull === 1, dflt: c.dflt_value ?? null, pk: c.pk > 0 })),
+			}));
+			return json(200, { tables: out });
+		} catch (error) {
+			return json(500, { error: String(error?.message ?? error) });
+		}
+	}
+
+	if (req.method === 'POST' && pathname === '/sql') {
+		let body = '';
+		req.on('data', (d) => { body += d; if (body.length > 256 * 1024) req.destroy(); });
+		req.on('end', () => {
+			try {
+				const parsed = JSON.parse(body || '{}');
+				const sql = typeof parsed.sql === 'string' ? parsed.sql.trim() : '';
+				if (sql === '') return json(400, { error: '需要 { sql, params? }' });
+				if (FORBIDDEN_SQL.test(sql)) return json(403, { error: '服务脸拒绝 ATTACH/DETACH/VACUUM' });
+				const db = getDb(undefined); // 服务脸只对默认库(本 preset 的账)开放,不许指别的库
+				const stmt = db.prepare(sql); // 多条语句 better-sqlite3 在此抛错
+				const params = Array.isArray(parsed.params) ? parsed.params : [];
+				if (stmt.reader) {
+					const rows = stmt.all(...params);
+					return json(200, { rows: rows.slice(0, MAX_FACE_ROWS), truncated: rows.length > MAX_FACE_ROWS });
+				}
+				const info = stmt.run(...params);
+				return json(200, { changes: info.changes, lastInsertRowid: Number(info.lastInsertRowid) });
+			} catch (error) {
+				return json(400, { error: String(error?.message ?? error) });
+			}
+		});
+		return;
+	}
+	return json(404, { error: 'not found' });
+});
+faceServer.listen(0, '127.0.0.1');
+faceServer.unref(); // 质检门契约:stdio 关闭进程必须退场,常驻监听不得钉住进程
+const facePort = await new Promise((r) => faceServer.once('listening', () => r(faceServer.address().port)));
+const FACE_URL = `http://127.0.0.1:${facePort}`;
+
+// 端点档案落 workspace/.service.json(merge 语义:别的零件也会写自己的条目)。
+// host 的 /assembler/ui/<preset>/.service 路由同源伺服它——页面零轮次发现端点。
+const workdir = process.env.PART_WORKDIR ?? '';
+if (workdir !== '') {
+	try {
+		mkdirSync(workdir, { recursive: true });
+		const svcPath = join(workdir, '.service.json');
+		const existing = existsSync(svcPath) ? JSON.parse(readFileSync(svcPath, 'utf8')) : {};
+		existing.sqlite = { url: FACE_URL, token: SERVICE_TOKEN, pid: process.pid, startedAt: new Date().toISOString() };
+		writeFileSync(svcPath, JSON.stringify(existing, null, 2));
+	} catch { /* 档案写不进不拦工具面;service-info 仍可发现 */ }
+}
+
+server.registerTool(
+	'service-info',
+	{
+		title: '服务脸发现',
+		description: '返回本零件的 HTTP 直连端点(服务脸):页面/程序可绕开模型直接读写本 preset 的默认库。返回 { url, token };调用方以 X-Service-Token 头携带 token 访问 GET /schema 与 POST /sql。',
+		inputSchema: {},
+	},
+	async () => ({ content: [{ type: 'text', text: JSON.stringify({ url: FACE_URL, token: SERVICE_TOKEN, endpoints: ['GET /schema', 'POST /sql {sql, params?}'] }) }] })
 );
 
 await server.connect(new StdioServerTransport());

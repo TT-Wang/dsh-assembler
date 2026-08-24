@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-index/cron-trigger",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "description": "MCP stdio server:cron 定时触发器——到点经 host wire 开真会话执行任务(无人值守形态的入口件)",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "cron-parser": "^4.9.0",
+    "zod": "^3.23.0"
+  }
+}

@@ -185,6 +185,18 @@ export function frontendRouteHandler(presetRoot: string): (req: IncomingMessage,
     } catch {
       return send(400, 'Bad Request')
     }
+    // 服务脸发现(双面化①):零件启动时把直连端点写进 workspace/.service.json,
+    // 此路由把它同源伺服给页面——页面零轮次拿到 {sqlite:{url,token}} 后直连,
+    // 确定性流(查/汇总/表渲染)绕开模型。token 的信任域 = 能打开这张页面的人。
+    const svcMatch = /^\/assembler\/ui\/([A-Za-z0-9_-]+)\/\.service$/.exec(pathname)
+    if (svcMatch !== null) {
+      const svcFile = join(presetRoot, svcMatch[1] as string, 'workspace', '.service.json')
+      if (!existsSync(svcFile)) return send(404, 'no service faces')
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json; charset=utf-8')
+      res.setHeader('Cache-Control', 'no-store')
+      return res.end(readFileSync(svcFile))
+    }
     if (pathname === `${FRONTEND_ROUTE}/_console/data`) {
       res.statusCode = 200
       res.setHeader('Content-Type', 'application/json; charset=utf-8')

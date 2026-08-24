@@ -18,7 +18,7 @@ try {
 	const { tools } = await client.listTools();
 	console.log(`\nlistTools -> ${tools.length} tools:`);
 	for (const t of tools) console.log(`  - ${t.name}: ${String(t.description).split('\n')[0]}`);
-	check('listTools', tools.length === 3, `expected 3 tools, got ${tools.length}`);
+	check('listTools', tools.length === 4, `expected 4 tools (query/execute/list-tables/service-info), got ${tools.length}`);
 
 	// 1) execute: DDL (no params)
 	let r = await client.callTool({
@@ -53,7 +53,37 @@ try {
 	try {
 		r = await client.callTool({ name: 'query', arguments: { sql: 'SELECT 1', params: 'nope' } });
 		check('query bad params -> error', r.content[0].text.startsWith('错误:'), r.content[0].text);
-	} catch (e) {
+	
+	// ── 服务脸(HTTP 直连)────────────────────────────────────────────────────
+	{
+		const { mkdtempSync, readFileSync: rf, existsSync: ex } = await import('node:fs');
+		const { tmpdir } = await import('node:os');
+		const { join: j } = await import('node:path');
+		const wd = mkdtempSync(j(tmpdir(), 'sqlite-face-'));
+		const t4 = new StdioClientTransport({ command: 'node', args: ['index.js'], env: { ...process.env, PART_WORKDIR: wd, SQLITE_DEFAULT_DB: j(wd, 'data.db') } });
+		const c4 = new Client({ name: 'sqlite-face-smoke', version: '0.0.1' });
+		await c4.connect(t4);
+		const info = JSON.parse((await c4.callTool({ name: 'service-info', arguments: {} })).content[0].text);
+		check('服务脸:service-info 返回 url+token', typeof info.url === 'string' && info.url.startsWith('http://127.0.0.1:') && typeof info.token === 'string' && info.token.length === 32);
+		check('服务脸:.service.json 落盘且含 sqlite 条目', ex(j(wd, '.service.json')) && JSON.parse(rf(j(wd, '.service.json'), 'utf8')).sqlite.url === info.url);
+		const H = { 'content-type': 'application/json', 'x-service-token': info.token };
+		const bad = await fetch(`${info.url}/schema`, { headers: { 'x-service-token': 'wrong' } });
+		check('服务脸:错 token 401', bad.status === 401);
+		const w1 = await (await fetch(`${info.url}/sql`, { method: 'POST', headers: H, body: JSON.stringify({ sql: "CREATE TABLE IF NOT EXISTS face_t(id INTEGER PRIMARY KEY, note TEXT NOT NULL)" }) })).json();
+		const w2 = await (await fetch(`${info.url}/sql`, { method: 'POST', headers: H, body: JSON.stringify({ sql: 'INSERT INTO face_t(note) VALUES (?)', params: ['FACE-7788'] }) })).json();
+		check('服务脸:写入返回 changes/lastInsertRowid', w1.changes === 0 && w2.changes === 1 && w2.lastInsertRowid === 1);
+		const r4 = await (await fetch(`${info.url}/sql`, { method: 'POST', headers: H, body: JSON.stringify({ sql: 'SELECT note FROM face_t WHERE id=?', params: [1] }) })).json();
+		check('服务脸:查询返回行', r4.rows?.[0]?.note === 'FACE-7788');
+		const sch = await (await fetch(`${info.url}/schema`, { headers: { 'x-service-token': info.token } })).json();
+		check('服务脸:/schema 报表与列', sch.tables.some((t) => t.name === 'face_t' && t.columns.some((c) => c.name === 'note' && c.notnull)));
+		const forb = await (await fetch(`${info.url}/sql`, { method: 'POST', headers: H, body: JSON.stringify({ sql: "ATTACH DATABASE 'x' AS y" }) })).json();
+		const multi = await fetch(`${info.url}/sql`, { method: 'POST', headers: H, body: JSON.stringify({ sql: 'SELECT 1; SELECT 2' }) });
+		check('服务脸:ATTACH 拒 + 多语句拒', forb.error?.includes('拒绝') && multi.status === 400);
+		const pre = await fetch(`${info.url}/sql`, { method: 'OPTIONS' });
+		check('服务脸:CORS 预检 204', pre.status === 204 && pre.headers.get('access-control-allow-origin') === '*');
+		await c4.close();
+	}
+} catch (e) {
 		check('query bad params -> error', true, `rejected at SDK boundary: ${e.message}`);
 	}
 

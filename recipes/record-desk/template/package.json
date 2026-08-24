@@ -1,0 +1,9 @@
+{
+  "name": "record-desk-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ingest": "node --no-warnings ingest.mjs",
+    "start": "node --no-warnings server.mjs"
+  }
+}

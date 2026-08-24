@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>记录台</title>
+<style>
+  :root { --bg:#fff; --sf:#fff; --bd:#e5e7eb; --bd2:#d1d5db; --fg:#111827; --mut:#6b7280; --ac:#111827; --acf:#fff; --tint:#f3f4f6; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0b0b0c; --sf:#131316; --bd:#26262b; --bd2:#3a3a41; --fg:#f3f4f6; --mut:#9ca3af; --ac:#f3f4f6; --acf:#111827; --tint:#1c1c21; } }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.6 ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+  header { position:sticky; top:0; display:flex; align-items:center; gap:10px; height:52px; padding:0 16px; border-bottom:1px solid var(--bd); background:color-mix(in srgb,var(--bg) 88%,transparent); backdrop-filter:blur(8px); }
+  header b { font-size:15px }
+  header .sub { color:var(--mut); font-size:12px }
+  main { max-width:860px; margin:0 auto; padding:18px 16px 80px; display:flex; flex-direction:column; gap:14px }
+  .card { border:1px solid var(--bd); border-radius:12px; background:var(--sf); }
+  .card .hd { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 14px; border-bottom:1px solid var(--bd); font-weight:600; font-size:13px }
+  .card .bd { padding:14px }
+  .row { display:flex; gap:8px }
+  input, select { border:1px solid var(--bd2); border-radius:8px; padding:8px 12px; font:inherit; background:var(--sf); color:var(--fg) }
+  input:focus-visible, select:focus-visible { outline:2px solid color-mix(in srgb,var(--mut) 40%,transparent) }
+  button { border:0; border-radius:8px; padding:8px 16px; background:var(--ac); color:var(--acf); font:inherit; font-weight:500; cursor:pointer }
+  button.ghost { background:var(--sf); color:var(--mut); border:1px solid var(--bd) }
+  button:disabled { opacity:.45 }
+  table { border-collapse:collapse; width:100%; font-size:13px }
+  th, td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--bd); white-space:nowrap }
+  th { color:var(--mut); font-weight:500; font-size:12px }
+  .wrap { overflow-x:auto }
+  .err { border:1px solid #d97706; color:#d97706; border-radius:8px; padding:8px 12px; font-size:13px; margin-top:8px; display:none }
+  .ok { color:#10a37f; font-size:12px }
+  .muted { color:var(--mut); font-size:12px }
+  form.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:8px }
+  form.grid label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--mut) }
+</style>
+</head>
+<body>
+<header><b id="appName">记录台</b><span class="sub" id="dbline"></span></header>
+<main>
+  <div class="card">
+    <div class="hd">一句话记一笔 <span class="muted" id="aiState"></span></div>
+    <div class="bd">
+      <div class="row">
+        <input id="nlBox" style="flex:1" placeholder="例如:午饭 32 元 备注 团队聚餐…(Enter 提交,AI 解析入库)">
+        <button id="nlBtn">记录</button>
+      </div>
+      <div class="err" id="nlErr"></div>
+      <div class="ok" id="nlOk"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="hd">表单直录 <span class="muted">(不经 AI,直接入库)</span></div>
+    <div class="bd"><form class="grid" id="formGrid"></form>
+      <div class="row" style="margin-top:10px"><button id="formBtn">入库</button></div>
+      <div class="err" id="formErr"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="hd"><span>台账 <span class="muted">(实时直连)</span></span>
+      <span class="row"><select id="tsel"></select><button class="ghost" id="refresh">刷新</button></span>
+    </div>
+    <div class="bd"><div class="wrap" id="rowsHost"><span class="muted">加载中…</span></div></div>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let SCHEMA = [];
+const cur = () => SCHEMA.find((t) => t.name === $('tsel').value) ?? SCHEMA[0];
+const esc = (v) => String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const j = await r.json();
+  if (j.error) throw new Error(j.error);
+  return j;
+}
+async function refresh() {
+  const t = cur(); if (!t) return;
+  const j = await api('/api/rows?table=' + encodeURIComponent(t.name));
+  const rows = j.rows;
+  $('rowsHost').innerHTML = rows.length === 0 ? '<span class="muted">(空表)</span>'
+    : '<table><thead><tr>' + Object.keys(rows[0]).map((c) => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>'
+      + rows.map((r) => '<tr>' + Object.keys(rows[0]).map((c) => '<td>' + esc(r[c]) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+}
+function buildForm() {
+  const t = cur(); if (!t) return;
+  // 可填列 = 非自增主键、且没有默认值的列(有默认值的库自己会填)
+  $('formGrid').innerHTML = t.columns.filter((c) => !(c.pk && /INT/i.test(c.type)) && c.dflt === null)
+    .map((c) => '<label>' + esc(c.name) + (c.notnull ? ' *' : '') + '<input data-col="' + esc(c.name) + '" placeholder="' + esc(c.type) + '"></label>').join('');
+}
+async function init() {
+  const meta = await api('/api/meta');
+  $('appName').textContent = meta.appName; document.title = meta.appName;
+  $('aiState').textContent = meta.keyConfigured ? '' : '(AI 解析待配 key,表单/查询照常)';
+  const sch = await api('/api/schema');
+  SCHEMA = sch.tables;
+  $('tsel').innerHTML = SCHEMA.map((t) => '<option>' + esc(t.name) + '</option>').join('');
+  const h = await api('/healthz');
+  $('dbline').textContent = h.db.split('/').slice(-2).join('/');
+  buildForm(); await refresh();
+}
+$('tsel').onchange = () => { buildForm(); refresh(); };
+$('refresh').onclick = refresh;
+
+async function nlRecord() {
+  const text = $('nlBox').value.trim(); if (!text) return;
+  $('nlBtn').disabled = true; $('nlErr').style.display = 'none'; $('nlOk').textContent = '';
+  try {
+    const j = await api('/api/record', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
+    $('nlOk').textContent = '已记入 ' + j.table + ':' + JSON.stringify(j.row);
+    $('nlBox').value = ''; await refresh();
+  } catch (e) { $('nlErr').textContent = e.message; $('nlErr').style.display = 'block'; }
+  finally { $('nlBtn').disabled = false; }
+}
+$('nlBtn').onclick = nlRecord;
+$('nlBox').addEventListener('keydown', (e) => {
+  if (e.isComposing || e.keyCode === 229) return; // IME 守卫:选字回车不发半句话
+  if (e.key === 'Enter') { e.preventDefault(); nlRecord(); }
+});
+$('formBtn').onclick = async (ev) => {
+  ev.preventDefault();
+  const t = cur(); if (!t) return;
+  const inputs = [...$('formGrid').querySelectorAll('input')].filter((i) => i.value.trim() !== '');
+  if (inputs.length === 0) return;
+  $('formErr').style.display = 'none';
+  try {
+    const cols = inputs.map((i) => '"' + i.dataset.col.replace(/"/g, '""') + '"');
+    await api('/api/sql', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sql: 'INSERT INTO "' + t.name.replace(/"/g, '""') + '" (' + cols.join(',') + ') VALUES (' + cols.map(() => '?').join(',') + ')', params: inputs.map((i) => i.value.trim()) }) });
+    inputs.forEach((i) => { i.value = ''; }); await refresh();
+  } catch (e) { $('formErr').textContent = e.message; $('formErr').style.display = 'block'; }
+};
+init().catch((e) => { $('rowsHost').innerHTML = '<span class="err" style="display:block">初始化失败:' + esc(e.message) + '</span>'; });
+</script>
+</body>
+</html>

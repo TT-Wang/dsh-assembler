@@ -1328,10 +1328,16 @@ export function verifySharedDataToolDefinition(ctx: Context, config: Config): To
       + 'readerTask = an EXPLICIT query instruction for a DIFFERENT agent to fetch that row BY the token and report the payload column. '
       + 'Mechanical gates: writerTask must contain both token and payload; readerTask must contain the token but NEVER the payload '
       + '(otherwise the reader could parrot the instruction — the copy gate); the examiner judges the reader\'s reply for the payload. '
-      + 'PASS = data truly flows across the suite. Call after emitting all suite members.',
+      + 'PASS = data truly flows across the suite. Call after emitting all suite members. '
+      + 'TWO-FACED deliveries (a recipe APP sharing the preset\'s db via DB_PATH): pass writerAppUrl or readerAppUrl instead of that side\'s '
+      + 'preset id — the examiner then performs that side itself over the app\'s HTTP face, and the task for an app side is a single SQL '
+      + 'statement (INSERT for writer / SELECT for reader; same token/payload gates apply). app↔agent handoff proven = the two faces truly '
+      + 'share one ledger.',
     parameters: {
-      writerId: { type: 'string', description: 'preset id of the WRITING agent', required: true },
-      readerId: { type: 'string', description: 'preset id of the READING agent (must differ from writerId)', required: true },
+      writerId: { type: 'string', description: 'preset id of the WRITING agent (omit when writerAppUrl is given)' },
+      readerId: { type: 'string', description: 'preset id of the READING agent (omit when readerAppUrl is given; must differ from writer side)' },
+      writerAppUrl: { type: 'string', description: 'recipe app base URL (http://127.0.0.1:port) to WRITE through — writerTask must then be one SQL INSERT carrying token and payload' },
+      readerAppUrl: { type: 'string', description: 'recipe app base URL to READ through — readerTask must then be one SQL SELECT keyed by token (payload must NOT appear)' },
       token: { type: 'string', description: 'invented KEY token both tasks reference, e.g. ORD-7788', required: true },
       payload: { type: 'string', description: 'invented PAYLOAD string the writer stores and the reader must report verbatim, e.g. HANDOFF-4821-OK', required: true },
       writerTask: { type: 'string', description: 'explicit instruction for the writer: insert a row into a REAL shared table with <token> in the key column and <payload> in a text column, fill other NOT NULL columns with placeholders, then reply done', required: true },
@@ -1349,11 +1355,18 @@ export function verifySharedDataToolDefinition(ctx: Context, config: Config): To
       const payload = String(a?.payload ?? '').trim()
       const writerTask = String(a?.writerTask ?? '').trim()
       const readerTask = String(a?.readerTask ?? '').trim()
-      if (writerId === '' || readerId === '' || writerId === readerId) {
+      const writerAppUrl = String(a?.writerAppUrl ?? '').trim()
+      const readerAppUrl = String(a?.readerAppUrl ?? '').trim()
+      const appMode = writerAppUrl !== '' || readerAppUrl !== ''
+      if (writerAppUrl !== '' && !writerAppUrl.startsWith('http://127.0.0.1:')) throw new Error('verify_shared_data: writerAppUrl 必须是本机 app 地址(http://127.0.0.1:端口)')
+      if (readerAppUrl !== '' && !readerAppUrl.startsWith('http://127.0.0.1:')) throw new Error('verify_shared_data: readerAppUrl 必须是本机 app 地址(http://127.0.0.1:端口)')
+      if (writerAppUrl === '' && writerId === '') throw new Error('verify_shared_data: 写方要么给 writerId(agent)要么给 writerAppUrl(app)')
+      if (readerAppUrl === '' && readerId === '') throw new Error('verify_shared_data: 读方要么给 readerId(agent)要么给 readerAppUrl(app)')
+      if (!appMode && (writerId === '' || readerId === '' || writerId === readerId)) {
         throw new Error('verify_shared_data: writerId 与 readerId 必须是两个不同的已发射 preset id')
       }
       const presetRoot = presetRootOf(config)
-      for (const id of [writerId, readerId]) {
+      for (const id of [writerId, readerId].filter((x) => x !== '')) {
         if (!existsSync(join(presetRoot, id, 'agent.cordis.yml'))) {
           throw new Error(`verify_shared_data: preset「${id}」不存在——先用 emit_preset(带同一 sharedDb 绝对路径)发射全部班子成员`)
         }
@@ -1371,9 +1384,59 @@ export function verifySharedDataToolDefinition(ctx: Context, config: Config): To
       const marks = sanitizeMarks([payload])
       if (marks.length === 0) throw new Error('verify_shared_data: payload 未过标记消毒(太短/纯符号)——换一个独特字符串')
       const port = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
-      if (port === undefined) {
+      const agentInvolved = writerAppUrl === '' || readerAppUrl === ''
+      if (agentInvolved && port === undefined) {
         return '共享数据验收跳过:无 webServer 端口(headless?)——班子未经共享验收,不可当作打通。'
       }
+
+      // ── 双面交付路径(③交接考扩展):app 侧由考官亲自经其 HTTP 面执行 SQL,
+      //    agent 侧走单轮真会话探针;照抄闸对两种侧一视同仁。
+      if (appMode) {
+        const t0m = Date.now()
+        const appSql = async (base: string, sql: string): Promise<Record<string, unknown>> => {
+          const r = await fetch(`${base}/api/sql`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sql }), signal: AbortSignal.timeout(10_000) })
+          const j = (await r.json()) as Record<string, unknown>
+          if (typeof j.error === 'string') throw new Error(j.error)
+          return j
+        }
+        const lines: string[] = []
+        let failReason = ''
+        try {
+          if (writerAppUrl !== '') {
+            const j = await appSql(writerAppUrl, writerTask)
+            if (typeof j.changes !== 'number' || j.changes < 1) failReason = `app 写入 0 行(${JSON.stringify(j).slice(0, 120)})`
+            else lines.push(`写入方(app 面):INSERT 落 ${String(j.changes)} 行`)
+          } else {
+            const { runScenario } = await import('./verify.js')
+            const w = await runScenario(port as number, writerId, { goal: '双面交接考·写', turns: [{ prompt: `${writerTask}\n完成后回复里包含 ${token}。不要问任何人。`, mustInclude: [token] }] }, config.verifyTimeoutMs ?? PROBE_TURN_BUDGET_MS, undefined, join(presetRoot, writerId, 'workspace'))
+            if (w.status !== 'PASS') failReason = `agent 写入轮未过:${w.reason ?? w.status}`
+            else lines.push('写入方(会话面):真会话写入 ✓')
+          }
+          if (failReason === '') {
+            if (readerAppUrl !== '') {
+              const j = await appSql(readerAppUrl, readerTask)
+              const hit = JSON.stringify(j.rows ?? []).includes(payload)
+              if (!hit) failReason = `app 读回的行里没有 payload(rows=${JSON.stringify(j.rows ?? []).slice(0, 160)})`
+              else lines.push(`读取方(app 面):按 ${token} 查得 payload ✓`)
+            } else {
+              const { runScenario } = await import('./verify.js')
+              const r = await runScenario(port as number, readerId, { goal: '双面交接考·读', turns: [{ prompt: readerTask, mustInclude: marks }] }, config.verifyTimeoutMs ?? PROBE_TURN_BUDGET_MS, undefined, join(presetRoot, readerId, 'workspace'))
+              if (r.status !== 'PASS') failReason = `agent 读取轮未过:${r.reason ?? r.status}`
+              else lines.push('读取方(会话面):真会话按键取回并报出 payload ✓')
+            }
+          }
+        } catch (error: unknown) {
+          failReason = error instanceof Error ? error.message : String(error)
+        }
+        const pass = failReason === ''
+        const elapsedM = Math.round((Date.now() - t0m) / 1000)
+        appendOrchLedger({ tool: VERIFY_SHARED_TOOL_NAME, mode: 'two-faced', writer: writerAppUrl !== '' ? 'app' : writerId, reader: readerAppUrl !== '' ? 'app' : readerId, pass, reason: failReason.slice(0, 160), elapsedSeconds: elapsedM })
+        return `双面交接验收 ${pass ? 'PASS' : 'FAIL'}(${String(elapsedM)}s)— ${pass ? '两张脸真的共享同一本账' : failReason}\n${lines.join('\n')}`
+          + prose(pass ? '\n【接力棒】如实向用户转述:app 面与会话面读写同一份数据,交接已由独立考官证实。' : '\n【外科决策归你】常见病:app 的 DB_PATH 与 preset 的 sharedDb/装备默认库不是同一个绝对路径;表名/列名对不上;app 未启动。修正后重验;禁止把 FAIL 说成通过。')
+      }
+
+      // 非 app 路径必有 agent 参与,上方守卫已保证 port 存在;此行只为类型收窄。
+      if (port === undefined) return '共享数据验收跳过:无 webServer 端口(headless?)。'
       const t0 = Date.now()
       const job = startJob(ctx, 'verify-shared-data', `共享数据验收 ${writerId}→${readerId}`)
       const phase = (line: string): void => {
@@ -1438,6 +1501,7 @@ export function emitAppToolDefinition(_ctx: Context, _config: Config): ToolDefin
       targetDir: { type: 'string', description: 'absolute target directory (optional; default ~/apps/<name>; refuses non-empty unless fresh)' },
       params: { type: 'object', additionalProperties: true, description: 'recipe param slots as a flat string map (missing required ones come back as an actionable list); secret-shaped keys are refused by design', required: true },
       corpusDir: { type: 'string', description: 'absolute path of the document set to copy into the app (recipes that take a corpus)' },
+      schemaFile: { type: 'string', description: 'absolute path of an idempotent DDL file copied in as schema.sql (record-shape recipes; the app-side twin of a preset\'s equipment DDL). For a two-faced delivery pass DB_PATH in params instead, pointing at the preset\'s workspace/data.db' },
       fresh: { type: 'boolean', description: 'true = wipe a non-empty targetDir and re-materialize (同址重印)' },
     },
     output: {
@@ -1462,6 +1526,7 @@ export function emitAppToolDefinition(_ctx: Context, _config: Config): ToolDefin
         targetDir,
         params,
         ...(typeof a.corpusDir === 'string' && a.corpusDir.trim() !== '' ? { corpusDir: a.corpusDir.trim() } : {}),
+        ...(typeof (a as { schemaFile?: unknown }).schemaFile === 'string' && ((a as { schemaFile?: string }).schemaFile ?? '').trim() !== '' ? { schemaFile: ((a as { schemaFile?: string }).schemaFile ?? '').trim() } : {}),
         ...(a.fresh === true ? { fresh: true } : {}),
       })
       appendOrchLedger({ tool: EMIT_APP_TOOL_NAME, recipe: recipeId, app: name, targetDir: result.targetDir, elapsedSeconds: Math.round((Date.now() - t0) / 1000) })

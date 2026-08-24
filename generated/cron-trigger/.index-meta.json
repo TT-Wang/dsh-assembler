@@ -1,0 +1,9 @@
+{
+  "id": "cron-trigger",
+  "pkg": "cron-parser",
+  "version": "0.0.1",
+  "repo": "harrisiirak/cron-parser",
+  "license": "BSD-3-Clause",
+  "firstParty": true,
+  "scaffoldedAt": "2026-08-24T12:00:00.000Z"
+}

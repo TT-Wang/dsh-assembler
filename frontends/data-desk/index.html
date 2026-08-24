@@ -47,6 +47,20 @@
       </div>
     </div>
   </div>
+  <!-- 直连台账(双面化①):零件服务脸在场时才显示——查/表渲染绕开模型,毫秒级。
+       记一笔仍走 agent(自然语言解析是薄判断,归模型);这就是"按判断密度分流"。 -->
+  <div class="uk-card" id="liveCard" style="display:none">
+    <div class="uk-card-header flex items-center justify-between">
+      <h2 class="uk-card-title text-sm">实时台账 <span class="text-xs text-muted-foreground">(直连,不经模型)</span></h2>
+      <div class="flex items-center gap-2">
+        <select id="liveTable" class="uk-select uk-btn-sm" style="width:auto"></select>
+        <button class="uk-btn uk-btn-default uk-btn-sm" id="liveRefresh">刷新</button>
+      </div>
+    </div>
+    <div class="uk-card-body">
+      <div class="overflow-x-auto" id="liveHost"><div class="text-muted-foreground text-sm">加载中…</div></div>
+    </div>
+  </div>
   <div class="uk-card">
     <div class="uk-card-header"><h2 class="uk-card-title text-sm">结果</h2></div>
     <div class="uk-card-body">
@@ -132,6 +146,51 @@ $('qBtn').onclick = () => { const v = $('qBox').value.trim(); if (v) ask(v + HIN
 $('qBox').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('qBtn').click(); });
 document.querySelectorAll('[data-q]').forEach((c) => { c.onclick = () => ask(c.dataset.q + HINT); });
 window.addEventListener('load', () => setTimeout(() => ask('请汇总当前全部记录,给出总数与关键统计。' + HINT), 300));
+
+// ── 直连台账(服务脸在场才启用;失败静默降级回纯 agent 模式)─────────────────
+let svcSqlite = null;
+async function svcSql(sql, params) {
+  const r = await fetch(svcSqlite.url + '/sql', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Service-Token': svcSqlite.token },
+    body: JSON.stringify({ sql, params: params || [] }) });
+  const j = await r.json();
+  if (j.error) throw new Error(j.error);
+  return j;
+}
+function renderLive(rows) {
+  const host = $('liveHost');
+  if (!rows.length) { host.innerHTML = '<div class="text-muted-foreground text-sm">(空表)</div>'; return; }
+  const cols = Object.keys(rows[0]);
+  const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  host.innerHTML = '<table class="uk-table uk-table-divider uk-table-sm"><thead><tr>'
+    + cols.map((c) => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>'
+    + rows.map((r) => '<tr>' + cols.map((c) => '<td>' + esc(r[c]) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+}
+async function refreshLive() {
+  if (!svcSqlite) return;
+  const t = $('liveTable').value;
+  if (!t) return;
+  try { renderLive((await svcSql('SELECT * FROM "' + t.replace(/"/g, '""') + '" ORDER BY rowid DESC LIMIT 30')).rows); }
+  catch (e) { $('liveHost').innerHTML = '<div class="text-muted-foreground text-sm">直连读取失败:' + String(e.message || e) + '</div>'; }
+}
+(async () => {
+  try {
+    const svc = await (await fetch('/assembler/ui/{{presetId}}/.service')).json();
+    if (!svc.sqlite) return;
+    svcSqlite = svc.sqlite;
+    const sch = await (await fetch(svcSqlite.url + '/schema', { headers: { 'X-Service-Token': svcSqlite.token } })).json();
+    const tables = (sch.tables || []).map((t) => t.name);
+    if (!tables.length) return;
+    $('liveTable').innerHTML = tables.map((t) => '<option>' + t + '</option>').join('');
+    $('liveCard').style.display = '';
+    $('liveTable').onchange = refreshLive;
+    $('liveRefresh').onclick = refreshLive;
+    await refreshLive();
+  } catch { /* 无服务脸或零件未启动:卡片保持隐藏,页面照旧全走 agent */ }
+})();
+// agent 每答完一轮可能写了库:直连台账顺手刷新(有脸才生效)
+const _origRender = renderTableFromReply;
+renderTableFromReply = (text) => { _origRender(text); refreshLive(); };
 </script>
 </body>
 </html>

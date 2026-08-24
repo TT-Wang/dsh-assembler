@@ -1,0 +1,68 @@
+# 配方:记录台独立 app(记录形,三大形状之二)。
+# schema 自适应:页面与 AI 解析都从库里读表结构,一张配方通吃记账/库存/台账/
+# 通讯录等全部记录域——schema 不做参数槽(纪律:参数只装内容不装结构),
+# 结构由装配器经 schemaFile 输入(等价 preset 的装备 DDL),或经 DB_PATH 指向
+# 既有共享账(双面交付:与 agent preset 共用同一个 workspace/data.db)。
+# 改 template/ 任何字节必须升 version 并重过入库门:
+#   node scripts/index-add.mjs recipe record-desk
+id: record-desk
+version: 1
+description: >-
+  把一份表结构变成能用的记录台网页:一句话 AI 解析入库(薄判断)、表单直录、
+  实时台账浏览(schema 驱动渲染,零配置);可指向 agent preset 的共享账实现
+  双面交付。未配 key 时表单/查询照常,AI 解析给可行动指引。
+tags: [配方, app, 记录, 记账, 台账, 库存, 通讯录, 日志, record, ledger, inventory, crud, 网页, 独立应用, 双面]
+license: BSD-3-Clause
+inspiredBy: >-
+  形状取自本仓库 data-desk 前端模板的实战需求聚类;schema 驱动渲染治"字段各异"
+  的形内泛化,不开结构参数槽。
+
+params:
+  - key: APP_NAME
+    description: 页面标题/产品名
+    required: true
+    example: 团队台账
+  - key: ROLE_LINE
+    description: AI 解析记录时的角色一句话(进 system)
+    required: true
+    example: 你是团队的记账员,把口语记录解析成规范流水。
+  - key: DB_PATH
+    description: 可选:指向既有共享账(绝对路径,如某 preset 的 workspace/data.db);不填则本地建账(需 schemaFile)
+    required: false
+  - key: SELFTEST_TEXT
+    description: 验收考句——一句能被解析入库的自然语言记录,内含标记词
+    required: true
+    example: 记一笔支出 咖啡 25 元 备注 LH-889
+  - key: SELFTEST_MARKER
+    description: 验收标记——入库后行里必然出现的短词(取考句里的事实词)
+    required: true
+    example: LH-889
+  - key: MODEL
+    description: DeepSeek 模型 id
+    required: false
+    default: deepseek-v4-flash
+
+requiredSecrets:
+  - env: DEEPSEEK_API_KEY
+    purpose: 一句话解析入库(缺时表单直录/SQL/台账浏览照常,解析返回可行动指引)
+
+run:
+  ingest: [node, --no-warnings, ingest.mjs]
+  start: [node, --no-warnings, server.mjs]
+  readyPath: /healthz
+
+selftest:
+  checks:
+    - kind: healthz
+    - kind: record
+      textParam: SELFTEST_TEXT
+      markerParam: SELFTEST_MARKER
+      needsSecret: DEEPSEEK_API_KEY
+
+sample:
+  schemaFile: sample/schema.sql
+  params:
+    APP_NAME: 云杉小队台账
+    ROLE_LINE: 你是云杉小队的记录员,把口语记录解析成规范条目。
+    SELFTEST_TEXT: 记一笔支出:野外电池采购 180 元,备注 YS-4471 补给
+    SELFTEST_MARKER: YS-4471

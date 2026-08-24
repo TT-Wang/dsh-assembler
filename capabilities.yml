@@ -100,6 +100,8 @@ mcp-servers:
     transport: stdio
     command: node
     args: ['/Users/tongtao/code/dsh-assembler/generated/sqlite-query/index.js']
+    # 服务脸(P 双面化①):页面/程序经 service-info 发现端点后直连读写本 preset 的账,确定性流不过模型。
+    serviceAnnounce: service-info
   github-api:
     transport: stdio
     command: node
@@ -497,6 +499,11 @@ mcp-servers:
     command: node
     args: ["/Users/tongtao/code/dsh-assembler/generated/app-scaffold/index.js"]
 
+  cron-trigger:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/cron-trigger/index.js"]
+
 capabilities:
   # ── frontend templates(交互面零件:选形状,功能由其余零件供给)────────────
   # 装配时填参发射进 preset 的 frontend/,由 /assembler/ui/<preset> 同源伺服;
@@ -678,3 +685,11 @@ capabilities:
       recipe: "rag-qa"
       requiredSecrets:
         - { env: "DEEPSEEK_API_KEY", purpose: "回答生成(缺时服务照起:检索/引用可用,/api/ask 返回可行动配置指引)" }
+  - id: recipe-record-desk
+    via: recipe
+    description: "配方:把一份表结构变成能用的记录台网页:一句话 AI 解析入库(薄判断)、表单直录、 实时台账浏览(schema 驱动渲染,零配置);可指向 agent preset 的共享账实现 双面交付。未配 key 时表单/查询照常,AI 解析给可行动指引。"
+    tags: ["配方", "app", "记录", "记账", "台账", "库存", "通讯录", "日志", "record", "ledger", "inventory", "crud", "网页", "独立应用", "双面"]
+    config:
+      recipe: "record-desk"
+      requiredSecrets:
+        - { env: "DEEPSEEK_API_KEY", purpose: "一句话解析入库(缺时表单直录/SQL/台账浏览照常,解析返回可行动指引)" }

@@ -49,10 +49,16 @@ export interface RecipeParamSpec {
 }
 
 export interface RecipeCheck {
-  /** healthz = readyPath 结构检查;ask = 真问真答(SSE 流 + 来源可核 + 内容标记,来源链接可达性并在其中)。 */
-  kind: 'healthz' | 'ask'
+  /**
+   * healthz = readyPath 结构检查;ask = 真问真答(SSE 流 + 来源可核 + 内容标记);
+   * record = 一句话入库(POST /api/record 走 AI 薄判断 → /api/rows 黑盒验行;
+   * 无 key 时降级考存储半边:/api/sql 直插标记 + 读回)。
+   */
+  kind: 'healthz' | 'ask' | 'record'
   /** kind:'ask' 时:哪个参数是问题、哪个参数是必须出现在回答里的标记。 */
   questionParam?: string
+  /** kind:'record' 时:哪个参数是考句(自然语言记录)。 */
+  textParam?: string
   markerParam?: string
   /** 该检查的 AI 半边依赖的凭证(缺 → 接口模式 SKIPPED,不判负)。 */
   needsSecret?: string
@@ -77,8 +83,8 @@ export interface RecipeSpec {
     readyPath: string
   }
   selftest: { checks: RecipeCheck[] }
-  /** 入库门用的样例实例化输入(params 全填 + 配方内相对语料目录)。 */
-  sample: { params: Record<string, string>; corpusDir?: string }
+  /** 入库门用的样例实例化输入(params 全填 + 配方内相对语料目录/表结构文件)。 */
+  sample: { params: Record<string, string>; corpusDir?: string; schemaFile?: string }
 }
 
 export function loadRecipe(id: string, recipesRoot: string = RECIPES_DIR): RecipeSpec {
@@ -128,6 +134,8 @@ export interface MaterializeInput {
   params: Record<string, string>
   /** 语料目录(绝对路径),拷进 app 的 corpus/。 */
   corpusDir?: string
+  /** 表结构文件(绝对路径),拷进 app 的 schema.sql(记录形配方:装配器的装备 DDL 对位物)。 */
+  schemaFile?: string
   fresh?: boolean
   recipesRoot?: string
 }
@@ -226,6 +234,12 @@ export function materializeApp(input: MaterializeInput): MaterializeResult {
     corpus = { files: files.length, bytes: total }
   }
 
+  if (input.schemaFile !== undefined && input.schemaFile !== '') {
+    const sf = resolve(input.schemaFile)
+    if (!sf.startsWith('/') || !existsSync(sf)) throw new Error(`emit_app: schemaFile 不存在:${sf}`)
+    cpSync(sf, join(norm, 'schema.sql'))
+  }
+
   // 参数经配置文件注入(模板文件零替换 ⇒ 模板字节稳定、配方哈希有意义)。
   writeFileSync(join(norm, 'app.config.json'), JSON.stringify({ recipe: spec.id, ...params }, null, 2) + '\n')
 
@@ -239,7 +253,7 @@ export function materializeApp(input: MaterializeInput): MaterializeResult {
       const e = error as { stderr?: string; stdout?: string; message?: string }
       throw new Error(`emit_app: ingest 失败——${(e.stderr ?? e.stdout ?? e.message ?? '').toString().slice(0, 400)}`)
     }
-    const m = /indexed (\d+) chunks/.exec(stdout)
+    const m = /indexed (\d+)/.exec(stdout)
     chunks = m !== null ? Number(m[1]) : null
     if (chunks === null || chunks === 0) throw new Error(`emit_app: ingest 产出 0 块(语料是空的还是格式不对?ingest 输出:${stdout.slice(0, 200)})`)
   }
@@ -435,6 +449,62 @@ export async function runAppSelftest(
         })
         phase(`真题 ${hit ? '✓' : '✗'}`)
         if (!hit) break
+      } else if (c.kind === 'record') {
+        const text = params[c.textParam ?? ''] ?? ''
+        const marker = params[c.markerParam ?? ''] ?? ''
+        if (text === '' || marker === '') {
+          checks.push({ check: 'record', status: 'FAIL', evidence: `考题参数缺失(${c.textParam ?? '?'}/${c.markerParam ?? '?'} 未随实例落 lock)` })
+          break
+        }
+        const keyPresent = c.needsSecret === undefined || (process.env[c.needsSecret] ?? '') !== ''
+        const post = async (path: string, body: unknown): Promise<Record<string, unknown>> => {
+          const r = await fetch(base + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(opts.askTimeoutMs ?? 90_000) })
+          return (await r.json()) as Record<string, unknown>
+        }
+        const rowsHaveMarker = async (): Promise<boolean> => {
+          const r = await fetch(`${base}/api/rows`, { signal: AbortSignal.timeout(5000) })
+          return JSON.stringify(await r.json()).includes(marker)
+        }
+        if (keyPresent) {
+          phase(`真句入库:「${text.slice(0, 50)}」`)
+          const j = await post('/api/record', { text })
+          if (typeof j.error === 'string') {
+            checks.push({ check: 'record', status: 'FAIL', evidence: `/api/record 报错:${j.error.slice(0, 200)}` })
+            break
+          }
+          const hit = await rowsHaveMarker()
+          checks.push({
+            check: 'record',
+            status: hit ? 'PASS' : 'FAIL',
+            evidence: hit ? `AI 解析入库且台账可查(标记「${marker}」在 /api/rows);行:${JSON.stringify(j.row ?? {}).slice(0, 140)}` : `入库后 /api/rows 查不到标记「${marker}」`,
+          })
+          phase(`真句 ${hit ? '✓' : '✗'}`)
+          if (!hit) break
+        } else {
+          // 接口模式:AI 半边必须如实报缺;存储半边用 /api/sql 直插直读证明活着
+          const j = await post('/api/record', { text })
+          const honest = typeof j.error === 'string' && j.error.includes(c.needsSecret ?? '')
+          if (!honest) {
+            checks.push({ check: 'record', status: 'FAIL', evidence: `未配 ${c.needsSecret ?? ''} 时 /api/record 未给出点名环境变量的可行动错误——违反凭证契约` })
+            break
+          }
+          const sch = (await (await fetch(`${base}/api/schema`, { signal: AbortSignal.timeout(5000) })).json()) as { tables?: Array<{ name: string; columns: Array<{ name: string; type: string; pk: boolean }> }> }
+          const t0table = sch.tables?.[0]
+          const col = t0table?.columns.find((cc) => /TEXT|CHAR/i.test(cc.type) && !cc.pk)
+          let stored = false
+          if (t0table !== undefined && col !== undefined) {
+            await post('/api/sql', { sql: `INSERT INTO "${t0table.name.replace(/"/g, '""')}" ("${col.name}") VALUES (?)`, params: [marker] })
+            stored = await rowsHaveMarker()
+          }
+          checks.push({
+            check: 'record',
+            status: stored ? 'SKIPPED' : 'FAIL',
+            evidence: stored
+              ? `接口模式 PASS:存储半边直插直读可核(表 ${t0table?.name ?? '?'}),AI 半边如实报缺 ${c.needsSecret ?? ''}(配置后重验)`
+              : '接口模式下存储半边直插直读失败',
+          })
+          if (!stored) break
+        }
       } else {
         checks.push({ check: String(c.kind), status: 'SKIPPED', evidence: '未知检查类型(配方比考官新?升级装配器后重验)' })
       }
@@ -465,11 +535,13 @@ export async function runRecipeGate(
   const tmp = join(opts.tmpRoot ?? '/tmp', `recipe-gate-${id}-${String(Date.now())}`)
   const recipeDir = join(opts.recipesRoot ?? RECIPES_DIR, id)
   const corpusDir = spec.sample.corpusDir !== undefined ? join(recipeDir, spec.sample.corpusDir) : undefined
+  const schemaFile = spec.sample.schemaFile !== undefined ? join(recipeDir, spec.sample.schemaFile) : undefined
   const materialize = materializeApp({
     recipeId: id,
     targetDir: tmp,
     params: spec.sample.params,
     ...(corpusDir !== undefined ? { corpusDir } : {}),
+    ...(schemaFile !== undefined ? { schemaFile } : {}),
     fresh: true,
     ...(opts.recipesRoot !== undefined ? { recipesRoot: opts.recipesRoot } : {}),
   })
