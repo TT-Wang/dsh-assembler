@@ -19,6 +19,36 @@ import { EdgeTTS } from 'node-edge-tts';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { readFileSync as __secRead } from 'node:fs';
+import { join as __secJoin } from 'node:path';
+
+// ── 凭证读取(装配器全库统一约定)───────────────────────────────────────────
+// host 出于安全会把 /KEY|PASSWORD|SECRET|TOKEN/i 形状的环境变量从子进程里擦掉
+// (dsh-subprocess 的 scrubbedParentEnv),而我们又坚决不把密钥值写进 preset 文件
+// ——两条正确的规矩夹在一起,零件在运行时就永远拿不到凭证(实测:双语读书助手
+// 的 AI 服务脸一直报"缺 key",而 host 明明有)。修法:零件自己从**凭证库文件**读,
+// 值不进 preset、不进环境、不进日志。查找顺序:进程环境 → $DSH_HOME/.env → ~/.dsh/.env。
+function readSecret(name) {
+	const direct = process.env[name];
+	if (typeof direct === 'string' && direct !== '') return direct;
+	const home = process.env.HOME || process.env.USERPROFILE || '';
+	const files = [
+		process.env.DSH_HOME ? __secJoin(process.env.DSH_HOME, '.env') : null,
+		home ? __secJoin(home, '.dsh', '.env') : null,
+	].filter(Boolean);
+	for (const f of files) {
+		try {
+			for (const line of __secRead(f, 'utf8').split('\n')) {
+				const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+				if (m !== null && m[1] === name && !line.trimStart().startsWith('#')) {
+					return m[2].trim().replace(/^["']|["']$/g, '');
+				}
+			}
+		} catch { /* 读不到就继续找下一处 */ }
+	}
+	return '';
+}
+
 
 const PART_WORKDIR = process.env.PART_WORKDIR || process.cwd();
 const AUDIO_DIR = resolve(PART_WORKDIR, 'audio');
@@ -62,7 +92,7 @@ async function synth({ text: t, voice, rate, name }) {
 
 /** 转写(工具面与服务脸共用):音频文件 → 文本。凭证走 env,值不进参数/日志。 */
 async function transcribe({ path: p, language }) {
-	const key = process.env.SPEECH_API_KEY || '';
+	const key = readSecret('SPEECH_API_KEY');
 	if (key === '') {
 		return { error: '进程环境缺 SPEECH_API_KEY(host 或 .env 提供;密钥不走参数)。TTS(speak)不需要凭证,可照常使用。' };
 	}

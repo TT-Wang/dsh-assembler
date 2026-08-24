@@ -349,7 +349,27 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   // ai-thin:双脸同源 + SDK 双版都有 aiFace + WRITE-ME 教了路由判据
   const aiPart = rf4('generated/ai-call/index.js', 'utf8')
   check('ai-thin:ai-call 双脸共用同一段 complete 实现(不分叉)', aiPart.includes('async function complete(') && aiPart.includes('ai-face-info') && (aiPart.match(/chat\/completions/g) ?? []).length === 1)
-  check('ai-thin:密钥纪律与 maxTokens 地板仍在', aiPart.includes('process.env.DEEPSEEK_API_KEY') && aiPart.includes('Math.max(256'))
+  check('ai-thin:密钥经凭证库读(host 会擦 KEY 形状的环境变量)+ maxTokens 地板仍在', aiPart.includes("readSecret('DEEPSEEK_API_KEY')") && aiPart.includes('Math.max(256'))
+  // 全库纪律:凡声明了 requiredSecrets 的零件,都必须用 readSecret 读——直接读
+  // process.env 在 host 的擦除策略下必然拿不到(实测:AI 服务脸一直报缺 key)。
+  {
+    const { readdirSync: rd6, readFileSync: rf6, existsSync: ex6 } = await import('node:fs')
+    const offenders = []
+    for (const pid of rd6('generated', { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name)) {
+      const metaPath = `generated/${pid}/.index-meta.json`
+      if (!ex6(metaPath)) continue
+      const meta = JSON.parse(rf6(metaPath, 'utf8'))
+      if (!Array.isArray(meta.requiredSecrets) || meta.requiredSecrets.length === 0) continue
+      const src = rf6(`generated/${pid}/index.js`, 'utf8')
+      for (const sec of meta.requiredSecrets) {
+        const name = String(sec.env)
+        const readsDirectly = new RegExp(`process\\.env\\.${name}\\b|process\\.env\\['${name}'\\]`).test(src)
+        const usesHelper = src.includes('function readSecret(')
+        if (readsDirectly && !usesHelper) offenders.push(`${pid}:${name}`)
+      }
+    }
+    check('全库纪律:声明凭证的零件都经 readSecret 取值(不直读 process.env)', offenders.length === 0, offenders.join(', '))
+  }
   const sdkJs = rf4('frontends/_vendor/assembler-sdk.js', 'utf8')
   const sdkTs = rf4(j4(RD, 'scaffold-react', 'template', 'src', 'sdk', 'assembler-sdk.ts'), 'utf8')
   check('SDK 双版:aiFace + filesFace 都在(模板与 scaffold 同能力)', ['aiFace', 'filesFace'].every((k) => sdkJs.includes(k) && sdkTs.includes(k)))

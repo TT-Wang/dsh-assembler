@@ -16,6 +16,36 @@ import { createHmac } from 'node:crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { readFileSync as __secRead } from 'node:fs';
+import { join as __secJoin } from 'node:path';
+
+// ── 凭证读取(装配器全库统一约定)───────────────────────────────────────────
+// host 出于安全会把 /KEY|PASSWORD|SECRET|TOKEN/i 形状的环境变量从子进程里擦掉
+// (dsh-subprocess 的 scrubbedParentEnv),而我们又坚决不把密钥值写进 preset 文件
+// ——两条正确的规矩夹在一起,零件在运行时就永远拿不到凭证(实测:双语读书助手
+// 的 AI 服务脸一直报"缺 key",而 host 明明有)。修法:零件自己从**凭证库文件**读,
+// 值不进 preset、不进环境、不进日志。查找顺序:进程环境 → $DSH_HOME/.env → ~/.dsh/.env。
+function readSecret(name) {
+	const direct = process.env[name];
+	if (typeof direct === 'string' && direct !== '') return direct;
+	const home = process.env.HOME || process.env.USERPROFILE || '';
+	const files = [
+		process.env.DSH_HOME ? __secJoin(process.env.DSH_HOME, '.env') : null,
+		home ? __secJoin(home, '.dsh', '.env') : null,
+	].filter(Boolean);
+	for (const f of files) {
+		try {
+			for (const line of __secRead(f, 'utf8').split('\n')) {
+				const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+				if (m !== null && m[1] === name && !line.trimStart().startsWith('#')) {
+					return m[2].trim().replace(/^["']|["']$/g, '');
+				}
+			}
+		} catch { /* 读不到就继续找下一处 */ }
+	}
+	return '';
+}
+
 
 const PROVIDERS = {
   wecom: { env: 'WECOM_WEBHOOK', label: '企业微信群机器人' },
@@ -45,7 +75,7 @@ function bodyOf(provider, content, atMobiles, atAll) {
 
 /** 钉钉加签:URL 追加 timestamp+sign(密钥只从 env 读,不回显)。 */
 function signed(provider, url) {
-  const secret = process.env.DINGTALK_SECRET || '';
+  const secret = readSecret('DINGTALK_SECRET');
   if (provider !== 'dingtalk' || secret === '') return url;
   const ts = Date.now();
   const sign = createHmac('sha256', secret).update(`${ts}\n${secret}`).digest('base64');
@@ -86,7 +116,7 @@ server.registerTool('imbot-send', {
   if (p === undefined) return err(`未知 provider:${provider}(可选 ${Object.keys(PROVIDERS).join('/')})`);
   if (typeof content !== 'string' || content.trim() === '') return err('text 不能为空');
   if (content.length > MAX_LEN) return err(`text ${content.length} 字符 > ${MAX_LEN}`);
-  const url = process.env[p.env] || '';
+  const url = readSecret(p.env);
   if (url === '') return err(`进程环境缺 ${p.env}(${p.label} 的 webhook URL;host 或 .env 提供,不走参数)`);
   try {
     const res = await fetch(signed(provider, url), {

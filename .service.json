@@ -12,5 +12,12 @@
     "dir": "/Users/tongtao/code/dsh-assembler/vectors",
     "pid": 18684,
     "startedAt": "2026-08-24T09:40:53.001Z"
+  },
+  "book": {
+    "url": "http://127.0.0.1:50392",
+    "uploadPath": "/upload?filename=",
+    "dir": "/Users/tongtao/code/dsh-assembler/uploads",
+    "pid": 83061,
+    "startedAt": "2026-08-24T14:23:17.843Z"
   }
 }
