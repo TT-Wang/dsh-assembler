@@ -74,7 +74,7 @@ check('mime:js 正确', R(`${FRONTEND_ROUTE}/my-agent/app.js`)?.mime.includes('j
 const v = R(`${FRONTEND_ROUTE}/_vendor/core.min.css`)
 check('_vendor 资产可取且指向共享目录', v !== null && v.file.endsWith('frontends/_vendor/core.min.css') && v.mime.includes('css'))
 check('_vendor 遍历拒绝', R(`${FRONTEND_ROUTE}/_vendor/%2e%2e`) === null && R(`${FRONTEND_ROUTE}/_vendor/.hidden`) === null)
-check('_vendor 不接子目录', R(`${FRONTEND_ROUTE}/_vendor/a/b.css`) === null)
+check('_vendor 子目录可取(守卫内嵌套,遍历仍拒)', R(`${FRONTEND_ROUTE}/_vendor/pack/x.js`) !== null && R(`${FRONTEND_ROUTE}/_vendor/pack/../x.js`) === null)
 // 直播台数据函数
 import('node:fs').then(() => {})
 const pr = join(root)

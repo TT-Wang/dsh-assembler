@@ -755,7 +755,9 @@ export async function runFrontendGate(
     const res = await fetch(`http://127.0.0.1:${port}/assembler/ui/${presetId}`, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return { pass: false, reason: `页面不可达:HTTP ${res.status}` };
     const html = await res.text();
-    if (!html.includes(`'${presetId}'`)) return { pass: false, reason: "页面槽位未填(presetId 未进页面)" };
+    // 绑定证据二选一:模板页 = 带引号的 presetId 槽位;scaffold 页 = 绝对资产
+    // base(/assembler/ui/<id>/)——两种形态都证明这张页是发给本 preset 的。
+    if (!html.includes(`'${presetId}'`) && !html.includes(`/assembler/ui/${presetId}/`)) return { pass: false, reason: "页面槽位未填(presetId 未进页面)" };
     if (/\{\{[A-Za-z]+\}\}/.test(html)) return { pass: false, reason: "页面存在未填充的 {{槽位}}" };
   } catch (error) {
     return { pass: false, reason: `页面请求失败:${error instanceof Error ? error.message : String(error)}` };
