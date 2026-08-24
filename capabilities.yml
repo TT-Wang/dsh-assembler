@@ -765,3 +765,9 @@ capabilities:
     tags: ["配方", "scaffold", "前端", "react", "shadcn", "tailwind", "vite", "定制页面", "词汇表", "app", "ui", "骨架"]
     config:
       recipe: "scaffold-react"
+  - id: kb-xingui-x1-manual
+    via: knowledge
+    description: "星轨 X1 净水器用户手册:保修期、换芯周期、常见故障处理"
+    tags: ["净水器", "手册", "保修", "换芯", "故障", "manual", "warranty"]
+    config:
+      pack: "xingui-x1-manual"

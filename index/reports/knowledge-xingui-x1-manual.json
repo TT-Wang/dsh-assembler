@@ -1,0 +1,29 @@
+{
+  "id": "xingui-x1-manual",
+  "kind": "knowledge",
+  "verifiedAt": "2026-08-24T11:41:53.812Z",
+  "probes": [
+    {
+      "question": "整机保修期多久?",
+      "hits": [
+        {
+          "mark": "十八个月",
+          "found": true,
+          "in": "产品手册.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "RO 膜多久换一次?",
+      "hits": [
+        {
+          "mark": "24 个月",
+          "found": true,
+          "in": "产品手册.md"
+        }
+      ],
+      "pass": true
+    }
+  ]
+}

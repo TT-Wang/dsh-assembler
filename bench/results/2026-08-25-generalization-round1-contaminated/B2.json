@@ -1,0 +1,208 @@
+{
+  "id": "B2",
+  "tier": "B",
+  "name": "客服工单台 + SLA 倒计时",
+  "lane": "scaffold",
+  "checks": [
+    {
+      "name": "形态路由",
+      "ok": true,
+      "detail": "实得 scaffold(scaffold-react),预期 scaffold"
+    },
+    {
+      "name": "写了页",
+      "ok": true,
+      "detail": "1 张页"
+    },
+    {
+      "name": "调了考官",
+      "ok": true,
+      "detail": "工具轨迹:verify_preset,verify_app,verify_app,verify_preset"
+    },
+    {
+      "name": "交付可达",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "资产全通",
+      "ok": true,
+      "detail": "全通"
+    },
+    {
+      "name": "自述判定",
+      "ok": true,
+      "detail": "未在末段自述"
+    },
+    {
+      "name": "直连动作数达标",
+      "ok": true,
+      "detail": "face=4 需 ≥3(wire=1 ai-thin=0 local=0)"
+    },
+    {
+      "name": "会话动作不超标",
+      "ok": true,
+      "detail": "wire=1 需 ≤2"
+    }
+  ],
+  "passed": 8,
+  "total": 8,
+  "verdict": "PASS",
+  "elapsedSeconds": 482,
+  "tools": [
+    "skill",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "ask_user_question",
+    "todo_write",
+    "search_catalog",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "todo_write",
+    "read",
+    "emit_preset",
+    "verify_preset",
+    "emit_app",
+    "bash",
+    "bash",
+    "write",
+    "read",
+    "write",
+    "write",
+    "todo_write",
+    "verify_app",
+    "bash",
+    "edit",
+    "edit",
+    "edit",
+    "bash",
+    "read",
+    "edit",
+    "verify_app",
+    "deploy_app",
+    "bash",
+    "bash",
+    "bash",
+    "verify_preset",
+    "todo_write",
+    "preview_register"
+  ],
+  "usage": {
+    "input": 0,
+    "output": 0
+  },
+  "audit": {
+    "presetName": "g-b2-ticket",
+    "uiDir": "/Users/tongtao/apps/g-b2-ticket-ui。",
+    "presetEmitted": true,
+    "appEmitted": true,
+    "recipe": "scaffold-react",
+    "pagesWritten": 1,
+    "pageSpec": {
+      "pages": [
+        {
+          "id": "tickets",
+          "shape": "工单台",
+          "actions": [
+            {
+              "name": "新建工单",
+              "route": "face",
+              "sql": "INSERT INTO tickets (title, customer, priority, sla_minutes, assignee) VALUES (?, ?, ?, ?, ?)",
+              "sampleParams": [
+                "打印机卡纸报修 @@TOKEN@@",
+                "晨光科技",
+                "P2",
+                2880,
+                "小王"
+              ],
+              "effect": {
+                "sql": "SELECT status, sla_minutes FROM tickets WHERE title LIKE ?",
+                "sampleParams": [
+                  "%@@TOKEN@@%"
+                ],
+                "expect": "open"
+              }
+            },
+            {
+              "name": "列出工单",
+              "route": "face",
+              "sql": "SELECT id, title, customer, priority, status, assignee, sla_minutes, created_at, closed_at FROM tickets ORDER BY id DESC"
+            },
+            {
+              "name": "转派工单",
+              "route": "face",
+              "sql": "UPDATE tickets SET assignee = ? WHERE title LIKE ?",
+              "sampleParams": [
+                "小李",
+                "%@@TOKEN@@%"
+              ],
+              "effect": {
+                "sql": "SELECT assignee FROM tickets WHERE title LIKE ?",
+                "sampleParams": [
+                  "%@@TOKEN@@%"
+                ],
+                "expect": "小李"
+              }
+            },
+            {
+              "name": "关闭工单",
+              "route": "face",
+              "sql": "UPDATE tickets SET status = 'closed', closed_at = datetime('now','localtime') WHERE title LIKE ?",
+              "sampleParams": [
+                "%@@TOKEN@@%"
+              ],
+              "effect": {
+                "sql": "SELECT status FROM tickets WHERE title LIKE ?",
+                "sampleParams": [
+                  "%@@TOKEN@@%"
+                ],
+                "expect": "closed"
+              }
+            },
+            {
+              "name": "一句话建单",
+              "route": "wire",
+              "probe": "新建一张客服工单:标题「WIRE-TICKET-@@TOKEN@@-支付退款」,客户青柠出行,优先级 P3,负责人阿飞。完成后只回一句确认,包含该单 ID,不要 JSON 围栏。",
+              "marks": [
+                "WIRE-TICKET-@@TOKEN@@"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "routes": {
+      "face": 4,
+      "wire": 1,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "sqlite-query"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null
+  },
+  "sessionId": "session-7fcda0ac-f29b-40ab-aa19-98f44d1c8012",
+  "questionTexts": [
+    "[{\"id\":\"assembly-approval\",\"question\":\"工单台按下面这个方案装配,可以吗?\",\"header\":\"装配方案确认\",\"options\":[{\"label\":\"按此装配 (Recommended)\",\"description\":\"手写前端 ~/apps/g-b2-ticket-ui(含 SLA 倒计时/转派/关单)构建后部署进 preset;preset g-b2-ticket 挂 sqlite 部件做持久化+直传 API,agent 用同库处理自然语言操作\"},{\"label\":\"按此装配 + 加 SLA 催办提醒\",\"description\":\"同左,另现场造一个定时任务部件:agent 到点自动查超时工单并提醒\"},{\"label\":\"改用 recipe-record-desk 双面交付\",\"description\":\"前端是通用记录台模板(只能建单+浏览,无 SLA 倒计时/行内转派关单),preset 独立聊天页,两套 URL\"},{\"label\":\"我要调整\",\"description\":\"在回复里告诉我改哪里(如 SLA 时限、优先级档位、转派名单等)\"}]}]"
+  ],
+  "finalText": "完工,全部验收通过。页面已部署并打开右下角预览。\n\n## 客服工单台 · 已上线\n\n**页面地址:http://127.0.0.1:3097/assembler/ui/g-b2-ticket**\n\n### 交付内容\n- **preset `g-b2-ticket`**:客服工单助理 agent(挂 `sqlite-query` 读写 + 直传端点能力),装备 DDL 预建 `tickets` 表;persona 规定 SLA 规则(P1=24h / P2=48h / P3=72h)、转派/关单的 SQL 口径与安全边界\n- **前端 `~/apps/g-b2-ticket-ui`**(scaffold-react 骨架,`src/pages/tickets.tsx` + `PAGE-SPEC.yml` 为自由区)已构建部署进 preset,同源伺服\n\n### 功能(全按需求)\n| 需求 | 实现 |\n|---|---|\n| 新建工单 | 标题/客户/优先级(P1·24h、P2·48h、P3·72h)/负责人,表单直录 |\n| 剩余 SLA 时间 | 列表每秒倒计时 + 进度条,超时标红「已超时」;统计卡显示超时数 |\n| 转派 | 每行「转派」按钮 → 对话框输入新负责人(带历史名单联想) |\n| 关单 | 每行「关单」按钮 → 确认对话框,写入 `closed_at` 后不再计时 |\n| 附加 | 全部/进行中/已超时/已关闭 Tab、搜索、刷新、统计卡、「一句话指令」走 agent 会话(与网页共用同一张表) |\n\n### 验收证据(黑盒真跑)\n- **verify_app PASS**:构建零错误、骨架字节锁、页面纪律、静态伺服、行为考 5 项全过 —— `新建工单✓ 列出工单✓ 转派工单✓ 关闭工单✓ 一句话建单✓`\n- **verify_preset PASS**:agent 场景两轮(建单→按 token 查单,标记 晨光科技/P2/小王 全中)+ 前端页面门/环路门 PASS\n- **手工冒烟**:页面 200;`/.service` 发现直传端点;经端点实测 建单→转派→关单 全链路通(冒烟数据已清理)\n\n### 如实说明\n- 首次 verify_preset 时默认聊天模板前端的环路门 FAIL —— 被自研页面替换后重验即 PASS,问题已消除\n- 库里现有 3 张验收过程留下的工单(考官考题产物),可当演示数据\n- 网页建单/转派/关单走 SQLite 直传端点(零模型、不占 agent token);agent 与网页共用同一张 `tickets` 表\n- SLA 档位当前写死在页面与 persona(P1/P2/P3 = 24/48/72 小时),想改随时说\n\n改产物:页面 `~/apps/g-b2-ticket-ui/src/pa"
+}

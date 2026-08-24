@@ -1,0 +1,116 @@
+{
+  "id": "A3",
+  "tier": "A",
+  "name": "设备巡检记录(字段完全不同)",
+  "lane": "preset-only",
+  "checks": [
+    {
+      "name": "形态路由",
+      "ok": false,
+      "detail": "实得 preset-only,预期 recipe"
+    },
+    {
+      "name": "用对配方",
+      "ok": false,
+      "detail": "实得 null,预期 record-desk"
+    },
+    {
+      "name": "未写页(应零写码)",
+      "ok": true,
+      "detail": "写了 0 张页"
+    },
+    {
+      "name": "调了考官",
+      "ok": true,
+      "detail": "工具轨迹:verify_preset,verify_app,verify_shared_data,verify_shared_data"
+    },
+    {
+      "name": "交付可达",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "资产全通",
+      "ok": true,
+      "detail": "全通"
+    },
+    {
+      "name": "自述判定",
+      "ok": true,
+      "detail": "未在末段自述"
+    }
+  ],
+  "passed": 5,
+  "total": 7,
+  "verdict": "FAIL",
+  "elapsedSeconds": 902,
+  "tools": [
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "bash",
+    "grep",
+    "grep",
+    "bash",
+    "search_catalog",
+    "search_catalog",
+    "ask_user_question",
+    "todo_write",
+    "write",
+    "emit_preset",
+    "bash",
+    "emit_app",
+    "emit_app",
+    "bash",
+    "bash",
+    "read",
+    "read",
+    "verify_preset",
+    "bash",
+    "emit_app",
+    "emit_app",
+    "verify_app",
+    "verify_shared_data",
+    "read",
+    "grep",
+    "bash",
+    "job_output",
+    "verify_shared_data",
+    "read",
+    "bash",
+    "bash",
+    "job_kill",
+    "bash"
+  ],
+  "usage": {
+    "input": 0,
+    "output": 0
+  },
+  "audit": {
+    "presetName": "g-a3-inspect",
+    "uiDir": null,
+    "presetEmitted": true,
+    "appEmitted": false,
+    "recipe": null,
+    "pagesWritten": 0,
+    "pageSpec": null,
+    "routes": {
+      "face": 0,
+      "wire": 0,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "sqlite-query"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null
+  },
+  "sessionId": "session-f804ee3e-4d2b-446f-a3c5-5122d553cd62",
+  "questionTexts": [
+    "[{\"id\":\"assembly-path\",\"question\":\"设备巡检记录网页用哪种方式装配?(两者 preset 名都是 g-a3-inspect)\",\"header\":\"装配方式\",\"options\":[{\"label\":\"preset + recipe 双面交付 (Recommended)\",\"description\":\"emit_preset 装配 g-a3-inspect(sqlite 零件组 + inspections 表 DDL + 对话记账 persona),再 emit_app 实例化 record-desk 网页指向同一 data.db。网页纯确定性零 token,agent 与网页共用一个账本,三层验收最完整。\"},{\"label\":\"纯 preset 装配\",\"description\":\"只 emit_preset g-a3-inspect,挂 sqlite 零件组 + frontend-data-desk 模板。页面形状是「一句话记一笔 + 查询」的对话式记录台,非严格结构化表单,录入需走 agent 会话。\"}]}]"
+  ],
+  "finalText": "沙箱拦截已确认:app 写共享库被拒。以完整权限重启 app:"
+}

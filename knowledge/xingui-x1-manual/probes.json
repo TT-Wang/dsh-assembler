@@ -1,0 +1,16 @@
+{
+  "probes": [
+    {
+      "question": "整机保修期多久?",
+      "mustInclude": [
+        "十八个月"
+      ]
+    },
+    {
+      "question": "RO 膜多久换一次?",
+      "mustInclude": [
+        "24 个月"
+      ]
+    }
+  ]
+}

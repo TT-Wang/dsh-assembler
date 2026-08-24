@@ -401,6 +401,19 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   check('采购批:目录登记了工具清单(联邦检索的素材)', toolsOf('speech-io').length === 4 && toolsOf('speech-io').some((l) => l.includes('speak')) && toolsOf('vector-store').length === 4)
 }
 
+
+// ── 契约:车道判据 + 管道可达(泛化战役发现的两处修补)──────────────────────
+{
+  const { ARCHITECTURE_CONTRACT: AC, addKnowledgeToolDefinition, ADD_KNOWLEDGE_TOOL_NAME } = await import('./lib/orchestrated-tools.js')
+  check('契约钉:配方 vs preset 车道判据在(重叠时怎么选 + 要说出来)', AC.includes('LANE TIE-BREAK') && AC.includes('RECIPE (self-contained') && AC.includes('PRESET (双面交付') && AC.includes('SAY which lane you picked'))
+  check('契约钉:知识包走工具面(沙箱现实),造件仍走管道且够不着就上报', AC.includes('add_knowledge TOOL') && AC.includes('sandbox cannot reach') && AC.includes('hand the work order to the user'))
+  const ak = addKnowledgeToolDefinition(fakeCtx, {}).description
+  check('契约钉:add_knowledge = 工具面孪生 + 检索门 + 自己写考题', ak.includes('tool-surface twin') && ak.includes('RETRIEVAL GATE') && ak.includes('YOU write the probes') && ADD_KNOWLEDGE_TOOL_NAME === 'add_knowledge')
+  const throwsK = async (args, needle) => addKnowledgeToolDefinition(fakeCtx, {}).execute(args).then(() => false, (e) => String(e.message).includes(needle))
+  check('add_knowledge 闸:无考题拒', await throwsK({ docsDir: '/tmp', id: 'x', description: 'd', probes: [] }, '没有考题'))
+  check('add_knowledge 闸:相对路径拒', await throwsK({ docsDir: 'rel/path', id: 'x', description: 'd', probes: [{ question: 'q', mustInclude: ['m'] }] }, '绝对路径'))
+}
+
 if (failures > 0) {
   console.error(`\ntests-orchestrated: ${failures} failure(s)`)
   process.exit(1)

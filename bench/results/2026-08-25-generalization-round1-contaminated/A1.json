@@ -1,0 +1,111 @@
+{
+  "id": "A1",
+  "tier": "A",
+  "name": "产品手册问答",
+  "lane": "preset-only",
+  "checks": [
+    {
+      "name": "形态路由",
+      "ok": false,
+      "detail": "实得 preset-only,预期 recipe"
+    },
+    {
+      "name": "用对配方",
+      "ok": false,
+      "detail": "实得 null,预期 rag-qa"
+    },
+    {
+      "name": "未写页(应零写码)",
+      "ok": true,
+      "detail": "写了 0 张页"
+    },
+    {
+      "name": "调了考官",
+      "ok": false,
+      "detail": "工具轨迹:无"
+    },
+    {
+      "name": "交付可达",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "资产全通",
+      "ok": true,
+      "detail": "全通"
+    },
+    {
+      "name": "自述判定",
+      "ok": false,
+      "detail": "未验收"
+    }
+  ],
+  "passed": 3,
+  "total": 7,
+  "verdict": "FAIL",
+  "elapsedSeconds": 901,
+  "tools": [
+    "bash",
+    "read",
+    "ask_user_question",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "bash",
+    "grep",
+    "bash",
+    "bash",
+    "grep",
+    "bash",
+    "grep",
+    "read",
+    "bash",
+    "grep",
+    "bash",
+    "bash",
+    "bash",
+    "read",
+    "read",
+    "read",
+    "search_catalog",
+    "search_catalog",
+    "emit_preset",
+    "read",
+    "bash",
+    "bash",
+    "bash"
+  ],
+  "usage": {
+    "input": 0,
+    "output": 0
+  },
+  "audit": {
+    "presetName": "g-a1-manual",
+    "uiDir": null,
+    "presetEmitted": true,
+    "appEmitted": false,
+    "recipe": null,
+    "pagesWritten": 0,
+    "pageSpec": null,
+    "routes": {
+      "face": 0,
+      "wire": 0,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "frontend-chat-console",
+      "content-search",
+      "filesystem"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null
+  },
+  "sessionId": "session-1b38a0bc-e21c-4b0a-937f-0f980a76eb52",
+  "questionTexts": [
+    "[{\"id\":\"arch-approval\",\"question\":\"按上面的方案装配 g-a1-manual(文件读取 + 手册检索 + 标注出处回答,无数据库)?\",\"header\":\"装配方案确认\",\"options\":[{\"label\":\"按此装配 (Recommended)\",\"description\":\"最小权限装配:读文件 + 检索 + 回答标出处,验收后即可在页面追问\"},{\"label\":\"我要调整\",\"description\":\"告诉我哪里要改,比如加问答历史记录、支持多份手册等\"}]}]"
+  ],
+  "finalText": "沙箱拒绝在会话工作区外写入(预设目录在 ~/.dsh,超出 workspace 权限)。按规则原命令升级重试:"
+}

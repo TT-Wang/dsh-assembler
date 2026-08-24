@@ -1,0 +1,91 @@
+{
+  "id": "A2",
+  "tier": "A",
+  "name": "个人记账台",
+  "lane": "preset-only",
+  "checks": [
+    {
+      "name": "形态路由",
+      "ok": false,
+      "detail": "实得 preset-only,预期 recipe"
+    },
+    {
+      "name": "用对配方",
+      "ok": false,
+      "detail": "实得 null,预期 record-desk"
+    },
+    {
+      "name": "未写页(应零写码)",
+      "ok": true,
+      "detail": "写了 0 张页"
+    },
+    {
+      "name": "调了考官",
+      "ok": true,
+      "detail": "工具轨迹:verify_preset"
+    },
+    {
+      "name": "交付可达",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "资产全通",
+      "ok": true,
+      "detail": "全通"
+    },
+    {
+      "name": "自述判定",
+      "ok": true,
+      "detail": "PASS"
+    }
+  ],
+  "passed": 5,
+  "total": 7,
+  "verdict": "FAIL",
+  "elapsedSeconds": 159,
+  "tools": [
+    "skill",
+    "todo_write",
+    "ask_user_question",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "grep",
+    "emit_preset",
+    "verify_preset",
+    "todo_write"
+  ],
+  "usage": {
+    "input": 0,
+    "output": 0
+  },
+  "audit": {
+    "presetName": "g-a2-ledger",
+    "uiDir": null,
+    "presetEmitted": true,
+    "appEmitted": false,
+    "recipe": null,
+    "pagesWritten": 0,
+    "pageSpec": null,
+    "routes": {
+      "face": 0,
+      "wire": 0,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "sqlite-query",
+      "date-format",
+      "frontend-data-desk"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null
+  },
+  "sessionId": "session-45bce46e-4c1d-40d4-9d33-189994d7dedb",
+  "questionTexts": [
+    "[{\"id\":\"arch-approve\",\"question\":\"按上面的架构装配 preset g-a2-ledger(单表 SQLite 账本 + 聊天记账 + Markdown 台账,最小部件集)?\",\"header\":\"确认架构\",\"options\":[{\"label\":\"按此装配 (Recommended)\",\"description\":\"单表 SQLite + 时间部件(若有);解析/台账/改删由 agent 完成;验收用一笔实记+台账回查\"},{\"label\":\"我要调整\",\"description\":\"告诉我哪里要改,例如增加导出 CSV、分类管理、统计图表等\"}]}]"
+  ],
+  "finalText": "✅ **g-a2-ledger 装配完成,独立验收 PASS(19s,2/2 轮通过)**\n\n**验收证据**\n- 第 1 轮:记一笔(支出 286.5 元/餐饮/备注「同事晚饭」/2026-08-20)→ 写入 ✓\n- 第 2 轮:凭备注反查台账,正确报出分类「餐饮」→ 说明数据真实落库、跨轮可读 ✓\n- 前端验收:页面门 + 环路门 PASS(记录台模板已挂上)\n\n**页面**: http://127.0.0.1:3097/assembler/ui/g-a2-ledger — 记录台前端,一句话记一笔 + 查询/汇总按钮,台账以表格渲染。\n\n**装配内容**\n\n| 部件 | 用途 |\n|---|---|\n| `mcp-sqlite-query-query/execute` | 台账读写(同一进程共享) |\n| `mcp-date-format-format-date` | 「今天」的日期来源,记一笔默认当天 |\n| `frontend-data-desk` | 记账网页模板(随手记 + 查询/汇总) |\n\n- **数据模型**:单表 `ledger(id, type, amount_cents 整数分, category, note, occurred_on, created_at)` + 日期/分类索引,金额存分避免浮点误差\n- **使用方式**:页面或对话里直接说「记一笔:早餐 15 元 餐饮」,「看本月台账」,「上月支出合计」;改/删按记录 id 执行,拒绝模糊删除\n\n一点诚实说明:`format-date` 工具在探针里未被动用(探针主动给了日期,没测\"默认今天\"路径)——但它正是日期默认值的来源,不算冗余,保留。账本数据就存在 preset 工作区数据库里,可以随时来查账。"
+}

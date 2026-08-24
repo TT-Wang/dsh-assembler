@@ -1,0 +1,184 @@
+{
+  "id": "B1",
+  "tier": "B",
+  "name": "库存看板 + 批次过期标红",
+  "lane": "scaffold",
+  "checks": [
+    {
+      "name": "形态路由",
+      "ok": true,
+      "detail": "实得 scaffold(scaffold-react),预期 scaffold"
+    },
+    {
+      "name": "写了页",
+      "ok": true,
+      "detail": "1 张页"
+    },
+    {
+      "name": "调了考官",
+      "ok": true,
+      "detail": "工具轨迹:verify_preset,verify_app"
+    },
+    {
+      "name": "交付可达",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "资产全通",
+      "ok": true,
+      "detail": "全通"
+    },
+    {
+      "name": "自述判定",
+      "ok": true,
+      "detail": "未在末段自述"
+    },
+    {
+      "name": "直连动作数达标",
+      "ok": false,
+      "detail": "face=2 需 ≥3(wire=2 ai-thin=0 local=0)"
+    },
+    {
+      "name": "会话动作不超标",
+      "ok": true,
+      "detail": "wire=2 需 ≤2"
+    }
+  ],
+  "passed": 7,
+  "total": 8,
+  "verdict": "FAIL",
+  "elapsedSeconds": 456,
+  "tools": [
+    "skill",
+    "ask_user_question",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "bash",
+    "grep",
+    "bash",
+    "grep",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "grep",
+    "bash",
+    "grep",
+    "bash",
+    "grep",
+    "bash",
+    "bash",
+    "bash",
+    "grep",
+    "bash",
+    "read",
+    "grep",
+    "emit_preset",
+    "verify_preset",
+    "emit_app",
+    "read",
+    "bash",
+    "read",
+    "bash",
+    "bash",
+    "bash",
+    "write",
+    "read",
+    "write",
+    "write",
+    "verify_app",
+    "deploy_app",
+    "bash",
+    "bash",
+    "bash",
+    "preview_register"
+  ],
+  "usage": {
+    "input": 0,
+    "output": 0
+  },
+  "audit": {
+    "presetName": "g-b1-stock",
+    "uiDir": "/Users/tongtao/apps/g-b1-stock-ui。",
+    "presetEmitted": true,
+    "appEmitted": true,
+    "recipe": "scaffold-react",
+    "pagesWritten": 1,
+    "pageSpec": {
+      "pages": [
+        {
+          "id": "stock",
+          "shape": "看板",
+          "actions": [
+            {
+              "name": "一句话入库",
+              "route": "wire",
+              "probe": "入库:批次 @@TOKEN@@,青岛啤酒 24 听,品类 饮品,过期日 2026-11-30。完成后只回一句确认,包含该批次当前数量,不要 JSON 围栏。",
+              "marks": [
+                "24"
+              ]
+            },
+            {
+              "name": "一句话出库",
+              "route": "wire",
+              "probe": "出库:批次 @@TOKEN@@ 出 4 听。完成后只回一句确认,包含该批次当前数量,不要 JSON 围栏。",
+              "marks": [
+                "20"
+              ]
+            },
+            {
+              "name": "列出批次",
+              "route": "face",
+              "sql": "SELECT id, batch_no, sku, category, qty, unit, expiry_date FROM batches ORDER BY category, expiry_date"
+            },
+            {
+              "name": "查批次历史",
+              "route": "face",
+              "sql": "SELECT change_type, qty_change, qty_after, note, created_at FROM ledger WHERE batch_no = ? ORDER BY id DESC",
+              "sampleParams": [
+                "@@TOKEN@@"
+              ],
+              "effect": {
+                "sql": "SELECT COUNT(*) AS n FROM ledger WHERE batch_no = ?",
+                "sampleParams": [
+                  "@@TOKEN@@"
+                ],
+                "expect": "2"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "routes": {
+      "face": 2,
+      "wire": 2,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "sqlite-query"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null
+  },
+  "sessionId": "session-4543da7a-5e1d-47e6-b207-0fd3463d37d7",
+  "questionTexts": [
+    "[{\"id\":\"arch-approval\",\"question\":\"按上面的架构装配 g-b1-stock(预设 + 前端看板,前端取数缺口现场造件)?\",\"header\":\"确认架构\",\"options\":[{\"label\":\"按此装配 (Recommended)\",\"description\":\"搜索目录→现场造缺失部件→emit_preset g-b1-stock→verify→scaffold 前端→deploy_app\"},{\"label\":\"我要调整\",\"description\":\"告诉我改哪里(如品类结构、过期阈值、出库规则等)\"}]}]"
+  ],
+  "finalText": "完成 ✅ 库存看板已上线,预览窗已打开。\n\n## 交付物\n\n**看板页面**:http://127.0.0.1:3097/assembler/ui/g-b1-stock\n- **按品类分区**展示库存批次,分区头带批次数与合计数量,顶部有总览卡(在库批次/总量/临期/已过期)\n- **临期标红**:距过期 ≤30 天标红「临期 N 天」,已过期深红置顶「已过期 N 天」,无保质期灰标,出清批次置灰\n- **一句话入库/出库**:顶部指令框直接输入,如「入库 批次 A-001 纯牛奶 50 箱 品类 乳品 过期 2026-12-31」「出库 A-001 20 箱」,走真 agent 会话解析执行,页面 6 秒自动回读刷新\n- **批次历史**:点击任意批次卡片,弹窗展示该批次全部出入库流水(时间/类型/数量变化/变动后/备注)\n- 数据面走服务脸直连(零模型),写操作经 agent 校验(出库超量拒绝、未知批次拒绝)+ 批次/流水双表落账\n\n**配套 agent 预设** `g-b1-stock`:一句话操作也可直接在会话里说;数据模型 `batches` + `ledger` 已预建。\n\n## 验收结论(如实转述)\n\n| 检查 | 结果 |\n|---|---|\n| verify_preset(agent 真会话) | **PASS**:一句话入库 STK-7781 → 跨轮查回 乳品/50 全对 |\n| verify_app 五门 | **PASS**:构建 / 骨架锁 / 页面纪律 / 静态伺服 / 行为考 |\n| 行为考(黑盒真跑) | 一句话入库 24 听 ✓ → 一句话出库 4 听 ✓(剩 20)→ 列出批次 ✓ → 查批次历史 2 笔 ✓ |\n\n验收产生的测试数据已从库中清理,当前看板是空库干净状态。主要文件:`src/pages/stock.tsx`(页面)、`PAGE-SPEC.yml`(考卷)。试试在指令框里入库一批,看板会即时分区显示。"
+}

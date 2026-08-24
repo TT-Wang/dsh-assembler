@@ -18,7 +18,7 @@
  * assemble_solution(两臂互斥,A/B 数据才干净)。验收机器与 A 臂共用同一套
  * (runProbe/runScenario/validateArchProbe/marksPresent)——两臂同一张考卷。
  */
-import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -137,7 +137,7 @@ export const SCAFFOLD_BATON =
 export const ARCHITECTURE_CONTRACT =
   'WORKFLOW CONTRACT — (0) SHAPE ROUTING before anything: judge the requirement\'s shape and SAY it. 应用型 (interaction-dense, '
   + 'deterministic UI/data flows; AI is a component) → FIRST search via:"recipe" entries (complete verified app blueprints: emit_app '
-  + 'materializes, verify_app examines); no recipe fits → assemble the service form: bytes/files flow through service parts (直传端点), '
+  + 'materializes, verify_app examines). LANE TIE-BREAK when a recipe AND a preset+frontend would both work (they overlap now that presets have service faces): 交出去的/纯页面型/要脱离 host 独立跑 → RECIPE (self-contained process, zero conversation tax); 要留对话口/多张脸共一本账/要挂 agent 能力(工具、无人值守) → PRESET (双面交付:页面直连服务脸 + wire 会话). SAY which lane you picked and why in one line — silently taking the preset path for a requirement a recipe covers is the failure this tie-break exists to prevent (measured 2026-08-25: 3/3 recipe-shaped needs went preset-only). No recipe fits → assemble the service form: bytes/files flow through service parts (直传端点), '
   + 'the model only where judgment lives — and when neither recipes nor parts cover the app shape, honestly recommend direct coding instead of assembling; '
   + '个人即时型 (the user wants it done NOW, conversationally) → offer to just do it yourself in this session — minting an agent is NOT the '
   + 'default for personal immediate needs; 无人值守/他人使用/交付型 → that is what minting is for. '
@@ -150,8 +150,8 @@ export const ARCHITECTURE_CONTRACT =
   + '现场造件 (a gap work order; you build it through the induction pipeline) / 降级方案 (state exactly what degrades) / 砍掉. '
   + 'Silently downgrading a gap the user never saw is the failure this checkpoint exists to prevent. '
   + '(3) Only then search per need. Gaps agreed at the checkpoint MUST be passed to emit_preset as missing/missingEntries — that is what turns '
-  + 'them into work orders. (4) Building a part yourself goes ONLY through the work order + scripts/index-add.mjs scaffold/verify/register '
-  + 'pipeline — hand-editing capabilities.yml or index/catalog.yml bypasses the quality gate (live case: a bypassed gate hid a process-hang '
+  + 'them into work orders. (4) Growing the catalog: knowledge packs go through the add_knowledge TOOL (tool surface — works from any session; the CLI lives in the assembler repo which your shell sandbox cannot reach, measured 2026-08-25: an agent burned 15 minutes fighting permissions). Building a PART still goes through the work order + scripts/index-add.mjs scaffold/verify/register '
+  + 'pipeline — if your shell cannot reach that path, say so and hand the work order to the user rather than hand-editing anything. Hand-editing capabilities.yml or index/catalog.yml bypasses the quality gate (live case: a bypassed gate hid a process-hang '
   + 'defect and a copied-from-another-part smoke test).'
 
 /**
@@ -1742,6 +1742,131 @@ export function deployAppToolDefinition(_ctx: Context, config: Config): ToolDefi
       const url = port !== undefined ? `http://127.0.0.1:${String(port)}/assembler/ui/${presetId}` : `/assembler/ui/${presetId}`
       appendOrchLedger({ tool: DEPLOY_APP_TOOL_NAME, presetId, targetDir, url })
       return `已发布:${dist} → ${target}\n页面:${url}${prose('\n【接力棒】向用户如实报告页面 URL 与验收结论;页面动作的行为考证据在 verify_app 的结果里。')}`
+    },
+  })
+}
+
+// ── add_knowledge:知识包入库(工具面版,治"沙箱够不着造件管道")────────────────
+// 病史(2026-08-25 泛化战役 A1):契约让 agent 走 scripts/index-add.mjs 收知识包,
+// 而那条管道住在装配器仓库里、会话 bash 沙箱够不着 → agent 花 15 分钟提权重试、
+// 走不到验收。修法不是放宽沙箱(真实用户同样受限),是**把管道搬上工具面**:
+// 工具在 host 进程里跑,天生跨沙箱;质检门(检索命中)一分不减。
+export const ADD_KNOWLEDGE_TOOL_NAME = 'add_knowledge'
+
+export function addKnowledgeToolDefinition(_ctx: Context, config: Config): ToolDefinition {
+  return defineTool({
+    name: ADD_KNOWLEDGE_TOOL_NAME,
+    description:
+      'Ingest a DOCUMENT SET as a knowledge pack (via:"knowledge" catalog entry) so presets can mount it — the tool-surface twin of '
+      + 'the induction CLI, so it works from any session regardless of shell sandbox. Copies the docs into the catalog, runs the '
+      + 'RETRIEVAL GATE (your probe questions must find their expected verbatim snippets — a pack whose facts cannot be retrieved is '
+      + 'rejected), and registers the capability entry.'
+      + prose(' YOU write the probes: 2-4 real questions this document set answers, each with a verbatim snippet that MUST appear in '
+        + 'the docs (a fact word, not a polite phrase). Gate failure comes back naming which snippet was not found — fix the snippet or '
+        + 'the docs, do not weaken the probe. After it registers, search_catalog finds it and emit_preset can mount it (the pack is '
+        + 'copied into the preset\'s kb/ — deliverables stay self-contained).'),
+    parameters: {
+      docsDir: { type: 'string', description: 'absolute path of the directory holding the documents (.md/.txt/.markdown)', required: true },
+      id: { type: 'string', description: 'kebab-case pack id (e.g. acme-manual)', required: true },
+      description: { type: 'string', description: 'what this pack is, in the words a selector would search for (goes into the catalog entry)', required: true },
+      tags: { type: 'array', items: { type: 'string' }, description: 'search tags (domain words, both Chinese and English)' },
+      probes: {
+        type: 'array',
+        items: { type: 'object', additionalProperties: true },
+        description: 'retrieval gate: [{question, mustInclude:["逐字片段"]}] — 2-4 entries; the snippets must literally appear in the docs',
+        required: true,
+      },
+      source: { type: 'string', description: 'provenance note (where these docs came from)' },
+      version: { type: 'string', description: 'pack version, default today' },
+    },
+    output: {
+      schema: { type: 'string' as const },
+      render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
+    },
+    execute: async (args: unknown): Promise<string> => {
+      const a = args as Record<string, unknown> | null
+      const docsDir = String(a?.docsDir ?? '').trim()
+      const id = String(a?.id ?? '').trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48)
+      const description = String(a?.description ?? '').trim()
+      const probes = Array.isArray(a?.probes) ? a.probes as Array<Record<string, unknown>> : []
+      if (docsDir === '' || !docsDir.startsWith('/')) throw new Error('add_knowledge 需要 docsDir(文档目录的绝对路径)')
+      if (id === '') throw new Error('add_knowledge 需要 id(kebab-case 包名)')
+      if (description === '') throw new Error('add_knowledge 需要 description(选型器要靠它检索到这包知识)')
+      if (probes.length === 0) throw new Error('add_knowledge 需要 probes:检索门考题 [{question, mustInclude:["逐字片段"]}]——没有考题的知识包不许入库')
+      if (!existsSync(docsDir)) throw new Error(`add_knowledge: 文档目录不存在:${docsDir}`)
+
+      const repoRoot = REPO
+      const packDir = join(repoRoot, 'knowledge', id)
+      const docsOut = join(packDir, 'docs')
+      mkdirSync(docsOut, { recursive: true })
+
+      // 收文档(与 CLI 同口径:文本类,扁平化文件名,记字节)
+      const exts = new Set(['.md', '.txt', '.markdown'])
+      const collect = (dir: string, acc: string[] = []): string[] => {
+        for (const e of readdirSync(dir, { withFileTypes: true })) {
+          if (e.name.startsWith('.')) continue
+          const p = join(dir, e.name)
+          if (e.isDirectory()) collect(p, acc)
+          else if (exts.has(p.slice(p.lastIndexOf('.')).toLowerCase())) acc.push(p)
+        }
+        return acc
+      }
+      const docs = collect(docsDir)
+      if (docs.length === 0) throw new Error(`add_knowledge: ${docsDir} 里没有 .md/.txt/.markdown 文档`)
+      let totalBytes = 0
+      for (const d of docs) {
+        const rel = d.slice(docsDir.replace(/\/$/, '').length + 1).replace(/[/\\]/g, '__')
+        const bytes = readFileSync(d)
+        writeFileSync(join(docsOut, rel), bytes)
+        totalBytes += bytes.length
+      }
+
+      // 检索门:考题的逐字片段必须真能在文档里找到(找不到 = 这包知识对 agent 不可用)
+      const corpus = readdirSync(docsOut).map((f: string) => ({ name: f, text: readFileSync(join(docsOut, f), 'utf8').toLowerCase() }))
+      const results = probes.map((p) => {
+        const marks = (Array.isArray(p.mustInclude) ? p.mustInclude : []).map(String)
+        const hits = marks.map((m) => {
+          const doc = corpus.find((c: { name: string; text: string }) => c.text.includes(m.toLowerCase()))
+          return { mark: m, found: doc !== undefined, in: doc?.name ?? null }
+        })
+        return { question: String(p.question ?? ''), hits, pass: marks.length > 0 && hits.every((h) => h.found) }
+      })
+      const failed = results.filter((r) => !r.pass)
+      if (failed.length > 0) {
+        rmSync(packDir, { recursive: true, force: true })
+        throw new Error(`add_knowledge: 检索门未过(${failed.length}/${results.length} 条考题检不出预期片段),知识包已丢弃——`
+          + failed.map((r) => `「${r.question.slice(0, 30)}」缺:${r.hits.filter((h) => !h.found).map((h) => h.mark).join('/')}`).join(';')
+          + prose(' 修片段或补文档,不要削弱考题。'))
+      }
+
+      const meta = {
+        id, kind: 'knowledge', client: null,
+        source: typeof a?.source === 'string' ? a.source : docsDir,
+        version: typeof a?.version === 'string' ? a.version : new Date().toISOString().slice(0, 10),
+        license: '(客户资料:以合同为准)',
+        docCount: docs.length, totalBytes,
+        scaffoldedAt: new Date().toISOString(),
+      }
+      writeFileSync(join(packDir, '.knowledge-meta.json'), JSON.stringify(meta, null, 2) + '\n')
+      writeFileSync(join(packDir, 'probes.json'), JSON.stringify({ probes: probes.map((p) => ({ question: p.question, mustInclude: p.mustInclude })) }, null, 2) + '\n')
+      mkdirSync(join(repoRoot, 'index', 'reports'), { recursive: true })
+      writeFileSync(join(repoRoot, 'index', 'reports', `knowledge-${id}.json`), JSON.stringify({ id, kind: 'knowledge', verifiedAt: new Date().toISOString(), probes: results }, null, 2) + '\n')
+
+      // 登记能力条目(幂等:同 id 不重复追加)
+      const capsPath = config.catalogPath ?? join(repoRoot, 'capabilities.yml')
+      const caps = readFileSync(capsPath, 'utf8')
+      const capId = `kb-${id}`
+      let registered = false
+      if (!new RegExp(`^  - id: ${capId}$`, 'm').test(caps)) {
+        const tags = (Array.isArray(a?.tags) ? a.tags as unknown[] : []).map((t) => JSON.stringify(String(t))).join(', ')
+        const entry = `  - id: ${capId}\n    via: knowledge\n    description: ${JSON.stringify(description)}\n    tags: [${tags}]\n    config:\n      pack: ${JSON.stringify(id)}\n`
+        writeFileSync(capsPath, caps.replace(/\n*$/, '\n') + entry)
+        registered = true
+      }
+      appendOrchLedger({ tool: ADD_KNOWLEDGE_TOOL_NAME, id, docs: docs.length, bytes: totalBytes, probes: results.length })
+      return `知识包 ${id} 已入库:${String(docs.length)} 份文档 / ${String(totalBytes)} 字节;检索门 ${String(results.length)}/${String(results.length)} 条考题命中`
+        + `\n目录条目:${capId}${registered ? '(已登记)' : '(已存在)'}`
+        + prose(`\n【接力棒】现在可以 ${EMIT_TOOL_NAME} 时把 "${capId}" 放进 capabilityIds——它会被拷进 preset 的 kb/,交付物自包含。`)
     },
   })
 }
