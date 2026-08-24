@@ -43,6 +43,7 @@ import {
 import { validateArchProbe } from './arch-spec.js'
 import { rankCapabilities } from './capability-index.js'
 import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend } from './frontend.js'
+import { materializeApp, runAppSelftest } from './recipe.js'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -81,6 +82,7 @@ export const CONTRACT_TAGS: Record<string, string> = {
   BASELINE_RULE: 'deepseek-v4',
   MINIMAL_SET_RULE: 'deepseek-v4',
   FRONTEND_FACT: 'deepseek-v4',
+  RECIPE_FACT: 'deepseek-v4',
   ARCHITECTURE_CONTRACT: 'deepseek-v4',
   PROBE_SKETCH_EXAMPLES: 'deepseek-v4',
 }
@@ -105,6 +107,9 @@ export const MINIMAL_SET_RULE =
 /** 前端物理事实:多装模板不是权衡,是死件。 */
 export const FRONTEND_FACT = '每 preset 仅首个 frontend 模板生效——选恰好一个交互形状。'
 
+/** 配方物理事实:app 图纸不进 preset,零对话 token 税——检索行价签用。 */
+export const RECIPE_FACT = '独立 app 图纸:emit_app 实例化成独立进程交付物(不占任何 agent 的对话 token),verify_app 独立验收。'
+
 /**
  * 架构契约(2026-08-23 深夜,xhs 实测用户投诉后加):两个病一起治——
  * ① 确认检查点原住 match 契约,match 降为备用阀后检查点失传(契约句搬家必丢
@@ -114,8 +119,9 @@ export const FRONTEND_FACT = '每 preset 仅首个 frontend 模板生效——�
  */
 export const ARCHITECTURE_CONTRACT =
   'WORKFLOW CONTRACT — (0) SHAPE ROUTING before anything: judge the requirement\'s shape and SAY it. 应用型 (interaction-dense, '
-  + 'deterministic UI/data flows; AI is a component) → assemble the service form: bytes/files flow through service parts (直传端点), '
-  + 'the model only where judgment lives — and when parts cannot cover the app shape, honestly recommend direct coding instead of assembling; '
+  + 'deterministic UI/data flows; AI is a component) → FIRST search via:"recipe" entries (complete verified app blueprints: emit_app '
+  + 'materializes, verify_app examines); no recipe fits → assemble the service form: bytes/files flow through service parts (直传端点), '
+  + 'the model only where judgment lives — and when neither recipes nor parts cover the app shape, honestly recommend direct coding instead of assembling; '
   + '个人即时型 (the user wants it done NOW, conversationally) → offer to just do it yourself in this session — minting an agent is NOT the '
   + 'default for personal immediate needs; 无人值守/他人使用/交付型 → that is what minting is for. '
   + '(1) ARCHITECTURE FIRST, to review depth: 用途 (purpose); capability list where EACH entry carries a why and is '
@@ -1274,14 +1280,17 @@ export function searchCatalogToolDefinition(_ctx: Context, config: Config): Tool
       const hits = rankCapabilities(catalog.capabilities, query, limit)
       const servers = catalog['mcp-servers'] ?? {}
       const secretOf = (c: CapabilityEntry): string => {
-        const sv = c.config?.server as string | undefined
-        const decl = sv !== undefined ? servers[sv]?.requiredSecrets : undefined
+        // 配方不是 mcp server:凭证声明直挂条目(config.requiredSecrets)。
+        const decl = c.via === 'recipe'
+          ? c.config?.requiredSecrets
+          : (() => { const sv = c.config?.server as string | undefined; return sv !== undefined ? servers[sv]?.requiredSecrets : undefined })()
         if (!Array.isArray(decl) || decl.length === 0) return ''
         return `;凭证:${(decl as Array<{ env?: string; optional?: boolean }>).map((s) => `${s.env ?? '?'}${s.optional === true ? '(可选)' : ''}`).join(',')}`
       }
       // 价签:工具说明书字节 → 估算 token(≈bytes/4;标"约");mcp 且非 host 挂载
       // = 交付会话要拉一个零件进程(同服务器多件共享一个)。
       const priceOf = (c: CapabilityEntry): string => {
+        if (c.via === 'recipe') return `;${RECIPE_FACT}`
         if (c.via !== 'mcp') return c.via === 'frontend' ? `;${FRONTEND_FACT}` : ''
         const bytes = typeof c.config?.toolBytes === 'number' ? c.config.toolBytes : undefined
         const sv = c.config?.server as string | undefined
@@ -1396,6 +1405,112 @@ export function verifySharedDataToolDefinition(ctx: Context, config: Config): To
         job.settle('failed', error instanceof Error ? error.message.slice(0, 120) : String(error))
         throw error
       }
+    },
+  })
+}
+
+// ── 配方车道:emit_app(哑实例化)+ verify_app(app 独立考官)──────────────────
+// 配方 = app 形态的 preset(via:'recipe',recipes/<id>/):完整可跑项目模板 +
+// 声明式参数槽 + 写死在清单里的自测考卷。分工与 preset 车道同构——实例化是
+// 确定性印刷(零 LLM),验收是独立考官自己拉起 app 黑盒考(不依赖 DSH host)。
+// 对照系(penguin-harness)把配方夹在 skill 散文里、builder 自测自报;我们的
+// 配方过入库门、进 BOM、被独立考官验——同一招式,装在供应链上。
+
+export const EMIT_APP_TOOL_NAME = 'emit_app'
+export const VERIFY_APP_TOOL_NAME = 'verify_app'
+
+export function emitAppToolDefinition(_ctx: Context, _config: Config): ToolDefinition {
+  return defineTool({
+    name: EMIT_APP_TOOL_NAME,
+    description:
+      'DUMB app materializer for via:"recipe" catalog entries (deterministic, zero LLM): copies the recipe\'s complete runnable template, '
+      + 'injects params via app.config.json (template bytes stay pristine), copies the corpus into the app\'s corpus/ (self-contained '
+      + 'deliverable), runs the recipe\'s deterministic ingest, and writes recipe.lock.yml (provenance + params + pending secrets).'
+      + prose(' Recipe APPS are standalone processes — they never mount into a preset and cost ZERO tokens in any agent\'s prompt. '
+        + 'YOU choose the recipe and author the params (that is selection intelligence); this tool only prints. '
+        + 'SELFTEST_QUESTION/SELFTEST_MARKER params are the acceptance exam: pick a factual question the corpus definitely answers and a '
+        + 'short fact-word from the corpus text (never a politeness word) — verify_app asks the REAL question black-box. '
+        + 'Secrets NEVER go into params or files (machine-gated): the app reads them from its launch environment; missing ones are listed '
+        + 'in the result as pending. After emitting, ALWAYS call verify_app — an unverified app is not a deliverable.'),
+    parameters: {
+      recipeId: { type: 'string', description: 'recipe id from the catalog (via:"recipe" entry\'s config.recipe, e.g. rag-qa)', required: true },
+      name: { type: 'string', description: 'kebab-case app name; default target is ~/apps/<name>', required: true },
+      targetDir: { type: 'string', description: 'absolute target directory (optional; default ~/apps/<name>; refuses non-empty unless fresh)' },
+      params: { type: 'object', additionalProperties: true, description: 'recipe param slots as a flat string map (missing required ones come back as an actionable list); secret-shaped keys are refused by design', required: true },
+      corpusDir: { type: 'string', description: 'absolute path of the document set to copy into the app (recipes that take a corpus)' },
+      fresh: { type: 'boolean', description: 'true = wipe a non-empty targetDir and re-materialize (同址重印)' },
+    },
+    output: {
+      schema: { type: 'string' as const },
+      render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
+    },
+    execute: async (args: unknown): Promise<string> => {
+      const a = args as { recipeId?: unknown; name?: unknown; targetDir?: unknown; params?: unknown; corpusDir?: unknown; fresh?: unknown }
+      const recipeId = String(a.recipeId ?? '').trim()
+      const name = sanitizePresetName(String(a.name ?? ''))
+      if (recipeId === '' || name === '') throw new Error('emit_app 需要 recipeId 与 kebab-case 的 name')
+      const params: Record<string, string> = {}
+      if (a.params !== null && typeof a.params === 'object') {
+        for (const [k, v] of Object.entries(a.params as Record<string, unknown>)) {
+          if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') params[k] = String(v)
+        }
+      }
+      const targetDir = typeof a.targetDir === 'string' && a.targetDir.trim() !== '' ? a.targetDir.trim() : join(homedir(), 'apps', name)
+      const t0 = Date.now()
+      const result = materializeApp({
+        recipeId,
+        targetDir,
+        params,
+        ...(typeof a.corpusDir === 'string' && a.corpusDir.trim() !== '' ? { corpusDir: a.corpusDir.trim() } : {}),
+        ...(a.fresh === true ? { fresh: true } : {}),
+      })
+      appendOrchLedger({ tool: EMIT_APP_TOOL_NAME, recipe: recipeId, app: name, targetDir: result.targetDir, elapsedSeconds: Math.round((Date.now() - t0) / 1000) })
+      const pending = result.pendingSecrets.filter((sm) => !sm.configured)
+      return [
+        `app 已实例化:${result.targetDir}(配方 ${result.recipe}@v${String(result.version)},模板哈希 ${result.templateHash})`,
+        ...(result.corpus !== null ? [`语料:${String(result.corpus.files)} 个文件 / ${String(result.corpus.bytes)} 字节 → corpus/`] : []),
+        ...(result.chunks !== null ? [`索引:${String(result.chunks)} 块(ingest 已在装配时跑完,交付即就绪)`] : []),
+        ...(pending.length > 0
+          ? [`待配凭证:${pending.map((sm) => `${sm.env}(${sm.purpose})`).join(';')} —— 值只进启动环境变量,不落文件`]
+          : ['凭证:所需环境变量当前均已配置']),
+        prose(`【接力棒】立即 ${VERIFY_APP_TOOL_NAME} {"targetDir": "${result.targetDir}"} 独立验收——未验收的 app 不是交付物。启动方式:cd ${result.targetDir} && npm start`),
+      ].filter((l) => l !== '').join('\n')
+    },
+  })
+}
+
+export function verifyAppToolDefinition(_ctx: Context, _config: Config): ToolDefinition {
+  return defineTool({
+    name: VERIFY_APP_TOOL_NAME,
+    description:
+      'INDEPENDENT examiner for recipe apps: boots the app itself from its directory (own process, free port), runs the recipe\'s '
+      + 'declarative exam black-box over real HTTP (health + REAL question through the full retrieval+AI chain, source must resolve to a '
+      + 'real corpus file AND a working link), then kills the process. Verdict PASS / FAIL / SKIPPED with per-check evidence.'
+      + prose(' No retry loops inside — a FAIL comes back with which check broke and what the app actually returned, so the fix is surgical '
+        + '(wrong corpus → re-emit with the right corpusDir; wrong marker → re-emit with a fact-word the corpus contains; app edited by hand '
+        + '→ inspect the diff). Missing credential ≠ failure: the AI half reports SKIPPED with the env name while the retrieval half must '
+        + 'still pass (interface-first credential contract). 同一 app 连续 3 次 FAIL 后停手上报,不要无脑重验。'),
+    parameters: {
+      targetDir: { type: 'string', description: 'the app directory emit_app produced (holds recipe.lock.yml)', required: true },
+    },
+    output: {
+      schema: { type: 'string' as const },
+      render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
+    },
+    execute: async (args: unknown): Promise<string> => {
+      const a = args as { targetDir?: unknown }
+      const targetDir = String(a.targetDir ?? '').trim()
+      if (targetDir === '' || !targetDir.startsWith('/')) throw new Error('verify_app 需要绝对路径 targetDir(emit_app 结果里的 app 目录)')
+      const t0 = Date.now()
+      const result = await runAppSelftest(targetDir)
+      appendOrchLedger({ tool: VERIFY_APP_TOOL_NAME, targetDir, verdict: result.status, elapsedSeconds: Math.round((Date.now() - t0) / 1000) })
+      const lines = result.checks.map((c) => `- [${c.status}] ${c.check}:${c.evidence}`)
+      const head = result.status === 'PASS'
+        ? `app 验收 PASS(${String(result.elapsedSeconds)}s,黑盒真跑)`
+        : result.status === 'SKIPPED'
+          ? `app 验收 SKIPPED(接口半边已核实,AI 半边待凭证;${String(result.elapsedSeconds)}s)`
+          : `app 验收 FAIL(${String(result.elapsedSeconds)}s)`
+      return [head, ...lines].join('\n')
     },
   })
 }

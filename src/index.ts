@@ -27,7 +27,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm/message'
 import yaml from 'js-yaml'
 import { assembleToolDefinition } from './assemble-tool.js'
 import { solutionToolDefinition } from './solution-tool.js'
-import { askCatalogToolDefinition, assemblerMode, draftAssemblyToolDefinition, emitPresetToolDefinition, matchCatalogToolDefinition, searchCatalogToolDefinition, verifyPresetToolDefinition, verifySharedDataToolDefinition } from './orchestrated-tools.js'
+import { askCatalogToolDefinition, assemblerMode, draftAssemblyToolDefinition, emitAppToolDefinition, emitPresetToolDefinition, matchCatalogToolDefinition, searchCatalogToolDefinition, verifyAppToolDefinition, verifyPresetToolDefinition, verifySharedDataToolDefinition } from './orchestrated-tools.js'
 import { specExperimentToolDefinition, deriveArchSpec, validateArchProbe } from './arch-spec.js'
 import { shortlistCapabilities } from './capability-index.js'
 import { AUX_CALL_TIMEOUT_MS, addUsage, deriveProbePlan, parseModelJson, runFrontendGate, runProbe, runScenario, sanitizeMarks, usageDetail, type AuxUsage, type ProbePlan, type ProbeResult } from './verify.js'
@@ -87,8 +87,11 @@ export interface CapabilityEntry {
    * 'frontend' 是第五种零件:人机交互面模板(frontends/<template>/),装配时
    * 填参发射进 preset 的 frontend/,由 /assembler/ui/<id> 同源伺服——性质上是
    * 装备(agent 不"调用"它,人用它操作 agent)。
+   * 'recipe' 是第六种零件:独立 app 的组装图纸(recipes/<id>/,完整可跑项目
+   * 模板+参数槽+自测考卷)。不进 preset:emit_app 实例化成独立进程的交付物,
+   * verify_app 独立验收——app 形态的 preset 对位物。
    */
-  via: 'package' | 'harness' | 'mcp' | 'knowledge' | 'frontend'
+  via: 'package' | 'harness' | 'mcp' | 'knowledge' | 'frontend' | 'recipe'
   tool?: string
   description: string
   tags: string[]
@@ -99,6 +102,10 @@ export interface CapabilityEntry {
     presetRows?: Array<{ id: string; name: string; config?: Record<string, unknown> }>
     /** via:'frontend':frontends/ 下的模板目录名(缺省用条目 id)。 */
     template?: string
+    /** via:'recipe':recipes/ 下的配方目录名。 */
+    recipe?: string
+    /** via:'recipe':凭证声明直挂条目(配方不是 mcp server,没有连接配置可挂)。 */
+    requiredSecrets?: Array<{ env: string; purpose: string }>
   }
 }
 
@@ -2443,6 +2450,9 @@ export function apply(ctx: Context, config: Config = {}): void {
     ctx.effect(() => ctx.tools.register(verifyPresetToolDefinition(ctx, config)), 'assembler.tool.verify_preset()')
     // 共享数据考官:多 agent 班子(同一 sharedDb)的 FDE 闭环,所有编排形态可用。
     ctx.effect(() => ctx.tools.register(verifySharedDataToolDefinition(ctx, config)), 'assembler.tool.verify_shared_data()')
+    // 配方车道(app 形态):哑实例化 + app 独立考官,与 preset 车道同构。
+    ctx.effect(() => ctx.tools.register(emitAppToolDefinition(ctx, config)), 'assembler.tool.emit_app()')
+    ctx.effect(() => ctx.tools.register(verifyAppToolDefinition(ctx, config)), 'assembler.tool.verify_app()')
     if (mode === 'search' || mode === 'orchestrated' || mode === 'dialogue') {
       // search 默认形态里 match 是"专家精排"备用阀:平时零调用,检索拿不准时升级。
       ctx.effect(() => ctx.tools.register(matchCatalogToolDefinition(ctx, config)), 'assembler.tool.match_catalog()')

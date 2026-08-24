@@ -41,12 +41,14 @@ const DOMAINS = [
   { zh: '媒体识别', en: 'Media & recognition', ids: ['image-process', 'ocr-parse', 'qrcode-generate', 'barcode-generate', 'exif-read', 'file-type-detect'] },
   { zh: '安全校验', en: 'Security & validation', ids: ['jwt-decode', 'ip-utils', 'string-validate', 'fake-data', 'phone-parse'] },
   { zh: '工程工具', en: 'Engineering tools', ids: ['github-api', 'browser-automate', 'url-slugify', 'transliterate', 'safe-filename'] },
+  { zh: '应用与交付', en: 'Apps & delivery', ids: ['webhook-intake', 'static-deploy', 'app-scaffold'] },
 ]
 
 const byId = new Map(catalog.map((x) => [x.id, x]))
 const service = catalog.filter((x) => x.kind === 'service')
 const firstParty = catalog.filter((x) => x.repo === 'first-party')
-const library = catalog.filter((x) => x.kind !== 'service' && x.repo !== 'first-party')
+const recipes = catalog.filter((x) => x.kind === 'recipe')
+const library = catalog.filter((x) => x.kind !== 'service' && x.kind !== 'recipe' && x.repo !== 'first-party')
 const toolCount = (x) => (x.tools ?? []).length
 const total = catalog.reduce((n, x) => n + toolCount(x), 0)
 

@@ -670,3 +670,11 @@ capabilities:
     via: mcp
     description: "Parse MOBI/AZW3 (KF8) ebook files into plain text, metadata (title/author/language/publisher), chapter structure (spine + TOC), and per-chapter text — the MOBI counterpart of the existing PDF/DOCX extractors. Pure local parsing, no network."
     tags: [mobi, azw3, kf8, ebook, parser, reading, document, kindle, 电子书, 解析, 阅读]
+  - id: recipe-rag-qa
+    via: recipe
+    description: "配方:把一个文档集变成能追问的问答网页:本地词法检索(中英混合)、流式回答、 [n] 引用可点开原文块并链到源文件;未配 key 时检索照常、给可行动配置指引。"
+    tags: ["配方", "app", "问答", "知识库", "文档", "rag", "qa", "knowledge", "docs", "检索", "引用", "chat", "网页", "独立应用"]
+    config:
+      recipe: "rag-qa"
+      requiredSecrets:
+        - { env: "DEEPSEEK_API_KEY", purpose: "回答生成(缺时服务照起:检索/引用可用,/api/ask 返回可行动配置指引)" }

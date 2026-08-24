@@ -894,3 +894,11 @@
   license: "MIT"
   tools:
     - { name: "scaffold-vite", description: "在工作区用官方 create-vite 生成一个 vanilla(纯 TS/JS)web 应用骨架:返回落盘目录与文件清单。之后由你写应用代码,npm inst" }
+
+- id: recipe-rag-qa
+  kind: recipe
+  version: 1
+  templateHash: "dbb9af7968291680"
+  license: "BSD-3-Clause"
+  selftest: "pass"
+  inspiredBy: "形态借鉴 penguin-harness(Apache-2.0)penguin-sdk skill 的 RAG 配方与其工程坑注释; 代码为本仓库重写,检索用本仓库 BM25 谱系(单字+双字 CJK 分词),纪律对齐 ai-call 零件。"

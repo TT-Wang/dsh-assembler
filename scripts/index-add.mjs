@@ -29,6 +29,8 @@ import { fileURLToPath } from 'node:url'
 import { inventoryEndpoints, specBaseUrl } from './spec-intake.mjs'
 import { assertYaml, s } from './yaml-write.mjs'
 
+const yamlParse = (t) => yaml.load(t)
+
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const [cmd, target, ...rest] = process.argv.slice(2)
 const flags = {}
@@ -876,6 +878,89 @@ async function checkAll() {
   process.exit(failed.length === 0 ? 0 : 1)
 }
 
+
+// ── recipe:配方零件入库门 + 登记(app 形态,recipes/<id>/)────────────────────
+// 门 = 配方自证:用自带 sample 实例化到临时目录,由同一台 app 考官黑盒考
+// (lib/recipe.js 的 runRecipeGate——与 verify_app 完全同一段代码,双岗)。
+// 改 template/ 任何字节必须升 version 并重过此门;考不过不许登记。
+// AI 半边的凭证从 ~/.dsh/.env 借读(只进本进程环境,不打印不落盘);没有 key
+// 时门以接口模式放行(selftest: skipped),报告里如实记录。
+async function recipeGate() {
+  const id = target
+  if (id === undefined || id === '') die('用法:index-add.mjs recipe <recipe-id>(recipes/<id>/ 须已存在)')
+  // 借读 ~/.dsh/.env 的凭证(与 ai-call smoke 同款纪律:值不打印)
+  const dshEnv = join(process.env.HOME ?? '', '.dsh', '.env')
+  if (existsSync(dshEnv)) {
+    for (const line of readFileSync(dshEnv, 'utf8').split('\n')) {
+      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/)
+      if (m !== null && !line.trimStart().startsWith('#') && process.env[m[1]] === undefined) {
+        process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g, '')
+      }
+    }
+  }
+  const libPath = join(REPO, 'lib', 'recipe.js')
+  if (!existsSync(libPath)) die('缺 lib/recipe.js——先 npm run build')
+  const { runRecipeGate, hashTemplate } = await import(libPath)
+  let gate
+  try {
+    gate = await runRecipeGate(id, { onPhase: (l) => console.error(`· ${l}`) })
+  } catch (error) {
+    die(`配方门失败:${error.message}`)
+  }
+  const ok = gate.selftest.status === 'PASS' || gate.selftest.status === 'SKIPPED'
+  const reportPath = join(REPO, 'index', 'reports', `recipe-${id}.json`)
+  mkdirSync(dirname(reportPath), { recursive: true })
+  writeFileSync(reportPath, JSON.stringify({
+    id: `recipe-${id}`, kind: 'recipe', recipe: id, version: gate.version,
+    templateHash: gate.materialize.templateHash,
+    selftest: gate.selftest.status.toLowerCase(),
+    checks: gate.selftest.checks,
+    verifiedAt: new Date().toISOString(),
+  }, null, 2) + '\n')
+  if (!ok) die(`配方 ${id} 自证 FAIL,拒绝登记(报告:index/reports/recipe-${id}.json):${gate.selftest.checks.map((c) => `${c.check}=${c.status}`).join(',')}`)
+
+  // 读配方清单做登记素材
+  const spec = yamlParse(readFileSync(join(REPO, 'recipes', id, 'recipe.yml'), 'utf8'))
+  const capId = `recipe-${id}`
+  const changed = []
+
+  // capabilities.yml:capabilities 列表尾部追加(幂等)
+  const capsPath = join(REPO, 'capabilities.yml')
+  const caps = readFileSync(capsPath, 'utf8')
+  if (!new RegExp(`^  - id: ${capId}$`, 'm').test(caps)) {
+    const secretRows = Array.isArray(spec.requiredSecrets) && spec.requiredSecrets.length > 0
+      ? `\n      requiredSecrets:\n${spec.requiredSecrets.map((x) => `        - { env: ${s(x.env)}, purpose: ${s(x.purpose ?? '')} }`).join('\n')}`
+      : ''
+    const entry = `  - id: ${capId}\n    via: recipe\n    description: ${s(`配方:${String(spec.description ?? '').replace(/\s+/g, ' ').trim()}`)}\n    tags: [${(spec.tags ?? []).map((t) => s(String(t))).join(', ')}]\n    config:\n      recipe: ${s(id)}${secretRows}\n`
+    writeYaml(capsPath, caps.replace(/\n*$/, '\n') + entry, 'capabilities.yml')
+    changed.push('capabilities.yml')
+  }
+
+  // index/catalog.yml:供应链出处(kind: recipe,锁 version+templateHash)
+  const catalogPath = join(REPO, 'index', 'catalog.yml')
+  const catalog = readFileSync(catalogPath, 'utf8')
+  if (!new RegExp(`^- id: ${capId}$`, 'm').test(catalog)) {
+    writeYaml(catalogPath, catalog.replace(/\n*$/, '\n') + `
+- id: ${capId}
+  kind: recipe
+  version: ${String(spec.version)}
+  templateHash: ${s(gate.materialize.templateHash)}
+  license: ${s(spec.license ?? '')}
+  selftest: ${s(gate.selftest.status.toLowerCase())}
+${typeof spec.inspiredBy === 'string' && spec.inspiredBy !== '' ? `  inspiredBy: ${s(String(spec.inspiredBy).replace(/\s+/g, ' ').trim())}\n` : ''}`, 'index/catalog.yml')
+    changed.push('index/catalog.yml')
+  } else {
+    // 已登记:核对版本代际——version 或 templateHash 变了要求先手动移除旧条目,
+    // 防"改了模板不升版本"静默入库(字节代际纪律)。
+    const block = catalog.split(`- id: ${capId}`)[1] ?? ''
+    const oldHash = /templateHash: '?"?([0-9a-f]{16})/.exec(block)?.[1]
+    if (oldHash !== undefined && oldHash !== gate.materialize.templateHash) {
+      die(`配方 ${id} 模板字节已变(${oldHash} → ${gate.materialize.templateHash})但目录里还是旧条目——升 recipe.yml 的 version,删除 index/catalog.yml 旧条目后重跑`)
+    }
+  }
+  out({ id: capId, selftest: gate.selftest.status, templateHash: gate.materialize.templateHash, registered: changed, report: `index/reports/recipe-${id}.json` })
+}
+
 if (cmd === 'scaffold') scaffold()
 else if (cmd === 'verify') await verify()
 else if (cmd === 'register') register()
@@ -885,4 +970,5 @@ else if (cmd === 'auto') await auto()
 else if (cmd === 'from-spec') await fromSpec()
 else if (cmd === 'knowledge') knowledgeScaffold()
 else if (cmd === 'knowledge-verify') knowledgeVerify()
+else if (cmd === 'recipe') await recipeGate()
 else die('用法:index-add.mjs scaffold <owner/repo> --pkg <npm名> | verify <id> | register <id> | check-all | coverage | auto <owner/repo> --pkg <npm名> [--id <id>] [--port 3096]')

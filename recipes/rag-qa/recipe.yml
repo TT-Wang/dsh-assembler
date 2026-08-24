@@ -1,0 +1,68 @@
+# 配方:RAG 问答独立 app。
+# 模板零依赖(node:http),检索本地 BM25,回答走 DeepSeek(key 只从环境变量读)。
+# 改 template/ 任何字节必须升 version,并重过入库门:
+#   node scripts/index-add.mjs recipe rag-qa
+id: rag-qa
+version: 1
+description: >-
+  把一个文档集变成能追问的问答网页:本地词法检索(中英混合)、流式回答、
+  [n] 引用可点开原文块并链到源文件;未配 key 时检索照常、给可行动配置指引。
+tags: [配方, app, 问答, 知识库, 文档, rag, qa, knowledge, docs, 检索, 引用, chat, 网页, 独立应用]
+license: BSD-3-Clause
+inspiredBy: >-
+  形态借鉴 penguin-harness(Apache-2.0)penguin-sdk skill 的 RAG 配方与其工程坑注释;
+  代码为本仓库重写,检索用本仓库 BM25 谱系(单字+双字 CJK 分词),纪律对齐 ai-call 零件。
+
+params:
+  - key: APP_NAME
+    description: 页面标题/产品名
+    required: true
+    example: 产品手册问答
+  - key: ROLE_LINE
+    description: 回答者角色一句话(进 system,页面也展示)
+    required: true
+    example: 你是 Acme 产品手册专家,只依据手册内容回答。
+  - key: EXAMPLE_QUESTIONS
+    description: 空态示例问题,| 分隔 2-4 个,必须是语料真能答的
+    required: true
+    example: 怎么申请退货?|保修期多久?
+  - key: SELFTEST_QUESTION
+    description: 验收考题——一个语料确定能答的事实性问题(考官黑盒真问)
+    required: true
+    example: 保修期是多久?
+  - key: SELFTEST_MARKER
+    description: 验收标记——正确回答必然包含的短词(取语料原文里的事实词,不是礼貌词)
+    required: true
+    example: 十八个月
+  - key: MODEL
+    description: DeepSeek 模型 id
+    required: false
+    default: deepseek-v4-flash
+
+requiredSecrets:
+  - env: DEEPSEEK_API_KEY
+    purpose: 回答生成(缺时服务照起:检索/引用可用,/api/ask 返回可行动配置指引)
+
+run:
+  ingest: [node, ingest.mjs]
+  start: [node, server.mjs]
+  readyPath: /healthz
+
+selftest:
+  checks:
+    - kind: healthz
+    - kind: ask
+      questionParam: SELFTEST_QUESTION
+      markerParam: SELFTEST_MARKER
+      needsSecret: DEEPSEEK_API_KEY
+
+# 入库门样例(与用户无关,只用于配方自证):语料里的事实是虚构的,
+# 标记「沈一舟」只可能来自检索命中——考的是链路,不是模型常识。
+sample:
+  corpusDir: sample/corpus
+  params:
+    APP_NAME: 蓝湖计划问答
+    ROLE_LINE: 你是蓝湖计划的资料专员,只依据项目文档回答。
+    EXAMPLE_QUESTIONS: 蓝湖计划的负责人是谁?|一期的目标装机容量是多少?
+    SELFTEST_QUESTION: 蓝湖计划的总负责人是谁?
+    SELFTEST_MARKER: 沈一舟

@@ -52,6 +52,14 @@
 - 验收门:**读书助手 app 形态重装对照**(vs 模型中枢版):epub 上传成功率、
   交互延迟、token 成本三指标翻盘。
 
+> **执行状态(2026-08-24)**:P2 追加落地"配方零件"(via:'recipe' 第六种零件,
+> penguin-harness 调研的大模块吸收①):recipes/<id>/ = 完整可跑 app 模板+参数槽+
+> 声明式考卷;emit_app 哑实例化(app.config.json 注入、语料自包含、ingest 预跑、
+> recipe.lock.yml)+ verify_app 独立考官(自拉进程黑盒考,凭证缺→接口模式
+> SKIPPED)+ 入库门(index-add.mjs recipe <id>,同一台考官跑 sample 自证,
+> templateHash 字节代际闸)。首方 rag-qa 入库(蓝湖样例 PASS;真语料 E2E:22 份
+> 文档→125 块,黑盒真答带引用 PASS)。这是 P3 战③(vs Lovable)的地基。
+
 ## P2|生态吸收(调研层,一周量级)
 
 - **registry 联邦 POC**:shadcn registry 适配器进 induction,收 1 个外部

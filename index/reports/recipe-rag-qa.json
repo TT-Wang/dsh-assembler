@@ -1,0 +1,21 @@
+{
+  "id": "recipe-rag-qa",
+  "kind": "recipe",
+  "recipe": "rag-qa",
+  "version": 1,
+  "templateHash": "dbb9af7968291680",
+  "selftest": "pass",
+  "checks": [
+    {
+      "check": "healthz",
+      "status": "PASS",
+      "evidence": "/healthz → ok=true, chunks=6"
+    },
+    {
+      "check": "ask",
+      "status": "PASS",
+      "evidence": "回答含标记「沈一舟」,来源可核(蓝湖计划.md);回答节选:蓝湖计划的总负责人是沈一舟,他常驻烟台基地。[1]"
+    }
+  ],
+  "verifiedAt": "2026-08-24T06:03:23.973Z"
+}

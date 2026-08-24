@@ -147,7 +147,7 @@ check('BARE:默认关、=1 开', bareMode() === false)
 check('BARE:满装描述含契约散文(检查点/基线/硬预算)', descFull.includes('ask_user_question') && descFull.includes('real-world I/O') && descFull.includes('LAST-RESORT'))
 check('BARE:消融描述剥净散文、保留事实性一句话', !descBare.includes('ask_user_question') && !descBare.includes('real-world I/O') && descBare.includes('BM25') && descBare.length < descFull.length / 3)
 check('BARE:match 描述同样消融', !matchBare.includes('LAST-RESORT') && matchBare.includes('capability id or a GAP'))
-check('到期制:每条导出散文常量都登记了适用模型代', ['BASELINE_RULE', 'MINIMAL_SET_RULE', 'FRONTEND_FACT', 'ARCHITECTURE_CONTRACT', 'PROBE_SKETCH_EXAMPLES'].every((k) => typeof CONTRACT_TAGS[k] === 'string' && CONTRACT_TAGS[k] !== '') && CONTRACT_GENERATION === 'deepseek-v4')
+check('到期制:每条导出散文常量都登记了适用模型代', ['BASELINE_RULE', 'MINIMAL_SET_RULE', 'FRONTEND_FACT', 'RECIPE_FACT', 'ARCHITECTURE_CONTRACT', 'PROBE_SKETCH_EXAMPLES'].every((k) => typeof CONTRACT_TAGS[k] === 'string' && CONTRACT_TAGS[k] !== '') && CONTRACT_GENERATION === 'deepseek-v4')
 
 const planScn = { kind: 'scenario', scenario: { goal: 'g', turns: [{ prompt: '记 T-9 打车 30 元', mustInclude: ['T-9'] }, { prompt: '查 T-9 报分类', mustInclude: ['打车'] }] } }
 const sk = planToSketch(planScn)
@@ -229,6 +229,80 @@ const f4 = lintPersona('你是医院导诊助手,根据症状推荐科室,绝不
 check('lint 完备性:医疗域有红线句不误报', !f4.some((f) => f.kind === 'missing-safety-boundary'))
 const f5 = lintPersona('你是看板助手,帮团队管理任务流转,语气干脆,拖拽操作在网页完成。', [])
 check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => f.kind === 'missing-safety-boundary'))
+
+
+// ── 配方车道(via:'recipe':emit_app 哑实例化 + verify_app 独立考官)──────────
+{
+  const { loadRecipe, materializeApp, runAppSelftest, hashTemplate, RECIPES_DIR } = await import('./lib/recipe.js')
+  const { emitAppToolDefinition, verifyAppToolDefinition } = await import('./lib/orchestrated-tools.js')
+  const { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, mkdirSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const { tmpdir } = await import('node:os')
+
+  // 清单校验
+  const spec = loadRecipe('rag-qa')
+  check('recipe:清单加载且考卷非空', spec.version >= 1 && spec.selftest.checks.length >= 2 && spec.run.start[0] === 'node')
+  let threw = ''
+  try { loadRecipe('no-such-recipe') } catch (e) { threw = e.message }
+  check('recipe:不存在的配方报可行动错误', threw.includes('no-such-recipe'))
+
+  // 实例化:缺参可行动、密钥形参拒、仓库内落地拒
+  const tmp = mkdtempSync(join(tmpdir(), 'recipe-test-'))
+  try {
+    let missErr = ''
+    try { materializeApp({ recipeId: 'rag-qa', targetDir: join(tmp, 'a1'), params: { APP_NAME: 'x' } }) } catch (e) { missErr = e.message }
+    check('emit_app:缺必填参数 → 列名带说明(可行动错误)', missErr.includes('SELFTEST_QUESTION') && missErr.includes('ROLE_LINE') && missErr.includes(':'))
+    let secErr = ''
+    try { materializeApp({ recipeId: 'rag-qa', targetDir: join(tmp, 'a2'), params: { ...spec.sample.params, API_KEY_HERE: 'v' } }) } catch (e) { secErr = e.message }
+    check('emit_app:密钥形状的参数键机械拒绝', secErr.includes('API_KEY_HERE') && secErr.includes('环境变量'))
+    let repoErr = ''
+    try { materializeApp({ recipeId: 'rag-qa', targetDir: join(RECIPES_DIR, '..', 'some-app'), params: spec.sample.params }) } catch (e) { repoErr = e.message }
+    check('emit_app:拒绝落在装配器仓库内', repoErr.includes('仓库'))
+
+    // 正常实例化(带 sample 语料):config 注入、语料自包含、ingest 预跑、lock 落盘
+    const appDir = join(tmp, 'app')
+    const r = materializeApp({ recipeId: 'rag-qa', targetDir: appDir, params: spec.sample.params, corpusDir: join(RECIPES_DIR, 'rag-qa', spec.sample.corpusDir) })
+    const cfg = JSON.parse(readFileSync(join(appDir, 'app.config.json'), 'utf8'))
+    check('emit_app:参数经 app.config.json 注入(模板零替换)', cfg.APP_NAME === spec.sample.params.APP_NAME && cfg.recipe === 'rag-qa')
+    check('emit_app:语料拷入 corpus/ 且 ingest 预跑出块', r.corpus !== null && r.corpus.files === 2 && r.chunks > 0 && existsSync(join(appDir, 'data', 'index.json')))
+    check('emit_app:recipe.lock.yml 带出处与考题参数', readFileSync(r.lockPath, 'utf8').includes('templateHash') && readFileSync(r.lockPath, 'utf8').includes('SELFTEST_MARKER'))
+    check('emit_app:非空目录不带 fresh 拒绝', (() => { try { materializeApp({ recipeId: 'rag-qa', targetDir: appDir, params: spec.sample.params }); return false } catch (e) { return e.message.includes('fresh') } })())
+
+    // 独立考官(接口模式:确保无 key)
+    const savedKey = process.env.DEEPSEEK_API_KEY
+    delete process.env.DEEPSEEK_API_KEY
+    try {
+      const st = await runAppSelftest(appDir)
+      check('verify_app:无 key 接口模式 → SKIPPED 且检索半边过、AI 半边点名环境变量', st.status === 'SKIPPED' && st.checks.some((c) => c.check === 'healthz' && c.status === 'PASS') && st.checks.some((c) => c.check === 'ask' && c.status === 'SKIPPED' && c.evidence.includes('DEEPSEEK_API_KEY')))
+    } finally {
+      if (savedKey !== undefined) process.env.DEEPSEEK_API_KEY = savedKey
+    }
+    check('verify_app:非配方目录报可行动错误', await runAppSelftest(tmp).then(() => false, (e) => e.message.includes('recipe.lock.yml')))
+
+    // 模板哈希稳定性(同字节同哈希)
+    check('recipe:模板哈希确定性', hashTemplate(join(RECIPES_DIR, 'rag-qa', 'template')) === r.templateHash)
+  } finally {
+    rmSync(tmp, { recursive: true, force: true })
+  }
+
+  // 契约钉:两工具的承重句
+  const emitDesc = emitAppToolDefinition(fakeCtx, {}).description
+  const verifyDesc = verifyAppToolDefinition(fakeCtx, {}).description
+  check('契约钉:emit_app = 哑印刷 + 考题参数职责 + 密钥不落文件 + 接力棒', emitDesc.includes('DUMB app materializer') && emitDesc.includes('SELFTEST_QUESTION') && emitDesc.includes('Secrets NEVER') && emitDesc.includes('verify_app'))
+  check('契约钉:verify_app = 独立考官 + 外科修复 + 凭证≠失败 + 3 次停手', verifyDesc.includes('INDEPENDENT examiner') && verifyDesc.includes('surgical') && verifyDesc.includes('SKIPPED') && verifyDesc.includes('3 次 FAIL'))
+  process.env.DSH_ASSEMBLER_BARE = '1'
+  const { emitAppToolDefinition: emitBareF } = await import('./lib/orchestrated-tools.js')
+  const emitBare = emitBareF(fakeCtx, {}).description
+  delete process.env.DSH_ASSEMBLER_BARE
+  check('BARE:emit_app 散文可剥、事实句保留', !emitBare.includes('接力棒') && emitBare.includes('recipe.lock.yml'))
+
+  // 检索行:via:'recipe' 价签与凭证(不起进程,直接考 rank + 目录条目)
+  const cat2 = (await import('./lib/index.js')).loadCatalog('capabilities.yml')
+  const entry = cat2.capabilities.find((c) => c.id === 'recipe-rag-qa')
+  check('目录:recipe-rag-qa 已登记且凭证声明直挂条目', entry !== undefined && entry.via === 'recipe' && Array.isArray(entry.config.requiredSecrets) && entry.config.requiredSecrets[0].env === 'DEEPSEEK_API_KEY')
+  const hits2 = rankCapabilities(cat2.capabilities, '把产品文档变成问答网页 app', 3)
+  check('检索:app 型问答需求 → 配方第一名', hits2[0]?.entry.id === 'recipe-rag-qa')
+}
 
 if (failures > 0) {
   console.error(`\ntests-orchestrated: ${failures} failure(s)`)
