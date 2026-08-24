@@ -1,0 +1,11 @@
+{
+  "id": "kg-memory",
+  "pkg": "@modelcontextprotocol/server-memory",
+  "version": "2026.7.4",
+  "client": null,
+  "repo": "https://github.com/modelcontextprotocol/servers.git",
+  "license": "MIT",
+  "adopted": true,
+  "entry": "node_modules/@modelcontextprotocol/server-memory/dist/index.js",
+  "scaffoldedAt": "2026-08-24T09:28:10.789Z"
+}

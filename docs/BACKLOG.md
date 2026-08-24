@@ -24,17 +24,21 @@
 
 ## P2|把已建成的铺满(存量收益,不改架构)
 
-- [ ] **ai-thin 路由实装**(半晚):页面的薄判断("午饭32"式解析)直连 ai-call 的
-      服务面,不再借道 wire;PAGE-SPEC 的 `route: ai-thin` 从留档变成真路由,
-      behavior 考补对应执行器。
-- [ ] **公共文件通道**(一晚,分类法欠账②):book-intake 泛化为 `file-channel`
-      (上传/下载/列目录),17 件字节口零件一次受益,页面喂文件/取文件不过模型。
-- [ ] **触发考升格一等工具**(半晚):现为战役脚本形态 → `verify_trigger`
-      (打一发 + 验后果),无人值守形态的第四格考官补齐。
-- [ ] **判断器双脸制度化**(小):ai-call 的 app 镜像(配方内 ai.mjs)登记为目录
-      里成对工件,改纪律两边同步。
-- [ ] **剩余 4 张模板迁 SDK**(小):chat-console/file-desk/bilingual-reader/
-      reader-upload-web-ui(现仅 chat-console 补了 IME 守卫)。
+- [x] **ai-thin 路由实装**(2026-08-25):ai-call 长服务脸(POST /complete,双脸
+      共用同一段实现)+ SDK 双版 `aiFace()` + behavior 考 ai-thin 执行器(缺 key
+      SKIPPED)+ WRITE-ME 四档路由判据。smoke 8/8。
+- [x] **公共文件通道**(2026-08-25):新件 `file-channel` 入库(直传/取回/列目录/
+      删除 + 服务脸,穿越拒绝、64MB 上限、字节逐位一致 smoke 10/10);SDK 双版
+      `filesFace()`;file-desk 模板接上直传卡。
+- [x] **触发考升格一等工具**(2026-08-25):`verify_trigger`——像 cron 到点那样
+      经 wire 打一发(带无人值守纪律头),**不看回复**、轮询服务脸验落库效果;
+      闸门:口令须在任务里 / effectSql 只读 / expect ≥4 字符。实测 3s PASS。
+- [x] **判断器双脸制度化**(2026-08-25):机械钉——两张配方的 app 镜像
+      (lib/ai.mjs)与 ai-call 零件守同款纪律(key 只从 env、maxTokens 地板 256),
+      改一处两边红。
+- [~] **剩余 4 张模板迁 SDK**:file-desk 已迁(并接直传);chat-console 已补 IME
+      守卫、其余保留内联(测试钉允许"SDK 或内联"两形态);两张 reader 页留待与
+      book-intake→file-channel 合流时一并处理。
 - [ ] **README 用户切片更新**(小):配方车道 + scaffold 车道 + 双面交付进 README
       (中英),仍守"无内部实验细节"纪律。
 
@@ -52,8 +56,10 @@
 
 ## P4|采购(库存生长,三级采购已定策)
 
-- [ ] **adopt 门**:`index-add.mjs adopt <npm-mcp-package>`——收编现成 MCP server
-      (装包锁版本 → 嗅探 listTools → smoke → 凭证声明 → 条款登记),省写胶水。
+- [x] **adopt 门**(2026-08-25):`index-add.mjs adopt <npm-pkg> [--probe tool:json]`
+      ——装包锁实际版本 → 找包内 bin → **独立实探 listTools + 真调一发**(报错即拒)
+      → 出处链(adopted/pkg/rev/repo/license)→ register 直接可用。首收
+      `kg-memory`(官方知识图谱 server,9 工具,v2026.7.4)。
 - [ ] 头部缺件按序采购:**TTS/ASR** → **embedding+向量检索**(兼作目录规模化前置)
       → **S3 兼容对象存储** → **日历写入** → **企微/钉钉**(国内交付刚需)→ **翻译**
       → Notion/飞书文档写。每件走"采→转→造"三级,能采不造。

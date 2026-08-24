@@ -338,6 +338,49 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   check('deploy_app:无 dist 报可行动错误', await deployAppToolDefinition(fakeCtx, {}).execute({ targetDir: '/tmp/no-such-app-x', presetId: 'x' }).then(() => false, (e) => e.message.includes('verify_app')))
 }
 
+
+// ── P2/P4 批次:ai-thin 路由 / 文件通道 / 触发考 / adopt 门 ──────────────────
+{
+  const { verifyTriggerToolDefinition, VERIFY_TRIGGER_TOOL_NAME } = await import('./lib/orchestrated-tools.js')
+  const { readFileSync: rf4 } = await import('node:fs')
+  const { join: j4 } = await import('node:path')
+  const { RECIPES_DIR: RD } = await import('./lib/recipe.js')
+
+  // ai-thin:双脸同源 + SDK 双版都有 aiFace + WRITE-ME 教了路由判据
+  const aiPart = rf4('generated/ai-call/index.js', 'utf8')
+  check('ai-thin:ai-call 双脸共用同一段 complete 实现(不分叉)', aiPart.includes('async function complete(') && aiPart.includes('ai-face-info') && (aiPart.match(/chat\/completions/g) ?? []).length === 1)
+  check('ai-thin:密钥纪律与 maxTokens 地板仍在', aiPart.includes('process.env.DEEPSEEK_API_KEY') && aiPart.includes('Math.max(256'))
+  const sdkJs = rf4('frontends/_vendor/assembler-sdk.js', 'utf8')
+  const sdkTs = rf4(j4(RD, 'scaffold-react', 'template', 'src', 'sdk', 'assembler-sdk.ts'), 'utf8')
+  check('SDK 双版:aiFace + filesFace 都在(模板与 scaffold 同能力)', ['aiFace', 'filesFace'].every((k) => sdkJs.includes(k) && sdkTs.includes(k)))
+  const wm2 = rf4(j4(RD, 'scaffold-react', 'template', 'WRITE-ME.md'), 'utf8')
+  check('WRITE-ME:四档路由判据齐(face/ai-thin/wire/local)', ['route: face', 'route: ai-thin', 'route: wire', 'route: local'].every((k) => wm2.includes(k)) && wm2.includes('别为它开会话'))
+
+  // 判断器 app 镜像与零件纪律一致(双脸制度化的机械钉)
+  for (const rec of ['rag-qa', 'record-desk']) {
+    const mirror = rf4(j4(RD, rec, 'template', 'lib', 'ai.mjs'), 'utf8')
+    check(`双脸制度化:${rec} 的 app 镜像守同款纪律(env-only key + 256 地板)`, mirror.includes('process.env.DEEPSEEK_API_KEY') && mirror.includes('Math.max(256'))
+  }
+
+  // file-channel:登记 + 服务脸声明
+  const cat4 = (await import('./lib/index.js')).loadCatalog('capabilities.yml')
+  check('file-channel:已登记且声明服务脸', (cat4['mcp-servers'] ?? {})['file-channel']?.serviceAnnounce === 'file-channel-info')
+  check('ai-call:声明服务脸(检索行会报"浏览器可直连")', (cat4['mcp-servers'] ?? {})['ai-call']?.serviceAnnounce === 'ai-face-info')
+
+  // verify_trigger 契约与闸门
+  const vt = verifyTriggerToolDefinition(fakeCtx, {})
+  check('契约钉:verify_trigger = 打一发验后果 + 不看回复', vt.description.includes('judges by EFFECT') && vt.description.includes('never read') && VERIFY_TRIGGER_TOOL_NAME === 'verify_trigger')
+  const vtThrows = async (args, needle) => vt.execute(args).then(() => false, (e) => String(e.message).includes(needle))
+  check('verify_trigger 闸:task 必须含口令', await vtThrows({ presetId: 'x', task: '干活', effectSql: 'SELECT 1', expect: 'TOK-1234' }, '必须包含'))
+  check('verify_trigger 闸:effectSql 必须只读', await vtThrows({ presetId: 'x', task: 'TOK-1234', effectSql: 'DELETE FROM t', expect: 'TOK-1234' }, '只读'))
+  check('verify_trigger 闸:expect 太短拒', await vtThrows({ presetId: 'x', task: 'ok', effectSql: 'SELECT 1', expect: 'ok' }, '≥4'))
+
+  // adopt 门:收编件出处链
+  const catalogText = rf4('index/catalog.yml', 'utf8')
+  check('adopt:收编件出处链完整(adopted/pkg/rev/repo/license)', /- id: kg-memory\n  adopted: true\n  pkg: "@modelcontextprotocol\/server-memory"\n  rev: "v[\d.]+"/.test(catalogText))
+  check('adopt:入口指向包内 bin(不是自造 index.js)', JSON.stringify((cat4['mcp-servers'] ?? {})['kg-memory'] ?? {}).includes('node_modules/@modelcontextprotocol/server-memory'))
+}
+
 if (failures > 0) {
   console.error(`\ntests-orchestrated: ${failures} failure(s)`)
   process.exit(1)

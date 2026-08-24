@@ -488,6 +488,8 @@ mcp-servers:
     args: ["/Users/tongtao/code/dsh-assembler/generated/ai-call/index.js"]
     requiredSecrets:
       - { env: "DEEPSEEK_API_KEY", purpose: "ai-complete 独立 AI 补全调用" }
+    # 服务脸:页面/程序直连做一次补全(薄判断路由 ai-thin),不必开会话。
+    serviceAnnounce: ai-face-info
 
   static-deploy:
     transport: stdio
@@ -503,6 +505,18 @@ mcp-servers:
     transport: stdio
     command: node
     args: ["/Users/tongtao/code/dsh-assembler/generated/cron-trigger/index.js"]
+
+  file-channel:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/file-channel/index.js"]
+    # 公共文件通道:浏览器/程序直传字节进工作区,解析生成类零件按路径消费。
+    serviceAnnounce: file-channel-info
+
+  kg-memory:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/kg-memory/node_modules/@modelcontextprotocol/server-memory/dist/index.js"]
 
 capabilities:
   # ── frontend templates(交互面零件:选形状,功能由其余零件供给)────────────

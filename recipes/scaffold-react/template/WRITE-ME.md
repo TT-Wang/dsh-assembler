@@ -32,11 +32,16 @@ pages:
         route: wire      # 判断流:真 agent 会话
         probe: 查看 tasks 表,报告标题含 @@TOKEN@@ 的任务状态,并原样报出口令 @@TOKEN@@。不要问任何人。
         marks: ['@@TOKEN@@']
+      - name: 一句话贴便签
+        route: ai-thin   # 薄判断:一次补全(ai-call 服务脸),不开会话
+        prompt: 把这句话解析成 JSON {content,color},只输出 JSON:@@TOKEN@@ 红色便签
+        expect: '@@TOKEN@@'          # AI 输出必须包含;缺 key 时该考 SKIPPED 不判负
       - name: 本地筛选
         route: local     # 纯前端状态,不出网,免考
 ```
 
-路由判据(逐动作,不是逐页):增删改查/汇总/渲染 = `face`;需要理解、建议、
+路由判据(逐动作,不是逐页):增删改查/汇总/渲染 = `face`(零模型);**一次性
+解析/分类/改写 = `ai-thin`**(一次补全,别为它开会话);需要多轮理解、建议、
 开放对话 = `wire`;纯 UI 状态 = `local`。`@@TOKEN@@` 由考官注入随机口令。
 **表结构以配套 preset 的装备 DDL 为准**(列名照抄,别发明)。
 
@@ -52,6 +57,13 @@ await face.schema()                                 // → { tables: [{name, col
 const client = createClient({ onDelta?, onToolCall?, onError? })
 const out = await client.ask('…')                   // → { reply, fence };fence.ok=false 必须给用户看 reason
 
+const ai = await aiFace()                           // null = 未挂 ai-call 零件(降级:让用户填表单)
+await ai.complete({ prompt: '…', system: '…' })     // → { text };薄判断走这里,不要为一次解析开会话
+
+const files = await filesFace()                     // null = 未挂 file-channel 零件
+await files.upload('report.pdf', fileFromInput)     // 大字节直传,**绝不过模型**;落盘路径可交给解析零件
+files.fileUrl('report.pdf')                         // 取回/预览用的 URL
+
 bindEnter(inputEl, fn)                              // 回车提交(IME 守卫内置,必用它,禁手写 keydown 回车)
 APP.PRESET_ID / APP.APP_NAME                        // 实例参数
 ```
@@ -62,6 +74,8 @@ APP.PRESET_ID / APP.APP_NAME                        // 实例参数
 禁任何 `http(s)://` 外链(离线交付,图标用 lucide-react,别引 CDN)。
 
 ## 词汇表(仅此 13 件 + 两库,别 import 不存在的)
+
+SDK 出口:`sqliteFace` `aiFace` `filesFace` `createClient` `bindEnter` `extractFence` `APP`。
 
 `@/components/ui/`:badge · button · card · checkbox · dialog · dropdown-menu ·
 input · label · select · separator · table · tabs · textarea

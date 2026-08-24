@@ -43,6 +43,7 @@ import {
 import { validateArchProbe } from './arch-spec.js'
 import { rankCapabilities } from './capability-index.js'
 import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend } from './frontend.js'
+import { spawn as spawnPart } from 'node:child_process'
 import { loadRecipe, materializeApp, runAppSelftest } from './recipe.js'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -1483,6 +1484,102 @@ export function verifySharedDataToolDefinition(ctx: Context, config: Config): To
       } catch (error: unknown) {
         job.settle('failed', error instanceof Error ? error.message.slice(0, 120) : String(error))
         throw error
+      }
+    },
+  })
+}
+
+// ── verify_trigger:触发面考官(无人值守形态的第四格)──────────────────────
+export const VERIFY_TRIGGER_TOOL_NAME = 'verify_trigger'
+
+export function verifyTriggerToolDefinition(ctx: Context, config: Config): ToolDefinition {
+  return defineTool({
+    name: VERIFY_TRIGGER_TOOL_NAME,
+    description:
+      'INDEPENDENT examiner for the UNATTENDED form: fires one task at a preset the way cron-trigger would (real wire session + the '
+      + 'unattended discipline header), then judges by EFFECT — polls the preset\'s sqlite service face until your assertion holds. '
+      + 'The reply is never read: the verdict is whether the row actually landed.'
+      + prose(' Design YOUR exam: task = an explicit instruction carrying an invented token (the agent must WRITE it somewhere real); '
+        + 'effectSql = the SELECT that proves it landed; expect = the token. PASS = 触发→执行→落库 闭环成立. '
+        + 'Call after emitting a preset that mounts cron-trigger (or any preset meant to run unattended). '
+        + 'FAIL 带证据:没干活 / 表列名不对 / 面不可达——外科修复后重验,连续 3 次 FAIL 停手上报。'),
+    parameters: {
+      presetId: { type: 'string', description: 'preset to wake up (must be emitted; needs a sqlite state part for the effect assertion)', required: true },
+      task: { type: 'string', description: 'the unattended task instruction, carrying an invented token the agent must persist', required: true },
+      effectSql: { type: 'string', description: 'SELECT proving the effect landed (run against the preset\'s default db via its service face)', required: true },
+      expect: { type: 'string', description: 'the token/string that must appear in the effect rows', required: true },
+      timeoutMs: { type: 'number', description: 'effect polling budget, default 240000' },
+    },
+    output: {
+      schema: { type: 'string' as const },
+      render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
+    },
+    execute: async (args: unknown): Promise<string> => {
+      const a = args as Record<string, unknown> | null
+      const presetId = sanitizePresetName(String(a?.presetId ?? ''))
+      const task = String(a?.task ?? '').trim()
+      const effectSql = String(a?.effectSql ?? '').trim()
+      const expect = String(a?.expect ?? '').trim()
+      if (presetId === '' || task === '' || effectSql === '' || expect === '') {
+        throw new Error('verify_trigger 需要 presetId / task / effectSql / expect(考卷归你设计:任务里带口令,断言查它落没落)')
+      }
+      if (expect.length < 4) throw new Error('verify_trigger: expect ≥4 字符(要够独特,别用 ok/done)')
+      if (!task.includes(expect)) throw new Error('verify_trigger: task 必须包含 expect 口令(任务指令要自给自足)')
+      if (!/^\s*(SELECT|WITH)\b/i.test(effectSql)) throw new Error('verify_trigger: effectSql 必须是只读查询(考官不改数据)')
+      const presetRoot = presetRootOf(config)
+      const presetDir = join(presetRoot, presetId)
+      if (!existsSync(join(presetDir, 'agent.cordis.yml'))) throw new Error(`verify_trigger: preset「${presetId}」不存在——先 emit_preset`)
+      const port = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
+      if (port === undefined) return '触发面验收跳过:无 webServer 端口(headless?)——无人值守形态未经验收,不可当作打通。'
+
+      // 服务脸自给自足(与行为考同款):不在场则考官自拉 sqlite 零件
+      const readFace = (): { url: string; token: string } | null => {
+        const p = join(presetDir, 'workspace', '.service.json')
+        if (!existsSync(p)) return null
+        try { return (JSON.parse(readFileSync(p, 'utf8')) as { sqlite?: { url: string; token: string } }).sqlite ?? null } catch { return null }
+      }
+      const alive = async (f: { url: string; token: string } | null): Promise<boolean> => {
+        if (f === null) return false
+        try { return (await fetch(`${f.url}/schema`, { headers: { 'x-service-token': f.token }, signal: AbortSignal.timeout(1500) })).ok } catch { return false }
+      }
+      const job = startJob(ctx, 'verify-trigger', `触发面验收 ${presetId}`)
+      const phase = (line: string): void => { job.phase(line); progressAppend(presetDir, line) }
+      let face = readFace()
+      let part: ReturnType<typeof spawnPart> | null = null
+      const t0 = Date.now()
+      try {
+        if (!(await alive(face))) {
+          phase('服务脸不在场——考官自行拉起 sqlite 零件(效果断言要读同一本账)')
+          const env: Record<string, string> = {
+            ...process.env as Record<string, string>,
+            PART_WORKDIR: join(presetDir, 'workspace'),
+            SQLITE_DEFAULT_DB: join(presetDir, 'workspace', 'data.db'),
+          }
+          if (existsSync(join(presetDir, 'equipment', 'init.sql'))) env.SQLITE_INIT_DDL_FILE = join(presetDir, 'equipment', 'init.sql')
+          part = spawnPart('node', [join(REPO, 'generated', 'sqlite-query', 'index.js')], { env, stdio: ['pipe', 'pipe', 'pipe'] })
+          for (let i = 0; i < 20; i++) { await new Promise((r) => setTimeout(r, 250)); face = readFace(); if (await alive(face)) break }
+        }
+        if (!(await alive(face)) || face === null) {
+          job.settle('failed', '服务脸不可达')
+          return `触发面验收 FAIL:服务脸不可达(preset ${presetId} 挂了 sqlite 状态零件吗?)——效果断言无处可查。`
+        }
+        const { runTriggerProbe } = await import('./verify.js')
+        const out = await runTriggerProbe(port, {
+          presetId, task, presetDir, effectSql, expect,
+          faceUrl: face.url, faceToken: face.token,
+          ...(typeof a?.timeoutMs === 'number' ? { timeoutMs: a.timeoutMs } : {}),
+          onPhase: phase,
+        })
+        job.settle(out.pass ? 'completed' : 'failed', out.pass ? 'PASS' : 'FAIL')
+        appendOrchLedger({ tool: VERIFY_TRIGGER_TOOL_NAME, presetId, pass: out.pass, reason: out.reason.slice(0, 160), elapsedSeconds: out.elapsedSeconds })
+        return `触发面验收 ${out.pass ? 'PASS' : 'FAIL'}(${String(out.elapsedSeconds)}s)— ${out.reason}`
+          + (out.sessionId !== undefined ? `\n被唤醒的会话:${out.sessionId}` : '')
+          + prose(out.pass
+            ? '\n【接力棒】如实转述:无人值守闭环(唤醒→执行→落库)已由独立考官证实;定时表达式本身由 cron-trigger 零件自带质检。'
+            : '\n【外科决策归你】常见病:persona 没写清"被唤醒后干什么"、表/列名与装备 DDL 对不上、没挂状态零件。修正后重验。')
+      } finally {
+        part?.kill('SIGTERM')
+        void (Date.now() - t0)
       }
     },
   })

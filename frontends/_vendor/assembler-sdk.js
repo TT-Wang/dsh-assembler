@@ -126,6 +126,41 @@
       .then(function (svc) { svcCache[presetId] = svc; return svc; });
   }
 
+  // ai 服务脸:薄判断直连(ai-thin 路由)——一次补全,不开会话。
+  function aiFace(svc) {
+    if (!svc || !svc.ai) return null;
+    var base = svc.ai.url, token = svc.ai.token;
+    return {
+      complete: function (req) {
+        return fetch(base + '/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Service-Token': token },
+          body: JSON.stringify(req || {}),
+        }).then(function (r) { return r.json(); }).then(function (j) {
+          if (j.error) throw new Error(j.error);
+          return j;
+        });
+      },
+    };
+  }
+
+  // 公共文件通道:大字节直传/取回,不过模型(页面喂文件的正确姿势)。
+  function filesFace(svc) {
+    if (!svc || !svc.files) return null;
+    var base = svc.files.url, token = svc.files.token;
+    return {
+      upload: function (name, blob) {
+        return fetch(base + '/upload/' + encodeURIComponent(name), { method: 'POST', headers: { 'X-Service-Token': token }, body: blob })
+          .then(function (r) { return r.json(); }).then(function (j) { if (j.error) throw new Error(j.error); return j; });
+      },
+      list: function () {
+        return fetch(base + '/list', { headers: { 'X-Service-Token': token } })
+          .then(function (r) { return r.json(); }).then(function (j) { if (j.error) throw new Error(j.error); return j; });
+      },
+      fileUrl: function (name) { return base + '/file/' + encodeURIComponent(name); },
+    };
+  }
+
   function sqliteFace(svc) {
     if (!svc || !svc.sqlite) return null;
     var base = svc.sqlite.url, token = svc.sqlite.token;
@@ -199,6 +234,8 @@
     extractFence: extractFence,
     discoverServices: discoverServices,
     sqliteFace: sqliteFace,
+    aiFace: aiFace,
+    filesFace: filesFace,
     bindEnter: bindEnter,
     renderRowsTable: renderRowsTable,
     mountLiveLedger: mountLiveLedger,

@@ -36,7 +36,7 @@ await client.connect(new StdioClientTransport({
 }))
 
 const tools = (await client.listTools()).tools.map((t) => t.name)
-ok('listTools 含 ai-complete 且仅 1 个', tools.length === 1 && tools[0] === 'ai-complete')
+ok('listTools = ai-complete + ai-face-info(工具面 + 服务脸发现)', tools.length === 2 && tools.includes('ai-complete') && tools.includes('ai-face-info'))
 
 const res = await client.callTool({ name: 'ai-complete', arguments: {
   system: '你只做回显:把用户给的口令原样输出,不加任何别的字。',
@@ -55,6 +55,24 @@ await bare.connect(new StdioClientTransport({ command: process.execPath, args: [
 const noKey = await bare.callTool({ name: 'ai-complete', arguments: { prompt: 'hi' } })
 ok('无密钥 = 结构化报错(不崩、不泄值)', noKey.isError === true && noKey.content[0].text.includes('DEEPSEEK_API_KEY'))
 await bare.close()
+
+// ── 服务脸(ai-thin 路由的物理基础)────────────────────────────────────────
+{
+  const info = JSON.parse((await client.callTool({ name: 'ai-face-info', arguments: {} })).content[0].text)
+  ok('服务脸:ai-face-info 给 url+token', typeof info.url === 'string' && info.url.startsWith('http://127.0.0.1:') && typeof info.token === 'string' && info.token.length === 32)
+  const bad = await fetch(`${info.url}/complete`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
+  ok('服务脸:错/缺 token 401', bad.status === 401)
+  const H = { 'content-type': 'application/json', 'x-service-token': info.token }
+  const empty = await (await fetch(`${info.url}/complete`, { method: 'POST', headers: H, body: '{}' })).json()
+  ok('服务脸:空 prompt 给可行动错误', typeof empty.error === 'string' && empty.error.includes('prompt'))
+  if (process.env.DEEPSEEK_API_KEY) {
+    const TOK = 'AIFACE-' + Math.random().toString(36).slice(2, 6).toUpperCase()
+    const r = await (await fetch(`${info.url}/complete`, { method: 'POST', headers: H, body: JSON.stringify({ prompt: `原样重复这串口令,只输出它本身:${TOK}`, maxTokens: 256 }) })).json()
+    ok('服务脸:真补全回显口令(与工具面同一段实现)', typeof r.text === 'string' && r.text.includes(TOK), String(r.text ?? r.error).slice(0, 80))
+  } else {
+    console.log('SKIP | 服务脸真调用(无 DEEPSEEK_API_KEY)')
+  }
+}
 
 await client.close()
 if (failures > 0) { console.error(`ai-call smoke: ${failures} failure(s)`); process.exit(1) }

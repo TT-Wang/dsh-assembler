@@ -946,3 +946,68 @@ export async function runSharedDataProbe(
     reader.close();
   }
 }
+
+/**
+ * 触发面考官(无人值守形态的第四格):**打一发,验后果**。
+ * 机制:像 cron-trigger 到点那样经公开 wire 开一个真会话、注入带无人值守纪律头
+ * 的任务,然后**不看回复**——轮询配套 preset 的服务脸,直到效果断言成立或超时。
+ * 完成判据是落库效果而非会话结束(P3 教训:会话结束≠工作结束)。
+ */
+export async function runTriggerProbe(
+  port: number,
+  opts: {
+    presetId: string
+    task: string
+    presetDir: string
+    effectSql: string
+    expect: string
+    timeoutMs?: number
+    faceUrl: string
+    faceToken: string
+    onPhase?: (line: string) => void
+  },
+): Promise<{ pass: boolean; reason: string; sessionId?: string; elapsedSeconds: number }> {
+  const t0 = Date.now();
+  const budget = opts.timeoutMs ?? 240_000;
+  const rpc = async (method: string, payload: unknown): Promise<any> => {
+    const res = await fetch(`http://127.0.0.1:${String(port)}/api/${method}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "client-request", rpcId: `trig-${Date.now()}`, method, payload }),
+      signal: AbortSignal.timeout(PROBE_RPC_TIMEOUT_MS),
+    });
+    const j = (await res.json()) as any;
+    if (!j.result?.ok) throw new Error(`${method}: ${JSON.stringify(j.result?.error ?? j).slice(0, 300)}`);
+    return j.result.value;
+  };
+  let sessionId: string;
+  try {
+    ({ sessionId } = await rpc("session.create", { cwd: join(opts.presetDir, "workspace"), agentPreset: opts.presetId }));
+    // 与 cron-trigger 实际注入的纪律头同款:无人在场、别提问、做完为止
+    await rpc("session.prompt", {
+      sessionId,
+      mode: "queue",
+      content: [{ type: "text", text: `[定时任务自动触发,无人在场——独立完成,不要向任何人提问;做完为止,不要因为一次尝试失败就停]\n${opts.task}` }],
+    });
+  } catch (error) {
+    return { pass: false, reason: `触发失败(wire 开会话):${error instanceof Error ? error.message : String(error)}`, elapsedSeconds: Math.round((Date.now() - t0) / 1000) };
+  }
+  opts.onPhase?.(`已打一发(session ${sessionId.slice(0, 18)});开始轮询效果断言`);
+  // 轮询效果:唯一判据是库里长没长出东西
+  while (Date.now() - t0 < budget) {
+    await new Promise((r) => setTimeout(r, 3000));
+    try {
+      const r = await fetch(`${opts.faceUrl}/sql`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-service-token": opts.faceToken },
+        body: JSON.stringify({ sql: opts.effectSql, params: [] }),
+        signal: AbortSignal.timeout(8000),
+      });
+      const j = (await r.json()) as { rows?: unknown; error?: string };
+      if (typeof j.error !== "string" && JSON.stringify(j.rows ?? []).includes(opts.expect)) {
+        return { pass: true, reason: `触发→执行→落库闭环成立(效果断言命中「${opts.expect}」)`, sessionId, elapsedSeconds: Math.round((Date.now() - t0) / 1000) };
+      }
+    } catch { /* 面暂时不可达:继续轮询 */ }
+  }
+  return { pass: false, reason: `${Math.round(budget / 1000)}s 内未见效果(断言「${opts.expect}」未在 ${opts.effectSql.slice(0, 60)} 的结果里出现)——agent 没干活?表/列名不对?`, sessionId, elapsedSeconds: Math.round((Date.now() - t0) / 1000) };
+}

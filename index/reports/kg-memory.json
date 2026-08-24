@@ -1,0 +1,51 @@
+{
+  "id": "kg-memory",
+  "adopted": "@modelcontextprotocol/server-memory",
+  "verifiedAt": "2026-08-24T09:28:10.790Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "smokeKind": "adopt-probe",
+  "tools": [
+    {
+      "name": "create_entities",
+      "description": "Create multiple new entities in the knowledge graph"
+    },
+    {
+      "name": "create_relations",
+      "description": "Create multiple new relations between entities in the knowledge graph. Relations should be in active voice"
+    },
+    {
+      "name": "add_observations",
+      "description": "Add new observations to existing entities in the knowledge graph"
+    },
+    {
+      "name": "delete_entities",
+      "description": "Delete multiple entities and their associated relations from the knowledge graph"
+    },
+    {
+      "name": "delete_observations",
+      "description": "Delete specific observations from entities in the knowledge graph"
+    },
+    {
+      "name": "delete_relations",
+      "description": "Delete multiple relations from the knowledge graph"
+    },
+    {
+      "name": "read_graph",
+      "description": "Read the entire knowledge graph"
+    },
+    {
+      "name": "search_nodes",
+      "description": "Search for nodes in the knowledge graph based on a query"
+    },
+    {
+      "name": "open_nodes",
+      "description": "Open specific nodes in the knowledge graph by their names"
+    }
+  ],
+  "probe": {
+    "tool": "read_graph",
+    "ok": true,
+    "sample": "{\n  \"entities\": [],\n  \"relations\": []\n}"
+  }
+}

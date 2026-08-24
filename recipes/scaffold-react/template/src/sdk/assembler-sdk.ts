@@ -4,7 +4,7 @@
 // 路由三档(PAGE-SPEC 同款词汇):
 //   face   确定性流:sqliteFace().sql(...)   —— 零模型,毫秒级
 //   wire   判断流:createClient().ask(...)   —— 真 agent 会话
-//   ai-thin 薄判断:后续经 ai-call 服务面(暂经 wire 承载)
+//   ai-thin 薄判断:aiFace().complete(...) —— 一次补全,不开会话
 import cfg from '../../app.config.json'
 
 export const APP = cfg as { recipe: string; APP_NAME: string; PRESET_ID: string; WORKDIR: string }
@@ -138,6 +138,55 @@ export async function sqliteFace(): Promise<SqliteFace | null> {
   return {
     sql: (sql, params) => call('/sql', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sql, params: params ?? [] }) }),
     schema: () => call('/schema'),
+  }
+}
+
+/** ai 服务脸(ai-thin 路由):一次补全,不开会话——薄判断的正确档位。 */
+export interface AiFace {
+  complete: (req: { prompt: string; system?: string; model?: string; maxTokens?: number }) => Promise<{ model: string; text: string; usage?: { prompt: number; completion: number } }>
+}
+
+export async function aiFace(): Promise<AiFace | null> {
+  const svc = await discoverServices()
+  if (!svc?.ai) return null
+  const base: string = svc.ai.url
+  const token: string = svc.ai.token
+  return {
+    complete: async (req) => {
+      const r = await fetch(base + '/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Service-Token': token },
+        body: JSON.stringify(req),
+      })
+      const j = await r.json()
+      if (j.error) throw new Error(j.error)
+      return j
+    },
+  }
+}
+
+/** 公共文件通道:大字节直传/取回,不过模型(页面喂文件的正确姿势)。 */
+export interface FilesFace {
+  upload: (name: string, body: Blob | ArrayBuffer | string) => Promise<{ ok: boolean; name: string; path: string; bytes: number }>
+  list: () => Promise<{ files: Array<{ name: string; bytes: number; modifiedAt: string }>; dir: string }>
+  fileUrl: (name: string) => string
+}
+
+export async function filesFace(): Promise<FilesFace | null> {
+  const svc = await discoverServices()
+  if (!svc?.files) return null
+  const base: string = svc.files.url
+  const token: string = svc.files.token
+  const call = async (path: string, init: RequestInit = {}) => {
+    const r = await fetch(base + path, { ...init, headers: { 'X-Service-Token': token, ...(init.headers ?? {}) } })
+    const j = await r.json()
+    if (j.error) throw new Error(j.error)
+    return j
+  }
+  return {
+    upload: (name, body) => call('/upload/' + encodeURIComponent(name), { method: 'POST', body: body as BodyInit }),
+    list: () => call('/list'),
+    fileUrl: (name) => base + '/file/' + encodeURIComponent(name),
   }
 }
 

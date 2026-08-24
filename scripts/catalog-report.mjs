@@ -40,8 +40,9 @@ const DOMAINS = [
   { zh: '网络通信', en: 'Network & messaging', ids: ['http-request', 'email-send', 'email-fetch', 'rss-parse'] },
   { zh: '媒体识别', en: 'Media & recognition', ids: ['image-process', 'ocr-parse', 'qrcode-generate', 'barcode-generate', 'exif-read', 'file-type-detect'] },
   { zh: '安全校验', en: 'Security & validation', ids: ['jwt-decode', 'ip-utils', 'string-validate', 'fake-data', 'phone-parse'] },
+  { zh: '记忆与知识', en: 'Memory & knowledge', ids: ['kg-memory'] },
   { zh: '工程工具', en: 'Engineering tools', ids: ['github-api', 'browser-automate', 'url-slugify', 'transliterate', 'safe-filename'] },
-  { zh: '应用与交付', en: 'Apps & delivery', ids: ['webhook-intake', 'static-deploy', 'app-scaffold', 'cron-trigger'] },
+  { zh: '应用与交付', en: 'Apps & delivery', ids: ['webhook-intake', 'static-deploy', 'app-scaffold', 'cron-trigger', 'file-channel'] },
 ]
 
 const byId = new Map(catalog.map((x) => [x.id, x]))

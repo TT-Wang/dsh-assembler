@@ -1,0 +1,9 @@
+{
+  "id": "file-channel",
+  "pkg": null,
+  "version": "0.0.1",
+  "repo": "TT-Wang/dsh-assembler",
+  "license": "BSD-3-Clause",
+  "firstParty": true,
+  "scaffoldedAt": "2026-08-25T12:00:00.000Z"
+}

@@ -711,6 +711,22 @@ export async function runAppSelftest(
             if (await faceAlive(face)) break
           }
         }
+        // ai 服务脸(ai-thin 路由):同款自给自足——不在场则考官自拉 ai-call 零件
+        let aiPart: ReturnType<typeof spawn> | null = null
+        const readAi = (): { url: string; token: string } | null => {
+          const svcPath = join(presetDir, 'workspace', '.service.json')
+          if (!existsSync(svcPath)) return null
+          try { return (JSON.parse(readFileSync(svcPath, 'utf8')) as { ai?: { url: string; token: string } }).ai ?? null } catch { return null }
+        }
+        const aiAlive = async (f: { url: string; token: string } | null): Promise<boolean> => {
+          if (f === null) return false
+          try {
+            const r = await fetch(`${f.url}/complete`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-token': f.token }, body: JSON.stringify({}), signal: AbortSignal.timeout(1500) })
+            return r.status === 400 || r.ok // 400 = 面活着但参数空,正是探活
+          } catch { return false }
+        }
+        let ai = readAi()
+
         const results: string[] = []
         let behaviorFail = ''
         try {
@@ -748,6 +764,35 @@ export async function runAppSelftest(
               const w = await runScenario(opts.wirePort, presetId, { goal: `行为考·${name}`, turns: [{ prompt: probe, mustInclude: marks }] }, opts.askTimeoutMs ?? 180_000, undefined, join(presetDir, 'workspace'))
               if (w.status !== 'PASS') { behaviorFail = `wire 动作「${name}」:${w.reason ?? w.status}`; break }
               results.push(`wire「${name}」✓`)
+            } else if (route === 'ai-thin') {
+              const secret = String(a2.needsSecret ?? 'DEEPSEEK_API_KEY')
+              if ((process.env[secret] ?? '') === '') { results.push(`ai-thin「${name}」SKIPPED(未配 ${secret},接口模式)`); continue }
+              if (!(await aiAlive(ai))) {
+                const partJs = join(REPO, 'generated', 'ai-call', 'index.js')
+                phase('ai 服务脸不在场——考官自行拉起 ai-call 零件')
+                aiPart = spawn('node', [partJs], { env: { ...process.env as Record<string, string>, PART_WORKDIR: join(presetDir, 'workspace') }, stdio: ['pipe', 'pipe', 'pipe'] })
+                for (let i = 0; i < 20; i++) { await new Promise((r) => setTimeout(r, 250)); ai = readAi(); if (await aiAlive(ai)) break }
+              }
+              if (!(await aiAlive(ai)) || ai === null) { behaviorFail = `ai-thin 动作「${name}」:ai 服务脸不可达(preset ${presetId} 挂了 ai-call 零件吗?)`; break }
+              const promptText = String(sub(a2.prompt ?? ''))
+              const expect = String(sub(a2.expect ?? ''))
+              if (promptText === '' || expect === '') { behaviorFail = `ai-thin 动作「${name}」:缺 prompt/expect 考题`; break }
+              try {
+                const r = await fetch(`${ai.url}/complete`, {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json', 'x-service-token': ai.token },
+                  body: JSON.stringify({ prompt: promptText, system: typeof a2.system === 'string' ? String(sub(a2.system)) : undefined, maxTokens: 512 }),
+                  signal: AbortSignal.timeout(opts.askTimeoutMs ?? 120_000),
+                })
+                const j = (await r.json()) as { text?: string; error?: string }
+                if (typeof j.error === 'string') { behaviorFail = `ai-thin 动作「${name}」:${j.error.slice(0, 160)}`; break }
+                const text = String(j.text ?? '')
+                if (!text.includes(expect)) { behaviorFail = `ai-thin 动作「${name}」:补全未含「${expect}」;实得:${text.slice(0, 160)}`; break }
+                results.push(`ai-thin「${name}」✓(一次补全,不开会话)`)
+              } catch (error) {
+                behaviorFail = `ai-thin 动作「${name}」:${error instanceof Error ? error.message : String(error)}`
+                break
+              }
             } else if (route === 'local') {
               results.push(`local「${name}」(纯本地 UI,无出网,免考)`)
             } else {
@@ -756,6 +801,7 @@ export async function runAppSelftest(
           }
         } finally {
           facePart?.kill('SIGTERM')
+          aiPart?.kill('SIGTERM')
         }
         checks.push({
           check: 'behavior',

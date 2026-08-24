@@ -1,0 +1,24 @@
+{
+  "id": "file-channel",
+  "verifiedAt": "2026-08-24T09:23:59.509Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "file-channel-info",
+      "description": "公共文件通道:返回直连端点(服务脸)与落盘目录。页面/程序经 POST /upload/<name> 直传字节、GET /file/<name> 取回、GET /list 列目录——**大文件不经模型**。落盘路径可直接交给解析/生成类零件(它们都是路径进路径出)。"
+    },
+    {
+      "name": "list-files",
+      "description": "列出通道目录里的文件(名字/字节数/修改时间)。把某个文件交给解析零件时,用返回的 path。"
+    },
+    {
+      "name": "read-text",
+      "description": "按名读取通道里的文本文件(≤1MB;二进制/超大文件请把 path 交给对应解析零件,不要过模型)。"
+    },
+    {
+      "name": "delete-file",
+      "description": "删除通道里的一个文件(仅限通道目录内)。"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "@dsh-index/file-channel",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "description": "MCP stdio server:公共文件通道——浏览器/程序直传字节进工作区,解析生成类零件按路径消费(字节不过模型)",
+  "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0", "zod": "^3.23.0" }
+}

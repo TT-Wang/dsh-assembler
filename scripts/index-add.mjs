@@ -433,7 +433,9 @@ function registerCore(idArg, client) {
       : ''
     const provenance = meta.kind === 'service'
       ? `  kind: service\n  service: ${s(meta.service)}\n  provider: ${s(meta.provider ?? '')}\n  license: ${s(meta.license)}\n  terms: ${s(meta.terms ?? '')}\n  rateLimit: ${s(meta.rateLimit ?? '')}\n  network: true\n${secretRows}`
-      : `  repo: ${s(meta.repo)}\n${meta.version === undefined || meta.version === null || meta.version === '' ? '' : `  rev: ${s(`v${meta.version}`)}\n`}  license: ${s(meta.license)}\n${secretRows}`
+      : meta.adopted === true
+        ? `  adopted: true\n  pkg: ${s(meta.pkg)}\n  rev: ${s(`v${meta.version}`)}\n  repo: ${s(meta.repo)}\n  license: ${s(meta.license)}\n${secretRows}`
+        : `  repo: ${s(meta.repo)}\n${meta.version === undefined || meta.version === null || meta.version === '' ? '' : `  rev: ${s(`v${meta.version}`)}\n`}  license: ${s(meta.license)}\n${secretRows}`
     writeYaml(catalogPath, catalog.replace(/\n*$/, '\n') + `
 - id: ${id}
 ${provenance}  tools:
@@ -457,7 +459,11 @@ ${toolLines}
     const secretDecl = Array.isArray(meta.requiredSecrets) && meta.requiredSecrets.length > 0
       ? `    requiredSecrets:\n${meta.requiredSecrets.map((x) => `      - { env: ${s(x.env)}, purpose: ${s(x.purpose ?? '')} }`).join('\n')}\n`
       : ''
-    const entry = `  ${id}:\n    transport: stdio\n    command: node\n    args: [${s(join(root, 'generated', id, 'index.js'))}]\n${secretDecl}\n`
+    // 收编件(adopt)的入口在包内 bin;自造件是 generated/<id>/index.js。
+    const entryJs = typeof meta.entry === 'string' && meta.entry !== ''
+      ? join(root, 'generated', id, meta.entry)
+      : join(root, 'generated', id, 'index.js')
+    const entry = `  ${id}:\n    transport: stdio\n    command: node\n    args: [${s(entryJs)}]\n${secretDecl}\n`
     if (!/^capabilities:$/m.test(caps)) die('capabilities.yml 缺 capabilities: 键,无法定位 mcp-servers 段尾')
     writeYaml(capsPath, caps.replace(/^capabilities:$/m, entry + 'capabilities:'), 'capabilities.yml')
     changed.push('capabilities.yml')
@@ -961,6 +967,91 @@ ${typeof spec.inspiredBy === 'string' && spec.inspiredBy !== '' ? `  inspiredBy:
   out({ id: capId, selftest: gate.selftest.status, templateHash: gate.materialize.templateHash, registered: changed, report: `index/reports/recipe-${id}.json` })
 }
 
+
+// ── adopt:收编现成的 MCP server(三级采购的"采",省写胶水)────────────────────
+// 生态里已有 2-3 万个 MCP server(注册表数据见 docs/research/parts-sourcing-map.md)。
+// 我们不进货、只按需收编:装包锁版本 → 独立实探 listTools → 真调一发无副作用工具
+// → 凭证声明(names only)→ 供应链登记。与自造件同一条纪律,省掉的只是写适配器。
+// 用法:
+//   node scripts/index-add.mjs adopt <npm-package> [--id <id>] [--probe <tool>[:<jsonArgs>]]
+//        [--requires-secret ENV:用途] [--license <spdx>] [--client <客户名>]
+async function adopt() {
+  const pkg = target
+  if (pkg === undefined || pkg === '') die('用法:index-add.mjs adopt <npm-package> [--id <id>] [--probe <tool>[:<json>]] [--requires-secret ENV:用途]')
+  const id = (flags.id ?? pkg.replace(/^@[^/]+\//, '').replace(/[^a-z0-9-]+/gi, '-')).toLowerCase().slice(0, 48)
+  const client = flags.client
+  const root = catalogRoot(client)
+  const dir = join(root, 'generated', id)
+  if (existsSync(join(dir, '.index-meta.json')) && flags.force !== 'yes') die(`去重门:${id} 已存在(${dir})——换 --id 或 --force yes`)
+
+  // 1) 装包锁版本(独立目录,与自造件同构:一个零件一个 node_modules)
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({
+    name: `@dsh-index/${id}`, version: '0.0.1', type: 'module', private: true,
+    description: `Adopted MCP server: ${pkg}`,
+    dependencies: { [pkg]: 'latest' },
+  }, null, 2) + '\n')
+  const install = spawnSync('npm', ['install', '--no-audit', '--no-fund'], { cwd: dir, encoding: 'utf8', timeout: 300_000 })
+  if (install.status !== 0) die(`npm install ${pkg} 失败:${(install.stderr ?? '').slice(-400)}`)
+  const lockPkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
+  const installed = JSON.parse(readFileSync(join(dir, 'node_modules', pkg, 'package.json'), 'utf8'))
+  lockPkg.dependencies[pkg] = installed.version  // latest → 实际版本,锁死
+  writeFileSync(join(dir, 'package.json'), JSON.stringify(lockPkg, null, 2) + '\n')
+
+  // 2) 找可执行入口:bin 优先(MCP server 的常规形态)
+  const binField = installed.bin
+  const binRel = typeof binField === 'string' ? binField : (binField && Object.values(binField)[0])
+  if (binRel === undefined || binRel === null) die(`${pkg} 没有 bin 入口——不像可执行的 MCP server(它是库?那走 scaffold 造件)`)
+  const binPath = join(dir, 'node_modules', pkg, binRel)
+  if (!existsSync(binPath)) die(`bin 入口不存在:${binPath}`)
+
+  // 3) 独立实探(不信 README,直接 listTools)+ 可选真调一发
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
+  const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js')
+  const c = new Client({ name: 'index-add-adopt', version: '0.0.1' })
+  let tools = []
+  let probeResult = null
+  try {
+    await c.connect(new StdioClientTransport({ command: 'node', args: [binPath], env: partEnv() }))
+    tools = (await c.listTools()).tools.map((t) => ({ name: t.name, description: (t.description ?? '').replace(/\n[\s\S]*/, '').slice(0, 200) }))
+    if (typeof flags.probe === 'string' && flags.probe !== '') {
+      const [pName, ...rest] = flags.probe.split(':')
+      const pArgs = rest.length > 0 ? JSON.parse(rest.join(':')) : {}
+      const r = await c.callTool({ name: pName, arguments: pArgs })
+      const text = (r.content ?? []).map((b) => b.text ?? '').join('').slice(0, 300)
+      if (r.isError === true) die(`探针工具 ${pName} 报错(收编门不放行报错的件):${text}`)
+      probeResult = { tool: pName, ok: true, sample: text }
+    }
+  } catch (error) {
+    die(`收编门失败(实探 ${pkg}):${String(error.message).slice(0, 300)}`)
+  } finally {
+    try { await c.close() } catch { /* 已断 */ }
+  }
+  if (tools.length === 0) die('listTools 为空——不是可用的 MCP server')
+
+  // 4) 供应链档案 + 报告(与自造件同格式,register 直接可用)
+  const requiredSecrets = parseRequiredSecrets(flags['requires-secret'])
+  writeFileSync(join(dir, '.index-meta.json'), JSON.stringify({
+    id, pkg, version: installed.version, client: client ?? null,
+    repo: installed.repository?.url ?? installed.homepage ?? `npm:${pkg}`,
+    license: flags.license ?? installed.license ?? 'UNKNOWN',
+    adopted: true, entry: `node_modules/${pkg}/${binRel}`,
+    ...(requiredSecrets.length > 0 ? { requiredSecrets } : {}),
+    scaffoldedAt: new Date().toISOString(),
+  }, null, 2) + '\n')
+  mkdirSync(join(root, 'index', 'reports'), { recursive: true })
+  writeFileSync(join(root, 'index', 'reports', `${id}.json`), JSON.stringify({
+    id, adopted: pkg, verifiedAt: new Date().toISOString(), node: process.version,
+    smoke: 'pass', smokeKind: 'adopt-probe', tools, ...(probeResult !== null ? { probe: probeResult } : {}),
+  }, null, 2) + '\n')
+  out({
+    id, pkg, version: installed.version, tools: tools.map((t) => t.name),
+    probe: probeResult?.tool ?? null,
+    report: `index/reports/${id}.json`,
+    next: `register ${id}(收编件的 args 指向 node_modules 里的 bin)`,
+  })
+}
+
 if (cmd === 'scaffold') scaffold()
 else if (cmd === 'verify') await verify()
 else if (cmd === 'register') register()
@@ -971,4 +1062,5 @@ else if (cmd === 'from-spec') await fromSpec()
 else if (cmd === 'knowledge') knowledgeScaffold()
 else if (cmd === 'knowledge-verify') knowledgeVerify()
 else if (cmd === 'recipe') await recipeGate()
-else die('用法:index-add.mjs scaffold <owner/repo> --pkg <npm名> | verify <id> | register <id> | check-all | coverage | auto <owner/repo> --pkg <npm名> [--id <id>] [--port 3096]')
+else if (cmd === 'adopt') await adopt()
+else die('用法:index-add.mjs scaffold <owner/repo> --pkg <npm名> | adopt <npm-mcp-package> [--probe <tool>[:<json>]] | recipe <id> | verify <id> | register <id> | check-all | coverage | auto <owner/repo> --pkg <npm名> [--id <id>] [--port 3096]')
