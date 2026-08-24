@@ -5,7 +5,12 @@
 > 行为考(face 验库效 + wire 场景探针 + 考官自拉零件自给自足)进考官;
 > **S4 真装**:kb-sdk-e2e 定制看板页全链 PASS 并经 static-deploy 上线,
 > **拖卡 face 直连 5.1ms vs 模板版整轮会话 4-20s(三个数量级)**。
-> S5(模板转 few-shot)与写手提示词待下批。
+> **写手席接轨(次日)**:WRITE-ME 操作手册+双范例进骨架(锁定面)、SCAFFOLD_BATON
+> 接力棒、deploy_app 发布工具(先考后发闸)。**真会话全链首测 PASS**(bench/
+> run-writer-seat.mjs):deepseek 主 agent 从"便签墙"一句话独立走完 架构检查点→
+> emit_preset→emit_app→读手册写考卷写页→verify_app(五门 PASS 7s)→deploy_app,
+> 墙钟 406s;它写的 PAGE-SPEC 四动作全带效果断言(删除考还自带清场)。独立复核:
+> 页面 200、资产全通。剩余:ai-thin 路由实装、独立态 scaffold、DOM 层考(puppeteer 候选)。
 
 > 产品定位(用户裁定):**内嵌 agent 能力的 web app**。前端 = Vite + React +
 > shadcn/ui + Tailwind(Lovable 同款词汇,模型语料熟悉度最高);后端 = 双层运行
