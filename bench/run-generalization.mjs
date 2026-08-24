@@ -3,7 +3,7 @@
 // 检查点、跟到底,然后**独立复核**(不信 agent 自述)。判据全部机器可查,与
 // bench/scenarios/generalization-9.json 的预注册预期比对。
 // 用法:node bench/run-generalization.mjs [port] [只跑某几题,如 A1,B3]
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -43,6 +43,22 @@ writeFileSync(join(CORPUS, '产品手册.md'), `# 星轨 X1 净水器 用户手�
 - 出水变慢:多为 PP 棉堵塞,先换前置滤芯。
 - 持续报警红灯:水压不足,检查进水阀是否全开。
 `)
+
+// 每轮开跑前清场:上一轮留下的同名 preset/app 会触发"同名复用"(正常特性),
+// 让这一轮零重建、也不再验收——实录:A2 二轮 132s 未验收,就是被一轮残留复用了。
+// 只清本战役自己造的(题面里点名的 preset 名与前端目录),绝不碰别的 preset。
+function cleanSlate() {
+  const wiped = []
+  for (const scn of SPEC.scenarios) {
+    const name = (/preset 名用 ([a-z0-9-]+)/.exec(scn.prompt) ?? [])[1]
+    if (name === undefined) continue
+    for (const dir of [join(PRESETS, name), join(homedir(), 'apps', name), join(homedir(), 'apps', `${name}-ui`)]) {
+      if (existsSync(dir)) { rmSync(dir, { recursive: true, force: true }); wiped.push(dir.replace(homedir(), '~')) }
+    }
+  }
+  if (wiped.length > 0) console.log(`清场:删除 ${wiped.length} 个上轮残留(${wiped.slice(0, 4).join(', ')}${wiped.length > 4 ? ' …' : ''})`)
+  else console.log('清场:无残留')
+}
 
 const rpc = async (method, payload) => {
   const r = await fetch(`http://127.0.0.1:${PORT}/api/${method}`, {
@@ -217,6 +233,8 @@ function grade(scn, run, aud) {
   const passed = checks.filter((c) => c.ok).length
   return { lane, checks, passed, total: checks.length, verdict: passed === checks.length ? 'PASS' : 'FAIL' }
 }
+
+cleanSlate()
 
 // ── 主循环 ────────────────────────────────────────────────────────────────────
 const results = []
