@@ -461,8 +461,9 @@ export async function runAppSelftest(
           const r = await fetch(base + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(opts.askTimeoutMs ?? 90_000) })
           return (await r.json()) as Record<string, unknown>
         }
-        const rowsHaveMarker = async (): Promise<boolean> => {
-          const r = await fetch(`${base}/api/rows`, { signal: AbortSignal.timeout(5000) })
+        const rowsHaveMarker = async (table?: string): Promise<boolean> => {
+          // 指定表优先(/api/record 会报它写进了哪张表);缺省第一张表
+          const r = await fetch(`${base}/api/rows${table !== undefined && table !== '' ? `?table=${encodeURIComponent(table)}` : ''}`, { signal: AbortSignal.timeout(5000) })
           return JSON.stringify(await r.json()).includes(marker)
         }
         if (keyPresent) {
@@ -472,11 +473,11 @@ export async function runAppSelftest(
             checks.push({ check: 'record', status: 'FAIL', evidence: `/api/record 报错:${j.error.slice(0, 200)}` })
             break
           }
-          const hit = await rowsHaveMarker()
+          const hit = await rowsHaveMarker(typeof j.table === 'string' ? j.table : undefined)
           checks.push({
             check: 'record',
             status: hit ? 'PASS' : 'FAIL',
-            evidence: hit ? `AI 解析入库且台账可查(标记「${marker}」在 /api/rows);行:${JSON.stringify(j.row ?? {}).slice(0, 140)}` : `入库后 /api/rows 查不到标记「${marker}」`,
+            evidence: hit ? `AI 解析入库且台账可查(标记「${marker}」在表 ${String(j.table ?? '?')});行:${JSON.stringify(j.row ?? {}).slice(0, 140)}` : `入库后 /api/rows 查不到标记「${marker}」(表 ${String(j.table ?? '?')})`,
           })
           phase(`真句 ${hit ? '✓' : '✗'}`)
           if (!hit) break
@@ -494,7 +495,7 @@ export async function runAppSelftest(
           let stored = false
           if (t0table !== undefined && col !== undefined) {
             await post('/api/sql', { sql: `INSERT INTO "${t0table.name.replace(/"/g, '""')}" ("${col.name}") VALUES (?)`, params: [marker] })
-            stored = await rowsHaveMarker()
+            stored = await rowsHaveMarker(t0table.name)
           }
           checks.push({
             check: 'record',

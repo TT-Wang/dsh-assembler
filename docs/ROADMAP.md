@@ -59,6 +59,15 @@
 > SKIPPED)+ 入库门(index-add.mjs recipe <id>,同一台考官跑 sample 自证,
 > templateHash 字节代际闸)。首方 rag-qa 入库(蓝湖样例 PASS;真语料 E2E:22 份
 > 文档→125 块,黑盒真答带引用 PASS)。这是 P3 战③(vs Lovable)的地基。
+>
+> **公理与双面化(2026-08-24 晚)**:定则"泛化 agent 的 verified assembly,形态是
+> 装配出来的结果,不是入口处的分类"——交付体 = 一本账 + N 张脸 + 每脸一考官
+> (docs/parts-taxonomy.md 流角色×脸分类法,90 件全量归类)。四件套落地并实战
+> 13/13(docs/campaigns/two-faced-delivery.md):①sqlite 服务脸(页面直连账,
+> 确定性流零模型)②record-desk 记录形配方(schema 自适应,DB_PATH 共账)
+> ③verify_shared_data 双面交接考(app↔agent)④cron-trigger 触发器(wire 开真
+> 会话,无人值守闭环)。采购地图立"三级采购:采→转→造"(docs/research/
+> parts-sourcing-map.md),adopt 门待开。
 
 ## P2|生态吸收(调研层,一周量级)
 
