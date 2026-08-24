@@ -628,11 +628,31 @@ export async function runAppSelftest(
         })
         if (offenses.length > 0) break
       } else if (c.kind === 'static-reach') {
+        // 病史:曾只验 HTML 200+挂载点,资产 404 白屏照样过考(kb-sdk-e2e 实录)。
+        // 现在把 HTML 引用的每个 script/link 资产逐个真取——引用完整性入考。
         try {
-          const r = await fetch(base + '/', { signal: AbortSignal.timeout(5000) })
+          const r = await fetch(base + '/', { signal: AbortSignal.timeout(5000), redirect: 'follow' })
           const html = await r.text()
-          const ok = r.ok && html.includes('id="root"')
-          checks.push({ check: 'static-reach', status: ok ? 'PASS' : 'FAIL', evidence: ok ? '静态产物真伺服(200 + 挂载点在)' : `GET / → ${String(r.status)},挂载点${html.includes('id="root"') ? '在' : '缺'}` })
+          if (!r.ok || !html.includes('id="root"')) {
+            checks.push({ check: 'static-reach', status: 'FAIL', evidence: `GET / → ${String(r.status)},挂载点${html.includes('id="root"') ? '在' : '缺'}` })
+            break
+          }
+          const pageUrl = r.url
+          const refs = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map((m2) => m2[1] as string)
+            .filter((u) => !u.startsWith('data:') && !u.startsWith('#'))
+          const broken: string[] = []
+          for (const u of refs.slice(0, 20)) {
+            try {
+              const ar = await fetch(new URL(u, pageUrl), { signal: AbortSignal.timeout(5000) })
+              if (!ar.ok) broken.push(`${u} → ${String(ar.status)}`)
+            } catch { broken.push(`${u} → 请求失败`) }
+          }
+          const ok = broken.length === 0
+          checks.push({
+            check: 'static-reach',
+            status: ok ? 'PASS' : 'FAIL',
+            evidence: ok ? `静态产物真伺服(200 + 挂载点 + ${String(refs.length)} 个引用资产全部可取)` : `资产引用断链:${broken.slice(0, 3).join(';')}`,
+          })
           if (!ok) break
         } catch (error) {
           checks.push({ check: 'static-reach', status: 'FAIL', evidence: `GET / 失败:${error instanceof Error ? error.message : String(error)}` })

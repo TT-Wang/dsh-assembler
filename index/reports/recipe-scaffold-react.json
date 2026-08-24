@@ -2,19 +2,19 @@
   "id": "recipe-scaffold-react",
   "kind": "recipe",
   "recipe": "scaffold-react",
-  "version": 1,
-  "templateHash": "cab525ab8c4e2772",
+  "version": 2,
+  "templateHash": "53bc4cf335e81637",
   "selftest": "pass",
   "checks": [
     {
       "check": "build",
       "status": "PASS",
-      "evidence": "构建零错误(4s)"
+      "evidence": "构建零错误(5s)"
     },
     {
       "check": "skeleton-lock",
       "status": "PASS",
-      "evidence": "骨架/SDK/词汇字节未被越界改动(576793d21a91556c)"
+      "evidence": "骨架/SDK/词汇字节未被越界改动(4b304975b4d07e13)"
     },
     {
       "check": "pages-lint",
@@ -24,7 +24,7 @@
     {
       "check": "static-reach",
       "status": "PASS",
-      "evidence": "静态产物真伺服(200 + 挂载点在)"
+      "evidence": "静态产物真伺服(200 + 挂载点 + 2 个引用资产全部可取)"
     },
     {
       "check": "behavior",
@@ -32,5 +32,5 @@
       "evidence": "local「本地添加条目」(纯本地 UI,无出网,免考);local「清单/表格切换」(纯本地 UI,无出网,免考)"
     }
   ],
-  "verifiedAt": "2026-08-24T08:42:05.938Z"
+  "verifiedAt": "2026-08-24T08:51:24.317Z"
 }

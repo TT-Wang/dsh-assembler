@@ -117,16 +117,20 @@ export function resolveFrontendFile(presetRoot: string, urlPath: string): { file
   if (!urlPath.startsWith(`${FRONTEND_ROUTE}/`)) return null
   const rest = urlPath.slice(FRONTEND_ROUTE.length + 1)
   const segs = rest.split('/').filter((s) => s !== '')
-  if (segs.length < 1 || segs.length > 2) return null
+  // 嵌套资产(scaffold 车道:vite build 产出 assets/ 子目录)——id 后允许多段,
+  // 每一段独立过白名单(拒 ..、拒点头文件、拒空段);越界防护不减一分。
+  if (segs.length < 1 || segs.length > 4) return null
   let id: string
   let asset: string
   try {
     id = decodeURIComponent(segs[0])
-    asset = segs.length === 2 ? decodeURIComponent(segs[1]) : 'index.html'
+    const parts = segs.slice(1).map((s) => decodeURIComponent(s))
+    if (parts.some((p) => !ASSET_RE.test(p))) return null
+    asset = parts.length === 0 ? 'index.html' : parts.join('/')
   } catch {
     return null
   }
-  if (!ASSET_RE.test(asset)) return null
+  if (!ASSET_RE.test(asset.slice(asset.lastIndexOf('/') + 1))) return null
   // 共享 vendor 段:/assembler/ui/_vendor/<asset> 伺服组件库(Franken UI,本地
   // vendor 一份供所有 preset 页面引用——离线/内网交付不依赖任何 CDN)。页面里
   // 写相对路径 "_vendor/x" 即可命中(页面 URL 无尾斜杠,相对解析回本前缀)。
