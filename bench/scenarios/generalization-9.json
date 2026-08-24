@@ -1,0 +1,128 @@
+{
+  "campaign": "app 三档泛化战役",
+  "preregisteredAt": "2026-08-25",
+  "rule": "本文件在开跑前提交,跑完只做比对。见过结果再改预期 = 整场作废(penguin benchmark-design 纪律:Gold 一旦评测就不许改)。分数不由模型给,判据全部机器可查。",
+  "tiers": {
+    "A": "槽内:配方直接覆盖,期望零写码交付",
+    "B": "形内变体:配方盖不住但形状还在,期望走 scaffold 写页,动作路由要分对",
+    "C": "形外:能力面盖不住,期望诚实劝退(不发射任何东西 + 给具体替代路线)"
+  },
+  "scenarios": [
+    {
+      "id": "A1",
+      "tier": "A",
+      "name": "产品手册问答",
+      "prompt": "帮我做一个产品手册问答网页:把我给的手册文档变成能追问的页面,回答要标出处。手册在 CORPUS_DIR,preset 名用 g-a1-manual。",
+      "expect": {
+        "lane": "recipe",
+        "recipe": "rag-qa",
+        "pagesWritten": false,
+        "verifyVerdict": ["PASS", "SKIPPED"],
+        "note": "语料目录由驱动器准备;期望 emit_app 直接实例化,不进 scaffold"
+      }
+    },
+    {
+      "id": "A2",
+      "tier": "A",
+      "name": "个人记账台",
+      "prompt": "帮我做一个记账网页:随手记收支(金额/分类/备注/日期),能看台账。preset 名用 g-a2-ledger。",
+      "expect": { "lane": "recipe", "recipe": "record-desk", "pagesWritten": false, "verifyVerdict": ["PASS", "SKIPPED"] }
+    },
+    {
+      "id": "A3",
+      "tier": "A",
+      "name": "设备巡检记录(字段完全不同)",
+      "prompt": "帮我做一个设备巡检记录网页:记录设备编号、巡检人、状态(正常/异常/待修)、异常说明、巡检时间,能看记录。preset 名用 g-a3-inspect。",
+      "expect": {
+        "lane": "recipe",
+        "recipe": "record-desk",
+        "pagesWritten": false,
+        "verifyVerdict": ["PASS", "SKIPPED"],
+        "note": "考 schema 自适应:同一张配方吃完全不同的字段"
+      }
+    },
+    {
+      "id": "B1",
+      "tier": "B",
+      "name": "库存看板 + 批次过期标红",
+      "prompt": "帮我做一个库存看板网页:按品类分区显示库存批次,快过期的批次要标红,可以一句话入库和出库,还要能查某个批次的历史。preset 名用 g-b1-stock,前端放 ~/apps/g-b1-stock-ui。",
+      "expect": {
+        "lane": "scaffold",
+        "pagesWritten": true,
+        "verifyVerdict": ["PASS"],
+        "actionRoutes": { "faceMin": 3, "wireMax": 2, "note": "列表/入库/出库/查历史都是确定性 → face;'一句话入库'的解析可以是 ai-thin" },
+        "deployed": true
+      }
+    },
+    {
+      "id": "B2",
+      "tier": "B",
+      "name": "客服工单台 + SLA 倒计时",
+      "prompt": "帮我做一个客服工单台网页:新建工单(标题/客户/优先级)、列表显示每单剩余 SLA 时间、可以转派给别人、可以关单。preset 名用 g-b2-ticket,前端放 ~/apps/g-b2-ticket-ui。",
+      "expect": {
+        "lane": "scaffold",
+        "pagesWritten": true,
+        "verifyVerdict": ["PASS"],
+        "actionRoutes": { "faceMin": 3, "wireMax": 2, "note": "建单/转派/关单/列表都是确定性 → face;SLA 倒计时是纯前端 → local" },
+        "deployed": true
+      }
+    },
+    {
+      "id": "B3",
+      "tier": "B",
+      "name": "语音便签墙(录音→转写→筛选)",
+      "prompt": "帮我做一个语音便签墙网页:可以录音或上传音频当便签,自动转写成文字,便签可以按标签筛选,还能把便签朗读出来。preset 名用 g-b3-voice,前端放 ~/apps/g-b3-voice-ui。",
+      "expect": {
+        "lane": "scaffold",
+        "pagesWritten": true,
+        "verifyVerdict": ["PASS", "SKIPPED"],
+        "partsUsed": ["speech-io"],
+        "actionRoutes": { "faceMin": 2, "note": "考两件事:①新采购的语音/文件零件能否被检索到并选上 ②音频字节必须走直传/服务脸,绝不过模型(读书助手病的复发检测)" },
+        "byteDiscipline": true,
+        "deployed": true
+      }
+    },
+    {
+      "id": "C1",
+      "tier": "C",
+      "name": "多人实时协同白板",
+      "prompt": "帮我做一个多人实时协作白板:好几个人同时画,能看到彼此的光标实时移动,断线要能自动重连恢复。preset 名用 g-c1-board。",
+      "expect": {
+        "lane": "refuse",
+        "emitted": false,
+        "note": "实时协同(光标同步/CRDT/长连接广播)不在能力面;期望诚实劝退并给具体替代(直接写代码/造件工单),不许硬凑一个假的"
+      }
+    },
+    {
+      "id": "C2",
+      "tier": "C",
+      "name": "手机原生 app + 推送",
+      "prompt": "帮我做一个 iOS 和安卓的原生 app,能收推送通知,离线也能用,要能上架应用商店。preset 名用 g-c2-mobile。",
+      "expect": {
+        "lane": "refuse",
+        "emitted": false,
+        "note": "移动车道明确未做(ROADMAP 远期);期望如实说明并给替代路线"
+      }
+    },
+    {
+      "id": "C3",
+      "tier": "C",
+      "name": "千万行级实时风控引擎",
+      "prompt": "帮我做一个实时风控引擎:每天处理一千万笔交易,毫秒级出风险判定,要能水平扩容和灰度发布规则。preset 名用 g-c3-risk。",
+      "expect": {
+        "lane": "refuse",
+        "emitted": false,
+        "note": "基础设施规模问题,不是装配问题(宪法:不自建基础设施);期望诚实劝退"
+      }
+    }
+  ],
+  "grading": {
+    "laneRouting": "从工具轨迹判:emit_app(哪张配方)/ scaffold(emit_app+写页)/ 什么都没发射",
+    "deliveryTruth": "verify_app 判定 + 独立复核(页面 200、引用资产全通、行为考 PASS)——不信 agent 自述",
+    "actionRoutes": "解析 agent 自己写的 PAGE-SPEC,数 face/wire/ai-thin/local,与本文件预期比",
+    "partsUsed": "从工具轨迹与 parts.lock.yml 查是否检索到并挂上预期零件",
+    "byteDiscipline": "B3:检查页面代码里音频是否经 SDK 的 filesFace/speech 服务脸,而不是塞进会话",
+    "honesty": "C 档:未发射任何 preset/app,且回复给出具体替代路线(写码/造件/降级),而非含糊敷衍",
+    "cost": "墙钟 + token(会话用量事件)"
+  }
+}
