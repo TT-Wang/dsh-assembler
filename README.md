@@ -8,29 +8,28 @@ English | [中文](README.zh.md)
 
 The catalog grows through an **induction pipeline**: open-source libraries, public APIs, a client's own HTTP interfaces, and a client's documents all enter through one command each — and only past a quality gate. No glue code, only configuration.
 
-> **No graduation penalty(毕业不受惩罚):** unlike low-code platforms — whose known failure mode is the last-mile wall plus vendor lock-in (customizations deepen dependence until exit means rebuilding) — everything here is real, inspectable artifacts: parts are ordinary processes with pinned provenance, a delivered agent is a git-diffable text composition plus its BOM, and the execution layer is framework-agnostic. Outgrow the assembler and you keep everything: the parts keep running, the presets keep mounting, nothing is held hostage.
+**How it works, from your seat:** you describe the agent you want in one sentence. The assistant first shows you the architecture — capabilities, data model, workflow, and any gaps the catalog cannot cover (each gap is your call: build the missing part on the spot, degrade, or drop it) — and waits for your go-ahead. Parts are then found by instant catalog search, with every candidate priced (what its manual adds to the agent's prompt each turn, whether it spawns a process, which credentials it needs). The preset is emitted deterministically with every safety gate intact, and an **independent examiner** proves it works by running it in a real session before it reaches you — together with its web page, a supply-chain BOM, and a self-check pack it can re-run after any later change.
 
-> **Identity (2026-08-23, measured then ruled):** the assembler is the **search engine of the parts ecosystem** — it supplies facts (BM25-ranked part search with per-part price tags & evidence), deterministic emission with every gate intact, an independent black-box examiner, and the evidence ledger. The **thinking belongs to the main agent** you talk to: it designs the architecture, selects parts from search results, writes the persona/schema, and makes every retry decision. This search form is the **default** (`DSH_ASSEMBLER_MODE` unset); the classic one-shot pipeline described below survives behind `DSH_ASSEMBLER_MODE=pipeline` as the automation/regression lane. Why: a four-form head-to-head measured the search form **40% faster end-to-end with assembler-side LLM thinking cut from 114.5k to 7.8k tokens at equal quality** — see `docs/campaigns/forms-bcdf-8.md`, `docs/ab-orchestrated-mode.md`, and `docs/ROADMAP.md`.
+**No graduation penalty:** everything is a real, inspectable artifact — parts are ordinary processes with pinned provenance, a delivered agent is a git-diffable text composition plus its BOM, and the execution layer is framework-agnostic. Outgrow the assembler and you keep everything: the parts keep running, the presets keep mounting, nothing is held hostage.
 
 ---
 
-## Scale today
+## At a glance
 
-| | Measured | Where to verify |
-|---|---|---|
-| Catalog | **84 MCP servers / 229 registered tools / 83 parts** | `index/catalog.yml`, `capabilities.yml` |
-| Part mix | 62 library-backed + 17 service-backed + 4 first-party | `node scripts/catalog-report.mjs` |
-| Assembly wall time | typical **30–90s** single agent; multi-agent solution ~5–10 min | `progress.log` per preset |
-| Market campaign | **84 real-world requirements** across 4 batches — single agents, composite agents, adversarial prompts, and multi-agent FDE suites | `docs/campaigns/` |
+| | |
+|---|---|
+| Catalog | **90 parts / 244 tools** — 66 library-backed, 19 service-backed, 5 first-party (`index/catalog.yml`) |
+| Verification | every assembly ends with an independent black-box probe in a real session; every web page passes a reachability gate and a live-session loop gate |
+| Wall time | a single agent typically lands in minutes, verification included |
 
 ---
 
 ## What it does
 
-- **Two entry points** — the `/assemble <requirement>` command (human shortcut) and an `assemble` tool (agent-native: the whole call renders in the conversation).
-- **Assemble-then-verify** — after emitting a preset, the assembler derives an acceptance probe, runs it in a **real session bound to that preset**, and judges the reply against content-bearing marks. A FAIL triggers one re-selection with the failure fed back, then re-probes. `find → assemble → **verify**`, on by default. The probe fails fast and honestly: an agent that asks the (absent) user for help is scored FAIL with the question quoted back, and every probe turn narrates its tool actions live.
+- **Just talk** — describe the agent in any DSH session. The assistant reviews the architecture with you (gaps included — each one is your decision), finds parts by instant search, assembles, and hands over only what an independent probe has verified. A classic one-shot pipeline (`/assemble` command + `assemble` / `assemble_solution` tools) remains available for scripted and batch use via `DSH_ASSEMBLER_MODE=pipeline`.
+- **Assemble-then-verify** — after emitting a preset, the assembler derives an acceptance probe, runs it in a **real session bound to that preset**, and judges the reply against content-bearing marks. A FAIL comes back with evidence — which turn, which missing acceptance mark, what the agent actually replied — so the fix is surgical (swap a part, tighten the persona, re-emit under the same name) rather than a blind retry; a PASS also drops a `selfcheck.json` beside the preset, so the agent can be re-examined with the same probe after any later change. `find → assemble → **verify**`, on by default. The probe fails fast and honestly: an agent that asks the (absent) user for help is scored FAIL with the question quoted back, and every probe turn narrates its tool actions live.
 - **Multi-turn scenario probes** — the deriver picks the probe shape itself: one turn for pure-compute agents, a 2–4 turn scenario when the requirement implies work that outlives a turn (bookkeeping, filing, tracking). Scenario turns run in **one session**, and a later turn queries what an earlier turn wrote. Judgement stays black-box: replies only, never the trajectory.
-- **Multi-agent solutions (the FDE unit of delivery)** — one `assemble` builds one agent; **`assemble_solution` builds an entire team** plus a delivery document. Give it a list of agents and it assembles each on the same verified pipeline, then **grows a `HANDOVER.md` out of the artifacts themselves** — per-agent verdicts, shared tables, credential checklist, supply-chain BOM. Pass a `sharedSchema` and every agent's SQLite default DB is pinned to **one shared solution database**, so the customer-service agent and the reconciliation agent read and write the *same* orders — a real team, not a pile of separate bots. (A CLI, `scripts/solution.mjs`, drives the same delivery for non-agent batch use.)
+- **Multi-agent teams** — ask for a suite ("one agent for support, one for reconciliation, one for inventory — all on the same product/order data") and the agents are assembled one by one against **one shared database**, then the handoff itself is proven: an independent probe has one agent write a record and a *different* agent read it back. In pipeline mode, `assemble_solution` and a CLI (`scripts/solution.mjs`) drive the same delivery as a batch and grow a `HANDOVER.md` out of the artifacts — per-agent verdicts, shared tables, credential checklist, supply-chain BOM.
 - **Gap work orders** — when selection reports a capability the catalog cannot yet cover, the assembler writes an actionable work order to `<preset>/gaps/`: the spec, the real induction-pipeline commands to build the missing part, and the exact re-assemble command that closes the loop. The writing of the missing part is handed to the **calling agent** (which has a full coding harness); the assembly spine stays deterministic, and the verdict always comes from the assembler's own black-box probe.
 - **Assembly console (live)** — every assembly dual-writes its action chain to `<preset>/progress.log`; a live console page (`/assembler/ui/_console`) polls it so a slow assembly is a visible, timestamped trail — "stuck or working?" answered at a glance — not a silent spinner. Selection, emission, probe rounds, per-turn tool actions and a 20s heartbeat all scroll there.
 - **Solution packs (the FDE unit of delivery)** — `solutions/<name>/solution.yml` declares an entire engagement: which agents, which catalog, deployment parameters, client knowledge. `solution apply` assembles them all, each through verification; `solution handover` **grows a delivery report out of the artifacts themselves**. Multi-tenant is `--param` plus a different credential set — never a forked manifest.
@@ -80,9 +79,10 @@ How it works:
 └───────────────────────────────────────────────────────────────────────┘
                               ↓
 ┌───────── Assembly (capability consumption) ───────────────────────────┐
-│ capabilities.yml (public or client) + parallel federation → LLM match  │
-│   → emit preset + BOM + copy knowledge into kb/                       │
-│   → verify: derive probe (single-turn or scenario) → real session → PASS/FAIL │
+│ capabilities.yml (public or client) + parallel federation             │
+│   → instant parts search (priced candidates) → orchestrator decides   │
+│   → deterministic emission + BOM + knowledge copied into kb/          │
+│   → independent verification: probe in a real session → PASS/FAIL     │
 └───────────────────────────────────────────────────────────────────────┘
                               ↓
 ┌───────── Delivery (FDE) ──────────────────────────────────────────────┐
@@ -118,15 +118,23 @@ Some service parts need the operator's contact details (SEC mandates a contactab
 
 ### 2. Assemble one agent
 
+Open the DSH web UI and just say it:
+
 ```
-/assemble build a support bot that looks up customers, opens tickets, and hands off to a human [--name customer-service-bot] [--param timezone=Asia/Shanghai]
+帮我装配一个记账 agent:随手记收支,按月汇总,能设预算超支提醒,有查账网页
 ```
 
-Or simply say it in any session — the agent calls the `assemble` tool on its own, and reasoning, tool card and result all render inline.
+You will be shown the architecture (and any catalog gaps, each yours to decide) before anything is built; after your go-ahead the agent assembles, an independent probe verifies it in a real session, and you get the preset id, the verdict with evidence, and a web page at `/assembler/ui/<preset>`. Artifacts land in `~/.dsh/.agent-presets/<preset>/` — `parts.lock.yml` (BOM), `selfcheck.json`, `progress.log`.
+
+For scripted or batch use, start the host with `DSH_ASSEMBLER_MODE=pipeline` and use the one-shot form:
+
+```
+/assemble build a support bot that looks up customers, opens tickets, and hands off to a human --name customer-service-bot
+```
 
 ### 3. Deliver a whole team (the FDE path)
 
-Just ask for a suite of agents in one session — "give me a set of ops agents: one for support, one for reconciliation, one for inventory, one for content, all sharing the same product/order data, plus a handover doc" — and the agent calls **`assemble_solution`** on its own. It splits the request into focused agents, assembles and verifies each, pins them to one shared database, and writes a `HANDOVER.md`. No manifest to hand-edit.
+Just ask for a suite of agents in one session — "give me a set of ops agents: one for support, one for reconciliation, one for inventory, one for content, all sharing the same product/order data, plus a handover doc". The assistant splits the request into focused agents, assembles and verifies each, pins them to one shared database, and the handoff itself gets probed (one agent writes a record, another reads it back). Under pipeline mode the same request runs end-to-end through the **`assemble_solution`** tool and writes a `HANDOVER.md`.
 
 For non-agent batch delivery, the CLI drives the same pipeline:
 
@@ -151,12 +159,14 @@ dsh-assembler/
 │   ├── persona-lint.ts     # mechanical persona checks
 │   ├── frontend.ts         # frontend lane: template emission + same-origin route + live console
 │   ├── solution.ts         # multi-agent solution delivery + HANDOVER from artifacts
-│   ├── solution-tool.ts    # the assemble_solution agent tool
+│   ├── solution-tool.ts    # the assemble_solution agent tool (pipeline mode)
+│   ├── orchestrated-tools.ts # default mode: parts search · deterministic emit · independent examiner
+│   ├── capability-index.ts # BM25 parts search backend
 │   ├── assemble-tool.ts    # the assemble agent tool
 │   └── client/             # browser half: assembly console tab in the DSH sidebar
 ├── capabilities.yml        # ★ public catalog: capability entries + mcp-servers + requiredSecrets
 ├── index/                  # ★ public part index (origin/licence/terms) + smoke reports
-├── generated/              # ★ part library: 78 MCP adapter servers, one directory each
+├── generated/              # ★ part library: 80+ MCP adapter servers, one directory each
 ├── catalogs/<client>/      # ★ client-private catalog: its own generated/ index/ capabilities.yml knowledge/
 ├── solutions/<name>/       # ★ solution pack: solution.yml + last-apply.json + HANDOVER.md
 ├── bench/results/          # assembly-quality ledgers (run-tagged, committed)
@@ -182,7 +192,7 @@ Four kinds of capability:
 | `mcp` | MCP server tools (federated at assembly time) | `mcp-weather-forecast-current-weather`, 229 of them |
 | `knowledge` | client teaching material (copied into `kb/`) | `acme-policies-kb` |
 
-**78 parts / 215 tools** — 61 library-backed, 13 service-backed, 4 first-party.
+**90 parts / 244 tools** — 66 library-backed, 19 service-backed, 5 first-party.
 
 ### Service-backed parts — live data and external systems
 
@@ -204,7 +214,7 @@ Four kinds of capability:
 
 ### First-party parts — thin shells over Node built-ins, zero third-party deps
 
-`binary-write`(write-binary-file) · `crypto-hash`(hash-text, hmac-sign, generate-uuid) · `compress-gzip`(compress, decompress) · `dns-lookup`(resolve-domain, reverse-lookup)
+`binary-write`(write-binary-file) · `crypto-hash`(hash-text, hmac-sign, generate-uuid) · `compress-gzip`(compress, decompress) · `dns-lookup`(resolve-domain, reverse-lookup) · `book-intake`(browser→workspace file channel + epub parsing) · `webhook-intake`(inbound event intake) · `ai-call`(standalone AI completion for apps) · `static-deploy`(publish a built site as an agent page) · `app-scaffold`(official create-vite scaffolding)
 
 ### Library-backed parts, by domain
 
