@@ -1817,39 +1817,81 @@ export function deployAppToolDefinition(_ctx: Context, config: Config): ToolDefi
     description:
       'Publish a scaffold app\'s BUILT dist/ into its paired preset\'s frontend/ (served same-origin at /assembler/ui/<presetId>). '
       + 'Deterministic copy with gates: preset must exist, dist/index.html must exist (run verify_app first — its build gate produces dist), '
-      + 'paths guarded.'
+      + 'paths guarded. Each publish SNAPSHOTS the page it replaces, so a bad iteration is one call away from undo: '
+      + 'deploy_app {"presetId": "...", "rollback": true} restores the previous page (no targetDir needed). '
+      + 'It also records where the page came from, so a LATER session can answer "edit this page" without hunting for the source '
+      + '(read_preset reports it).'
       + prose(' Call ONLY after verify_app PASS — publishing an unexamined page defeats the entire lane. '
         + 'After deploying, report the URL and the exam verdict to the user honestly.'),
     parameters: {
-      targetDir: { type: 'string', description: 'the scaffold app directory (holds dist/ after verify_app\'s build gate)', required: true },
+      targetDir: { type: 'string', description: 'the scaffold app directory (holds dist/ after verify_app\'s build gate); omit when rollback is true' },
       presetId: { type: 'string', description: 'the paired preset id to publish into', required: true },
+      rollback: { type: 'boolean', description: 'restore the page this preset had before the last deploy_app (one snapshot slot; the current page becomes the snapshot, so rollback is itself undoable)' },
     },
     output: {
       schema: { type: 'string' as const },
       render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
     },
     execute: async (args: unknown): Promise<string> => {
-      const a = args as { targetDir?: unknown; presetId?: unknown }
+      const a = args as { targetDir?: unknown; presetId?: unknown; rollback?: unknown }
       const targetDir = String(a.targetDir ?? '').trim()
       const presetId = sanitizePresetName(String(a.presetId ?? ''))
-      if (targetDir === '' || !targetDir.startsWith('/')) throw new Error('deploy_app 需要绝对路径 targetDir')
+      const rollback = a.rollback === true
       if (presetId === '') throw new Error('deploy_app 需要 presetId')
-      const dist = join(resolve(targetDir), 'dist')
-      if (!existsSync(join(dist, 'index.html'))) {
-        throw new Error(`deploy_app: ${dist}/index.html 不存在——先 verify_app(它的构建门产出 dist),PASS 后再发布`)
-      }
       const presetRoot = presetRootOf(config)
       const presetDir = join(presetRoot, presetId)
       if (!existsSync(join(presetDir, 'agent.cordis.yml'))) {
         throw new Error(`deploy_app: preset「${presetId}」不存在——前端要发布进一个已发射的 preset`)
       }
       const target = join(presetDir, 'frontend')
-      rmSync(target, { recursive: true, force: true })
-      cpSync(dist, target, { recursive: true })
+      const snap = join(presetDir, 'frontend.prev')
+      const srcPath = join(presetDir, 'frontend.source.json')
       const port = (_ctx.get?.('webServer') as { port?: number } | undefined)?.port
       const url = port !== undefined ? `http://127.0.0.1:${String(port)}/assembler/ui/${presetId}` : `/assembler/ui/${presetId}`
-      appendOrchLedger({ tool: DEPLOY_APP_TOOL_NAME, presetId, targetDir, url })
-      return `已发布:${dist} → ${target}\n页面:${url}${prose('\n【接力棒】向用户如实报告页面 URL 与验收结论;页面动作的行为考证据在 verify_app 的结果里。')}`
+
+      // 回滚:与前一版**互换**,所以回滚本身也可回滚(按错了不至于把好版本弄丢)。
+      if (rollback) {
+        if (!existsSync(join(snap, 'index.html'))) {
+          throw new Error(`deploy_app: preset「${presetId}」没有可回滚的上一版(快照在首次 deploy_app 时才产生)`)
+        }
+        const swap = join(presetDir, 'frontend.swap')
+        rmSync(swap, { recursive: true, force: true })
+        if (existsSync(target)) cpSync(target, swap, { recursive: true })
+        rmSync(target, { recursive: true, force: true })
+        cpSync(snap, target, { recursive: true })
+        rmSync(snap, { recursive: true, force: true })
+        if (existsSync(swap)) cpSync(swap, snap, { recursive: true })
+        rmSync(swap, { recursive: true, force: true })
+        appendOrchLedger({ tool: DEPLOY_APP_TOOL_NAME, presetId, rollback: true, url })
+        return `已回滚到上一版页面:${target}\n页面:${url}\n(当前版本已存为快照——再调一次 rollback 就换回去)`
+      }
+
+      if (targetDir === '' || !targetDir.startsWith('/')) throw new Error('deploy_app 需要绝对路径 targetDir(回滚时才可省略)')
+      const dist = join(resolve(targetDir), 'dist')
+      if (!existsSync(join(dist, 'index.html'))) {
+        throw new Error(`deploy_app: ${dist}/index.html 不存在——先 verify_app(它的构建门产出 dist),PASS 后再发布`)
+      }
+      // 覆盖前先留一版:页面迭代的失败代价从"重装一遍"降到"再调一次工具"。
+      // 单槽(只留最近一版)是刻意的——多版本要有 UI 才有意义,没有 UI 的多版本
+      // 只是磁盘上一堆没人认得出的目录。
+      const hadPrev = existsSync(join(target, 'index.html'))
+      if (hadPrev) {
+        rmSync(snap, { recursive: true, force: true })
+        cpSync(target, snap, { recursive: true })
+      }
+      rmSync(target, { recursive: true, force: true })
+      cpSync(dist, target, { recursive: true })
+      // 源头回指针:页面是构建产物,dist 里读不出"改哪儿"。没有这一条,下一次
+      // 「把按钮改成橙色」要先满 ~/apps 找源码——每次迭代都白付一遍发现成本。
+      const lockPath = join(resolve(targetDir), 'recipe.lock.yml')
+      const recipeId = existsSync(lockPath)
+        ? ((yaml.load(readFileSync(lockPath, 'utf8')) ?? {}) as { recipe?: string }).recipe ?? null
+        : null
+      writeFileSync(srcPath, JSON.stringify({ targetDir: resolve(targetDir), recipe: recipeId, deployedAt: new Date().toISOString(), hasSnapshot: hadPrev }, null, 2) + '\n')
+      appendOrchLedger({ tool: DEPLOY_APP_TOOL_NAME, presetId, targetDir, url, snapshot: hadPrev })
+      return `已发布:${dist} → ${target}\n页面:${url}\n源头已记录:${resolve(targetDir)}${recipeId !== null ? `(配方 ${recipeId})` : ''}`
+        + (hadPrev ? `\n上一版已存快照——出问题就 deploy_app {"presetId":"${presetId}","rollback":true}` : '')
+        + prose('\n【接力棒】向用户如实报告页面 URL 与验收结论;页面动作的行为考证据在 verify_app 的结果里。')
     },
   })
 }
@@ -2073,6 +2115,18 @@ export function readPresetToolDefinition(_ctx: Context, config: Config): ToolDef
       if (on('frontend')) {
         const fePath = join(dir, 'frontend', 'index.html')
         out.push(`\n【前端】${existsSync(fePath) ? `已发射(${statSync(fePath).size} 字节)· /assembler/ui/${presetId}` : '(无)'}`)
+        // 页面是构建产物,dist 里读不出"改哪儿"——把源头指回去,迭代不必满盘找。
+        const srcPath = join(dir, 'frontend.source.json')
+        if (existsSync(srcPath)) {
+          try {
+            const s = JSON.parse(readFileSync(srcPath, 'utf8')) as { targetDir?: string; recipe?: string | null; deployedAt?: string }
+            out.push(`源头:${String(s.targetDir)}${s.recipe != null ? `(配方 ${s.recipe})` : ''} · 发布于 ${String(s.deployedAt).slice(0, 19)}`)
+            out.push(prose(`改页面 = 改 ${String(s.targetDir)}/src/pages/(与 PAGE-SPEC.yml),然后 verify_app → deploy_app;改坏了 deploy_app {"presetId":"${presetId}","rollback":true}`))
+          } catch { out.push('源头:(frontend.source.json 解析失败)') }
+        } else if (existsSync(fePath)) {
+          out.push(prose('源头:未记录(模板发射的页面,或早于回指针上线的部署)——模板页改法是 emit_preset 同名重发'))
+        }
+        if (existsSync(join(dir, 'frontend.prev', 'index.html'))) out.push('上一版:有快照,可一键回滚')
       }
       appendOrchLedger({ tool: READ_PRESET_TOOL_NAME, presetId })
       return out.join('\n')

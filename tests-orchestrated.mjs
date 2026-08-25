@@ -152,6 +152,43 @@ check('死知识闸:目录里一个读取面都没有时如实说明是缺件',
     src.includes('够得着 kb/ 的零件') && src.includes('死知识闸拒印') && typeof akd === 'function')
 }
 
+// ── 页面级迭代:发布留快照 + 源头回指针 + 一键回滚 ────────────────────────────
+{
+  const { mkdtempSync: mkt, mkdirSync: mkd, writeFileSync: wfs, readFileSync: rfs, existsSync: exs } = await import('node:fs')
+  const { tmpdir: tmpd } = await import('node:os')
+  const { join: pj } = await import('node:path')
+  const { deployAppToolDefinition, readPresetToolDefinition: rpd } = await import('./lib/orchestrated-tools.js')
+  const tmp = mkt(pj(tmpd(), 'deploy-iter-'))
+  const root = pj(tmp, 'presets'); const pdir = pj(root, 'p1')
+  mkd(pdir, { recursive: true }); wfs(pj(pdir, 'agent.cordis.yml'), 'name: p1\n')
+  const app = pj(tmp, 'app'); mkd(pj(app, 'dist'), { recursive: true })
+  wfs(pj(app, 'recipe.lock.yml'), 'recipe: scaffold-react\nversion: 3\n')
+  const putDist = (marker) => wfs(pj(app, 'dist', 'index.html'), `<div id=root>${marker}</div>`)
+  const dep = deployAppToolDefinition({ get: () => undefined }, { presetRoot: root })
+  const page = () => rfs(pj(pdir, 'frontend', 'index.html'), 'utf8')
+
+  putDist('V1')
+  const r1 = await dep.execute({ targetDir: app, presetId: 'p1' })
+  check('页面迭代:首发无快照可留,但源头已记录', page().includes('V1') && r1.includes('源头已记录')
+    && !exs(pj(pdir, 'frontend.prev', 'index.html')) && JSON.parse(rfs(pj(pdir, 'frontend.source.json'), 'utf8')).recipe === 'scaffold-react')
+  check('页面迭代:回滚无快照时报可行动错误(不静默)',
+    await dep.execute({ presetId: 'p1', rollback: true }).then(() => false, (e) => String(e.message).includes('没有可回滚的上一版')))
+
+  putDist('V2')
+  await dep.execute({ targetDir: app, presetId: 'p1' })
+  check('页面迭代:二次发布覆盖当前版并留下上一版快照', page().includes('V2') && rfs(pj(pdir, 'frontend.prev', 'index.html'), 'utf8').includes('V1'))
+  await dep.execute({ presetId: 'p1', rollback: true })
+  check('页面迭代:一键回滚回到 V1(不需要 targetDir)', page().includes('V1'))
+  await dep.execute({ presetId: 'p1', rollback: true })
+  check('页面迭代:回滚本身可回滚(互换,按错了不丢好版本)', page().includes('V2'))
+
+  const rp = await rpd({ get: () => undefined }, { presetRoot: root }).execute({ presetId: 'p1', include: ['frontend'] })
+  check('页面迭代:read_preset 报出源头与可回滚(下一轮不必满盘找源码)',
+    rp.includes(app) && rp.includes('scaffold-react') && rp.includes('上一版:有快照'), rp.slice(-200))
+  check('页面迭代:未记录源头的 preset 如实说"未记录",不编造',
+    (await rpd({ get: () => undefined }, { presetRoot: root }).execute({ presetId: 'p1', include: ['frontend'] })).includes('源头:'))
+}
+
 // ── normalizeProbeSketch ────────────────────────────────────────────────────
 const sk1 = normalizeProbeSketch({ createTask: '建档 T-1', retrieveTask: '取 T-1', token: 'T-1', marks: [500, '张三'] })
 check('草图归一:有 createTask 缺 kind → scenario;marks 字符串化', sk1?.kind === 'scenario' && sk1?.marks?.[0] === '500')
@@ -406,7 +443,15 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   check('契约钉:SCAFFOLD_BATON 承重句(读手册/先考卷后页面/自由区/列名照抄/3 次停手/deploy)', ['WRITE-ME.md', 'PAGE-SPEC.yml first', 'Free zone', 'never invent', '3 次 FAIL', 'deploy_app'].every((k) => SCAFFOLD_BATON.includes(k)) && tags2.SCAFFOLD_BATON === 'deepseek-v4')
   const dep = deployAppToolDefinition(fakeCtx, {}).description
   check('契约钉:deploy_app = 确定性发布 + 先考后发', dep.includes('Deterministic copy') && dep.includes('verify_app PASS'))
-  check('deploy_app:无 dist 报可行动错误', await deployAppToolDefinition(fakeCtx, {}).execute({ targetDir: '/tmp/no-such-app-x', presetId: 'x' }).then(() => false, (e) => e.message.includes('verify_app')))
+  // 两道门各报各的(顺序:先解析 preset——回滚路径不带 targetDir,必须先有 preset)
+  check('deploy_app:preset 不存在报可行动错误', await deployAppToolDefinition(fakeCtx, {}).execute({ targetDir: '/tmp/no-such-app-x', presetId: 'no-such-preset-x' }).then(() => false, (e) => e.message.includes('不存在')))
+  {
+    const { mkdtempSync: mk, mkdirSync: md, writeFileSync: wf } = await import('node:fs')
+    const { tmpdir: td } = await import('node:os')
+    const rootD = mk(j3(td(), 'dep-nodist-')); md(j3(rootD, 'p'), { recursive: true }); wf(j3(rootD, 'p', 'agent.cordis.yml'), 'name: p\n')
+    check('deploy_app:preset 在但无 dist 报可行动错误(指回 verify_app)',
+      await deployAppToolDefinition(fakeCtx, { presetRoot: rootD }).execute({ targetDir: '/tmp/no-such-app-x', presetId: 'p' }).then(() => false, (e) => e.message.includes('verify_app')))
+  }
 }
 
 
