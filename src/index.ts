@@ -1518,6 +1518,8 @@ export function renderPartsLock(opts: {
   missing?: string[]
   /** 装配时目录的 id 集指纹;与 missing 联用:缺口在案 + 目录已生长 ⇒ 拒绝复用重选。 */
   catalogIdsHash?: string
+  /** 车道声明(装了 frontend 模板时由 emit_preset 的车道闸强制):为什么走 preset 而不是配方。 */
+  lane?: string
 }): string {
   const byId = new Map(opts.index.map((r) => [r.id, r]))
   const serverNames = [...opts.presetText.matchAll(/serverName: "([^"]+)"/g)].map((m) => m[1])
@@ -1572,6 +1574,9 @@ export function renderPartsLock(opts: {
   // 发现"欠着件 + 目录已生长"就放弃复用重新选型,新入库的零件才有机会上桌。
   if (opts.missing !== undefined && opts.missing.length > 0) doc.missing = opts.missing
   if (opts.catalogIdsHash !== undefined) doc.catalogIdsHash = opts.catalogIdsHash
+  // 车道声明入档:交付形态的选择本身就是装配决策的一部分,要能被审计/复盘查到
+  // (战役判卷器此前只能靠猜目录名反推走的哪条车道)。
+  if (opts.lane !== undefined && opts.lane.trim() !== '') doc.lane = opts.lane.trim()
   // Parameters are part of the build record: the same preset id emitted with
   // different parameters is a different artifact, and the lock says which.
   if (opts.params !== undefined && Object.keys(opts.params).length > 0) doc.params = opts.params

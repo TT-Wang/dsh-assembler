@@ -92,6 +92,26 @@ check('emit 校验:sharedDb 相对路径拒绝(零件 cwd 教训)', throwsWith({
 const e2 = validateEmitArgs({ name: 'a-bot', requirement: 'r', capabilityIds: ['x'], persona: 'p', sharedDb: '/tmp/suite/shared.db' })
 check('emit 校验:sharedDb 绝对路径通过', e2.sharedDb === '/tmp/suite/shared.db')
 
+// ── 车道闸(散文判据实测无承重后改成的机械闸)────────────────────────────────
+const { laneGateError, LANE_FORK_CRITERION } = await import('./lib/orchestrated-tools.js')
+const RECIPES = ['recipe-rag-qa', 'recipe-record-desk']
+check('车道闸:没装模板 = 不问车道(普通 agent preset 不受影响)',
+  laneGateError({ mountsFrontend: false, recipeIds: RECIPES }) === null)
+const laneMissing = laneGateError({ mountsFrontend: true, recipeIds: RECIPES })
+check('车道闸:装了模板却没声明 → 拦下,且把库里真实配方 id 一起送到',
+  laneMissing !== null && laneMissing.includes('recipe-record-desk') && laneMissing.includes(LANE_FORK_CRITERION),
+  String(laneMissing))
+check('车道闸:声明没指向任何车道(纯标签)→ 拦',
+  laneGateError({ mountsFrontend: true, lane: '已确认', recipeIds: RECIPES })?.includes('哪条车道') === true)
+check('车道闸:指了车道但短到只是个词 → 拦(要理由不要标签)',
+  laneGateError({ mountsFrontend: true, lane: 'preset', recipeIds: RECIPES })?.includes('太短') === true)
+check('车道闸:一句真理由放行',
+  laneGateError({ mountsFrontend: true, lane: 'preset:要留对话口且和巡检 agent 共一本账,配方跑不了无人值守', recipeIds: RECIPES }) === null)
+check('车道闸:目录里一条配方都没有时也拦,但如实说明货架为空',
+  laneGateError({ mountsFrontend: true, recipeIds: [] })?.includes('暂无配方') === true)
+check('emit 校验:lane 修剪后带出,空串视同未给', validateEmitArgs({ name: 'a', requirement: 'r', capabilityIds: ['x'], persona: 'p', lane: '  preset:要对话口  ' }).lane === 'preset:要对话口'
+  && validateEmitArgs({ name: 'a', requirement: 'r', capabilityIds: ['x'], persona: 'p', lane: '   ' }).lane === undefined)
+
 // ── normalizeProbeSketch ────────────────────────────────────────────────────
 const sk1 = normalizeProbeSketch({ createTask: '建档 T-1', retrieveTask: '取 T-1', token: 'T-1', marks: [500, '张三'] })
 check('草图归一:有 createTask 缺 kind → scenario;marks 字符串化', sk1?.kind === 'scenario' && sk1?.marks?.[0] === '500')
@@ -147,7 +167,7 @@ check('BARE:默认关、=1 开', bareMode() === false)
 check('BARE:满装描述含契约散文(检查点/基线/硬预算)', descFull.includes('ask_user_question') && descFull.includes('real-world I/O') && descFull.includes('LAST-RESORT'))
 check('BARE:消融描述剥净散文、保留事实性一句话', !descBare.includes('ask_user_question') && !descBare.includes('real-world I/O') && descBare.includes('BM25') && descBare.length < descFull.length / 3)
 check('BARE:match 描述同样消融', !matchBare.includes('LAST-RESORT') && matchBare.includes('capability id or a GAP'))
-check('到期制:每条导出散文常量都登记了适用模型代', ['BASELINE_RULE', 'MINIMAL_SET_RULE', 'FRONTEND_FACT', 'RECIPE_FACT', 'ARCHITECTURE_CONTRACT', 'PROBE_SKETCH_EXAMPLES'].every((k) => typeof CONTRACT_TAGS[k] === 'string' && CONTRACT_TAGS[k] !== '') && CONTRACT_GENERATION === 'deepseek-v4')
+check('到期制:每条导出散文常量都登记了适用模型代', ['BASELINE_RULE', 'MINIMAL_SET_RULE', 'FRONTEND_FACT', 'RECIPE_FACT', 'LANE_FORK_CRITERION', 'ARCHITECTURE_CONTRACT', 'PROBE_SKETCH_EXAMPLES'].every((k) => typeof CONTRACT_TAGS[k] === 'string' && CONTRACT_TAGS[k] !== '') && CONTRACT_GENERATION === 'deepseek-v4')
 
 const planScn = { kind: 'scenario', scenario: { goal: 'g', turns: [{ prompt: '记 T-9 打车 30 元', mustInclude: ['T-9'] }, { prompt: '查 T-9 报分类', mustInclude: ['打车'] }] } }
 const sk = planToSketch(planScn)
@@ -202,6 +222,17 @@ check('F 检索:非 mcp 条目(frontend)也可检得', hitsFe.some((h) => h.entr
 check('F 检索:停用件不出、空查询空结果、确定性(两跑同序)', !rankCapabilities(catalog.capabilities, '停用件', 5).some((h) => h.entry.id === 'disabled-part')
   && rankCapabilities(catalog.capabilities, '', 5).length === 0
   && JSON.stringify(rankCapabilities(catalog.capabilities, 'sqlite', 5)) === JSON.stringify(rankCapabilities(catalog.capabilities, 'sqlite', 5)))
+
+// 同分次序:字母序会把 preset 车道的模板顶上榜首(实测「记账」6.91 打平),
+// 榜首本身就是一次无声的车道推荐——同分时按交付完整度,配方在前。
+const tieCat = [
+  { id: 'zzz-recipe-record', via: 'recipe', description: '记录台配方', tags: ['记账'], config: {} },
+  { id: 'aaa-frontend-desk', via: 'frontend', description: '记录台模板', tags: ['记账'], config: {} },
+]
+const tieHits = rankCapabilities(tieCat, '记账', 5)
+check('F 检索:同分时配方排在前端模板之前(不再由字母序裁决车道)',
+  tieHits.length === 2 && tieHits[0].score === tieHits[1].score && tieHits[0].entry.via === 'recipe',
+  JSON.stringify(tieHits.map((h) => [h.entry.id, h.score])))
 
 // ── BM25 IDF:烂大街词降权,稀有词的命中赢过通用词命中 ──────────────────────
 const idfCat = {
@@ -425,13 +456,54 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
 // ── 契约:车道判据 + 管道可达(泛化战役发现的两处修补)──────────────────────
 {
   const { ARCHITECTURE_CONTRACT: AC, addKnowledgeToolDefinition, ADD_KNOWLEDGE_TOOL_NAME } = await import('./lib/orchestrated-tools.js')
-  check('契约钉:配方 vs preset 车道判据在(重叠时怎么选 + 要说出来)', AC.includes('LANE TIE-BREAK') && AC.includes('RECIPE (self-contained') && AC.includes('PRESET (双面交付') && AC.includes('SAY which lane you picked'))
+  // 判据本身已搬离契约(散文版实测无承重,A 档 3/3 静默走 preset)。契约现在
+  // 只负责一件事:告诉 agent 这个分叉在**两个机械点**上判,别指望它读段落。
+  check('契约钉:车道分叉指向两个机械点(检索榜内联 + emit 拒印),不再靠段落说教',
+    AC.includes('BOTH fit') && AC.includes('search result set flags it inline') && AC.includes('REFUSES') && AC.includes('"lane"')
+    && !AC.includes('LANE TIE-BREAK'))
   check('契约钉:装配器资源只经工具面(三件齐)+ 沙箱拒绝时停手', ['add_knowledge', 'read_preset', 'submit_part', 'TOOL-SURFACE ONLY', 'do not retry'].every((k) => ARCHITECTURE_CONTRACT.includes(k)))
   const ak = addKnowledgeToolDefinition(fakeCtx, {}).description
   check('契约钉:add_knowledge = 工具面孪生 + 检索门 + 自己写考题', ak.includes('tool-surface twin') && ak.includes('RETRIEVAL GATE') && ak.includes('YOU write the probes') && ADD_KNOWLEDGE_TOOL_NAME === 'add_knowledge')
   const throwsK = async (args, needle) => addKnowledgeToolDefinition(fakeCtx, {}).execute(args).then(() => false, (e) => String(e.message).includes(needle))
   check('add_knowledge 闸:无考题拒', await throwsK({ docsDir: '/tmp', id: 'x', description: 'd', probes: [] }, '没有考题'))
   check('add_knowledge 闸:相对路径拒', await throwsK({ docsDir: 'rel/path', id: 'x', description: 'd', probes: [{ question: 'q', mustInclude: ['m'] }] }, '绝对路径'))
+}
+
+// ── 车道分叉行:一榜同时命中两条车道时,榜尾算出分叉(判据放在决策发生的地方)──
+{
+  const { writeFileSync: wf, mkdtempSync } = await import('node:fs')
+  const { join: pjoin } = await import('node:path')
+  const { tmpdir } = await import('node:os')
+  const { searchCatalogToolDefinition: sct } = await import('./lib/orchestrated-tools.js')
+  const dir = mkdtempSync(pjoin(tmpdir(), 'lane-fork-'))
+  const catPath = pjoin(dir, 'capabilities.yml')
+  const write = (caps) => wf(catPath, `capabilities:\n${caps}`)
+  const RECIPE_ROW = '  - id: recipe-record-desk\n    via: recipe\n    description: 记录台配方\n    tags: ["记账", "台账"]\n    config: { recipe: record-desk }\n'
+  const FE_ROW = '  - id: frontend-data-desk\n    via: frontend\n    description: 记录台模板\n    tags: ["记账", "台账"]\n    config: { template: data-desk }\n'
+  const MCP_ROW = '  - id: sqlite-store\n    via: mcp\n    description: 持久存取\n    tags: ["记账"]\n    config: {}\n'
+
+  write(RECIPE_ROW + FE_ROW + MCP_ROW)
+  const both = await sct(fakeCtx, { catalogPath: catPath }).execute({ query: '记账' })
+  check('车道分叉:两条车道同榜 → 榜尾算出分叉行,点名两个真实 id 且说明各自交付形态',
+    both.includes('⚑ 车道分叉') && both.includes('recipe-record-desk') && both.includes('frontend-data-desk')
+    && both.includes('二选一') && both.includes('零对话 token 税'), both.slice(-300))
+
+  write(RECIPE_ROW + MCP_ROW)
+  const onlyRecipe = await sct(fakeCtx, { catalogPath: catPath }).execute({ query: '记账' })
+  write(FE_ROW + MCP_ROW)
+  const onlyFe = await sct(fakeCtx, { catalogPath: catPath }).execute({ query: '记账' })
+  check('车道分叉:只命中一条车道时不打扰(分叉行是算出来的,不是常驻文案)',
+    !onlyRecipe.includes('车道分叉') && !onlyFe.includes('车道分叉'))
+
+  // BARE 消融:两个真实 id 与各自的物理交付形态是事实(常开),判据是散文(关)。
+  const savedB = process.env.DSH_ASSEMBLER_BARE
+  process.env.DSH_ASSEMBLER_BARE = '1'
+  write(RECIPE_ROW + FE_ROW + MCP_ROW)
+  const bareFork = await sct(fakeCtx, { catalogPath: catPath }).execute({ query: '记账' })
+  if (savedB === undefined) delete process.env.DSH_ASSEMBLER_BARE
+  else process.env.DSH_ASSEMBLER_BARE = savedB
+  check('车道分叉:BARE 下事实照出、判据散文剥净(消融不作弊)',
+    bareFork.includes('⚑ 车道分叉') && bareFork.includes('recipe-record-desk') && !bareFork.includes('判据:'))
 }
 
 

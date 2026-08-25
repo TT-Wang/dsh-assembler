@@ -84,6 +84,7 @@ export const CONTRACT_TAGS: Record<string, string> = {
   MINIMAL_SET_RULE: 'deepseek-v4',
   FRONTEND_FACT: 'deepseek-v4',
   RECIPE_FACT: 'deepseek-v4',
+  LANE_FORK_CRITERION: 'deepseek-v4',
   SCAFFOLD_BATON: 'deepseek-v4',
   ARCHITECTURE_CONTRACT: 'deepseek-v4',
   PROBE_SKETCH_EXAMPLES: 'deepseek-v4',
@@ -118,6 +119,18 @@ export const FRONTEND_FACT = '每 preset 仅首个 frontend 模板生效——�
 export const RECIPE_FACT = '独立 app 图纸:emit_app 实例化成独立进程交付物(不占任何 agent 的对话 token),verify_app 独立验收。'
 
 /**
+ * 车道判据(2026-08-25 从 ARCHITECTURE_CONTRACT 深处搬出来)。
+ *
+ * 搬家的理由是实测:同一条判据写在契约段落里,A 档 3/3 需求仍静默走 preset 且
+ * 末段不给理由——"软措辞无效"定律第四次应验。修法照价签的成功先例:**把判据放
+ * 到决策发生的地方**。现在它出现在两处,都不是散文段落:①检索榜同时命中配方与
+ * 模板时的分叉行(算出来的,带两个真实 id)②emit_preset 装模板时的机械闸错误里。
+ */
+export const LANE_FORK_CRITERION =
+  '判据:交出去的/纯页面型/要脱离 host 独立跑 → 配方(emit_app);要留对话口/多张脸共一本账/要挂 agent 能力'
+  + '(工具、无人值守)→ preset+模板(双面交付:页面直连服务脸 + wire 会话)。emit_preset 装模板时会机械索要一句 lane 声明,现在就想清楚。'
+
+/**
  * 写手席接力棒(scaffold 族配方专用):骨架落地后主 agent 就是写手——流程知识
  * 靠结果接力棒传,不靠 agent 读 docs(接力棒断链实录:通用接力棒直奔 verify,
  * 得到"骨架态 SKIPPED",写手不知道中间该写页)。
@@ -142,7 +155,7 @@ export const SCAFFOLD_BATON =
 export const ARCHITECTURE_CONTRACT =
   'WORKFLOW CONTRACT — (0) SHAPE ROUTING before anything: judge the requirement\'s shape and SAY it. 应用型 (interaction-dense, '
   + 'deterministic UI/data flows; AI is a component) → FIRST search via:"recipe" entries (complete verified app blueprints: emit_app '
-  + 'materializes, verify_app examines). LANE TIE-BREAK when a recipe AND a preset+frontend would both work (they overlap now that presets have service faces): 交出去的/纯页面型/要脱离 host 独立跑 → RECIPE (self-contained process, zero conversation tax); 要留对话口/多张脸共一本账/要挂 agent 能力(工具、无人值守) → PRESET (双面交付:页面直连服务脸 + wire 会话). SAY which lane you picked and why in one line — silently taking the preset path for a requirement a recipe covers is the failure this tie-break exists to prevent (measured 2026-08-25: 3/3 recipe-shaped needs went preset-only). No recipe fits → assemble the service form: bytes/files flow through service parts (直传端点), '
+  + 'materializes, verify_app examines). A recipe and a preset+frontend often BOTH fit (they overlap now that presets have service faces) — that fork is decided at two mechanical points, not here: the search result set flags it inline when both lanes hit, and emit_preset REFUSES to print a frontend-mounting preset without a one-line "lane" declaration. No recipe fits → assemble the service form: bytes/files flow through service parts (直传端点), '
   + 'the model only where judgment lives — and when neither recipes nor parts cover the app shape, honestly recommend direct coding instead of assembling; '
   + '个人即时型 (the user wants it done NOW, conversationally) → offer to just do it yourself in this session — minting an agent is NOT the '
   + 'default for personal immediate needs; 无人值守/他人使用/交付型 → that is what minting is for. '
@@ -456,6 +469,8 @@ export interface EmitArgs {
   fresh: boolean
   /** 方案共享库(多 agent 班子):绝对路径;每台 agent 的 SQLite 默认库钉到同一份。 */
   sharedDb?: string
+  /** 车道声明:装了 frontend 模板时必填(见 laneGate),一句话说清"选 preset 不选配方"的理由。 */
+  lane?: string
 }
 
 /**
@@ -502,6 +517,7 @@ export function validateEmitArgs(raw: unknown): EmitArgs {
   if (sharedDb !== '' && !sharedDb.startsWith('/')) {
     throw new Error('emit_preset: "sharedDb" 必须是绝对路径(相对路径会解析进零件进程 cwd,五台 preset 的表混进同一个错文件——实测教训)')
   }
+  const lane = typeof a.lane === 'string' ? a.lane.trim() : ''
   return {
     name, requirement, capabilityIds, persona,
     ...(typeof a.stateSchema === 'string' && a.stateSchema.trim() !== '' ? { stateSchema: a.stateSchema } : {}),
@@ -510,7 +526,35 @@ export function validateEmitArgs(raw: unknown): EmitArgs {
     missingEntries,
     fresh: a.fresh === true,
     ...(sharedDb !== '' ? { sharedDb } : {}),
+    ...(lane !== '' ? { lane } : {}),
   }
+}
+
+/**
+ * 车道闸(纯件,单测覆盖):装了 frontend 模板 = 交付 app 形态,而 app 形态有两条
+ * 车道(配方 / preset+模板)。此刻是车道选择的落锤点,机械索要一句声明。
+ *
+ * 为什么是机械闸而不是一句契约:同一条判据以散文形式写在 ARCHITECTURE_CONTRACT 里
+ * 跑了一整轮战役,A 档 3/3 仍静默走 preset 且末段不给理由("软措辞无效"第四次应验)。
+ * 报错文本里点名库里**真实存在**的配方 id ——判据带着候选一起送到,和价签同一形状。
+ *
+ * @returns 没问题返回 null;该拦就返回错误文本。
+ */
+export function laneGateError(input: { mountsFrontend: boolean; lane?: string; recipeIds: readonly string[] }): string | null {
+  if (!input.mountsFrontend) return null
+  const lane = (input.lane ?? '').trim()
+  const shelf = input.recipeIds.length > 0 ? `库里现成的配方:${input.recipeIds.join('、')}。` : '(本目录暂无配方条目。)'
+  if (lane === '') {
+    return `emit_preset: 这个 preset 装了 frontend 模板 —— 交付形态是 app,而 app 有两条车道,`
+      + `装配器不替你选。补一个 "lane" 字段(一句话:选了哪条 + 为什么)。${shelf}\n${LANE_FORK_CRITERION}`
+  }
+  if (!/recipe|配方|preset/i.test(lane)) {
+    return `emit_preset: "lane" 要说清选的是哪条车道(字面出现 配方/recipe 或 preset),现在这句没有指向任何车道:「${lane.slice(0, 60)}」。${shelf}`
+  }
+  if (lane.length < 12) {
+    return `emit_preset: "lane" 太短(${String(lane.length)} 字),要的是理由不是标签——为什么这个需求不走配方。${shelf}`
+  }
+  return null
 }
 
 // ── verify_preset:纯件(单测覆盖)────────────────────────────────────────────
@@ -699,6 +743,7 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
       missingEntries: { type: 'array', items: { type: 'object', additionalProperties: true }, description: 'optional: match_catalog\'s missingEntries verbatim — each becomes a gap work-order under the preset\'s gaps/' },
       fresh: { type: 'boolean', description: 'set true ONLY to overwrite an existing preset of the SAME NAME that carries a DIFFERENT concept (the tool refuses silently repurposing a name)' },
       sharedDb: { type: 'string', description: 'ADVANCED, multi-agent suites only: ABSOLUTE path of a shared SQLite database file; every suite member emitted with the same path reads/writes one ledger. Include the shared tables (idempotent DDL) in EACH member\'s stateSchema — they materialize on first open.' },
+      lane: { type: 'string', description: 'REQUIRED whenever capabilityIds include a via:frontend template (that makes this an APP delivery, and an app has two lanes): one line naming the lane you picked (配方/recipe or preset) and WHY this requirement is not a recipe. Goes into the BOM.' },
     },
     output: {
       schema: { type: 'string' as const },
@@ -719,6 +764,14 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
       if (feIds.length >= 2) {
         throw new Error(`emit_preset: 选了 ${String(feIds.length)} 个 frontend 模板(${feIds.join(', ')}),但${FRONTEND_FACT}挑一个交互形状最贴的重新调用。`)
       }
+      // 车道闸:装模板 = 交付 app 形态 → 必须说清为什么不走配方(判据带着库里真实
+      // 的配方 id 一起送到)。散文版本已实测无承重,这里改成拦得住的。
+      const laneErr = laneGateError({
+        mountsFrontend: feIds.length === 1,
+        ...(input.lane !== undefined ? { lane: input.lane } : {}),
+        recipeIds: catalog.capabilities.filter((c) => c.via === 'recipe' && c.config?.enabled !== false).map((c) => c.id),
+      })
+      if (laneErr !== null) throw new Error(laneErr)
       const presetRoot = presetRootOf(config)
       const id = sanitizePresetName(input.name)
       const dir = join(presetRoot, id)
@@ -793,6 +846,7 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
         presetId: id, requirement: input.requirement, selected, presetText: preset, index,
         personaFindings, params: screened.accepted, requiredSecrets, knowledge,
         ...(equipment !== null ? { equipment: equipment.files } : {}),
+        ...(input.lane !== undefined ? { lane: input.lane } : {}),
         missing: input.missing, catalogIdsHash: catalogIdsHash(catalog),
       }))
       const elapsed = Math.round((Date.now() - t0) / 1000)
@@ -801,6 +855,7 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
         tool: EMIT_TOOL_NAME, presetId: id, requirement: input.requirement,
         capabilityIds: ids, missing: input.missing, elapsedSeconds: elapsed,
         personaLint: personaFindings.length, gaps: gapOrders.length,
+        ...(input.lane !== undefined ? { lane: input.lane.slice(0, 200) } : {}),
       })
       const secretLines = requiredSecrets.length > 0
         ? `\n所需凭证:${requiredSecrets.map((sec) => `${sec.env}${sec.configured ? '(已配置)' : sec.optional === true ? '(可选,未配则降级)' : '(待配置)'}`).join(';')}(凭证配到 host 环境变量,绝不进装配参数)`
@@ -1331,7 +1386,18 @@ export function searchCatalogToolDefinition(_ctx: Context, config: Config): Tool
         return `「${query}」检索 0 命中。${prose('换 2-3 种说法再试(同义词/英文词);仍无 → 这是真缺口,如实进 emit_preset 的 missing/missingEntries。')}`
       }
       const rows = hits.map((h, i) => `${String(i + 1)}. ${h.entry.id} [${h.entry.via}](分 ${String(h.score)})— ${h.entry.description.slice(0, 110)}${priceOf(h.entry)}${serviceOf(h.entry)}${secretOf(h.entry)}`).join('\n')
-      return `「${query}」top ${String(hits.length)}:\n${rows}`
+      // 车道分叉:一榜里同时出现配方与前端模板,这就不是一张普通候选表,而是一次
+      // 二选一。把它算出来写在榜尾——两个真实 id 与各自的物理交付形态是**事实**
+      // (常开,不过散文门),判据本身走散文门。取证:同分时二者曾并列(6.91),
+      // 旧字母序把模板顶上榜首,榜首本身就成了一次无声的错误推荐。
+      const recipeHit = hits.find((h) => h.entry.via === 'recipe')
+      const feHit = hits.find((h) => h.entry.via === 'frontend')
+      const laneFork = recipeHit !== undefined && feHit !== undefined
+        ? `\n⚑ 车道分叉:本榜同时命中配方「${recipeHit.entry.id}」(整套独立 app:emit_app 实例化、verify_app 验收、零对话 token 税)`
+          + `与前端模板「${feHit.entry.id}」(preset 内一张页,交付物 = agent + 页)。**二选一,不是叠加。**`
+          + prose(`\n   ${LANE_FORK_CRITERION}`)
+        : ''
+      return `「${query}」top ${String(hits.length)}:\n${rows}${laneFork}`
         + prose(`\n(BM25 词法排名,分数只是线索——选不选、选哪个由你判断。基线:交付 agent 的 LLM 自己能稳定做的不装零件;价签是它每轮 prompt 的固定税。UI 需求恰好配一个 via:frontend 模板、持久状态配存储零件。)`)
     },
   })

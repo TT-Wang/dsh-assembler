@@ -65,6 +65,14 @@ function isMcp(c: CapabilityEntry): boolean {
 }
 
 /**
+ * 同分次序:词法证据打平时,先给**交付更完整**的那件——配方是整套可独立运行的
+ * app 图纸,模板/零件都是要装进 preset 才成形的半件。只在同分时生效,不改分数。
+ */
+function completenessRank(c: CapabilityEntry): number {
+  return c.via === 'recipe' ? 0 : 1
+}
+
+/**
  * 粗筛:返回喂进选型 prompt 的候选 id 集。
  *
  * - 非 mcp(harness/frontend/package/knowledge 等,数量少、架构性强)全保留。
@@ -82,6 +90,12 @@ function isMcp(c: CapabilityEntry): boolean {
  * description 命中 ×1——"数据""管理"这类满目录都是的词自然降权,土法 tf 计数
  * 在 259 条规模就已经被它们污染(实测"数据分析"查询里通用件混进前排)。
  * 词只出现 0/1 次(词袋是 Set),不做长度归一——条目描述本来就一句话,等长。
+ *
+ * 同分次序不是小事(2026-08-25 取证):「记账」「收支记录」「设备巡检记录」三条
+ * 查询里 `frontend-data-desk` 与 `recipe-record-desk` 分数**完全相同**(6.91),
+ * 旧的字母序把 preset 车道的模板顶到榜首、把整套配方压到第二——榜首本身就是一次
+ * 无声的车道推荐,而且推的是错的那条(A 档 3/3 走了 preset)。同分时改按**交付
+ * 完整度**排:配方(整套独立 app,零对话税)先于其余;分数不同一律照旧。
  */
 export function rankCapabilities(
   capabilities: readonly CapabilityEntry[],
@@ -113,7 +127,9 @@ export function rankCapabilities(
       return { entry: usable[i], score: Math.round(s * 100) / 100 }
     })
     .filter((x) => x.score > 0)
-    .sort((a, b) => b.score - a.score || a.entry.id.localeCompare(b.entry.id))
+    .sort((a, b) => b.score - a.score
+      || completenessRank(a.entry) - completenessRank(b.entry)
+      || a.entry.id.localeCompare(b.entry.id))
     .slice(0, topN)
 }
 

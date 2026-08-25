@@ -58,7 +58,7 @@ export async function audit(scn, port) {
     appEmitted: apps.length > 0,
     recipes: [...new Set(apps.map((x) => x.recipe).filter(Boolean))],
     pagesWritten: 0, routes: { face: 0, wire: 0, 'ai-thin': 0, local: 0 },
-    partsUsed: [], pageReachable: null, assetsOk: null, byteDiscipline: null,
+    partsUsed: [], pageReachable: null, assetsOk: null, byteDiscipline: null, laneDeclared: null,
   }
   for (const app of apps) {
     const pagesDir = join(app.dir, 'src', 'pages')
@@ -82,6 +82,10 @@ export async function audit(scn, port) {
   if (a.presetEmitted && existsSync(join(presetDir, 'parts.lock.yml'))) {
     const bom = yaml.load(readFileSync(join(presetDir, 'parts.lock.yml'), 'utf8')) ?? {}
     a.partsUsed = [...new Set((bom.parts ?? []).map((p) => String(p.server ?? p.capability ?? '')))]
+    // 车道声明(emit_preset 的车道闸强制写入):**声明**归声明,和下面推出来的
+    // **实得**车道是两回事——两者不一致才是最值得抓的那种失败(嘴上走配方、
+    // 手上发 preset)。此前判卷器只能靠目录名猜,猜错过一次并被我报给用户。
+    a.laneDeclared = typeof bom.lane === 'string' ? bom.lane : null
   }
   if (a.presetEmitted) {
     try {
@@ -110,6 +114,13 @@ export function grade(scn, run, aud) {
   // 车道:写了页 = scaffold;只有配方实例 = recipe;只有 preset = preset-only;都没有 = refuse
   const lane = aud.pagesWritten > 0 ? 'scaffold' : aud.appEmitted ? 'recipe' : aud.presetEmitted ? 'preset-only' : 'refuse'
   add('形态路由', lane === e.lane, `实得 ${lane}${aud.recipes.length ? `(${aud.recipes.join('+')})` : ''},预期 ${e.lane}`)
+  // 车道声明:走 preset 车道时必有(机械闸),内容要能自圆——只记不判分的部分
+  // 交给人读;能机器判的只有一条:声明说的车道和实际建成的东西对不对得上。
+  if (lane === 'preset-only' || lane === 'scaffold') {
+    const declared = aud.laneDeclared ?? ''
+    add('车道声明与实得一致', declared !== '' && !/^\s*(配方|recipe)/i.test(declared),
+      declared === '' ? '无声明(车道闸应已强制,缺=闸没生效)' : `声明「${declared.slice(0, 50)}」`)
+  }
   if (e.recipe !== undefined) add('用对配方', aud.recipes.includes(e.recipe), `实得 ${aud.recipes.join('+') || 'null'},预期 ${e.recipe}`)
   if (e.pagesWritten === false) add('未写页(应零写码)', aud.pagesWritten === 0, `写了 ${aud.pagesWritten} 张页`)
   if (e.pagesWritten === true) add('写了页', aud.pagesWritten > 0, `${aud.pagesWritten} 张页`)
