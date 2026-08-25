@@ -1921,12 +1921,17 @@ export function addKnowledgeToolDefinition(_ctx: Context, config: Config): ToolD
       writeFileSync(join(packDir, '.knowledge-meta.json'), JSON.stringify(meta, null, 2) + '\n')
       writeFileSync(join(packDir, 'probes.json'), JSON.stringify({ probes: probes.map((p) => ({ question: p.question, mustInclude: p.mustInclude })) }, null, 2) + '\n')
       mkdirSync(join(repoRoot, 'index', 'reports'), { recursive: true })
-      writeFileSync(join(repoRoot, 'index', 'reports', `knowledge-${id}.json`), JSON.stringify({ id, kind: 'knowledge', verifiedAt: new Date().toISOString(), probes: results }, null, 2) + '\n')
+      // 出处进**索引报告**而不只进包内 meta:包会被删,报告是留档的那一份。
+      // 实录教训:四包战役语料混进目录,想按"哪来的"清理时,唯一记着 source 的
+      // 文件恰恰在包里、跟着包一起没了,只能靠名字认——正是"按名字猜"的老病。
+      writeFileSync(join(repoRoot, 'index', 'reports', `knowledge-${id}.json`), JSON.stringify({ id, kind: 'knowledge', source: meta.source, verifiedAt: new Date().toISOString(), probes: results }, null, 2) + '\n')
 
       // 登记能力条目(幂等:同 id 不重复追加)
       const capsPath = config.catalogPath ?? join(repoRoot, 'capabilities.yml')
       const caps = readFileSync(capsPath, 'utf8')
-      const capId = `kb-${id}`
+      // id 已带 kb- 前缀就不再叠一层:实录目录里长出过 `kb-kb-g-a1-manual-kb`
+      // ——agent 照着接力棒里的 capId(kb-xxx)当下一轮的 id 传回来,前缀就复利了。
+      const capId = id.startsWith('kb-') ? id : `kb-${id}`
       let registered = false
       if (!new RegExp(`^  - id: ${capId}$`, 'm').test(caps)) {
         const tags = (Array.isArray(a?.tags) ? a.tags as unknown[] : []).map((t) => JSON.stringify(String(t))).join(', ')
