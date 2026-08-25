@@ -476,6 +476,23 @@ export const WORKSPACE_SLOT = '@@WORKSPACE@@'
  */
 export const KBDIR_SLOT = '@@KBDIR@@'
 
+/**
+ * 这件零件够不够得着本 preset 的教材区(kb/)——死知识闸的判据。
+ *
+ * mcp 件由 **@@KBDIR@@ 槽位**推定:那是发射端真会替换成 kb 绝对路径的承重槽,
+ * 声明了它就是把 kb 当根拉起,伪造不了(比按 server 名字认可靠——按名字猜是本
+ * 仓库反复付过学费的病)。非 mcp 件(harness 行、host 平面工具)没有这种可推定
+ * 的结构,由目录显式声明 `config.readsKb: true`。
+ */
+export function canReadKb(c: CapabilityEntry, servers: Record<string, Record<string, unknown>>): boolean {
+  if (c.via === 'mcp') {
+    const sv = c.config?.server as string | undefined
+    const args = sv !== undefined ? servers[sv]?.args : undefined
+    return Array.isArray(args) && args.includes(KBDIR_SLOT)
+  }
+  return c.config?.readsKb === true
+}
+
 export function emitPreset(req: AssembleRequest, catalog: Catalog, template: string, presetId: string, personaSuffix = '', extraServerEnv?: Record<string, Record<string, string>>, workspaceDir?: string): string {
   const byId = new Map(catalog.capabilities.map((c) => [c.id, c]))
   // Enabled-only: `enabled: false` entries are excluded from the LLM's
@@ -1939,6 +1956,17 @@ export async function assemble(
     }
   })()
   if (reuse === null && knowledgeInstalled.length > 0) phase(`知识包已随 preset 安装:${knowledgeInstalled.map((k) => k.id).join('、')}`)
+  // 死知识:装了教材却没挂能打开它的零件(实录 A1:交付出去的 agent 当场向用户
+  // 求助「本会话无法读取手册文件」)。emit_preset 那条路是硬闸(调用方能立刻补挂
+  // 重来);这条一条龙路是一次性的,拦下等于整轮作废,所以**大声记账不拦**——
+  // 静默才是真正要禁的那件事。
+  if (reuse === null && knowledgeInstalled.length > 0) {
+    const byIdR = new Map(catalog.capabilities.map((c) => [c.id, c]))
+    const selR = req.capabilityIds.map((cid) => byIdR.get(cid)).filter((c): c is CapabilityEntry => c !== undefined)
+    if (!selR.some((c) => canReadKb(c, catalog['mcp-servers'] ?? {}))) {
+      phase(`⚠ 死知识:装了 ${knowledgeInstalled.map((k) => k.id).join('、')} 却没挂任何够得着 kb/ 的零件——交付的 agent 打不开自己的教材,补挂文件读取/内容检索件后重装`)
+    }
+  }
   // 装备:装配时预思考的 schema。仅 fresh 路径——复用轮连字节都不动,盘上装备照旧。
   let equipmentNow: StateEquipment | null = null
   if (reuse === null) {

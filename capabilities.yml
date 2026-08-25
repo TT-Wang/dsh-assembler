@@ -682,6 +682,10 @@ capabilities:
     description: Search file contents by keyword and return the matching files with line numbers (grep-style content search). Also the retrieval backbone for knowledge-base Q&A — search imported docs/kb files and cite the matching file + line as the answer's source.
     tags: [search, content, grep, keyword, text, find, files, 搜索, 内容, 关键字, 查找, 知识库, 检索, 引用, 出处, 文档问答, knowledge-base, kb, rag, retrieval, citation]
     config:
+      # 死知识闸的显式声明:本行够得着 <preset>/kb/(fs-search 按绝对路径搜,不受
+      # workspace 根限制)。mcp 件由 @@KBDIR@@ 槽位结构推定,harness 行没有那种
+      # 可推定的结构,只能在目录里明说——所以这一行是承重的,别顺手删。
+      readsKb: true
       presetRows:
         - id: tool-fs-search
           name: '@deepseek-ai/dsh-tool-fs-search'

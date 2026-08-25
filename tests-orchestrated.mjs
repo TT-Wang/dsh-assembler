@@ -112,6 +112,46 @@ check('车道闸:目录里一条配方都没有时也拦,但如实说明货架�
 check('emit 校验:lane 修剪后带出,空串视同未给', validateEmitArgs({ name: 'a', requirement: 'r', capabilityIds: ['x'], persona: 'p', lane: '  preset:要对话口  ' }).lane === 'preset:要对话口'
   && validateEmitArgs({ name: 'a', requirement: 'r', capabilityIds: ['x'], persona: 'p', lane: '   ' }).lane === undefined)
 
+// ── 死知识闸(装了教材却没有打开它的手)──────────────────────────────────────
+const { deadKnowledgeError } = await import('./lib/orchestrated-tools.js')
+const { canReadKb, KBDIR_SLOT } = await import('./lib/index.js')
+const KB_SERVERS = {
+  filesystem: { args: ['/x/server-filesystem/dist/index.js', '@@WORKSPACE@@', KBDIR_SLOT] },
+  sqlite: { args: ['/x/sqlite.js', '@@WORKSPACE@@'] },
+}
+check('读取面判定:mcp 件由 @@KBDIR@@ 槽位结构推定(不按 server 名字认)',
+  canReadKb({ id: 'mcp-filesystem-read', via: 'mcp', description: '', tags: [], config: { server: 'filesystem' } }, KB_SERVERS)
+  && !canReadKb({ id: 'mcp-sqlite-query', via: 'mcp', description: '', tags: [], config: { server: 'sqlite' } }, KB_SERVERS))
+check('读取面判定:非 mcp 件靠目录显式 readsKb(harness 行没有可推定的结构)',
+  canReadKb({ id: 'content-search', via: 'harness', description: '', tags: [], config: { readsKb: true } }, KB_SERVERS)
+  && !canReadKb({ id: 'web-lookup', via: 'harness', description: '', tags: [], config: {} }, KB_SERVERS))
+const CAT_READERS = ['content-search', 'mcp-filesystem-read-text-file']
+check('死知识闸:没选知识包 = 不问(普通 preset 不受影响)',
+  deadKnowledgeError({ packIds: [], readerIds: [], catalogReaderIds: CAT_READERS }) === null)
+const deadErr = deadKnowledgeError({ packIds: ['kb-manual'], readerIds: [], catalogReaderIds: CAT_READERS })
+check('死知识闸:装了教材没有读取面 → 拦,并把候选读取面一起送到',
+  deadErr !== null && deadErr.includes('kb-manual') && deadErr.includes('content-search'), String(deadErr))
+check('死知识闸:错误里点名"persona 写一句不算修"(A1 实录的错误修法)',
+  deadErr?.includes('散文') === true)
+check('死知识闸:有读取面就放行',
+  deadKnowledgeError({ packIds: ['kb-manual'], readerIds: ['mcp-filesystem-read-text-file'], catalogReaderIds: CAT_READERS }) === null)
+check('死知识闸:目录里一个读取面都没有时如实说明是缺件',
+  deadKnowledgeError({ packIds: ['kb-manual'], readerIds: [], catalogReaderIds: [] })?.includes('缺件') === true)
+// 真目录钉:content-search 的 readsKb 是承重声明,删掉就没人能读 kb 了
+{
+  const { readFileSync: rfKb } = await import('node:fs')
+  const capsText = rfKb('capabilities.yml', 'utf8')
+  check('真目录钉:content-search 声明了 readsKb(唯一的非 mcp 读取面)', /readsKb: true/.test(capsText))
+  check('真目录钉:filesystem 服务器仍以 @@KBDIR@@ 为第二根(闸的结构判据)', capsText.includes(KBDIR_SLOT))
+}
+{
+  // 接力棒预先交代读取面:入库的下一步必然是发射,别等它撞上闸再说
+  const { addKnowledgeToolDefinition: akd } = await import('./lib/orchestrated-tools.js')
+  const src = (await import('node:fs')).readFileSync('src/orchestrated-tools.ts', 'utf8')
+  check('接力棒钉:add_knowledge 回执点名"同时挂一件够得着 kb/ 的零件"',
+    src.includes('够得着 kb/ 的零件') && src.includes('死知识闸拒印') && typeof akd === 'function')
+}
+
 // ── normalizeProbeSketch ────────────────────────────────────────────────────
 const sk1 = normalizeProbeSketch({ createTask: '建档 T-1', retrieveTask: '取 T-1', token: 'T-1', marks: [500, '张三'] })
 check('草图归一:有 createTask 缺 kind → scenario;marks 字符串化', sk1?.kind === 'scenario' && sk1?.marks?.[0] === '500')

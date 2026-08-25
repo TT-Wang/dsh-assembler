@@ -28,7 +28,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm/message'
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
 import yaml from 'js-yaml'
 import {
-  catalogChain, catalogIdsHash, collectRequiredSecrets, emitPreset, federateMcpTools,
+  canReadKb, catalogChain, catalogIdsHash, collectRequiredSecrets, emitPreset, federateMcpTools,
   installKnowledgePacks, installStateEquipment, knowledgeLocatorText, loadCatalog,
   personaFromPresetText, presetSha, reconcileCapabilityIds, renderPartsLock, resolvePersonaText,
   sameConceptOnDisk, sanitizePresetName, screenParams, writeGapWorkOrders, writePresetFile,
@@ -531,6 +531,33 @@ export function validateEmitArgs(raw: unknown): EmitArgs {
 }
 
 /**
+ * 死知识闸(纯件,单测覆盖):装了知识包,却没有一件零件够得着 preset 的 kb/。
+ *
+ * 病史(2026-08-25 A1 实录):知识包被拷进 `kb/`、locator 明写"直接读文件即可",
+ * 但交付出去的 agent 手上没有任何读取面——探针一问就当场向用户求助「本会话无法
+ * 读取手册文件」,判 FAIL。**agent 第二版的修法是在 persona 里加一句"本会话拥有
+ * 读文件工具,不存在无法读取"**——用散文压物理缺件,正是刚被判定无效的那种修法。
+ *
+ * 判据不按名字认(那是本仓库反复付学费的病),按 {@link canReadKb} 的结构推定。
+ *
+ * @returns 没问题返回 null;该拦就返回错误文本。
+ */
+export function deadKnowledgeError(input: {
+  packIds: readonly string[]
+  readerIds: readonly string[]
+  catalogReaderIds: readonly string[]
+}): string | null {
+  if (input.packIds.length === 0 || input.readerIds.length > 0) return null
+  const shelf = input.catalogReaderIds.length > 0
+    ? `能读教材区的条目:${input.catalogReaderIds.slice(0, 6).join('、')}${input.catalogReaderIds.length > 6 ? ' 等' : ''}。`
+    : '(本目录暂无声明可读 kb 的条目——这是缺件,如实进 missing。)'
+  return `emit_preset: 选了知识包(${input.packIds.join('、')})却没挂任何够得着 kb/ 的零件——`
+    + `知识会被拷进 <preset>/kb/,但交付出去的 agent 手上没有打开它的工具,一问就只能向用户求助(实录:探针当场判 FAIL)。`
+    + `把读取面一起挂上,或去掉知识包。${shelf}`
+    + prose('\n注意:在 persona 里写"你拥有读文件工具"不算修——那是散文,补不上物理缺件。')
+}
+
+/**
  * 车道闸(纯件,单测覆盖):装了 frontend 模板 = 交付 app 形态,而 app 形态有两条
  * 车道(配方 / preset+模板)。此刻是车道选择的落锤点,机械索要一句声明。
  *
@@ -772,6 +799,16 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
         recipeIds: catalog.capabilities.filter((c) => c.via === 'recipe' && c.config?.enabled !== false).map((c) => c.id),
       })
       if (laneErr !== null) throw new Error(laneErr)
+      // 死知识闸:知识包会被拷进 kb/,但没有读取面 = 交付一个打不开自己教材的 agent。
+      // 与车道闸同址:两道都在任何落盘之前,拦下时目录里不留半成品。
+      const mcpServers = catalog['mcp-servers'] ?? {}
+      const selectedForGate = ids.map((cid) => catalog.capabilities.find((c) => c.id === cid)).filter((c): c is CapabilityEntry => c !== undefined)
+      const deadKbErr = deadKnowledgeError({
+        packIds: selectedForGate.filter((c) => c.via === 'knowledge').map((c) => c.id),
+        readerIds: selectedForGate.filter((c) => canReadKb(c, mcpServers)).map((c) => c.id),
+        catalogReaderIds: catalog.capabilities.filter((c) => c.config?.enabled !== false && canReadKb(c, mcpServers)).map((c) => c.id),
+      })
+      if (deadKbErr !== null) throw new Error(deadKbErr)
       const presetRoot = presetRootOf(config)
       const id = sanitizePresetName(input.name)
       const dir = join(presetRoot, id)
@@ -1942,7 +1979,10 @@ export function addKnowledgeToolDefinition(_ctx: Context, config: Config): ToolD
       appendOrchLedger({ tool: ADD_KNOWLEDGE_TOOL_NAME, id, docs: docs.length, bytes: totalBytes, probes: results.length })
       return `知识包 ${id} 已入库:${String(docs.length)} 份文档 / ${String(totalBytes)} 字节;检索门 ${String(results.length)}/${String(results.length)} 条考题命中`
         + `\n目录条目:${capId}${registered ? '(已登记)' : '(已存在)'}`
-        + prose(`\n【接力棒】现在可以 ${EMIT_TOOL_NAME} 时把 "${capId}" 放进 capabilityIds——它会被拷进 preset 的 kb/,交付物自包含。`)
+        // 接力棒把"还要挂读取面"一起交代掉:知识包入库的下一步必然是发射,而发射
+        // 时的死知识闸会拒印——判据放在决策发生的地方,而不是等它撞上去。
+        + `\n下一步:${EMIT_TOOL_NAME} 时把 "${capId}" 放进 capabilityIds(会被拷进 preset 的 kb/,交付物自包含),`
+        + `**并同时挂一件够得着 kb/ 的零件**(文件读取或内容检索)——只装教材不给手,发射会被死知识闸拒印。`
     },
   })
 }
