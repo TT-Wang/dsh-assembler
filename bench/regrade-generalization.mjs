@@ -19,6 +19,16 @@ for (const scn of SPEC.scenarios) {
   const prev = JSON.parse(readFileSync(f, 'utf8'))
   const run = { tools: prev.tools ?? [], finalText: prev.finalText ?? '', questionTexts: prev.questionTexts ?? [] }
   const aud = await audit(scn, PORT)
+  // 陈旧闸(2026-08-25 实录付的学费):重判是**照盘上现状**重算的,而清场会删工件。
+  // 只跑 A 档那轮把 B/C 的工件一并抹了,重判于是把 B1/B2 算成"什么都没交"、把 C2
+  // 算成"诚实劝退",凭空产出三条假结论**并覆盖了原始结果文件**。工件没了就不判,
+  // 大声跳过——静默重判比不重判危险得多。
+  const hadArtifacts = prev.audit?.presetEmitted === true || prev.audit?.appEmitted === true
+  const hasArtifacts = aud.presetEmitted === true || aud.appEmitted === true
+  if (hadArtifacts && !hasArtifacts) {
+    console.log(`  ${scn.id} [${scn.tier}] 跳过重判:原判有工件、盘上已无(多半被后续清场删了)——原结果保留不动`)
+    continue
+  }
   const g = grade(scn, run, aud)
   const changed = g.verdict !== prev.verdict || g.lane !== prev.lane
   console.log(`${changed ? '⟳' : ' '} ${scn.id} [${scn.tier}] ${g.verdict} ${g.passed}/${g.total}  lane=${g.lane}${changed ? `  (原判 ${prev.verdict} lane=${prev.lane})` : ''}`)

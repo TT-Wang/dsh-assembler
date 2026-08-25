@@ -10,6 +10,11 @@
       "detail": "实得 scaffold(scaffold-react+record-desk),预期 recipe"
     },
     {
+      "name": "车道声明与实得一致",
+      "ok": true,
+      "detail": "声明「preset — 用户点名要求 preset 交付(g-a3-inspect):要留对话口与网页共一」"
+    },
+    {
       "name": "用对配方",
       "ok": true,
       "detail": "实得 scaffold-react+record-desk,预期 record-desk"
@@ -22,7 +27,7 @@
     {
       "name": "调了考官",
       "ok": true,
-      "detail": "轨迹:verify_preset,verify_app"
+      "detail": "轨迹:verify_preset,verify_preset"
     },
     {
       "name": "交付可达",
@@ -40,39 +45,66 @@
       "detail": "未在末段自述"
     }
   ],
-  "passed": 5,
-  "total": 7,
+  "passed": 6,
+  "total": 8,
   "verdict": "FAIL",
-  "elapsedSeconds": 901,
+  "elapsedSeconds": 597,
   "tools": [
-    "skill",
-    "ask_user_question",
-    "todo_write",
     "search_catalog",
     "search_catalog",
     "search_catalog",
-    "write",
-    "emit_preset",
     "ask_user_question",
     "emit_preset",
     "verify_preset",
+    "read_preset",
     "bash",
-    "emit_app",
     "bash",
     "bash",
-    "emit_app",
-    "emit_app",
+    "grep",
+    "grep",
+    "grep",
+    "grep",
     "bash",
-    "emit_app",
-    "verify_app",
+    "bash",
+    "bash",
+    "grep",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
     "read",
+    "grep",
+    "grep",
     "read",
     "bash",
     "bash",
     "bash",
     "bash",
-    "job_kill",
-    "bash"
+    "bash",
+    "bash",
+    "bash",
+    "read",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "read_preset",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "verify_preset",
+    "preview_register"
   ],
   "usage": {
     "input": 0,
@@ -104,22 +136,23 @@
       "local": 0
     },
     "partsUsed": [
-      "sqlite-query"
+      "sqlite-query",
+      "frontend-data-desk"
     ],
     "pageReachable": 200,
     "assetsOk": true,
-    "byteDiscipline": null
+    "byteDiscipline": null,
+    "laneDeclared": "preset — 用户点名要求 preset 交付(g-a3-inspect):要留对话口与网页共一本账(记录台页面直连 sqlite 服务脸 + wire 会话可代记/查/汇总),这是\"他人使用/交付型\"的 agent+页双面交付;不是脱离 host 独立跑的纯页面 app,故不走 recipe 配方。"
   },
-  "sessionId": "session-653724fe-f04a-457a-876d-6187111f360a",
+  "sessionId": "session-c61ea122-d645-4e06-bd15-18ec6a8a5c78",
   "questionTexts": [
-    "[{\"id\":\"approve-arch\",\"question\":\"按上面的架构装配 g-a3-inspect(网页表单+记录列表+对话查询,SQLite 落库,页面部署在 /assembler/ui/g-a3-inspect)?\",\"header\":\"确认装配方案\",\"options\":[{\"label\":\"按此装配(推荐)\",\"description\":\"双面交付:网页录入/查看 + 对话可查可统计,同一本账\"},{\"label\":\"只要网页,不要对话口\",\"description\":\"只装配服务脸和前端,agent 对话能力砍掉\"},{\"label\":\"我要调整\",\"description\":\"告诉我哪里要改(字段、页面形态、状态值等)\"}]}]",
-    "[{\"id\":\"name-conflict\",\"question\":\"g-a3-inspect 已存在且概念不同,怎么处理?\",\"header\":\"名字冲突\",\"options\":[{\"description\":\"确认旧概念可废弃,重新装配 g-a3-inspect 为设备巡检记录助手\",\"label\":\"覆盖旧 preset(fresh: true)\"},{\"description\":\"保留旧 preset,新装配用这个名字\",\"label\":\"换一个新名字\"},{\"description\":\"告诉我旧 preset 是什么、能不能弃,再决定\",\"label\":\"先看看旧的再决定\"}]}]"
+    "[{\"id\":\"plan-approve\",\"question\":\"以上装配方案(记录台网页 frontend-data-desk + SQLite 存储 + 巡检记录表 inspections)是否按此装配 preset g-a3-inspect?\",\"header\":\"装配确认\",\"options\":[{\"label\":\"按此装配(推荐)\",\"description\":\"直接发射 preset 并跑独立验收,交付可用的巡检记录网页\"},{\"label\":\"我要调整\",\"description\":\"比如换页面形状、增删字段、加汇总统计等,告诉我改哪里\"}]}]"
   ],
-  "finalText": "文件权限正常,确系沙箱拦截(workspace-write 只覆盖 `/Users/tongtao/apps`)。这是真实拒绝 → 按规则当场升级权限重试:",
-  "regradedAt": "2026-08-24T13:39:32.309Z",
+  "finalText": "交付完成,全部验收通过。预览窗口已打开,右侧/右下角可以实时看到页面。\n\n---\n\n## ✅ g-a3-inspect 设备巡检记录 preset 交付\n\n**验收结论(独立考官):**\n- 对话口场景验收 **PASS** — 记一条 PUMP-01 巡检记录 → 按设备编号取回,存储值(张伟 / 水泵异响)逐字命中\n- 前端验收 **PASS** — 页面门 + 环路门均通过(首次跑出的\"环路门\"FAIL 是发射后 1 秒内基础设施未就绪的瞬时问题,系统稳定后重跑全绿)\n\n**访问地址:** http://127.0.0.1:3098/assembler/ui/g-a3-inspect\n\n**页面功能(frontend-data-desk 记录台):**\n- **记一笔**:一句话录入,如 `请记录:设备编号 CNC-03,巡检人 李四,状态 待修,异常说明 主轴异响,巡检时间 2026-08-25 14:00` — agent 解析落库\n- **查询**:自由提问(按设备编号/巡检人/时间段),表格自动渲染\n- **快捷按钮**:全部汇总、最近 10 条、分组统计\n- **实时台账**:直连 sqlite 服务脸,不经模型,毫秒级刷新\n\n**数据模型**(SQLite `inspections` 表,幂等 DDL):\n\n| 字段 | 说明 | 约束 |\n|---|---|---|\n| device_no | 设备编号 | 必填 |\n| inspector | 巡检人 | 必填 |\n| status | 状态 | 仅 正常/异常/待修 |\n| note | 异常说明 | 非\"正常\"时必填 |\n| inspect_time | 巡检时间 | 必填,缺省取当前时间 |\n\n**装配零件**:mcp-sqlite-query(execute/query/list-tables/service-info,共 1 进程)+ frontend-data-desk 模板。对话口与网页共一本账——你在页面记的、在对话里让 agent 记的,都在同一张表里。\n\n> 注:验收探针写入的测试记录(PUMP-01)仍在台账里,在页面上可以直接看到并作为样例;不要的话让 agent 删掉即可。",
+  "regradedAt": "2026-08-25T03:27:57.525Z",
   "previous": {
     "verdict": "FAIL",
     "lane": "scaffold",
-    "passed": 5
+    "passed": 6
   }
 }

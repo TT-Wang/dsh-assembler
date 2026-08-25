@@ -10,6 +10,11 @@
       "detail": "实得 preset-only,预期 recipe"
     },
     {
+      "name": "车道声明与实得一致",
+      "ok": true,
+      "detail": "声明「preset —— 用户明确指定 preset 名 g-a2-ledger,交付物为「记账 agen」"
+    },
+    {
       "name": "用对配方",
       "ok": false,
       "detail": "实得 null,预期 record-desk"
@@ -37,22 +42,23 @@
     {
       "name": "自述判定",
       "ok": true,
-      "detail": "PASS"
+      "detail": "未在末段自述"
     }
   ],
-  "passed": 5,
-  "total": 7,
+  "passed": 6,
+  "total": 8,
   "verdict": "FAIL",
-  "elapsedSeconds": 102,
+  "elapsedSeconds": 83,
   "tools": [
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
     "ask_user_question",
-    "search_catalog",
-    "search_catalog",
-    "search_catalog",
-    "todo_write",
     "emit_preset",
+    "read_preset",
     "verify_preset",
-    "todo_write"
+    "validate_dsh_ui"
   ],
   "usage": {
     "input": 0,
@@ -72,22 +78,23 @@
       "local": 0
     },
     "partsUsed": [
-      "sqlite-query",
-      "frontend-data-desk"
+      "frontend-data-desk",
+      "sqlite-query"
     ],
     "pageReachable": 200,
     "assetsOk": true,
-    "byteDiscipline": null
+    "byteDiscipline": null,
+    "laneDeclared": "preset —— 用户明确指定 preset 名 g-a2-ledger,交付物为「记账 agent + 记账页」双面(页面/对话共一本账),要留对话口挂 agent 能力,故不走独立 recipe app。"
   },
-  "sessionId": "session-7a4c18cd-761d-4eb8-b99e-c80928fadba7",
+  "sessionId": "session-fb16ef06-255a-4d58-8594-7fa3acee07df",
   "questionTexts": [
-    "[{\"id\":\"approve-arch\",\"question\":\"按上面的架构装配 g-a2-ledger(预设 + 记账网页 + SQLite 一本账)吗?\",\"header\":\"确认装配方案\",\"options\":[{\"label\":\"按此装配(推荐)\",\"description\":\"预设双面交付:网页录入看台账 + 对话随手记/查账,数据落 SQLite\"},{\"label\":\"网页为主,对话口可省\",\"description\":\"更看重页面形态,装配会更简单\"},{\"label\":\"对话为主,网页可省\",\"description\":\"只留对话口记账查账,不建网页\"},{\"label\":\"我要调整\",\"description\":\"在回复里说明想改哪里(比如加编辑/删除)\"}]}]"
+    "[{\"id\":\"approve\",\"question\":\"按上面方案装配 g-a2-ledger(记录台前端 + SQLite 三件套 + transactions 表)?\",\"header\":\"确认装配\",\"options\":[{\"label\":\"按此装配 (Recommended)\",\"description\":\"frontend-data-desk + sqlite 三件套,记账/查账/对话口全覆盖,无缺口\"},{\"label\":\"我要调整\",\"description\":\"告诉我哪里要改,比如分类用固定下拉、加汇总统计、换表单式页面等\"}]}]"
   ],
-  "finalText": "✅ **g-a2-ledger 装配完成,验收 PASS**\n\n**验收证据**(19s,两轮场景探针逐轮通过):\n- 第 1 轮:记一笔\"午饭支出 32 元·餐饮·备注 TRAKT-1129\" → 落库 ✓\n- 第 2 轮:只凭备注 token 查账 → 报出金额 **32**、分类 **餐饮**(真从库里取回,不是复述)✓\n- 前端验收:页面门 + 环路门 PASS ✓\n\n**交付形态(双面共一账)**:\n\n| 入口 | 用法 |\n|---|---|\n| 📄 网页 | http://127.0.0.1:3097/assembler/ui/g-a2-ledger — 一句话记一笔 + 查询/汇总按钮,台账自动渲染成表 |\n| 💬 对话口 | 说\"记一笔:昨天买咖啡 28,餐饮\"或\"这个月餐饮花了多少\",agent 解析落库/查账汇总 |\n\n**底层**:SQLite `ledger` 表(id / kind 收入支出 / amount / category / note / book_date / created_at),日期、分类建索引;挂载 3 个 sqlite 工具零件 + data-desk 前端模板,无缺口。\n\n**两点说明**:\n- 首版只记只查,不做修改/删除(装配时定的边界);要加编辑、删除或导出,跟我说,重发 preset 即可(不能手改文件)。\n- `service-info`(网页直连端点)探针未动用——它是页面直连服务脸的备用通道,成本极低,我保留着;如果你觉得多余,也可以去掉。\n\n直接在网页或这里开聊就能记账了。",
-  "regradedAt": "2026-08-24T13:39:32.296Z",
+  "finalText": "✅ 装配完成并通过独立验收。preset `g-a2-ledger` 已就绪。\n\n```dsh-ui\n{\"title\":\"g-a2-ledger 记账助手 · 交付摘要\",\"gap\":12,\"items\":[{\"type\":\"keyvalue\",\"items\":[{\"k\":\"网页地址\",\"v\":\"http://127.0.0.1:3098/assembler/ui/g-a2-ledger\"},{\"k\":\"账本数据\",\"v\":\"transactions 表:收支类型 / 金额 / 分类 / 备注 / 日期\"},{\"k\":\"对话口\",\"v\":\"自然语言记账、查台账、按分类/日期汇总\"},{\"k\":\"凭证要求\",\"v\":\"无\"}]},{\"type\":\"table\",\"columns\":[\"验收环节\",\"结果\"],\"rows\":[[\"场景探针(记一笔 LGR-8841 → 按 token 查回)\",\"2/2 轮 PASS,金额 128 / 分类餐饮 命中\"],[\"前端验收(页面门 + 环路门)\",\"PASS\"],[\"装备 DDL 双次执行门\",\"PASS\"]]},{\"type\":\"list\",\"items\":[\"frontend-data-desk 记录台前端:一句话记一笔 + 台账表格渲染\",\"mcp-sqlite-query query/execute:账目读写落库\",\"service-info:页面直连服务脸,高频记一笔不占对话 token\"]}]}\n```\n\n**交付内容**\n\n- **记账网页** — 打开 [http://127.0.0.1:3098/assembler/ui/g-a2-ledger](http://127.0.0.1:3098/assembler/ui/g-a2-ledger):一句话记一笔(如\"买咖啡 18 元,餐饮\"),有查询/汇总按钮,台账以表格自动渲染。\n- **记账 agent** — 同库对话口:\"上个月吃饭花了多少\"、\"本月收入合计\"这类自然语言查账,跨轮数据一律从库取,不靠记忆。\n- **数据模型** — `transactions` 表:`type(收入/支出) / amount(金额) / category(分类) / note(备注) / tdate(日期) / created_at`,含金额非负与收支类型约束、日期索引。\n- **装配清单** — `frontend-data-desk` 前端模板 + SQLite 三件套(query/execute/service-info,better-sqlite3 v11.1.2,MIT),页面可直连服务脸读写,高频记一笔零对话税。\n\n**验收结论**(独立考官):场景探针 2/2 轮 PASS —— 记一笔携带 token `LGR-8841` 的支出 → 按 toke",
+  "regradedAt": "2026-08-25T03:27:57.516Z",
   "previous": {
     "verdict": "FAIL",
     "lane": "preset-only",
-    "passed": 5
+    "passed": 6
   }
 }

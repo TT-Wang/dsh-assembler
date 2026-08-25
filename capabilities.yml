@@ -784,3 +784,9 @@ capabilities:
     tags: ["星轨", "X1", "净水器", "手册", "保修", "换芯", "故障排查", "manual", "warranty", "filter", "troubleshooting"]
     config:
       pack: "g-a1-manual-kb"
+  - id: kb-kb-g-a1-manual-kb
+    via: knowledge
+    description: "星轨 X1 净水器用户手册(虚构样例)知识包:保修条款、滤芯更换周期、常见故障排查。用于产品手册问答,回答需标注出处。"
+    tags: ["产品手册", "星轨 X1", "净水器", "保修", "换芯", "manual", "water purifier", "问答"]
+    config:
+      pack: "kb-g-a1-manual-kb"

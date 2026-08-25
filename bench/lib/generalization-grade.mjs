@@ -13,7 +13,17 @@ import yaml from 'js-yaml'
 export const PRESETS = join(homedir(), '.dsh', '.agent-presets')
 export const APPS = join(homedir(), 'apps')
 
-export const presetNameOf = (scn) => (/preset 名用 ([a-z0-9-]+)/.exec(scn.prompt) ?? [])[1] ?? ''
+/**
+ * 交付物名字:优先读 scenario 的 `artifactName` 字段,题面正则只作兜底。
+ *
+ * v3 起名字不再从题面抠——因为那句「preset 名用 X」本身就是车道指令,而 A/C 档
+ * 考的正是"该不该走 preset"(v2 三题的车道声明逐字引用了它)。判卷器需要一个确定
+ * 的名字,但那个需求不该以污染题面为代价。
+ */
+export const presetNameOf = (scn) =>
+  (typeof scn.artifactName === 'string' && scn.artifactName !== '' ? scn.artifactName : null)
+  ?? (/(?:preset 名用|交付物名字用) ([a-z0-9-]+)/.exec(scn.prompt) ?? [])[1]
+  ?? ''
 
 /** 扫 ~/apps 下所有配方实例,认领"属于这个 preset 的"(靠绑定,不靠名字)。 */
 export function claimApps(presetName) {

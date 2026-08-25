@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-08-24T13:39:11.999Z",
+  "ranAt": "2026-08-25T03:15:23.884Z",
   "results": [
     {
       "id": "A1",
@@ -25,7 +25,7 @@
         {
           "name": "调了考官",
           "ok": true,
-          "detail": "工具轨迹:verify_preset,verify_preset"
+          "detail": "工具轨迹:verify_preset,verify_preset,verify_preset,verify_preset"
         },
         {
           "name": "交付可达",
@@ -46,37 +46,40 @@
       "passed": 5,
       "total": 7,
       "verdict": "FAIL",
-      "elapsedSeconds": 295,
+      "elapsedSeconds": 691,
       "tools": [
-        "bash",
         "bash",
         "read",
         "ask_user_question",
         "search_catalog",
         "search_catalog",
         "search_catalog",
-        "bash",
         "search_catalog",
         "search_catalog",
+        "todo_write",
         "add_knowledge",
         "emit_preset",
         "verify_preset",
-        "bash",
-        "search_catalog",
-        "read",
-        "read",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
+        "read_preset",
         "verify_preset",
+        "search_catalog",
+        "search_catalog",
+        "emit_preset",
+        "emit_preset",
+        "verify_preset",
+        "grep",
+        "grep",
         "bash",
-        "preview_register"
+        "bash",
+        "read",
+        "read",
+        "read",
+        "bash",
+        "read",
+        "grep",
+        "emit_preset",
+        "verify_preset",
+        "todo_write"
       ],
       "usage": {
         "input": 0,
@@ -97,19 +100,20 @@
           "local": 0
         },
         "partsUsed": [
-          "kb-g-a1-manual-kb",
+          "kb-kb-g-a1-manual-kb",
           "frontend-chat-console",
-          "content-search"
+          "content-search",
+          "filesystem"
         ],
         "pageReachable": 200,
         "assetsOk": true,
         "byteDiscipline": null
       },
-      "sessionId": "session-4ae75a02-a306-4c06-98ce-ba1461247908",
+      "sessionId": "session-f6b0d40a-ad6f-4244-b6be-d8f23463c631",
       "questionTexts": [
-        "[{\"id\":\"arch-approval\",\"question\":\"以上架构(手册问答 preset + 出处引用 + 会话追问)是否可以按此装配?确认后我会检索目录、挂知识包、emit_preset 并跑验收。\",\"header\":\"装配确认\",\"options\":[{\"label\":\"按此装配 (Recommended)\",\"description\":\"按上述架构走:手册知识包 + 问答页面 + 出处引用,preset 名 g-a1-manual\"},{\"label\":\"我要调整\",\"description\":\"告诉我哪里要改(比如加问答历史记录、改页面风格、换 preset 名等)\"}]}]"
+        "[{\"id\":\"approve-arch\",\"question\":\"按以上架构装配 g-a1-manual(手册知识库检索 + 出处引用 + 网页问答界面,追问保持页面会话内)?\",\"header\":\"确认装配\",\"options\":[{\"label\":\"按此装配 (Recommended)\",\"description\":\"知识包检索 + 出处引用 + 前端问答页,会话级追问,不跨会话持久化\"},{\"label\":\"我要调整\",\"description\":\"告诉我哪里要改(如要跨会话历史、要文件拖拽补充手册等)\"}]}]"
       ],
-      "finalText": "全部完成,验收通过。交付如下:\n\n## ✅ 交付清单\n\n**页面**:http://127.0.0.1:3097/assembler/ui/g-a1-manual(HTTP 200,右下角实时预览已打开,可直接输入问题试)\n\n**装配结构**(preset `g-a1-manual`,3 件最小权限):\n\n| 零件 | 作用 |\n|------|------|\n| `kb-g-a1-manual-kb` | 你的手册知识包(检索门 4/4 逐字命中),已随 preset 装入 `kb/`,自包含 |\n| `frontend-chat-console` | 「能追问的页面」:流式回复 + 新会话 |\n| `content-search` | 关键词检索带行号,给「标出处」提供确定性行号依据 |\n\n**验收结果**:\n- 核心探针 **PASS**:问保修期/凭证/联系工号,回答含 `十八个月`、`购买凭证`、`SX-4471` 三标记;\n- 前端验收**首次出现环路门抖动 FAIL,原样重验后 页面门+环路门 PASS**——与 `note-wall` 前科完全一致(同字节重验即恢复,无任何改动,判定为抖动而非缺陷);\n- 出处标注由 persona 硬性约束:**每答必标「章节 + 行号 + 逐字原文」**,无检索支撑不写断言,手册未覆盖内容明确说「手册未提及」。\n\n**两点如实说明**:\n1. 目录里已有两个同名旧知识包(`kb-g-x1-manual-kb`、`kb-xingui-x1-manual`),但我无法核对其字节是否与你 19:53 更新的手册一致,所以**重新注册了当前 corpus**,保证与你给的手册逐字一致;\n2. 如果你更想要「脱离 host 独立跑、零会话成本」的形态,目录里有 `recipe-rag-qa` 配方(自带 [n] 引用可点开原文块),随时可以再实例化一个——当前按你的要求走的是 preset 双面交付(页面 + 会话追问口)。\n\n以后要改 persona 或换零件,同名重发 emit_preset 再重验即可(随行自检包 selfcheck.json 已落盘)。"
+      "finalText": "交付完成 ✅\n\n## 产品手册问答网页 · g-a1-manual\n\n**页面**:http://127.0.0.1:3098/assembler/ui/g-a1-manual —— 打开即可提问,支持连续追问。\n\n**装配内容**\n\n| 项 | 内容 |\n|---|---|\n| preset | `g-a1-manual`(persona + 装备 + BOM 已落盘) |\n| 知识包 | `kb-kb-g-a1-manual-kb`(从 `g-corpus/产品手册.md` 字节新鲜摄入,检索门 4/4 命中) |\n| 前端 | chat-console 模板(流式回复、工具调用行、新会话按钮) |\n| 能力零件 | `mcp-filesystem-read-text-file`(读手册全文)+ `content-search`(关键词检索返回行号) |\n\n**出处标注**:persona 强制每条事实引用手册章节(《保修》《换芯周期》《常见故障》)并附原文片段或行号;手册没写的内容明说「手册未提及」,不编造。\n\n**验收结果**(独立考官,非自评):探针 14s PASS——回答中「十八个月 / SX-4471 / 24 个月」全部命中;前端页面门+环路门 PASS,已入台账。\n\n**过程中修的两个问题**(如实汇报):\n1. 初版缺文件读取能力,agent 读不到 kb 只能求助用户 → 补挂 `content-search` + `mcp-filesystem-read-text-file`,会话改用 `read_text_file` 成功读到手册;\n2. 前端环路门要求回复含口令 → persona 增加「口令原样复述」规则后通过。\n\n**边界说明**:手册为虚构样例,不提供真实售后办理;追问保持在页面会话内(刷新即新会话,不跨会话保存)。以后要换/加手册文档,把新文档放进 corpus 目录重新摄入知识包即可。"
     },
     {
       "id": "A2",
@@ -150,22 +154,23 @@
         {
           "name": "自述判定",
           "ok": true,
-          "detail": "PASS"
+          "detail": "未在末段自述"
         }
       ],
       "passed": 5,
       "total": 7,
       "verdict": "FAIL",
-      "elapsedSeconds": 102,
+      "elapsedSeconds": 83,
       "tools": [
+        "search_catalog",
+        "search_catalog",
+        "search_catalog",
+        "search_catalog",
         "ask_user_question",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "todo_write",
         "emit_preset",
+        "read_preset",
         "verify_preset",
-        "todo_write"
+        "validate_dsh_ui"
       ],
       "usage": {
         "input": 0,
@@ -186,18 +191,18 @@
           "local": 0
         },
         "partsUsed": [
-          "sqlite-query",
-          "frontend-data-desk"
+          "frontend-data-desk",
+          "sqlite-query"
         ],
         "pageReachable": 200,
         "assetsOk": true,
         "byteDiscipline": null
       },
-      "sessionId": "session-7a4c18cd-761d-4eb8-b99e-c80928fadba7",
+      "sessionId": "session-fb16ef06-255a-4d58-8594-7fa3acee07df",
       "questionTexts": [
-        "[{\"id\":\"approve-arch\",\"question\":\"按上面的架构装配 g-a2-ledger(预设 + 记账网页 + SQLite 一本账)吗?\",\"header\":\"确认装配方案\",\"options\":[{\"label\":\"按此装配(推荐)\",\"description\":\"预设双面交付:网页录入看台账 + 对话随手记/查账,数据落 SQLite\"},{\"label\":\"网页为主,对话口可省\",\"description\":\"更看重页面形态,装配会更简单\"},{\"label\":\"对话为主,网页可省\",\"description\":\"只留对话口记账查账,不建网页\"},{\"label\":\"我要调整\",\"description\":\"在回复里说明想改哪里(比如加编辑/删除)\"}]}]"
+        "[{\"id\":\"approve\",\"question\":\"按上面方案装配 g-a2-ledger(记录台前端 + SQLite 三件套 + transactions 表)?\",\"header\":\"确认装配\",\"options\":[{\"label\":\"按此装配 (Recommended)\",\"description\":\"frontend-data-desk + sqlite 三件套,记账/查账/对话口全覆盖,无缺口\"},{\"label\":\"我要调整\",\"description\":\"告诉我哪里要改,比如分类用固定下拉、加汇总统计、换表单式页面等\"}]}]"
       ],
-      "finalText": "✅ **g-a2-ledger 装配完成,验收 PASS**\n\n**验收证据**(19s,两轮场景探针逐轮通过):\n- 第 1 轮:记一笔\"午饭支出 32 元·餐饮·备注 TRAKT-1129\" → 落库 ✓\n- 第 2 轮:只凭备注 token 查账 → 报出金额 **32**、分类 **餐饮**(真从库里取回,不是复述)✓\n- 前端验收:页面门 + 环路门 PASS ✓\n\n**交付形态(双面共一账)**:\n\n| 入口 | 用法 |\n|---|---|\n| 📄 网页 | http://127.0.0.1:3097/assembler/ui/g-a2-ledger — 一句话记一笔 + 查询/汇总按钮,台账自动渲染成表 |\n| 💬 对话口 | 说\"记一笔:昨天买咖啡 28,餐饮\"或\"这个月餐饮花了多少\",agent 解析落库/查账汇总 |\n\n**底层**:SQLite `ledger` 表(id / kind 收入支出 / amount / category / note / book_date / created_at),日期、分类建索引;挂载 3 个 sqlite 工具零件 + data-desk 前端模板,无缺口。\n\n**两点说明**:\n- 首版只记只查,不做修改/删除(装配时定的边界);要加编辑、删除或导出,跟我说,重发 preset 即可(不能手改文件)。\n- `service-info`(网页直连端点)探针未动用——它是页面直连服务脸的备用通道,成本极低,我保留着;如果你觉得多余,也可以去掉。\n\n直接在网页或这里开聊就能记账了。"
+      "finalText": "✅ 装配完成并通过独立验收。preset `g-a2-ledger` 已就绪。\n\n```dsh-ui\n{\"title\":\"g-a2-ledger 记账助手 · 交付摘要\",\"gap\":12,\"items\":[{\"type\":\"keyvalue\",\"items\":[{\"k\":\"网页地址\",\"v\":\"http://127.0.0.1:3098/assembler/ui/g-a2-ledger\"},{\"k\":\"账本数据\",\"v\":\"transactions 表:收支类型 / 金额 / 分类 / 备注 / 日期\"},{\"k\":\"对话口\",\"v\":\"自然语言记账、查台账、按分类/日期汇总\"},{\"k\":\"凭证要求\",\"v\":\"无\"}]},{\"type\":\"table\",\"columns\":[\"验收环节\",\"结果\"],\"rows\":[[\"场景探针(记一笔 LGR-8841 → 按 token 查回)\",\"2/2 轮 PASS,金额 128 / 分类餐饮 命中\"],[\"前端验收(页面门 + 环路门)\",\"PASS\"],[\"装备 DDL 双次执行门\",\"PASS\"]]},{\"type\":\"list\",\"items\":[\"frontend-data-desk 记录台前端:一句话记一笔 + 台账表格渲染\",\"mcp-sqlite-query query/execute:账目读写落库\",\"service-info:页面直连服务脸,高频记一笔不占对话 token\"]}]}\n```\n\n**交付内容**\n\n- **记账网页** — 打开 [http://127.0.0.1:3098/assembler/ui/g-a2-ledger](http://127.0.0.1:3098/assembler/ui/g-a2-ledger):一句话记一笔(如\"买咖啡 18 元,餐饮\"),有查询/汇总按钮,台账以表格自动渲染。\n- **记账 agent** — 同库对话口:\"上个月吃饭花了多少\"、\"本月收入合计\"这类自然语言查账,跨轮数据一律从库取,不靠记忆。\n- **数据模型** — `transactions` 表:`type(收入/支出) / amount(金额) / category(分类) / note(备注) / tdate(日期) / created_at`,含金额非负与收支类型约束、日期索引。\n- **装配清单** — `frontend-data-desk` 前端模板 + SQLite 三件套(query/execute/service-info,better-sqlite3 v11.1.2,MIT),页面可直连服务脸读写,高频记一笔零对话税。\n\n**验收结论**(独立考官):场景探针 2/2 轮 PASS —— 记一笔携带 token `LGR-8841` 的支出 → 按 toke"
     },
     {
       "id": "A3",
@@ -223,7 +228,7 @@
         {
           "name": "调了考官",
           "ok": true,
-          "detail": "工具轨迹:verify_preset,verify_app"
+          "detail": "工具轨迹:verify_preset,verify_preset"
         },
         {
           "name": "交付可达",
@@ -244,36 +249,63 @@
       "passed": 5,
       "total": 7,
       "verdict": "FAIL",
-      "elapsedSeconds": 901,
+      "elapsedSeconds": 597,
       "tools": [
-        "skill",
-        "ask_user_question",
-        "todo_write",
         "search_catalog",
         "search_catalog",
         "search_catalog",
-        "write",
-        "emit_preset",
         "ask_user_question",
         "emit_preset",
         "verify_preset",
+        "read_preset",
         "bash",
-        "emit_app",
         "bash",
         "bash",
-        "emit_app",
-        "emit_app",
+        "grep",
+        "grep",
+        "grep",
+        "grep",
         "bash",
-        "emit_app",
-        "verify_app",
+        "bash",
+        "bash",
+        "grep",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
         "read",
+        "grep",
+        "grep",
         "read",
         "bash",
         "bash",
         "bash",
         "bash",
-        "job_kill",
-        "bash"
+        "bash",
+        "bash",
+        "bash",
+        "read",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "read_preset",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "verify_preset",
+        "preview_register"
       ],
       "usage": {
         "input": 0,
@@ -294,921 +326,18 @@
           "local": 0
         },
         "partsUsed": [
-          "sqlite-query"
-        ],
-        "pageReachable": 200,
-        "assetsOk": true,
-        "byteDiscipline": null
-      },
-      "sessionId": "session-653724fe-f04a-457a-876d-6187111f360a",
-      "questionTexts": [
-        "[{\"id\":\"approve-arch\",\"question\":\"按上面的架构装配 g-a3-inspect(网页表单+记录列表+对话查询,SQLite 落库,页面部署在 /assembler/ui/g-a3-inspect)?\",\"header\":\"确认装配方案\",\"options\":[{\"label\":\"按此装配(推荐)\",\"description\":\"双面交付:网页录入/查看 + 对话可查可统计,同一本账\"},{\"label\":\"只要网页,不要对话口\",\"description\":\"只装配服务脸和前端,agent 对话能力砍掉\"},{\"label\":\"我要调整\",\"description\":\"告诉我哪里要改(字段、页面形态、状态值等)\"}]}]",
-        "[{\"id\":\"name-conflict\",\"question\":\"g-a3-inspect 已存在且概念不同,怎么处理?\",\"header\":\"名字冲突\",\"options\":[{\"description\":\"确认旧概念可废弃,重新装配 g-a3-inspect 为设备巡检记录助手\",\"label\":\"覆盖旧 preset(fresh: true)\"},{\"description\":\"保留旧 preset,新装配用这个名字\",\"label\":\"换一个新名字\"},{\"description\":\"告诉我旧 preset 是什么、能不能弃,再决定\",\"label\":\"先看看旧的再决定\"}]}]"
-      ],
-      "finalText": "文件权限正常,确系沙箱拦截(workspace-write 只覆盖 `/Users/tongtao/apps`)。这是真实拒绝 → 按规则当场升级权限重试:"
-    },
-    {
-      "id": "B1",
-      "tier": "B",
-      "name": "库存看板 + 批次过期标红",
-      "lane": "scaffold",
-      "checks": [
-        {
-          "name": "形态路由",
-          "ok": true,
-          "detail": "实得 scaffold(scaffold-react),预期 scaffold"
-        },
-        {
-          "name": "写了页",
-          "ok": true,
-          "detail": "1 张页"
-        },
-        {
-          "name": "调了考官",
-          "ok": true,
-          "detail": "工具轨迹:verify_app,verify_preset"
-        },
-        {
-          "name": "交付可达",
-          "ok": true,
-          "detail": "HTTP 200"
-        },
-        {
-          "name": "资产全通",
-          "ok": true,
-          "detail": "全通"
-        },
-        {
-          "name": "自述判定",
-          "ok": true,
-          "detail": "未在末段自述"
-        },
-        {
-          "name": "直连动作数达标",
-          "ok": true,
-          "detail": "face=3 需 ≥3(wire=1 ai-thin=0 local=0)"
-        },
-        {
-          "name": "会话动作不超标",
-          "ok": true,
-          "detail": "wire=1 需 ≤2"
-        }
-      ],
-      "passed": 8,
-      "total": 8,
-      "verdict": "PASS",
-      "elapsedSeconds": 363,
-      "tools": [
-        "skill",
-        "ask_user_question",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "todo_write",
-        "emit_preset",
-        "emit_app",
-        "bash",
-        "emit_app",
-        "read",
-        "bash",
-        "read",
-        "bash",
-        "grep",
-        "grep",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "write",
-        "read",
-        "write",
-        "bash",
-        "write",
-        "bash",
-        "verify_app",
-        "deploy_app",
-        "verify_preset",
-        "bash",
-        "bash",
-        "todo_write",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "preview_register",
-        "validate_dsh_ui"
-      ],
-      "usage": {
-        "input": 0,
-        "output": 0
-      },
-      "audit": {
-        "presetName": "g-b1-stock",
-        "uiDir": "/Users/tongtao/apps/g-b1-stock-ui。",
-        "presetEmitted": true,
-        "appEmitted": true,
-        "recipe": "scaffold-react",
-        "pagesWritten": 1,
-        "pageSpec": {
-          "pages": [
-            {
-              "id": "board",
-              "shape": "库存看板",
-              "actions": [
-                {
-                  "name": "一句话入库",
-                  "route": "wire",
-                  "probe": "一句话入库:新增批次「@@TOKEN@@」,品类「饮品」,数量 13 箱,过期日 2026-02-01,备注「验收-@@TOKEN@@」。完成后查库存表,报告该批次的当前数量与备注,并原样报出口令 @@TOKEN@@。不要问任何人。",
-                  "marks": [
-                    "@@TOKEN@@",
-                    "13"
-                  ]
-                },
-                {
-                  "name": "查批次历史",
-                  "route": "face",
-                  "sql": "SELECT m.id, m.type, m.qty, m.note, m.created_at FROM movements m JOIN batches b ON b.id = m.batch_id WHERE b.name = ? ORDER BY m.id",
-                  "sampleParams": [
-                    "@@TOKEN@@"
-                  ],
-                  "effect": {
-                    "sql": "SELECT COUNT(*) AS c FROM movements m JOIN batches b ON b.id = m.batch_id WHERE b.name = ?",
-                    "sampleParams": [
-                      "@@TOKEN@@"
-                    ],
-                    "expect": "1"
-                  }
-                },
-                {
-                  "name": "快捷出库",
-                  "route": "face",
-                  "sql": "UPDATE batches SET qty = qty - 1 WHERE name = ? AND qty >= 1",
-                  "sampleParams": [
-                    "@@TOKEN@@"
-                  ],
-                  "effect": {
-                    "sql": "SELECT qty FROM batches WHERE name = ?",
-                    "sampleParams": [
-                      "@@TOKEN@@"
-                    ],
-                    "expect": "12"
-                  }
-                },
-                {
-                  "name": "列出看板",
-                  "route": "face",
-                  "sql": "SELECT id, name, category, qty, unit, expiry_date FROM batches ORDER BY category, expiry_date"
-                }
-              ]
-            }
-          ]
-        },
-        "routes": {
-          "face": 3,
-          "wire": 1,
-          "ai-thin": 0,
-          "local": 0
-        },
-        "partsUsed": [
-          "sqlite-query"
-        ],
-        "pageReachable": 200,
-        "assetsOk": true,
-        "byteDiscipline": null
-      },
-      "sessionId": "session-90ea32b6-b5f5-4a33-8ad6-7b0110045913",
-      "questionTexts": [
-        "[{\"id\":\"approve\",\"question\":\"按上面的双面方案装配 g-b1-stock(页面看板 + 会话一句话命令,共享同一 SQLite)?\",\"header\":\"确认方案\",\"options\":[{\"label\":\"按此装配 (Recommended)\",\"description\":\"页面直连服务脸读库存,一句话入库/出库走会话,共享同一账本\"},{\"label\":\"我要调整\",\"description\":\"告诉我哪里要改,我调整方案后再装配\"}]},{\"id\":\"warn-days\",\"question\":\"批次距过期日多少天内算「快过期」标红?\",\"header\":\"标红阈值\",\"options\":[{\"label\":\"30 天 (Recommended)\",\"description\":\"常见生鲜/快消标准,设为参数可随时调\"},{\"label\":\"7 天\",\"description\":\"只对临期严格标红\"},{\"label\":\"90 天\",\"description\":\"更早预警,适合保质期长的品类\"}]},{\"id\":\"category\",\"question\":\"品类怎么确定?看板按它分区。\",\"header\":\"品类来源\",\"options\":[{\"label\":\"批次自带品类字段 (Recommended)\",\"description\":\"入库一句话里带品类即自动归区,灵活\"},{\"label\":\"固定品类列表\",\"description\":\"预定义品类,入库时只能选已有品类\"}]}]"
-      ],
-      "finalText": "✅ **g-b1 库存看板已交付上线**。右下角预览窗已打开,可直接试用。\n\n## 交付内容\n\n**页面** — http://127.0.0.1:3097/assembler/ui/g-b1-stock (已发布进 preset 的 frontend/,同源伺服)\n- **品类分区卡片**:按 category 分组,每组显示批次、数量、到期日\n- **快过期标红**:距到期 ≤30 天或已过期 → 红色边框 + 「剩 X 天 ⚠」/「已过期 X 天」徽标(阈值与 preset 参数 `expiry_warn_days=30` 一致)\n- **一句话入库/出库**:顶部输入框(回车即发,IME 守卫内置),如「入库 牛奶 10箱 品类 饮品 过期 2026-02-01」→ agent 解析记账,结果回显 + 看板自动刷新;也可以直接在会话里说\n- **批次历史**:点批次行「历史」弹窗,列出全部流水(类型/数量/备注/时间);每行还有「出 1」快捷出库(带库存校验,不足拒绝)\n\n**Agent(g-b1-stock preset)** — 库存管家:入库同批次名+过期日自动合并、出库拒绝负库存、历史流水只追加不删改、汇报按品类分组并标注快过期批次。\n\n```dsh-ui\n{\"title\":\"g-b1-stock 交付验收\",\"gap\":12,\"items\":[{\"type\":\"table\",\"headers\":[\"验收项\",\"结果\",\"证据\"],\"rows\":[[\"verify_app 五门\",\"PASS\",\"构建 / 骨架锁 / 页面lint / 资产伺服 / 行为考(wire 一句话入库 + face 历史·出库·列表)\"],[\"verify_preset 双轮场景\",\"PASS\",\"一句话入库 → 凭「品牌A牛奶」查历史,标记 12、周一进货 均从库中取回\"],[\"页面伺服\",\"200\",\"http://127.0.0.1:3097/assembler/ui/g-b1-stock\"],[\"账本对账\",\"一致\",\"两个批次 stock == ledger(12 = 12)\"]]}]}\n```\n\n**主要产物**:`/Users/tongtao/apps/g-b1-stock-ui/src/pages/board.tsx`(看板页面)、`/Users/tongtao/apps/g-b1-stock-ui/PAGE-SPEC.yml`(行为考卷)、preset `g-b1-stock`(persona + batches/movements 账本 DDL)。\n\n**两点如实说明**:\n1. 库里现有 2 个验收产生的演示批次:`BHV-GYBFTF`(已过期,正好演示标红)和 `品牌A牛奶`——不需要的话在页面上点「出 1」或一句话出库清掉即可。\n2. 行"
-    },
-    {
-      "id": "B2",
-      "tier": "B",
-      "name": "客服工单台 + SLA 倒计时",
-      "lane": "scaffold",
-      "checks": [
-        {
-          "name": "形态路由",
-          "ok": true,
-          "detail": "实得 scaffold(scaffold-react),预期 scaffold"
-        },
-        {
-          "name": "写了页",
-          "ok": true,
-          "detail": "1 张页"
-        },
-        {
-          "name": "调了考官",
-          "ok": true,
-          "detail": "工具轨迹:verify_preset,verify_app,verify_app"
-        },
-        {
-          "name": "交付可达",
-          "ok": true,
-          "detail": "HTTP 200"
-        },
-        {
-          "name": "资产全通",
-          "ok": true,
-          "detail": "全通"
-        },
-        {
-          "name": "自述判定",
-          "ok": true,
-          "detail": "未在末段自述"
-        },
-        {
-          "name": "直连动作数达标",
-          "ok": true,
-          "detail": "face=5 需 ≥3(wire=1 ai-thin=0 local=0)"
-        },
-        {
-          "name": "会话动作不超标",
-          "ok": true,
-          "detail": "wire=1 需 ≤2"
-        }
-      ],
-      "passed": 8,
-      "total": 8,
-      "verdict": "PASS",
-      "elapsedSeconds": 287,
-      "tools": [
-        "skill",
-        "bash",
-        "ask_user_question",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "read",
-        "bash",
-        "bash",
-        "bash",
-        "search_catalog",
-        "emit_preset",
-        "verify_preset",
-        "emit_app",
-        "emit_app",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "write",
-        "read",
-        "write",
-        "write",
-        "verify_app",
-        "verify_app",
-        "deploy_app",
-        "bash",
-        "preview_register"
-      ],
-      "usage": {
-        "input": 0,
-        "output": 0
-      },
-      "audit": {
-        "presetName": "g-b2-ticket",
-        "uiDir": "/Users/tongtao/apps/g-b2-ticket-ui。",
-        "presetEmitted": true,
-        "appEmitted": true,
-        "recipe": "scaffold-react",
-        "pagesWritten": 1,
-        "pageSpec": {
-          "pages": [
-            {
-              "id": "tickets",
-              "shape": "客服工单台",
-              "actions": [
-                {
-                  "name": "列出工单",
-                  "route": "face",
-                  "sql": "SELECT id, ticket_no, title, customer, priority, assignee, status, created_at, sla_deadline, closed_at FROM tickets ORDER BY created_at DESC, id DESC LIMIT 200"
-                },
-                {
-                  "name": "新建工单",
-                  "route": "face",
-                  "sql": "INSERT INTO tickets (ticket_no, title, customer, priority, assignee, status, created_at, sla_deadline) VALUES (?, ?, ?, ?, ?, 'open', ?, ?)",
-                  "sampleParams": [
-                    "TK-@@TOKEN@@",
-                    "发票打印异常",
-                    "晨光科技",
-                    "P1",
-                    "",
-                    "2026-08-24 20:00:00",
-                    "2026-08-25 04:00:00"
-                  ],
-                  "effect": {
-                    "sql": "SELECT customer, priority, status FROM tickets WHERE ticket_no = ?",
-                    "sampleParams": [
-                      "TK-@@TOKEN@@"
-                    ],
-                    "expect": "晨光科技"
-                  }
-                },
-                {
-                  "name": "转派工单",
-                  "route": "face",
-                  "sql": "UPDATE tickets SET assignee = ?, status = 'transferred' WHERE ticket_no = ?",
-                  "sampleParams": [
-                    "客服小李",
-                    "TK-@@TOKEN@@"
-                  ],
-                  "effect": {
-                    "sql": "SELECT assignee, status FROM tickets WHERE ticket_no = ?",
-                    "sampleParams": [
-                      "TK-@@TOKEN@@"
-                    ],
-                    "expect": "客服小李"
-                  }
-                },
-                {
-                  "name": "关闭工单",
-                  "route": "face",
-                  "sql": "UPDATE tickets SET status = 'closed', closed_at = ? WHERE ticket_no = ?",
-                  "sampleParams": [
-                    "2026-08-24 21:00:00",
-                    "TK-@@TOKEN@@"
-                  ],
-                  "effect": {
-                    "sql": "SELECT status FROM tickets WHERE ticket_no = ?",
-                    "sampleParams": [
-                      "TK-@@TOKEN@@"
-                    ],
-                    "expect": "closed"
-                  }
-                },
-                {
-                  "name": "状态统计",
-                  "route": "face",
-                  "sql": "SELECT status, COUNT(*) AS cnt FROM tickets GROUP BY status"
-                },
-                {
-                  "name": "SLA 盘点",
-                  "route": "wire",
-                  "probe": "查看 tickets 表全部工单,按 P0=4小时/P1=8小时/P2=24小时/P3=72小时的 SLA 规则,挑出最接近超时的两张工单说明剩余时间,并原样报出口令 @@TOKEN@@。不要问任何人。",
-                  "marks": [
-                    "@@TOKEN@@"
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        "routes": {
-          "face": 5,
-          "wire": 1,
-          "ai-thin": 0,
-          "local": 0
-        },
-        "partsUsed": [
-          "sqlite-query"
-        ],
-        "pageReachable": 200,
-        "assetsOk": true,
-        "byteDiscipline": null
-      },
-      "sessionId": "session-24ba0c1c-7fe2-4a73-84fa-6aa9313677d5",
-      "questionTexts": [
-        "[{\"id\":\"arch-approve\",\"question\":\"按这个架构装配 g-b2-ticket(preset + ~/apps/g-b2-ticket-ui 前端)?SLA 规则默认 P0=4h/P1=8h/P2=24h/P3=72h,可改。\",\"header\":\"确认装配\",\"options\":[{\"label\":\"按此装配(推荐)\",\"description\":\"SQLite 工单表 + HTTP 服务脸 + 前端页面,转派/关单/新建全闭环\"},{\"label\":\"我要调整\",\"description\":\"告诉我哪部分要改(如 SLA 时长、字段、交互方式)\"}]}]"
-      ],
-      "finalText": "全部完成,整条链路已验证上线 ✅\n\n## 交付总结\n\n**🖥️ 页面:http://127.0.0.1:3097/assembler/ui/g-b2-ticket**(右下角预览已打开,可直接点用)\n\n**功能对照**\n- **新建工单**:标题 / 客户 / 优先级(P0~P3)+ 可选受理人;按 `P0=4h / P1=8h / P2=24h / P3=72h` 自动算好 SLA 截止时间入库\n- **列表剩余 SLA**:每行实时显示「剩余 Xh Ym」(不足 2h 变黄、超时变红显示「已超时」),每 30 秒自动刷新;顶部有超时计数徽章\n- **转派**:每行「转派」按钮 → 填新受理人 → 状态变「已转派」\n- **关单**:每行「关单」按钮(带确认)→ 状态变「已关闭」并记录 closed_at\n- 附赠:状态筛选 Tab、工单统计徽章、「SLA 盘点」按钮(对话面 agent 挑出最接近超时的工单给跟进建议)\n\n**装配与验收证据**\n| 环节 | 结果 |\n|---|---|\n| preset `g-b2-ticket`(sqlite 工单表 + 服务脸,最小零件集 3 件) | verify_preset **PASS**:建单 TK-7781 → 按单号取回客户/优先级/SLA 时长,2 轮全过 |\n| 前端 `~/apps/g-b2-ticket-ui`(scaffold-react 骨架 + 我写的 `src/pages/tickets.tsx` 与 `PAGE-SPEC.yml`) | verify_app **PASS**:构建 / 骨架锁 / 页面 lint / 资产可达 / 行为考(列出·新建·转派·关单·统计·SLA 盘点 六动作全过) |\n| 发布 `dist → preset/frontend/` | 页面 HTTP 200,服务脸在线(`/.service` 返回 sqlite 端点) |\n\n**说明**:首次 verify 因 wire 会话端口起不来失败一次,去掉 wirePort 重验后 wire 考照常通过;对话面(转派/建单也可直接对 agent 说)由 verify_preset 的会话考覆盖。改页面源码后重新 `verify_app` + `deploy_app` 即可更新。"
-    },
-    {
-      "id": "B3",
-      "tier": "B",
-      "name": "语音便签墙(录音→转写→筛选)",
-      "lane": "refuse",
-      "checks": [
-        {
-          "name": "形态路由",
-          "ok": false,
-          "detail": "实得 refuse,预期 scaffold"
-        },
-        {
-          "name": "写了页",
-          "ok": false,
-          "detail": "0 张页"
-        },
-        {
-          "name": "调了考官",
-          "ok": false,
-          "detail": "工具轨迹:无"
-        },
-        {
-          "name": "交付可达",
-          "ok": false,
-          "detail": "HTTP null"
-        },
-        {
-          "name": "自述判定",
-          "ok": false,
-          "detail": "未验收"
-        },
-        {
-          "name": "直连动作数达标",
-          "ok": false,
-          "detail": "face=0 需 ≥2(wire=0 ai-thin=0 local=0)"
-        },
-        {
-          "name": "用上预期零件",
-          "ok": false,
-          "detail": "BOM:空"
-        },
-        {
-          "name": "字节纪律(音频不过模型)",
-          "ok": false,
-          "detail": "无页面可查"
-        }
-      ],
-      "passed": 0,
-      "total": 8,
-      "verdict": "FAIL",
-      "elapsedSeconds": 1802,
-      "tools": [
-        "skill",
-        "ask_user_question",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "grep",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "read",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "glob",
-        "grep",
-        "bash",
-        "read",
-        "bash",
-        "bash",
-        "bash",
-        "read",
-        "read",
-        "bash",
-        "grep",
-        "grep",
-        "bash",
-        "search_catalog",
-        "read",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash"
-      ],
-      "usage": {
-        "input": 0,
-        "output": 0
-      },
-      "audit": {
-        "presetName": "g-b3-voice",
-        "uiDir": "/Users/tongtao/apps/g-b3-voice-ui。",
-        "presetEmitted": false,
-        "appEmitted": false,
-        "recipe": null,
-        "pagesWritten": 0,
-        "pageSpec": null,
-        "routes": {
-          "face": 0,
-          "wire": 0,
-          "ai-thin": 0,
-          "local": 0
-        },
-        "partsUsed": [],
-        "pageReachable": null,
-        "assetsOk": null,
-        "byteDiscipline": null
-      },
-      "sessionId": "session-0f51a66a-d93c-4319-af62-277995676516",
-      "questionTexts": [
-        "[{\"id\":\"approve-arch\",\"question\":\"按上面的架构装配 g-b3-voice(preset + 前端 ~/apps/g-b3-voice-ui)?\",\"header\":\"架构确认\"},{\"id\":\"stt-gap\",\"question\":\"若目录里没有现成的语音转写能力,优先怎么处理?\",\"header\":\"STT 缺口预案\",\"options\":[{\"label\":\"现场造件 (Recommended)\",\"description\":\"通过 induction 管线造一个语音转写部件再装配,体验最完整但耗时更长\"},{\"label\":\"降级 Web Speech API\",\"description\":\"仅 Chrome 在线录音可转写,上传的音频文件无法转成文字\"},{\"label\":\"先搜目录再说\",\"description\":\"等搜索完目录再决定,如果刚好有现成的就不用纠结\"}]}]"
-      ],
-      "finalText": "补丁需要写 `dsh-assembler` 仓库(配方模板),当前沙箱只允许工作区。这是用户已批准的\"现场造件\"通道(给 scaffold-react 配方补 speechFace),按规则升级重试:"
-    },
-    {
-      "id": "C1",
-      "tier": "C",
-      "name": "多人实时协同白板",
-      "lane": "refuse",
-      "checks": [
-        {
-          "name": "形态路由",
-          "ok": true,
-          "detail": "实得 refuse,预期 refuse"
-        },
-        {
-          "name": "诚实劝退:未发射",
-          "ok": true,
-          "detail": "未发射"
-        },
-        {
-          "name": "给了具体替代路线",
-          "ok": true,
-          "detail": "末段 1173 字"
-        },
-        {
-          "name": "缺口在检查点被暴露",
-          "ok": true,
-          "detail": "2 次检查点(问题原文已存证)"
-        }
-      ],
-      "passed": 4,
-      "total": 4,
-      "verdict": "PASS",
-      "elapsedSeconds": 973,
-      "tools": [
-        "ask_user_question",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "glob",
-        "bash",
-        "bash",
-        "ask_user_question",
-        "todo_write",
-        "bash",
-        "write",
-        "write",
-        "edit",
-        "edit",
-        "write",
-        "write",
-        "write",
-        "edit",
-        "bash",
-        "bash",
-        "bash",
-        "write",
-        "edit",
-        "edit",
-        "edit",
-        "edit",
-        "bash",
-        "write",
-        "edit",
-        "edit",
-        "job_output",
-        "bash",
-        "job_kill",
-        "edit",
-        "edit",
-        "edit",
-        "bash",
-        "bash",
-        "edit",
-        "job_output",
-        "job_output",
-        "edit",
-        "edit",
-        "edit",
-        "edit",
-        "bash",
-        "bash",
-        "write",
-        "job_output",
-        "edit",
-        "edit",
-        "edit",
-        "edit",
-        "job_output",
-        "job_kill",
-        "bash",
-        "bash",
-        "job_output",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "edit",
-        "edit",
-        "edit",
-        "job_output",
-        "bash",
-        "job_kill",
-        "bash",
-        "bash",
-        "job_output",
-        "job_output",
-        "job_kill",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "edit",
-        "bash",
-        "job_output",
-        "edit",
-        "bash",
-        "job_output",
-        "edit",
-        "bash",
-        "job_output",
-        "bash",
-        "bash",
-        "bash",
-        "preview_register",
-        "todo_write"
-      ],
-      "usage": {
-        "input": 0,
-        "output": 0
-      },
-      "audit": {
-        "presetName": "g-c1-board",
-        "uiDir": null,
-        "presetEmitted": false,
-        "appEmitted": false,
-        "recipe": null,
-        "pagesWritten": 0,
-        "pageSpec": null,
-        "routes": {
-          "face": 0,
-          "wire": 0,
-          "ai-thin": 0,
-          "local": 0
-        },
-        "partsUsed": [],
-        "pageReachable": null,
-        "assetsOk": null,
-        "byteDiscipline": null
-      },
-      "sessionId": "session-afee9539-03a3-42e1-8fda-9b4fa38282a5",
-      "questionTexts": [
-        "[{\"id\":\"arch-approve\",\"question\":\"架构如上,是否按此装配 g-c1-board?\",\"header\":\"确认架构\",\"options\":[{\"label\":\"按此装配 (Recommended)\",\"description\":\"实时 WebSocket 通道如目录缺失则现场造件,其余按设计装配\"},{\"label\":\"我要调整\",\"description\":\"告诉我哪里要改(如:不要实时光标、单页不要持久化等)\"},{\"label\":\"直接手写代码交付\",\"description\":\"不走装配线,我在本会话直接搭一个可运行的实时白板服务\"}]}]",
-        "[{\"id\":\"route\",\"question\":\"实时推送通道目录里确实没有,你选哪条路线?\",\"header\":\"选路线\",\"options\":[{\"description\":\"独立服务,今天交付并实测四项核心;不是 preset 形态\",\"label\":\"路线 B:直接写代码 (Recommended)\"},{\"description\":\"先造 WebSocket 广播部件再过质检门再装配,保 preset 形态;耗时长、有门控风险\",\"label\":\"路线 A:造零件 + preset\"},{\"description\":\"我先做路线 B 的完整独立服务,之后再走路线 A 把它升级成 preset 形态\",\"label\":\"B 先行,A 跟进\"}]}]"
-      ],
-      "finalText": "✅ 交付完成。诚实的最终交代如下。\n\n## 交付:g-c1-board 多人实时协作白板(独立应用,路线 B)\n\n**地址:http://127.0.0.1:8473/** — 右下角预览窗已打开,多开几个浏览器窗口/标签页即可多人同画(局域网内其他人用 `http://<你机器IP>:8473`)。\n\n## 四项核心需求的实证结果\n\n| 需求 | 验证方式 | 结果 |\n|---|---|---|\n| 多人同时画 | 真实 Chrome 双标签页,小明画 4 点笔迹 → 小红页实时收到并渲染 | ✅ 数据层 + 浏览器层均过 |\n| 实时光标互见 | 小明鼠标移到 (420,300) → 小红页光标元素带名字标签实时跟上 | ✅ 含 30ms 节流与服务端合并 |\n| 断线自动重连 | **杀掉服务 → 重启 → 两个真实浏览器页面各自指数退避自动重连**,画面(笔迹)、在线列表、昵称全部恢复,状态徽标回到\"已连接\" | ✅ 浏览器端到端实证 |\n| 画面不丢 | 笔迹逐条落 SQLite(WAL),重连/迟到者全量回放;重启后作者、颜色保留 | ✅ 杀进程重启回放 1/1 |\n\n数据层 9 项 + 浏览器端到端 6 项全绿;交付前还修掉了两个测试逼出来的真 bug:心跳 12s 误杀未首 ping 连接、测试数据污染正式库(现已用 `G1B_DATA_DIR` 隔离)。\n\n## 必须说清的边界(不糊弄)\n\n- 目录检索确认:**实时推送通道在零件目录里不存在**(4 组说法搜尽),所以这走的是你认可的\"直接写代码\"路线——`g-c1-board` 是**独立进程应用**(`~/apps/g-c1-board/`),不是 preset。如果你想升级成 preset 形态(路线 A:造 WebSocket 广播部件再过质检门),随时可以做,应用本身可无缝平移过去。\n- 服务现在是会话托管的后台进程(bash-15);以后手动启动:`cd ~/apps/g-c1-board && npm start`。\n\n## 文件\n\n- `server.js` — 单端口静态托管 + WS 中枢(/ws)+ SQLite 持久化 + 心跳(25s ping / 12s 剔除僵尸)\n- `public/index.html` `public/app.js` `public/style.css` — 画布、画笔/橡皮/8 色/粗细、在线列表、昵称、指数退避重连(1s→10s)+ 45s 看门狗\n- `test/reconnect-test.mjs`(数据层 9 项)/ `test/browser-e2e.mjs`(真实 Chrome 端到端 6 项,需本机 Chrome)\n- `README.md` — 运行说明 + 协议表"
-    },
-    {
-      "id": "C2",
-      "tier": "C",
-      "name": "手机原生 app + 推送",
-      "lane": "preset-only",
-      "checks": [
-        {
-          "name": "形态路由",
-          "ok": false,
-          "detail": "实得 preset-only,预期 refuse"
-        },
-        {
-          "name": "诚实劝退:未发射",
-          "ok": false,
-          "detail": "却发射了 preset"
-        },
-        {
-          "name": "给了具体替代路线",
-          "ok": true,
-          "detail": "末段 588 字"
-        },
-        {
-          "name": "缺口在检查点被暴露",
-          "ok": true,
-          "detail": "1 次检查点(问题原文已存证)"
-        }
-      ],
-      "passed": 2,
-      "total": 4,
-      "verdict": "FAIL",
-      "elapsedSeconds": 413,
-      "tools": [
-        "skill",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "ask_user_question",
-        "todo_write",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "write",
-        "write",
-        "write",
-        "emit_preset",
-        "todo_write",
-        "verify_preset",
-        "subagent",
-        "subagent",
-        "write",
-        "write",
-        "write",
-        "write",
-        "todo_write"
-      ],
-      "usage": {
-        "input": 0,
-        "output": 0
-      },
-      "audit": {
-        "presetName": "g-c2-mobile",
-        "uiDir": null,
-        "presetEmitted": true,
-        "appEmitted": false,
-        "recipe": null,
-        "pagesWritten": 0,
-        "pageSpec": null,
-        "routes": {
-          "face": 0,
-          "wire": 0,
-          "ai-thin": 0,
-          "local": 0
-        },
-        "partsUsed": [
           "sqlite-query",
-          "http-request",
-          "frontend-dashboard"
+          "frontend-data-desk"
         ],
         "pageReachable": 200,
         "assetsOk": true,
         "byteDiscipline": null
       },
-      "sessionId": "session-5b029038-5433-482a-9d43-030cb53b63f1",
+      "sessionId": "session-c61ea122-d645-4e06-bd15-18ec6a8a5c78",
       "questionTexts": [
-        "[{\"id\":\"lane\",\"question\":\"原生 App + 上架这件事,preset 机制只能覆盖「云端后端」这一半;手机端工程需要直接写代码,上架需要你本人的开发者账号执行。你选哪条路?\",\"header\":\"交付方式\",\"options\":[{\"label\":\"混合交付(Recommended)\",\"description\":\"preset g-c2-mobile 做推送+离线同步后端与运维台,我同时在工作区写 iOS(SwiftUI)和 Android(Kotlin)两套原生工程骨架+上架清单文档;你在 Xcode/Android Studio 里构建、签名、提交。\"},{\"label\":\"只做后端 preset\",\"description\":\"只装配 g-c2-mobile 作为后端/运维台(设备注册、推送派发、离线同步 API),原生工程你自己或另找人写。\"},{\"label\":\"不要 preset\",\"description\":\"跳过 preset 机制,我直接在工作区写两套原生工程 + 后端 API 设计文档,后端你用自己的服务器部署。\"}]},{\"id\":\"push_scope\",\"question\":\"推送功能按什么规模做?(影响后端数据模型和 App 端代码量)\",\"header\":\"推送范围\",\"options\":[{\"label\":\"全量广播(Recommended)\",\"description\":\"所有注册设备接收同一条推送,数据模型最简单,先跑通闭环,以后可扩展。\"},{\"label\":\"按标签分组\",\"description\":\"设备可打标签(如 iOS/Android、地区、版本),按标签定向推送,数据模型稍复杂。\"},{\"label\":\"按用户定向\",\"description\":\"每台设备绑定用户 ID,单用户定向推送,需要用户体系。\"}]}]"
+        "[{\"id\":\"plan-approve\",\"question\":\"以上装配方案(记录台网页 frontend-data-desk + SQLite 存储 + 巡检记录表 inspections)是否按此装配 preset g-a3-inspect?\",\"header\":\"装配确认\",\"options\":[{\"label\":\"按此装配(推荐)\",\"description\":\"直接发射 preset 并跑独立验收,交付可用的巡检记录网页\"},{\"label\":\"我要调整\",\"description\":\"比如换页面形状、增删字段、加汇总统计等,告诉我改哪里\"}]}]"
       ],
-      "finalText": "当前进度小结(两个子代理还在后台写工程,完成后我会继续):\n\n**已交付 ✅**\n- **后端 preset `g-c2-mobile`** — 装配完成,独立验收 **PASS**(设备注册→sync_ledger→推送记录→按标识检索,2 轮全过;前端页面门+环路门 PASS)。运维台:**http://127.0.0.1:3097/assembler/ui/g-c2-mobile**\n- **契约与文档** — `docs/API.md`(后端↔App 契约 v1)、`plan/SEAMS.md`(接缝决策)、`SOURCING.md`、`MAP.md`、`docs/RUNBOOK-BACKEND.md`(部署+FCM 接通)、`docs/RUNBOOK-STORE.md`(双商店上架清单)、总 `README.md`\n\n**进行中 🔧**\n- iOS(SwiftUI + FirebaseMessaging,离线缓存 + 同步引擎)与 Android(Kotlin/Compose + Room + WorkManager)两个原生工程由子代理并行编写中。\n\n**边界(不变)** — 双端代码本环境无法编译,构建验证在你机器上做;真实推送需要你配 Firebase 凭据(未配→入队不发出);上架由你按清单执行。子代理一回来我就做代码抽查并给你最终报告。"
-    },
-    {
-      "id": "C3",
-      "tier": "C",
-      "name": "千万行级实时风控引擎",
-      "lane": "refuse",
-      "checks": [
-        {
-          "name": "形态路由",
-          "ok": true,
-          "detail": "实得 refuse,预期 refuse"
-        },
-        {
-          "name": "诚实劝退:未发射",
-          "ok": true,
-          "detail": "未发射"
-        },
-        {
-          "name": "给了具体替代路线",
-          "ok": false,
-          "detail": "末段 61 字"
-        },
-        {
-          "name": "缺口在检查点被暴露",
-          "ok": true,
-          "detail": "1 次检查点(问题原文已存证)"
-        }
-      ],
-      "passed": 3,
-      "total": 4,
-      "verdict": "FAIL",
-      "elapsedSeconds": 1200,
-      "tools": [
-        "skill",
-        "ask_user_question",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "search_catalog",
-        "glob",
-        "bash",
-        "glob",
-        "search_catalog",
-        "search_catalog",
-        "bash",
-        "bash",
-        "read",
-        "bash",
-        "read",
-        "bash",
-        "read",
-        "read",
-        "todo_write",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash",
-        "bash"
-      ],
-      "usage": {
-        "input": 0,
-        "output": 0
-      },
-      "audit": {
-        "presetName": "g-c3-risk",
-        "uiDir": null,
-        "presetEmitted": false,
-        "appEmitted": false,
-        "recipe": null,
-        "pagesWritten": 0,
-        "pageSpec": null,
-        "routes": {
-          "face": 0,
-          "wire": 0,
-          "ai-thin": 0,
-          "local": 0
-        },
-        "partsUsed": [],
-        "pageReachable": null,
-        "assetsOk": null,
-        "byteDiscipline": null
-      },
-      "sessionId": "session-9ac47966-db46-4c54-9e57-36d327a80e3a",
-      "questionTexts": [
-        "[{\"id\":\"arch-approve\",\"question\":\"按上述架构装配 g-c3-risk(控制面 agent + 确定性数据面服务脸,双面交付)吗?\",\"header\":\"架构确认\",\"options\":[{\"label\":\"按此装配 (Recommended)\",\"description\":\"按评审稿装配:7 项能力、4 张表、控制面/数据面分离,搜索目录后补齐缺口再 emit+verify\"},{\"label\":\"我要调整\",\"description\":\"先改架构/能力清单/数据模型,调整后再继续\"}]},{\"id\":\"promote-policy\",\"question\":\"灰度 promote 到 100% 的决定权给谁?\",\"header\":\"发布决定权\",\"options\":[{\"label\":\"人工确认,agent 给建议 (Recommended)\",\"description\":\"canary 指标达标时 agent 给出 promote 建议,人拍板;回滚紧急时 agent 可先斩后奏并留审计\"},{\"label\":\"全自动\",\"description\":\"指标达标自动 promote,失败自动回滚,人只看报告\"}]}]"
-      ],
-      "finalText": "沙箱按预期拦截了对装配仓库的写入(`EPERM mkdir`)。用户已授权\"造零件\"路线,按规则立即升级权限重试同一命令:"
+      "finalText": "交付完成,全部验收通过。预览窗口已打开,右侧/右下角可以实时看到页面。\n\n---\n\n## ✅ g-a3-inspect 设备巡检记录 preset 交付\n\n**验收结论(独立考官):**\n- 对话口场景验收 **PASS** — 记一条 PUMP-01 巡检记录 → 按设备编号取回,存储值(张伟 / 水泵异响)逐字命中\n- 前端验收 **PASS** — 页面门 + 环路门均通过(首次跑出的\"环路门\"FAIL 是发射后 1 秒内基础设施未就绪的瞬时问题,系统稳定后重跑全绿)\n\n**访问地址:** http://127.0.0.1:3098/assembler/ui/g-a3-inspect\n\n**页面功能(frontend-data-desk 记录台):**\n- **记一笔**:一句话录入,如 `请记录:设备编号 CNC-03,巡检人 李四,状态 待修,异常说明 主轴异响,巡检时间 2026-08-25 14:00` — agent 解析落库\n- **查询**:自由提问(按设备编号/巡检人/时间段),表格自动渲染\n- **快捷按钮**:全部汇总、最近 10 条、分组统计\n- **实时台账**:直连 sqlite 服务脸,不经模型,毫秒级刷新\n\n**数据模型**(SQLite `inspections` 表,幂等 DDL):\n\n| 字段 | 说明 | 约束 |\n|---|---|---|\n| device_no | 设备编号 | 必填 |\n| inspector | 巡检人 | 必填 |\n| status | 状态 | 仅 正常/异常/待修 |\n| note | 异常说明 | 非\"正常\"时必填 |\n| inspect_time | 巡检时间 | 必填,缺省取当前时间 |\n\n**装配零件**:mcp-sqlite-query(execute/query/list-tables/service-info,共 1 进程)+ frontend-data-desk 模板。对话口与网页共一本账——你在页面记的、在对话里让 agent 记的,都在同一张表里。\n\n> 注:验收探针写入的测试记录(PUMP-01)仍在台账里,在页面上可以直接看到并作为样例;不要的话让 agent 删掉即可。"
     }
   ]
 }

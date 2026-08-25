@@ -174,14 +174,15 @@
     "partsUsed": [],
     "pageReachable": null,
     "assetsOk": null,
-    "byteDiscipline": null
+    "byteDiscipline": null,
+    "laneDeclared": null
   },
   "sessionId": "session-0f51a66a-d93c-4319-af62-277995676516",
   "questionTexts": [
     "[{\"id\":\"approve-arch\",\"question\":\"按上面的架构装配 g-b3-voice(preset + 前端 ~/apps/g-b3-voice-ui)?\",\"header\":\"架构确认\"},{\"id\":\"stt-gap\",\"question\":\"若目录里没有现成的语音转写能力,优先怎么处理?\",\"header\":\"STT 缺口预案\",\"options\":[{\"label\":\"现场造件 (Recommended)\",\"description\":\"通过 induction 管线造一个语音转写部件再装配,体验最完整但耗时更长\"},{\"label\":\"降级 Web Speech API\",\"description\":\"仅 Chrome 在线录音可转写,上传的音频文件无法转成文字\"},{\"label\":\"先搜目录再说\",\"description\":\"等搜索完目录再决定,如果刚好有现成的就不用纠结\"}]}]"
   ],
   "finalText": "补丁需要写 `dsh-assembler` 仓库(配方模板),当前沙箱只允许工作区。这是用户已批准的\"现场造件\"通道(给 scaffold-react 配方补 speechFace),按规则升级重试:",
-  "regradedAt": "2026-08-24T13:39:32.328Z",
+  "regradedAt": "2026-08-25T03:27:57.528Z",
   "previous": {
     "verdict": "FAIL",
     "lane": "refuse",

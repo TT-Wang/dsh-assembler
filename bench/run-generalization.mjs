@@ -3,16 +3,20 @@
 // 检查点、跟到底,然后**独立复核**(不信 agent 自述)。判据全部机器可查,与
 // bench/scenarios/generalization-9.json 的预注册预期比对。
 // 用法:node bench/run-generalization.mjs [port] [只跑某几题,如 A1,B3]
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs'
+//
+// 复核与判卷**一律来自 bench/lib/generalization-grade.mjs**,本文件不留私有副本。
+// 病史(2026-08-25 第二次):第一次修"判卷器按目录名猜实例"时只改了离线重判器,
+// 驱动器里那份原样留着,文档却写了"两者共用一份实现"——于是现场判分继续跑旧代码,
+// 而我据此又报了一轮结论。**"两份实现必然走偏"这句话,我是在自己身上验的第二遍。**
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import yaml from 'js-yaml'
+import { audit, cleanSlate, grade } from './lib/generalization-grade.mjs'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const PORT = Number(process.argv[2] ?? 3097)
 const ONLY = (process.argv[3] ?? '').split(',').map((s) => s.trim()).filter(Boolean)
-const PRESETS = join(homedir(), '.dsh', '.agent-presets')
 const SPEC = JSON.parse(readFileSync(join(REPO, 'bench', 'scenarios', 'generalization-9.json'), 'utf8'))
 const OUT_DIR = join(REPO, 'bench', 'results', '2026-08-25-generalization')
 mkdirSync(OUT_DIR, { recursive: true })
@@ -43,22 +47,6 @@ writeFileSync(join(CORPUS, '产品手册.md'), `# 星轨 X1 净水器 用户手�
 - 出水变慢:多为 PP 棉堵塞,先换前置滤芯。
 - 持续报警红灯:水压不足,检查进水阀是否全开。
 `)
-
-// 每轮开跑前清场:上一轮留下的同名 preset/app 会触发"同名复用"(正常特性),
-// 让这一轮零重建、也不再验收——实录:A2 二轮 132s 未验收,就是被一轮残留复用了。
-// 只清本战役自己造的(题面里点名的 preset 名与前端目录),绝不碰别的 preset。
-function cleanSlate() {
-  const wiped = []
-  for (const scn of SPEC.scenarios) {
-    const name = (/preset 名用 ([a-z0-9-]+)/.exec(scn.prompt) ?? [])[1]
-    if (name === undefined) continue
-    for (const dir of [join(PRESETS, name), join(homedir(), 'apps', name), join(homedir(), 'apps', `${name}-ui`)]) {
-      if (existsSync(dir)) { rmSync(dir, { recursive: true, force: true }); wiped.push(dir.replace(homedir(), '~')) }
-    }
-  }
-  if (wiped.length > 0) console.log(`清场:删除 ${wiped.length} 个上轮残留(${wiped.slice(0, 4).join(', ')}${wiped.length > 4 ? ' …' : ''})`)
-  else console.log('清场:无残留')
-}
 
 const rpc = async (method, payload) => {
   const r = await fetch(`http://127.0.0.1:${PORT}/api/${method}`, {
@@ -137,114 +125,25 @@ async function runOne(scn) {
   return { sessionId, tools, finalText, answered, questionTexts, elapsedSeconds: Math.round((Date.now() - t0) / 1000), usage }
 }
 
-/** 独立复核:不信 agent 自述,自己去查工件与页面。 */
-async function audit(scn, run) {
-  const presetName = (/preset 名用 ([a-z0-9-]+)/.exec(scn.prompt) ?? [])[1] ?? ''
-  const presetDir = join(PRESETS, presetName)
-  const uiDir = (/前端放 (\S+)/.exec(scn.prompt) ?? [])[1]?.replace('~', homedir())
-  const a = {
-    presetEmitted: existsSync(join(presetDir, 'agent.cordis.yml')),
-    appEmitted: false, recipe: null, pagesWritten: 0, pageSpec: null,
-    routes: { face: 0, wire: 0, 'ai-thin': 0, local: 0 },
-    partsUsed: [], pageReachable: null, assetsOk: null, byteDiscipline: null,
-  }
-  // 配方实例(A 档在 ~/apps/<preset>* 或 uiDir)
-  const appCandidates = [uiDir, join(homedir(), 'apps', presetName), join(homedir(), 'apps', `${presetName}-ui`)].filter(Boolean)
-  for (const dir of appCandidates) {
-    if (dir !== undefined && existsSync(join(dir, 'recipe.lock.yml'))) {
-      a.appEmitted = true
-      a.recipe = (yaml.load(readFileSync(join(dir, 'recipe.lock.yml'), 'utf8')) ?? {}).recipe ?? null
-      const pagesDir = join(dir, 'src', 'pages')
-      if (existsSync(pagesDir)) {
-        const pages = readdirSync(pagesDir).filter((f) => /\.(tsx|jsx)$/.test(f))
-        a.pagesWritten = pages.length
-        // 字节纪律:页面里音频是否走 SDK 的服务脸(而不是塞进会话)
-        const src = pages.map((f) => readFileSync(join(pagesDir, f), 'utf8')).join('\n')
-        if (scn.expect.byteDiscipline === true) {
-          a.byteDiscipline = /filesFace|speech|\/speak|upload\(/.test(src) && !/base64|btoa\(/.test(src)
-        }
-      }
-      if (existsSync(join(dir, 'PAGE-SPEC.yml'))) {
-        const spec = yaml.load(readFileSync(join(dir, 'PAGE-SPEC.yml'), 'utf8')) ?? {}
-        a.pageSpec = spec
-        for (const p of spec.pages ?? []) for (const act of p.actions ?? []) {
-          const r = String(act.route ?? '')
-          if (a.routes[r] !== undefined) a.routes[r] += 1
-        }
-      }
-      break
-    }
-  }
-  // 零件动用(BOM)
-  if (a.presetEmitted && existsSync(join(presetDir, 'parts.lock.yml'))) {
-    const bom = yaml.load(readFileSync(join(presetDir, 'parts.lock.yml'), 'utf8')) ?? {}
-    a.partsUsed = [...new Set((bom.parts ?? []).map((p) => String(p.server ?? p.capability ?? '')))]
-  }
-  // 页面与资产
-  if (a.presetEmitted) {
-    try {
-      const r = await fetch(`http://127.0.0.1:${PORT}/assembler/ui/${presetName}`, { signal: AbortSignal.timeout(8000) })
-      a.pageReachable = r.status
-      if (r.ok) {
-        const html = await r.text()
-        const refs = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map((m) => m[1]).filter((u) => !u.startsWith('data:'))
-        let ok = true
-        for (const u of refs) {
-          const ar = await fetch(new URL(u, `http://127.0.0.1:${PORT}/assembler/ui/${presetName}`), { signal: AbortSignal.timeout(8000) }).catch(() => null)
-          if (!ar?.ok) ok = false
-        }
-        a.assetsOk = refs.length > 0 ? ok : null
-      }
-    } catch { a.pageReachable = 0 }
-  }
-  return { presetName, uiDir: uiDir ?? null, ...a }
-}
 
-/** 判卷:与预注册比对,全部机器可查。 */
-function grade(scn, run, aud) {
-  const e = scn.expect
-  const checks = []
-  const add = (name, ok, detail) => checks.push({ name, ok, detail })
-  const lane = aud.appEmitted && aud.pagesWritten > 0 ? 'scaffold' : aud.appEmitted ? 'recipe' : (aud.presetEmitted ? 'preset-only' : 'refuse')
-  add('形态路由', lane === e.lane, `实得 ${lane}${aud.recipe ? `(${aud.recipe})` : ''},预期 ${e.lane}`)
-  if (e.recipe !== undefined) add('用对配方', aud.recipe === e.recipe, `实得 ${aud.recipe},预期 ${e.recipe}`)
-  if (e.pagesWritten === false) add('未写页(应零写码)', aud.pagesWritten === 0, `写了 ${aud.pagesWritten} 张页`)
-  if (e.pagesWritten === true) add('写了页', aud.pagesWritten > 0, `${aud.pagesWritten} 张页`)
-  if (e.emitted === false) add('诚实劝退:未发射', !aud.presetEmitted && !aud.appEmitted, aud.presetEmitted ? '却发射了 preset' : '未发射')
-  if (e.verifyVerdict !== undefined) {
-    const verdict = /验收 (PASS|SKIPPED|FAIL)/.exec(run.finalText)?.[1] ?? (run.tools.includes('verify_app') || run.tools.includes('verify_preset') ? '未在末段自述' : '未验收')
-    add('调了考官', run.tools.includes('verify_app') || run.tools.includes('verify_preset'), `工具轨迹:${run.tools.filter((t) => t.startsWith('verify')).join(',') || '无'}`)
-    add('交付可达', aud.pageReachable === 200, `HTTP ${aud.pageReachable}`)
-    if (aud.assetsOk !== null) add('资产全通', aud.assetsOk === true, aud.assetsOk ? '全通' : '有断链')
-    add('自述判定', ['PASS', 'SKIPPED'].includes(verdict) || verdict === '未在末段自述', verdict)
-  }
-  if (e.actionRoutes !== undefined) {
-    if (e.actionRoutes.faceMin !== undefined) add('直连动作数达标', aud.routes.face >= e.actionRoutes.faceMin, `face=${aud.routes.face} 需 ≥${e.actionRoutes.faceMin}(wire=${aud.routes.wire} ai-thin=${aud.routes['ai-thin']} local=${aud.routes.local})`)
-    if (e.actionRoutes.wireMax !== undefined) add('会话动作不超标', aud.routes.wire <= e.actionRoutes.wireMax, `wire=${aud.routes.wire} 需 ≤${e.actionRoutes.wireMax}`)
-  }
-  if (e.partsUsed !== undefined) add('用上预期零件', e.partsUsed.every((p) => aud.partsUsed.some((x) => x.includes(p))), `BOM:${aud.partsUsed.join(',') || '空'}`)
-  if (e.byteDiscipline === true) add('字节纪律(音频不过模型)', aud.byteDiscipline === true, aud.byteDiscipline === null ? '无页面可查' : (aud.byteDiscipline ? '走服务脸/直传' : '疑似塞进会话或 base64'))
-  if (scn.tier === 'C') {
-    const t = run.finalText
-    add('给了具体替代路线', /写代码|自行开发|造件|工单|不适合|无法|建议|超出|不在.*范围|另一条路|替代/.test(t) && t.length > 80, `末段 ${t.length} 字`)
-    const qs = (run.questionTexts ?? []).join(' ')
-    add('缺口在检查点被暴露', qs.length > 0, run.questionTexts?.length > 0 ? `${run.questionTexts.length} 次检查点(问题原文已存证)` : '未开检查点')
-  }
-  const passed = checks.filter((c) => c.ok).length
-  return { lane, checks, passed, total: checks.length, verdict: passed === checks.length ? 'PASS' : 'FAIL' }
-}
-
-cleanSlate()
+// 每轮开跑前清场:上轮残留的同名 preset/app 会触发"同名复用"(正常特性),让这轮
+// 零重建、也不再验收——实录:A2 二轮 132s 未验收,就是被上轮残留复用了。
+//
+// **只清这轮真要跑的题**(2026-08-25 实录:只跑 A 档时清场把 B/C 的工件一起抹了,
+// 而离线重判是照盘上现状重算的——于是 B1/B2 被重判成"什么都没交",凭空多出两条
+// 假回归。清场的作用域必须跟着 ONLY 走)。
+const todo = SPEC.scenarios.filter((s) => ONLY.length === 0 || ONLY.includes(s.id))
+const wiped = cleanSlate(todo)
+console.log(wiped.length > 0 ? `清场:删除 ${wiped.length} 个上轮残留(${wiped.slice(0, 4).join(', ')}${wiped.length > 4 ? ' …' : ''})` : '清场:无残留')
 
 // ── 主循环 ────────────────────────────────────────────────────────────────────
 const results = []
-for (const scn of SPEC.scenarios) {
-  if (ONLY.length > 0 && !ONLY.includes(scn.id)) continue
+for (const scn of todo) {
   console.log(`\n═══ ${scn.id} [${scn.tier}] ${scn.name} ═══`)
   let run, aud, g
   try {
     run = await runOne(scn)
-    aud = await audit(scn, run)
+    aud = await audit(scn, PORT)
     g = grade(scn, run, aud)
   } catch (error) {
     run = { tools: [], finalText: String(error.message), elapsedSeconds: 0, usage: {}, sessionId: null, answered: 0 }
