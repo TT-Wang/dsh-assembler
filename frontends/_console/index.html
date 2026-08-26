@@ -57,13 +57,7 @@ function stateOf(e) {
   if (Date.now() / 1000 - e.mtime < 45) return ['live', '进行中'];
   return ['dead', '中断?'];
 }
-async function tick() {
-  let d;
-  try {
-    const r = await fetch('_console/data', { cache: 'no-store' });
-    d = await r.json();
-    $('beat').className = 'dot live';
-  } catch { $('beat').className = 'dot dead'; return; }
+function paint(d) {
   $('stamp').textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
   const list = $('list');
   list.innerHTML = '';
@@ -81,6 +75,15 @@ async function tick() {
   }
   render(d);
 }
+async function tick() {
+  let d;
+  try {
+    const r = await fetch('_console/data', { cache: 'no-store' });
+    d = await r.json();
+    $('beat').className = 'dot live';
+  } catch { $('beat').className = 'dot dead'; return; }
+  paint(d);
+}
 function render(d) {
   const e = d.items.find((x) => x.id === cur) ?? d.items[0];
   if (!e) return;
@@ -92,8 +95,15 @@ function render(d) {
   log.textContent = e.tail;
   if (atBottom) log.parentElement.scrollTop = log.parentElement.scrollHeight;
 }
+// 推送优先(SSE,服务端 fs.watch 即变即推);SSE 断线才落回 5s 轮询兜底。
+let esLive = false;
+try {
+  const es = new EventSource('_console/stream');
+  es.onmessage = (m) => { esLive = true; $('beat').className = 'dot live'; try { paint(JSON.parse(m.data)); } catch { /* 坏帧丢弃 */ } };
+  es.onerror = () => { esLive = false; $('beat').className = 'dot dead'; };
+} catch { /* 无 EventSource:纯轮询 */ }
 tick();
-setInterval(tick, 1500);
+setInterval(() => { if (!esLive) tick(); }, 5000);
 </script>
 </body>
 </html>

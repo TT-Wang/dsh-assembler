@@ -15,7 +15,8 @@
  * /m/ 独立移动客户端证明独立页面讲 wire 完全成立;dsh-ios 证明插件可注册
  * 自有 web 路由。
  */
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, watch, writeFileSync } from 'node:fs'
+import type { FSWatcher } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -212,6 +213,40 @@ export function frontendRouteHandler(presetRoot: string): (req: IncomingMessage,
       res.setHeader('Content-Type', 'application/json; charset=utf-8')
       res.setHeader('Cache-Control', 'no-store')
       return res.end(readFileSync(svcFile))
+    }
+    if (pathname === `${FRONTEND_ROUTE}/_console/stream`) {
+      // 直播推送(SSE)。P5 原案"注册宿主投影拿推送通道"的前提不成立:投影由
+      // session/event 驱动,而装配进度是 host 进程带外追加的 progress.log 文件,
+      // 不产会话事件——自己的路由自己推,零宿主耦合零新概念。fs.watch 递归盯
+      // presetRoot,progress.log 变动合并抖动后推全量;心跳防中间层掐空闲连接;
+      // watch 不可用时退化为心跳节奏推数据(出声降级,不静默断更)。
+      if (req.method !== 'GET') return send(405, 'stream is GET-only')
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+      res.setHeader('Cache-Control', 'no-store')
+      res.setHeader('Connection', 'keep-alive')
+      const push = (): void => { try { res.write(`data: ${JSON.stringify({ items: listAssemblyProgress(presetRoot) })}\n\n`) } catch { /* 连接已断,close 收尾 */ } }
+      push()
+      let pending: ReturnType<typeof setTimeout> | null = null
+      let watcher: FSWatcher | null = null
+      try {
+        watcher = watch(presetRoot, { recursive: true }, (_ev, fname) => {
+          if (typeof fname === 'string' && fname !== '' && !fname.endsWith('progress.log')) return
+          if (pending !== null) return
+          pending = setTimeout(() => { pending = null; push() }, 200)
+        })
+      } catch { /* recursive watch 不可用(少见平台):降级见心跳 */ }
+      const degraded = watcher === null
+      const beat = setInterval(() => {
+        if (degraded) push()
+        else { try { res.write(': beat\n\n') } catch { /* ignore */ } }
+      }, degraded ? 2500 : 15_000)
+      req.on('close', () => {
+        clearInterval(beat)
+        if (pending !== null) clearTimeout(pending)
+        try { watcher?.close() } catch { /* 已关 */ }
+      })
+      return
     }
     if (pathname === `${FRONTEND_ROUTE}/_console/data`) {
       res.statusCode = 200
