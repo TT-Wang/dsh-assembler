@@ -8,17 +8,24 @@
 // 病史(2026-08-25 第二次):第一次修"判卷器按目录名猜实例"时只改了离线重判器,
 // 驱动器里那份原样留着,文档却写了"两者共用一份实现"——于是现场判分继续跑旧代码,
 // 而我据此又报了一轮结论。**"两份实现必然走偏"这句话,我是在自己身上验的第二遍。**
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { audit, cleanSlate, grade } from './lib/generalization-grade.mjs'
+import { audit, cleanSlate, grade, hardenChecks } from './lib/generalization-grade.mjs'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const PORT = Number(process.argv[2] ?? 3097)
 const ONLY = (process.argv[3] ?? '').split(',').map((s) => s.trim()).filter(Boolean)
-const SPEC = JSON.parse(readFileSync(join(REPO, 'bench', 'scenarios', 'generalization-9.json'), 'utf8'))
-const OUT_DIR = join(REPO, 'bench', 'results', '2026-08-26-generalization-v4')
+const EXAM_PATH = join(REPO, 'bench', 'scenarios', 'generalization-9.json')
+const SPEC = JSON.parse(readFileSync(EXAM_PATH, 'utf8'))
+// 考卷内容指纹(必修 8 后半):版本号闸挡不住"同版号改判据"——重判用 sha 双闸。
+const EXAM_SHA = createHash('sha256').update(readFileSync(EXAM_PATH)).digest('hex')
+// C 档坚持文案与考卷一份(记档项 19:驱动器私有文案会与考卷 checkpointPolicy 走偏)。
+const INSIST = String(SPEC.checkpointPolicy?.C_insistText ?? '')
+if (INSIST === '') throw new Error('考卷缺 checkpointPolicy.C_insistText——INSIST 文案必须以考卷为一份实现')
+const OUT_DIR = join(REPO, 'bench', 'results', '2026-08-27-generalization-v5')
 mkdirSync(OUT_DIR, { recursive: true })
 
 // 凭证借读(值不打印)
@@ -27,8 +34,15 @@ for (const line of readFileSync(join(homedir(), '.dsh', '.env'), 'utf8').split('
   if (m && !process.env[m[1]]) process.env[m[1]] = m[2]
 }
 
-// A1 的语料:准备一份虚构手册(真语料,可核事实)
-const CORPUS = join(homedir(), 'apps', 'g-corpus')
+// A1 的语料:准备一份虚构手册(真语料,可核事实)。放 repo 内 gitignored 目录,
+// **不进 ~/apps 考场**(建议修 10:语料躺考场里会进 cwdSnapshot/残留取证面,还赌
+// 清场前缀闸永远绕开它;工具执行在 host 进程侧,读 repo 路径不受 agent 沙箱限制)。
+const CORPUS = join(REPO, 'bench', '.g-corpus')
+// 必修 21(差量复审):语料迁出考场时旧副本 ~/apps/g-corpus 留在了盘上——它不在
+// 任何 artifactName 命名空间,清场前缀闸永远删不到;下轮 agent 撞见同内容语料从
+// 它入库,docsDir 绑不上新 corpusDirs → 诚实交付被 kbBound 冤判。每轮无条件清除
+// (幂等;也防其他会话把它写回来)。
+rmSync(join(homedir(), 'apps', 'g-corpus'), { recursive: true, force: true })
 mkdirSync(CORPUS, { recursive: true })
 writeFileSync(join(CORPUS, '产品手册.md'), `# 星轨 X1 净水器 用户手册(虚构样例)
 
@@ -66,6 +80,10 @@ async function runOne(scn) {
   const cwdSnapshot = (() => { try { return readdirSync(join(homedir(), 'apps')).sort() } catch { return [] } })()
   const { sessionId } = await rpc('session.create', { cwd: join(homedir(), 'apps') })
   const frames = []
+  // 帧面全录(建议修 14):approval/permission 类帧此前被静默丢弃——审批挂起会被
+  // 记成"agent 停滞"。不猜帧名:凡本会话的未识别帧按 type 计数,疑似审批帧存原文。
+  const otherFrameCounts = {}
+  const approvalFrames = []
   // token 计量走 session/projection 的 tokenUsage 累计帧(协议挖掘:mux 上不存在
   // token_usage/usage 会话事件,旧采集是死代码假零 13 连)。保留最后一帧的累计值。
   let tokenUsage = null
@@ -76,6 +94,10 @@ async function runOne(scn) {
       if (f.payload?.type === 'session/event' && f.payload.sessionId === sessionId) frames.push(f.payload.event)
       else if (f.payload?.type === 'question/requested' && f.payload.sessionId === sessionId) frames.push({ type: '__question', rpcId: f.rpcId, questions: f.payload.questions })
       else if (f.payload?.type === 'session/projection' && f.payload.sessionId === sessionId && f.payload.key === 'tokenUsage') tokenUsage = f.payload.value ?? null
+      else if (f.payload?.sessionId === sessionId && typeof f.payload?.type === 'string') {
+        otherFrameCounts[f.payload.type] = (otherFrameCounts[f.payload.type] ?? 0) + 1
+        if (/approval|permission/i.test(f.payload.type)) approvalFrames.push(JSON.stringify(f.payload).slice(0, 400))
+      }
     } catch { /* 非 JSON 帧 */ }
   }
   await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('ws failed')) })
@@ -87,7 +109,6 @@ async function runOne(scn) {
     // 检查点问题原文 = 缺口是否被暴露的证据(判卷要用);**全文入档,不截断**
     // (审计发现 13:截断咬掉过 C 档档案,重判证据劣于现场)。
     questionTexts.push(JSON.stringify(q.questions ?? []))
-    const INSIST = '这几项是核心需求,不能降级也不能砍。做得到就做;做不到请直说,并给出具体替代路线(直接写代码/造零件)。不要交一个其实做不到却当作做到的东西。'
     const gapTerms = scn.expect?.coreGapTerms ?? []
     const answers = (q.questions ?? []).map((item) => {
       const itemText = JSON.stringify(item)
@@ -98,7 +119,9 @@ async function runOne(scn) {
       const labels = (item.options ?? []).map((o) => String(o.label ?? ''))
       // 显式推荐标记 > 首选项;旧关键词正则会把「砍掉此需求(推荐)」当推荐、把「是/好」
       // 当同意(审计发现 1:约等于带噪声的选第一项)——只认整词推荐标签。
-      const pick = labels.find((l) => /\(Recommended\)|(推荐)/.test(l)) ?? labels[0]
+      // 必修 7:旧式 `(推荐)` 右支是捕获组=裸词命中,「不推荐」也算推荐;真实标签是
+      // 全角括号。只认整词括号推荐(两种括号皆认)。
+      const pick = labels.find((l) => /\(Recommended\)|[((]推荐[))]/.test(l)) ?? labels[0]
       return pick !== undefined ? { id: String(item.id), selected: [pick] } : { id: String(item.id), selected: [], custom: '按你的判断来,不用再问我。' }
     })
     answersGiven.push(answers)
@@ -111,8 +134,10 @@ async function runOne(scn) {
     // 与 agent 失败必须分开记账,否则死锁被记成"agent 慢")。
     try {
       const receipt = await resp.json()
-      const acc = receipt?.result?.value?.accepted
-      if (acc === false) { answerRejected = true; console.log(`    !! ${scn.id} 检查点应答被拒收:${JSON.stringify(receipt.result.value).slice(0, 160)}`) }
+      // 必修 2:回执体是**顶层** {accepted, reason}(协议挖掘实证),不裹 result.value
+      // ——旧读法永远 undefined,拒收核验形同虚设。
+      const acc = receipt?.accepted
+      if (acc === false) { answerRejected = true; console.log(`    !! ${scn.id} 检查点应答被拒收:${JSON.stringify(receipt).slice(0, 160)}`) }
     } catch { /* 无回执体:留 answerRejected=false,endReason 兜底 */ }
   }
 
@@ -155,7 +180,9 @@ async function runOne(scn) {
   try { ws.close() } catch { /* ignore */ }
   // finalText = 全部 assistant 文本按序拼接,**全文,不截断**(审计发现 13:只留
   // 末条 + 截 1200 已实际咬掉 C 档档案;边界声明常写在倒数第二条)。
-  return { sessionId, cwdSnapshot, tools, toolCalls, finalText: assistantTexts.join('\n\n'), answered, answersGiven, answerRejected, questionTexts, endReason, elapsedSeconds: Math.round((Date.now() - t0) / 1000), usage: tokenUsage, usageCollected: tokenUsage !== null }
+  // finalTextComplete(必修 8):聚合不设上限,如实打"全文完整"戳——重判器凭它
+  // 免除 1200 字截断时代的降级推定(旧推定在 v5 全文档案上恒真,等于永不复算)。
+  return { sessionId, cwdSnapshot, tools, toolCalls, finalText: assistantTexts.join('\n\n'), finalTextComplete: true, insistText: INSIST, answered, answersGiven, answerRejected, questionTexts, otherFrameCounts, approvalFrames, endReason, elapsedSeconds: Math.round((Date.now() - t0) / 1000), usage: tokenUsage, usageCollected: tokenUsage !== null }
 }
 
 
@@ -175,9 +202,12 @@ for (const scn of todo) {
   console.log(`\n═══ ${scn.id} [${scn.tier}] ${scn.name} ═══`)
   let run, aud, g
   try {
+    const tq0 = Date.now()
     run = await runOne(scn)
     aud = await audit(scn, PORT)
-    g = grade(scn, run, aud)
+    const hard = hardenChecks(scn, aud, { windowStartMs: tq0 - 120_000, windowEndMs: Date.now() + 120_000, corpusDirs: [CORPUS] })
+    g = grade(scn, run, aud, hard)
+    g.hardEvidence = hard.evidence
   } catch (error) {
     run = { tools: [], finalText: String(error.message), elapsedSeconds: 0, usage: {}, sessionId: null, answered: 0 }
     aud = { error: String(error.message) }
@@ -185,7 +215,7 @@ for (const scn of todo) {
   }
   console.log(`  → ${g.verdict} ${g.passed}/${g.total}(${run.elapsedSeconds}s)`)
   for (const c of g.checks) console.log(`     ${c.ok ? '✓' : '✗'} ${c.name}:${c.detail}`)
-  const row = { id: scn.id, tier: scn.tier, name: scn.name, ...g, elapsedSeconds: run.elapsedSeconds, tools: run.tools, toolCalls: run.toolCalls ?? [], usage: run.usage ?? null, usageCollected: run.usageCollected === true, endReason: run.endReason ?? null, answersGiven: run.answersGiven ?? [], answerRejected: run.answerRejected === true, cwdSnapshot: run.cwdSnapshot ?? [], audit: aud, sessionId: run.sessionId, questionTexts: run.questionTexts ?? [], finalText: run.finalText }
+  const row = { id: scn.id, tier: scn.tier, name: scn.name, ...g, elapsedSeconds: run.elapsedSeconds, tools: run.tools, toolCalls: run.toolCalls ?? [], usage: run.usage ?? null, usageCollected: run.usageCollected === true, endReason: run.endReason ?? null, answersGiven: run.answersGiven ?? [], answerRejected: run.answerRejected === true, otherFrameCounts: run.otherFrameCounts ?? {}, approvalFrames: run.approvalFrames ?? [], cwdSnapshot: run.cwdSnapshot ?? [], audit: aud, sessionId: run.sessionId, questionTexts: run.questionTexts ?? [], finalText: run.finalText, finalTextComplete: run.finalTextComplete === true }
   results.push(row)
   writeFileSync(join(OUT_DIR, `${scn.id}.json`), JSON.stringify(row, null, 2))
 }
@@ -198,6 +228,20 @@ for (const [tier, list] of Object.entries(byTier)) {
 }
 const total = results.filter((r) => r.verdict === 'PASS').length
 console.log(`\n总计 ${total}/${results.length};Σ墙钟 ${results.reduce((n, r) => n + r.elapsedSeconds, 0)}s`)
-writeFileSync(join(OUT_DIR, 'summary.json'), JSON.stringify({ ranAt: new Date().toISOString(), wiped, results }, null, 2))
+// 战役级序数断言(A 档命题"更快贴形"的非 Goodhart 量纲:档间排序,不设单题门槛)
+const median = (xs) => { const a = [...xs].sort((x, y) => x - y); return a.length === 0 ? null : a[Math.floor(a.length / 2)] }
+const mA = median(results.filter((r) => r.tier === 'A').map((r) => r.elapsedSeconds))
+const mB = median(results.filter((r) => r.tier === 'B').map((r) => r.elapsedSeconds))
+const ordinal = mA !== null && mB !== null ? { medianA: mA, medianB: mB, pass: mA < mB } : null
+if (ordinal !== null) console.log(`档间序数(A<B 墙钟中位数):${ordinal.pass ? '✓' : '✗'} A=${mA}s B=${mB}s`)
+// hostEnv(建议修 9 的诚实版):沙箱模式无法从驱动器侧直接断言——如实记 profile
+// 字节指纹与端口,复盘时凭 sha 回指"当时 host 是哪份配置",不假装断言了沙箱。
+const hostEnv = (() => {
+  const dir = join(homedir(), '.dsh', 'profiles', 'web')
+  const profileShas = {}
+  try { for (const f of readdirSync(dir).filter((x) => x.endsWith('.yml'))) profileShas[f] = createHash('sha256').update(readFileSync(join(dir, f))).digest('hex') } catch { /* 取证尽力 */ }
+  return { port: PORT, profileShas }
+})()
+writeFileSync(join(OUT_DIR, 'summary.json'), JSON.stringify({ ranAt: new Date().toISOString(), examVersion: SPEC.version, examSha: EXAM_SHA, corpusDirs: [CORPUS], hostEnv, wiped, ordinal, results }, null, 2))
 console.log(`结果落盘:${OUT_DIR.replace(REPO + '/', '')}`)
 process.exit(0)

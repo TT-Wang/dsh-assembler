@@ -1482,7 +1482,10 @@ export function verifyAppToolDefinition(_ctx: Context, _config: Config): ToolDef
       const t0 = Date.now()
       const wirePort = typeof a.wirePort === 'number' ? a.wirePort : (_ctx.get?.('webServer') as { port?: number } | undefined)?.port
       const result = await runAppSelftest(targetDir, { ...(wirePort !== undefined ? { wirePort } : {}) })
-      appendOrchLedger({ tool: VERIFY_APP_TOOL_NAME, targetDir, verdict: result.status, elapsedSeconds: Math.round((Date.now() - t0) / 1000) })
+      // pagesHash 进沙箱外台账(v5 审计必修 1):app 内 last-verify.json 在沙箱内可被
+      // 篡改,判定与被考字节的绑定必须有一份 agent 够不着的权威记录。
+      const pagesHash = ((): string | null => { try { return hashLockPaths(targetDir, ['src/pages', 'PAGE-SPEC.yml']) } catch { return null } })()
+      appendOrchLedger({ tool: VERIFY_APP_TOOL_NAME, targetDir, verdict: result.status, ...(pagesHash !== null ? { pagesHash } : {}), elapsedSeconds: Math.round((Date.now() - t0) / 1000) })
       // app 侧判定工件(对抗审计后加):考官亲笔判定 + 被考字节的哈希绑定
       // (src/pages/** + PAGE-SPEC.yml)。没有它,"先用最小真页过考、验后改页改声明"
       // 离线不可判;有了它,判卷器重算哈希即知判定对的是不是盘上这份页面。
@@ -1512,7 +1515,7 @@ export function verifyAppToolDefinition(_ctx: Context, _config: Config): ToolDef
         writeFileSync(join(targetDir, 'last-verify.json'), JSON.stringify({
           verdict: result.status,
           at: new Date().toISOString(),
-          pagesHash: hashLockPaths(targetDir, ['src/pages', 'PAGE-SPEC.yml']),
+          ...(pagesHash !== null ? { pagesHash } : {}),
           checks: result.checks.map((c) => ({ check: c.check, status: c.status })),
           ...(resembles.length > 0 ? { resembles } : {}),
           elapsedSeconds: result.elapsedSeconds,
