@@ -1,0 +1,119 @@
+{
+  "id": "stock-sdk",
+  "adopted": "stock-sdk",
+  "verifiedAt": "2026-08-26T17:02:11.641Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "smokeKind": "adopt-probe",
+  "tools": [
+    {
+      "name": "get_a_share_quotes",
+      "description": "获取 A 股 / 指数全量行情（腾讯）：最新价、涨跌幅、五档盘口、市值、PE/PB 等。"
+    },
+    {
+      "name": "get_hk_quotes",
+      "description": "获取港股行情。代码 5 位数字，带不带 hk 前缀均可（如 00700 / hk00700）。"
+    },
+    {
+      "name": "get_us_quotes",
+      "description": "获取美股行情。代码如 AAPL / BABA。"
+    },
+    {
+      "name": "get_fund_quotes",
+      "description": "获取公募基金行情（场内 / 场外，净值类）。"
+    },
+    {
+      "name": "get_today_timeline",
+      "description": "获取 A 股当日分时走势（单只）。"
+    },
+    {
+      "name": "get_history_kline",
+      "description": "A 股 / 指数历史 K 线（日 / 周 / 月，含复权）：开高低收、成交量额、振幅、涨跌幅等。复权默认 qfq（前复权，看走势）；做回测 / 收益计算请显式传 hfq（后复权）或 ''（不复权）。支持中证特殊指数码形（93xxxx / H+5 位，如 930955 / H30533）。日期格式 YYYYMMDD。"
+    },
+    {
+      "name": "get_minute_kline",
+      "description": "A 股分钟 K 线 / 当日分时。period=1 返回最近约 5 个交易日的分时（不支持复权，可用 startDate/endDate 收窄到当日）；period=5/15/30/60 返回分钟 K 线（adjust 仅此时有效，默认 qfq）。"
+    },
+    {
+      "name": "get_hk_history_kline",
+      "description": "港股历史 K 线（日 / 周 / 月，含复权，币种 HKD）。代码 5 位数字，带不带 hk 前缀均可（如 00700 / hk00700）；亦接受恒生特殊指数字母代码（如 HSHCI 恒生医疗保健指数）。复权默认 qfq；日期格式 YYYYMMDD。"
+    },
+    {
+      "name": "get_us_history_kline",
+      "description": "美股历史 K 线（日 / 周 / 月，含复权，币种 USD）。代码支持裸 ticker（如 AAPL / BABA，自动解析交易所）或显式 secid（105.AAPL / 106.BABA）。复权默认 qfq；日期格式 YYYYMMDD。"
+    },
+    {
+      "name": "get_kline_with_indicators",
+      "description": "带技术指标的历史 K 线（A 股 / 港股 / 美股，market 不传自动按 symbol 识别）。周期默认 daily，复权默认按 SDK 默认（qfq）；日期支持 YYYYMMDD 或 YYYY-MM-DD。indicators 为对象，键取自 14 个指标：ma / macd / boll / kdj / rsi / wr / bias / cci / atr / obv / roc / "
+    },
+    {
+      "name": "get_kline_signals",
+      "description": "识别技术指标信号（A 股 / 港股 / 美股，market 不传按 symbol 自动识别）：MA / MACD / KDJ 金叉死叉、KDJ / RSI 超买超卖、BOLL 收盘突破、SAR 趋势反转，共 14 类。内部自动取带指标 K 线再逐日比对，返回每条信号的类型 / 日期 / 收盘价 / 附加值。MA 交叉周期由 maFast / maSlow 指定（默认 5 / 20），其余信号用常用"
+    },
+    {
+      "name": "get_chip_distribution",
+      "description": "A 股筹码分布 / 筹码峰（基于日 K 线 + 换手率本地计算，东方财富 CYQ 算法）：每日获利比例、平均成本、90/70 成本区间与集中度。days 默认 90；range 为分布回看窗口（默认 120 = 东财 App 口径，0 = 全量累计即 akshare 口径）；复权默认 qfq，对齐 akshare 输出请传 ''。histogram=last 可附带最新一日筹码峰形状。仅个股有意义"
+    },
+    {
+      "name": "get_industry_list",
+      "description": "获取行业板块列表（东方财富）：板块代码、名称、最新价、涨跌幅、成交额、领涨股等。无参。"
+    },
+    {
+      "name": "get_industry_constituents",
+      "description": "获取指定行业板块的成分股列表（代码、名称等基础信息）。symbol 为行业板块代码（如 BK0475）或名称。"
+    },
+    {
+      "name": "get_concept_list",
+      "description": "获取概念板块列表（东方财富）：板块代码、名称、最新价、涨跌幅、成交额、领涨股等。无参。"
+    },
+    {
+      "name": "get_concept_constituents",
+      "description": "获取指定概念板块的成分股列表（代码、名称等基础信息）。symbol 为概念板块代码（如 BK0815）或名称。"
+    },
+    {
+      "name": "get_futures_kline",
+      "description": "获取国内期货历史 K 线（东财）：开高低收、成交量、持仓量等。symbol 为合约代码，如 rb2605(螺纹钢) / IF2604(沪深300股指) / au2606(黄金)，period 默认 daily(日线)，startDate/endDate 为 YYYYMMDD。"
+    },
+    {
+      "name": "get_individual_fund_flow",
+      "description": "获取个股资金流历史（日 / 周 / 月）：主力 / 超大单 / 大单 / 中单 / 小单净流入（金额单位元、占比为百分比）。⏰ 盘后数据：上游收盘后统计发布，盘中查当天取不到当天数据，最新通常为上一交易日——属正常时效，如实说明即可，不要报错或臆测原因。"
+    },
+    {
+      "name": "get_fund_flow_rank",
+      "description": "获取个股资金流排名（沪深北 A 股全市场）：按主力净流入排序，金额单位元、占比为百分比。⚠️ MCP tools/call 大数组会被裁剪至前 200 条（按主力净流入降序）；SDK 直连返回全量。"
+    },
+    {
+      "name": "get_northbound_flow_summary",
+      "description": "获取沪深港通市场资金流向汇总（北向 + 南向 + 港股通拆分）：含板块名、净买额/净流入(元)、当日余额、相关指数涨跌幅等。"
+    },
+    {
+      "name": "get_zt_pool",
+      "description": "获取涨停股池（东方财富）：涨停 / 昨日涨停 / 强势 / 次新 / 炸板 / 跌停。字段含价格(元)、涨跌幅(%)、成交额(元)、流通/总市值(元)、换手率(%)、连板数、封板时间(HHMMSS) 等。type 默认 zt；date 不传为最新交易日。⏰ 盘中实时数据：交易时段内滚动更新，同一天不同时点查询条数会不同（早盘少、尾盘多），属正常现象；要当日最终结果请收盘后查询。"
+    },
+    {
+      "name": "get_dragon_tiger_detail",
+      "description": "获取龙虎榜上榜个股明细（按日期范围）：代码、名称、上榜日期、收盘价、涨跌幅(%)、净买额/买入额/卖出额/成交额(元)、占总成交比(%)、换手率(%)、流通市值(元)、上榜原因、上榜后 1/2/5/10 日涨跌幅(%)。日期格式 YYYYMMDD，startDate / endDate 均必填。⏰ 龙虎榜是盘后数据：交易所收盘后统计、傍晚才发布，因此盘中查询当天日期必然没有当天数据——这是正常时效"
+    },
+    {
+      "name": "get_theme_list",
+      "description": "获取主题基金列表（东方财富天天基金），可筛选行业/概念主题类型，按日涨幅/各阶段收益率排序分页。返回主题代码(code)、名称(name)、日涨幅及各阶段收益率。category=0(行业)/1(概念)/2(全部，默认)。"
+    },
+    {
+      "name": "is_trading_day",
+      "description": "判断某天是否为 A 股交易日（基于上游官方日历，能识别法定假日）。date 可选，支持 YYYY-MM-DD 或 YYYYMMDD；不传则判断今天。返回 boolean。"
+    },
+    {
+      "name": "get_market_status",
+      "description": "获取市场当前实时状态：pre_market(盘前) / open(交易中) / lunch_break(午休) / after_hours(盘后) / closed(休市)。market 可选枚举 A/HK/US，默认 A。⚠️ 同步本地时钟判断、不发请求：A 股基于交易时段但不识别法定假日，港股/美股退化为'周一-周五 + 已知交易时段'近似。"
+    },
+    {
+      "name": "search",
+      "description": "模糊搜索股票 / 指数 / 基金（代码 / 名称 / 拼音）。返回 code、name、market、category。"
+    }
+  ],
+  "probe": {
+    "tool": "get_a_share_quotes",
+    "ok": true,
+    "sample": "[{\"marketId\":\"1\",\"name\":\"贵州茅台\",\"code\":\"600519\",\"price\":1302.8,\"prevClose\":1304,\"open\":1300,\"volume\":21731,\"outerVolume\":12110,\"innerVolume\":9621,\"bid\":[{\"price\":1302.77,\"volume\":1},{\"price\":1302.6,\"volume\":2},{\"price\":1302.55,\"volume\":22},{\"price\":1302.5,\"volume\":1},{\"price\":1302.37,\"volume\":1}],\"as"
+  }
+}

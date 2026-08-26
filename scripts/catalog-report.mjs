@@ -44,6 +44,7 @@ const DOMAINS = [
   { zh: '记忆与知识', en: 'Memory & knowledge', ids: ['kg-memory', 'vector-store'] },
   { zh: '工程工具', en: 'Engineering tools', ids: ['github-api', 'browser-automate', 'url-slugify', 'transliterate', 'safe-filename'] },
   { zh: '应用与交付', en: 'Apps & delivery', ids: ['webhook-intake', 'static-deploy', 'app-scaffold', 'cron-trigger', 'file-channel'] },
+  { zh: '金融行情', en: 'Market data', ids: ['stock-sdk'] },
 ]
 
 const byId = new Map(catalog.map((x) => [x.id, x]))

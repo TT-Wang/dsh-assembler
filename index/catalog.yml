@@ -1034,3 +1034,36 @@
     - { name: "s3-download", description: "把对象下载到工作区(路径出,不返回内容)。下载后可直接交给解析类零件。" }
     - { name: "s3-presign", description: "生成对象的临时直取 URL(默认 1 小时)。给浏览器/第三方直接下载——**字节既不过模型也不过 host**。" }
 
+- id: stock-sdk
+  adopted: true
+  pkg: "stock-sdk"
+  rev: "v2.4.2"
+  repo: "git+https://github.com/chengzuopeng/stock-sdk.git"
+  license: "ISC"
+  tools:
+    - { name: "get_a_share_quotes", description: "获取 A 股 / 指数全量行情（腾讯）：最新价、涨跌幅、五档盘口、市值、PE/PB 等。" }
+    - { name: "get_hk_quotes", description: "获取港股行情。代码 5 位数字，带不带 hk 前缀均可（如 00700 / hk00700）。" }
+    - { name: "get_us_quotes", description: "获取美股行情。代码如 AAPL / BABA。" }
+    - { name: "get_fund_quotes", description: "获取公募基金行情（场内 / 场外，净值类）。" }
+    - { name: "get_today_timeline", description: "获取 A 股当日分时走势（单只）。" }
+    - { name: "get_history_kline", description: "A 股 / 指数历史 K 线（日 / 周 / 月，含复权）：开高低收、成交量额、振幅、涨跌幅等。复权默认 qfq（前复权，看走势）；做回测 / 收益计算请显式传" }
+    - { name: "get_minute_kline", description: "A 股分钟 K 线 / 当日分时。period=1 返回最近约 5 个交易日的分时（不支持复权，可用 startDate/endDate 收窄到当日）；peri" }
+    - { name: "get_hk_history_kline", description: "港股历史 K 线（日 / 周 / 月，含复权，币种 HKD）。代码 5 位数字，带不带 hk 前缀均可（如 00700 / hk00700）；亦接受恒生特殊指数" }
+    - { name: "get_us_history_kline", description: "美股历史 K 线（日 / 周 / 月，含复权，币种 USD）。代码支持裸 ticker（如 AAPL / BABA，自动解析交易所）或显式 secid（105." }
+    - { name: "get_kline_with_indicators", description: "带技术指标的历史 K 线（A 股 / 港股 / 美股，market 不传自动按 symbol 识别）。周期默认 daily，复权默认按 SDK 默认（qfq）；" }
+    - { name: "get_kline_signals", description: "识别技术指标信号（A 股 / 港股 / 美股，market 不传按 symbol 自动识别）：MA / MACD / KDJ 金叉死叉、KDJ / RSI 超买" }
+    - { name: "get_chip_distribution", description: "A 股筹码分布 / 筹码峰（基于日 K 线 + 换手率本地计算，东方财富 CYQ 算法）：每日获利比例、平均成本、90/70 成本区间与集中度。days 默认 " }
+    - { name: "get_industry_list", description: "获取行业板块列表（东方财富）：板块代码、名称、最新价、涨跌幅、成交额、领涨股等。无参。" }
+    - { name: "get_industry_constituents", description: "获取指定行业板块的成分股列表（代码、名称等基础信息）。symbol 为行业板块代码（如 BK0475）或名称。" }
+    - { name: "get_concept_list", description: "获取概念板块列表（东方财富）：板块代码、名称、最新价、涨跌幅、成交额、领涨股等。无参。" }
+    - { name: "get_concept_constituents", description: "获取指定概念板块的成分股列表（代码、名称等基础信息）。symbol 为概念板块代码（如 BK0815）或名称。" }
+    - { name: "get_futures_kline", description: "获取国内期货历史 K 线（东财）：开高低收、成交量、持仓量等。symbol 为合约代码，如 rb2605(螺纹钢) / IF2604(沪深300股指) / au" }
+    - { name: "get_individual_fund_flow", description: "获取个股资金流历史（日 / 周 / 月）：主力 / 超大单 / 大单 / 中单 / 小单净流入（金额单位元、占比为百分比）。⏰ 盘后数据：上游收盘后统计发布，盘" }
+    - { name: "get_fund_flow_rank", description: "获取个股资金流排名（沪深北 A 股全市场）：按主力净流入排序，金额单位元、占比为百分比。⚠️ MCP tools/call 大数组会被裁剪至前 200 条（按主" }
+    - { name: "get_northbound_flow_summary", description: "获取沪深港通市场资金流向汇总（北向 + 南向 + 港股通拆分）：含板块名、净买额/净流入(元)、当日余额、相关指数涨跌幅等。" }
+    - { name: "get_zt_pool", description: "获取涨停股池（东方财富）：涨停 / 昨日涨停 / 强势 / 次新 / 炸板 / 跌停。字段含价格(元)、涨跌幅(%)、成交额(元)、流通/总市值(元)、换手率(" }
+    - { name: "get_dragon_tiger_detail", description: "获取龙虎榜上榜个股明细（按日期范围）：代码、名称、上榜日期、收盘价、涨跌幅(%)、净买额/买入额/卖出额/成交额(元)、占总成交比(%)、换手率(%)、流通市值" }
+    - { name: "get_theme_list", description: "获取主题基金列表（东方财富天天基金），可筛选行业/概念主题类型，按日涨幅/各阶段收益率排序分页。返回主题代码(code)、名称(name)、日涨幅及各阶段收益率" }
+    - { name: "is_trading_day", description: "判断某天是否为 A 股交易日（基于上游官方日历，能识别法定假日）。date 可选，支持 YYYY-MM-DD 或 YYYYMMDD；不传则判断今天。返回 boo" }
+    - { name: "get_market_status", description: "获取市场当前实时状态：pre_market(盘前) / open(交易中) / lunch_break(午休) / after_hours(盘后) / clos" }
+    - { name: "search", description: "模糊搜索股票 / 指数 / 基金（代码 / 名称 / 拼音）。返回 code、name、market、category。" }

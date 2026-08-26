@@ -1,0 +1,14 @@
+{
+  "id": "stock-sdk",
+  "pkg": "stock-sdk",
+  "version": "2.4.2",
+  "client": null,
+  "repo": "git+https://github.com/chengzuopeng/stock-sdk.git",
+  "license": "ISC",
+  "adopted": true,
+  "entry": "node_modules/stock-sdk/./dist/cli.js",
+  "entryArgs": [
+    "mcp"
+  ],
+  "scaffoldedAt": "2026-08-26T17:02:11.640Z"
+}

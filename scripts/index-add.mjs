@@ -464,7 +464,10 @@ ${toolLines}
     const entryJs = typeof meta.entry === 'string' && meta.entry !== ''
       ? join(root, 'generated', id, meta.entry)
       : join(root, 'generated', id, 'index.js')
-    const entry = `  ${id}:\n    transport: stdio\n    command: node\n    args: [${s(entryJs)}]\n${secretDecl}\n`
+    const entryArgsYaml = Array.isArray(meta.entryArgs) && meta.entryArgs.length > 0
+      ? meta.entryArgs.map((x) => `, ${s(String(x))}`).join('')
+      : ''
+    const entry = `  ${id}:\n    transport: stdio\n    command: node\n    args: [${s(entryJs)}${entryArgsYaml}]\n${secretDecl}\n`
     if (!/^capabilities:$/m.test(caps)) die('capabilities.yml 缺 capabilities: 键,无法定位 mcp-servers 段尾')
     writeYaml(capsPath, caps.replace(/^capabilities:$/m, entry + 'capabilities:'), 'capabilities.yml')
     changed.push('capabilities.yml')
@@ -933,10 +936,13 @@ async function scaffoldGate() {
 // → 凭证声明(names only)→ 供应链登记。与自造件同一条纪律,省掉的只是写适配器。
 // 用法:
 //   node scripts/index-add.mjs adopt <npm-package> [--id <id>] [--probe <tool>[:<jsonArgs>]]
-//        [--requires-secret ENV:用途] [--license <spdx>] [--client <客户名>]
+//        [--bin-args "<args>"] [--requires-secret ENV:用途] [--license <spdx>] [--client <客户名>]
+// --bin-args:bin 需要子命令/参数才进 MCP 形态的采件(首例 stock-sdk 要 `cli.js mcp`;
+//   裸跑只打印 help)。参数记进 .index-meta.json 的 entryArgs,register 原样带进挂载行。
 async function adopt() {
   const pkg = target
-  if (pkg === undefined || pkg === '') die('用法:index-add.mjs adopt <npm-package> [--id <id>] [--probe <tool>[:<json>]] [--requires-secret ENV:用途]')
+  if (pkg === undefined || pkg === '') die('用法:index-add.mjs adopt <npm-package> [--id <id>] [--probe <tool>[:<json>]] [--bin-args "<args>"] [--requires-secret ENV:用途]')
+  const binArgs = typeof flags['bin-args'] === 'string' && flags['bin-args'].trim() !== '' ? flags['bin-args'].trim().split(/\s+/) : []
   const id = (flags.id ?? pkg.replace(/^@[^/]+\//, '').replace(/[^a-z0-9-]+/gi, '-')).toLowerCase().slice(0, 48)
   const client = flags.client
   const root = catalogRoot(client)
@@ -971,7 +977,7 @@ async function adopt() {
   let tools = []
   let probeResult = null
   try {
-    await c.connect(new StdioClientTransport({ command: 'node', args: [binPath], env: partEnv() }))
+    await c.connect(new StdioClientTransport({ command: 'node', args: [binPath, ...binArgs], env: partEnv() }))
     tools = (await c.listTools()).tools.map((t) => ({ name: t.name, description: (t.description ?? '').replace(/\n[\s\S]*/, '').slice(0, 200) }))
     if (typeof flags.probe === 'string' && flags.probe !== '') {
       const [pName, ...rest] = flags.probe.split(':')
@@ -995,6 +1001,7 @@ async function adopt() {
     repo: installed.repository?.url ?? installed.homepage ?? `npm:${pkg}`,
     license: flags.license ?? installed.license ?? 'UNKNOWN',
     adopted: true, entry: `node_modules/${pkg}/${binRel}`,
+    ...(binArgs.length > 0 ? { entryArgs: binArgs } : {}),
     ...(requiredSecrets.length > 0 ? { requiredSecrets } : {}),
     scaffoldedAt: new Date().toISOString(),
   }, null, 2) + '\n')

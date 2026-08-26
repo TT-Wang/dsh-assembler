@@ -1,0 +1,10 @@
+{
+  "name": "@dsh-index/stock-sdk",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "description": "Adopted MCP server: stock-sdk",
+  "dependencies": {
+    "stock-sdk": "2.4.2"
+  }
+}
