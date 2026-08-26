@@ -42,37 +42,51 @@ export interface ArchSpec {
 
 /**
  * 架构探针草图的机械校验闸:合格 → 直接构造 ProbePlan(省掉整段 LLM 探针推导);
- * 任何一条不过 → null(调用方回退 LLM 推导)。校验的每一条都是战役里真踩过的坑:
- * 标记消毒(代码碎片/过短)、token 自给自足(两轮指令都得含它,轮1 造它轮2 用它)、
- * 取回轮不许复述标记值(否则 agent 照抄指令就能假 PASS,共享探针同款教训)。
+ * 任何一条不过 → plan 为 null 且 **why 说清是哪条**(报错即界面,宪法第二条:
+ * 出题的编排者只凭这句话就该改得动草图,不用翻源码猜三条规则里犯了哪条)。
+ * 校验的每一条都是战役里真踩过的坑:标记消毒(代码碎片/过短)、token 自给自足
+ * (两轮指令都得含它,轮1 造它轮2 用它)、取回轮不许复述标记值(照抄即假 PASS)。
  */
-export function validateArchProbe(probe: NonNullable<ArchSpec['probe']>, sanitize: (marks: unknown[]) => string[]): import('./verify.js').ProbePlan | null {
+export function checkArchProbe(probe: NonNullable<ArchSpec['probe']>, sanitize: (marks: unknown[]) => string[]): { plan: import('./verify.js').ProbePlan | null; why?: string } {
   const marks = sanitize(probe.marks ?? [])
-  if (marks.length === 0) return null
+  if (marks.length === 0) return { plan: null, why: '验收标记全被消毒剔除——要 1-3 个内容型标记(2-60 字符、含连续的字母/数字/汉字,不是纯符号或代码碎片)' }
   if (probe.kind === 'single') {
     const task = (probe.task ?? '').trim()
-    if (task.length < 10) return null
-    return { kind: 'single', probe: { task, mustInclude: marks } }
+    if (task.length < 10) return { plan: null, why: 'single 草图的 task 过短(<10 字符)——要一条自给自足的完整指令' }
+    return { plan: { kind: 'single', probe: { task, mustInclude: marks } } }
   }
   const createTask = (probe.createTask ?? '').trim()
   const retrieveTask = (probe.retrieveTask ?? '').trim()
   const token = (probe.token ?? '').trim()
   // 15:自给自足的建档指令(含内嵌数据)不可能更短——更短的多半是残缺草图。
-  if (createTask.length < 15 || retrieveTask.length < 10 || token.length < 3) return null
+  if (createTask.length < 15 || retrieveTask.length < 10 || token.length < 3) {
+    return { plan: null, why: 'scenario 草图残缺——createTask ≥15 字符(数据全内嵌自给自足)、retrieveTask ≥10、token ≥3' }
+  }
   // token 自给自足:轮1 造它、轮2 按它取——两轮都必须真含 token。
-  if (!createTask.includes(token) || !retrieveTask.includes(token)) return null
+  if (!createTask.includes(token) || !retrieveTask.includes(token)) {
+    return { plan: null, why: `token「${token}」必须同时出现在 createTask 与 retrieveTask(轮1 造它,轮2 按它取)` }
+  }
   // 取回轮不许把标记值(除 token 本身)复述在指令里:否则照抄即假 PASS。
   for (const m of marks) {
-    if (m !== token && retrieveTask.toLowerCase().includes(m.toLowerCase())) return null
+    if (m !== token && retrieveTask.toLowerCase().includes(m.toLowerCase())) {
+      return { plan: null, why: `取回轮指令里复述了标记值「${m}」——agent 照抄指令即假 PASS;标记必须只能从库里取回` }
+    }
   }
   return {
-    kind: 'scenario',
-    scenario: {
-      goal: '架构直构:主工作流建档→取回(token 连续性)',
-      turns: [
-        { prompt: createTask, mustInclude: [token] },
-        { prompt: retrieveTask, mustInclude: marks },
-      ],
+    plan: {
+      kind: 'scenario',
+      scenario: {
+        goal: '架构直构:主工作流建档→取回(token 连续性)',
+        turns: [
+          { prompt: createTask, mustInclude: [token] },
+          { prompt: retrieveTask, mustInclude: marks },
+        ],
+      },
     },
   }
+}
+
+/** 兼容薄封装:只要计划,不要理由(既有钉与调用形)。一份实现在 checkArchProbe。 */
+export function validateArchProbe(probe: NonNullable<ArchSpec['probe']>, sanitize: (marks: unknown[]) => string[]): import('./verify.js').ProbePlan | null {
+  return checkArchProbe(probe, sanitize).plan
 }

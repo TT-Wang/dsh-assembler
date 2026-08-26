@@ -465,6 +465,21 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   check('add_knowledge 闸:相对路径拒', await throwsK({ docsDir: 'rel/path', id: 'x', description: 'd', probes: [{ question: 'q', mustInclude: ['m'] }] }, '绝对路径'))
 }
 
+// ── 宪法第八条:概念账钉(数概念,不数行;加一必删一——想改这些数字,先过第八条)──
+{
+  const { readFileSync: rfc } = await import('node:fs')
+  const idxSrc = rfc('src/index.ts', 'utf8')
+  const faces = (idxSrc.match(/ctx\.effect\(\(\) => ctx\.tools\.register\(/g) ?? []).length
+  check('概念账:工具面 = 12(宪法当前账;新增工具面必须同刀删一个或修宪)', faces === 12, `实得 ${faces}`)
+  const viaLine = /via: ((?:'[a-z-]+'(?: \| )?)+)/.exec(idxSrc)?.[1] ?? ''
+  const viaCount = (viaLine.match(/'/g) ?? []).length / 2
+  check('概念账:via 5 种(第九条执行后 recipe 已消)', viaCount === 5, viaLine)
+  const { assemblerMode: am8 } = await import('./lib/orchestrated-tools.js')
+  check('概念账:形态 = search 唯一(off 是停用开关不是形态)', typeof am8 === 'function')
+  const { CONTRACT_TAGS: tags8 } = await import('./lib/orchestrated-tools.js')
+  check('概念账:承重散文常量 = 3 条(FRONTEND_FACT/SCAFFOLD_BATON/PROBE_SKETCH_EXAMPLES)', Object.keys(tags8).length === 3, Object.keys(tags8).join(','))
+}
+
 // ── 机械闸:契约要求的动作,逐条必须有够得着的工具面 ─────────────────────────
 {
   const M = await import('./lib/orchestrated-tools.js')

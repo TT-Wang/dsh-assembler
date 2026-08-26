@@ -34,7 +34,7 @@ mkdirSync(dir, { recursive: true })
 const SQLITE_CAP = { id: 'mcp-sqlite-query-execute', via: 'mcp', tool: 'x', description: 'x', tags: [], config: { server: 'sqlite-query' } }
 const OTHER_CAP = { id: 'mcp-http-request-get', via: 'mcp', tool: 'y', description: 'y', tags: [], config: { server: 'http-request' } }
 
-const eq = installStateEquipment({ stateSchema: GOOD_DDL, selected: [SQLITE_CAP, OTHER_CAP], dir })
+const { equipment: eq } = installStateEquipment({ stateSchema: GOOD_DDL, selected: [SQLITE_CAP, OTHER_CAP], dir })
 check('选了 sqlite + 合法 DDL → 装备落地', eq !== null)
 check('equipment/init.sql 写盘', existsSync(join(dir, 'equipment', 'init.sql')))
 check('env 只指向 sqlite 服务器', eq !== null && Object.keys(eq.extraServerEnv).join(',') === 'sqlite-query' && eq.extraServerEnv['sqlite-query'].SQLITE_INIT_DDL_FILE.endsWith('init.sql'))
@@ -45,15 +45,17 @@ check('BOM 文件清单', JSON.stringify(eq?.files) === '["equipment/init.sql"]'
 // 方案共享库(G1):给了 sharedDb,默认库钉到共享路径而非自己的 workspace,persona 明示共享。
 const dirS = join(root, 'agent-shared'); mkdirSync(dirS, { recursive: true })
 const SHARED = join(root, '_sol', 'shared', 'data.db')
-const eqS = installStateEquipment({ stateSchema: GOOD_DDL, selected: [SQLITE_CAP], dir: dirS, sharedDb: SHARED })
+const { equipment: eqS } = installStateEquipment({ stateSchema: GOOD_DDL, selected: [SQLITE_CAP], dir: dirS, sharedDb: SHARED })
 check('sharedDb → 默认库钉到方案共享路径', eqS !== null && eqS.extraServerEnv['sqlite-query'].SQLITE_DEFAULT_DB === SHARED)
 check('sharedDb → 本 agent DDL 仍自动执行(补专属表)', eqS !== null && eqS.extraServerEnv['sqlite-query'].SQLITE_INIT_DDL_FILE.endsWith('init.sql'))
 check('sharedDb → persona 点名"方案共享库"', eqS?.personaText.includes('方案共享库') === true)
 
 const dirB = join(root, 'agent-b'); mkdirSync(dirB, { recursive: true })
-check('没选 sqlite → 不装备', installStateEquipment({ stateSchema: GOOD_DDL, selected: [OTHER_CAP], dir: dirB }) === null)
-check('没起草 schema → 不装备', installStateEquipment({ selected: [SQLITE_CAP], dir: dirB }) === null)
-check('坏 DDL → 不装备且不写文件', installStateEquipment({ stateSchema: 'CREATE TABLE broken (', selected: [SQLITE_CAP], dir: dirB }) === null && !existsSync(join(dirB, 'equipment', 'init.sql')))
+const noSqlite = installStateEquipment({ stateSchema: GOOD_DDL, selected: [OTHER_CAP], dir: dirB })
+check('没选 sqlite → 不装备,理由点名缺什么(报错即界面)', noSqlite.equipment === null && noSqlite.why.includes('SQLite'))
+check('没起草 schema → 不装备且无需理由(没人要求装备)', (() => { const r = installStateEquipment({ selected: [SQLITE_CAP], dir: dirB }); return r.equipment === null && r.why === undefined })())
+const badDdl = installStateEquipment({ stateSchema: 'CREATE TABLE broken (', selected: [SQLITE_CAP], dir: dirB })
+check('坏 DDL → 不装备且不写文件,理由带门名', badDdl.equipment === null && badDdl.why.includes('双次执行门') && !existsSync(join(dirB, 'equipment', 'init.sql')))
 
 // ── 3. emitPreset 注入 env ─────────────────────────────────────────────────
 const catalog = {

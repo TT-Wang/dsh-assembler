@@ -235,7 +235,13 @@ export function loadCatalog(path: string, seen: readonly string[] = []): Catalog
  * because the sixth name was mistyped — the probe is what decides whether the
  * assembled agent actually works.
  */
-export function reconcileCapabilityIds(requested: readonly string[], catalogIds: readonly string[]): string[] {
+export interface ReconcileReport {
+  resolved: string[]
+  repaired: Array<{ from: string; to: string }>
+  dropped: string[]
+}
+
+export function reconcileCapabilityIdsDetailed(requested: readonly string[], catalogIds: readonly string[]): ReconcileReport {
   const known = new Set(catalogIds)
   // Separators are normalized BEFORE the prefix is stripped: an id written
   // as `MCP_Semver_Check_Satisfies` only reveals its `mcp-` prefix after
@@ -247,6 +253,7 @@ export function reconcileCapabilityIds(requested: readonly string[], catalogIds:
     if (!byNorm.has(key)) byNorm.set(key, id)
   }
   const resolved: string[] = []
+  const repaired: Array<{ from: string; to: string }> = []
   const dropped: string[] = []
   for (const id of requested) {
     if (known.has(id)) {
@@ -256,6 +263,7 @@ export function reconcileCapabilityIds(requested: readonly string[], catalogIds:
     const hit = byNorm.get(norm(id))
     if (hit !== undefined) {
       console.error(`[assembler] capability id repaired: "${id}" → "${hit}"`)
+      repaired.push({ from: id, to: hit })
       resolved.push(hit)
     } else {
       dropped.push(id)
@@ -267,7 +275,12 @@ export function reconcileCapabilityIds(requested: readonly string[], catalogIds:
   if (resolved.length === 0 && requested.length > 0) {
     throw new Error(`assemble: none of the selected capability ids exist: ${requested.join(', ')} — catalog changed?`)
   }
-  return [...new Set(resolved)]
+  return { resolved: [...new Set(resolved)], repaired, dropped }
+}
+
+/** 兼容薄封装:只要调和结果。一份实现在 reconcileCapabilityIdsDetailed。 */
+export function reconcileCapabilityIds(requested: readonly string[], catalogIds: readonly string[]): string[] {
+  return reconcileCapabilityIdsDetailed(requested, catalogIds).resolved
 }
 
 function renderYamlValue(value: unknown): string {
@@ -648,11 +661,12 @@ export interface StateEquipment {
 }
 
 /**
- * 把 matcher 起草的 stateSchema 落成 preset 装备:验证 → 写 equipment/init.sql →
+ * 把编排者起草的 stateSchema 落成 preset 装备:验证 → 写 equipment/init.sql →
  * 给选中的 sqlite 服务器生成 env 指针 → 给 persona 一句"表已建好,禁止重设计"。
- * 任一条件不满足(没起草/没选 sqlite/没过门)返回 null,装配照常——装备是
- * 加速器不是必需品。只针对 sqlite(本地自有状态);postgres/mysql 是客户库,
- * 自动 DDL 是越权写操作,永不做。
+ * 任一条件不满足(没起草/没选 sqlite/没过门)equipment 为 null 且 **why 说清
+ * 是哪条**(报错即界面:曾只写"详见 host 日志"——调用方 agent 根本读不到 host
+ * 日志,理由必须随结果走)。装配照常——装备是加速器不是必需品。只针对 sqlite
+ * (本地自有状态);postgres/mysql 是客户库,自动 DDL 是越权写操作,永不做。
  */
 export function installStateEquipment(opts: {
   stateSchema?: string
@@ -666,19 +680,21 @@ export function installStateEquipment(opts: {
    * 专属表不冲突)。
    */
   sharedDb?: string
-}): StateEquipment | null {
+}): { equipment: StateEquipment | null; why?: string } {
   const ddl = (opts.stateSchema ?? '').trim()
-  if (ddl === '') return null
+  if (ddl === '') return { equipment: null }
   const sqliteServers = [...new Set(
     opts.selected
       .filter((c) => c.via === 'mcp' && typeof c.config?.server === 'string' && (c.config.server as string).includes('sqlite'))
       .map((c) => c.config?.server as string),
   )]
-  if (sqliteServers.length === 0) return null
-  const why = validateStateSchema(ddl)
-  if (why !== null) {
-    console.error(`[assembler] stateSchema 未过双次执行门,装备不发射:${why}`)
-    return null
+  if (sqliteServers.length === 0) {
+    return { equipment: null, why: '选中零件里没有 SQLite 件——装备只配 agent 自有状态库;要预建表就把 sqlite 零件加进 capabilityIds' }
+  }
+  const gateWhy = validateStateSchema(ddl)
+  if (gateWhy !== null) {
+    console.error(`[assembler] stateSchema 未过双次执行门,装备不发射:${gateWhy}`)
+    return { equipment: null, why: `DDL 未过双次执行门:${gateWhy}` }
   }
   const eqDir = join(opts.dir, 'equipment')
   mkdirSync(eqDir, { recursive: true })
@@ -696,9 +712,11 @@ export function installStateEquipment(opts: {
     ? `\n\n本台数据库已配备(**方案共享库**,与同套班子的其他 agent 读写同一份账):默认库已固定(调用 sqlite 工具时**不要传 database 参数**,禁止自创数据库文件名),共享表结构已由方案统一建好,本 agent 专属表在打开时自动补齐(DDL 见 ${file})——直接使用现有表,禁止重新设计 schema 或另建同用途的表。`
     : `\n\n本台数据库已配备:默认库已固定(调用 sqlite 工具时**不要传 database 参数**,禁止自创数据库文件名),表结构一打开即自动建好(DDL 见 ${file})——直接使用现有表,禁止重新设计 schema 或另建同用途的表。`
   return {
-    extraServerEnv,
-    personaText: dbNote,
-    files: ['equipment/init.sql'],
+    equipment: {
+      extraServerEnv,
+      personaText: dbNote,
+      files: ['equipment/init.sql'],
+    },
   }
 }
 

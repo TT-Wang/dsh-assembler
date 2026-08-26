@@ -4,7 +4,7 @@
  * (省掉 ~160s LLM 推导);任何一条闸不过 → null 回退 LLM。每条闸都是战役真坑。
  * 跑法:node tests-arch-probe.mjs(先 npm run build)
  */
-import { validateArchProbe } from './lib/arch-spec.js'
+import { checkArchProbe, validateArchProbe } from './lib/arch-spec.js'
 import { sanitizeMarks } from './lib/verify.js'
 
 let failures = 0
@@ -46,6 +46,13 @@ check('token 过短 → 回退', validateArchProbe({ ...good, token: 'A1', creat
 const single = validateArchProbe({ kind: 'single', task: '把 128 摄氏度转成华氏度并报告结果。', marks: ['262.4'] }, sanitizeMarks)
 check('single 草图直构', single !== null && single.kind === 'single' && single.probe.mustInclude.includes('262.4'))
 check('single 缺 task → 回退', validateArchProbe({ kind: 'single', marks: ['262.4'] }, sanitizeMarks) === null)
+
+// ── 拒绝理由(报错即界面,宪法第二条:只读这句改得动草图)────────────────────
+const good2 = { kind: 'scenario', createTask: '新建采购单 PO-4471,供应商晨光文具,金额 862 元', retrieveTask: '查 PO-4471,报出供应商与金额', token: 'PO-4471', marks: ['晨光文具', '862'] }
+check('理由:标记全消毒时点名标记规格', checkArchProbe({ ...good2, marks: ['((', '!'] }, sanitizeMarks).why?.includes('内容型标记') === true)
+check('理由:token 断链时点名两轮都要含 token', checkArchProbe({ ...good2, retrieveTask: '查一下上次那张采购单,报出供应商与金额' }, sanitizeMarks).why?.includes('createTask 与 retrieveTask') === true)
+check('理由:取回轮复述标记时点名是哪个值', checkArchProbe({ ...good2, retrieveTask: '查 PO-4471,确认供应商是晨光文具' }, sanitizeMarks).why?.includes('晨光文具') === true)
+check('封装一致:validateArchProbe === checkArchProbe.plan', JSON.stringify(validateArchProbe(good2, sanitizeMarks)) === JSON.stringify(checkArchProbe(good2, sanitizeMarks).plan))
 
 console.log(`\n==== 架构直构探针单元测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)
 process.exit(failures === 0 ? 0 : 1)

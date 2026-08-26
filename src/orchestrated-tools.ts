@@ -28,6 +28,7 @@ import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
 import yaml from 'js-yaml'
 import {
   canReadKb, catalogChain, catalogIdsHash, collectRequiredSecrets, emitPreset, federateMcpTools,
+  reconcileCapabilityIdsDetailed,
   installKnowledgePacks, installStateEquipment, knowledgeLocatorText, loadCatalog,
   personaFromPresetText, presetSha, reconcileCapabilityIds, renderPartsLock, resolvePersonaText,
   sameConceptOnDisk, sanitizePresetName, screenParams, writeGapWorkOrders, writePresetFile,
@@ -39,7 +40,7 @@ import {
   probePayloadViolation, runFrontendGate, runProbe, runScenario, sanitizeMarks, usageDetail,
   type AuxUsage, type ProbePlan, type ProbeResult,
 } from './verify.js'
-import { validateArchProbe } from './arch-spec.js'
+import { checkArchProbe } from './arch-spec.js'
 import { rankCapabilities } from './capability-index.js'
 import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend } from './frontend.js'
 import { execFileSync, spawn as spawnPart } from 'node:child_process'
@@ -648,8 +649,10 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
       const catalogPath = config.catalogPath ?? join(REPO, 'capabilities.yml')
       const catalog = await federateMcpTools(loadCatalog(catalogPath))
       const catalogIds = catalog.capabilities.filter((c) => c.config?.enabled !== false).map((c) => c.id)
-      // 调和闸:主 agent 传来的 id 走同一条机械修复;全都不存在 → 大声失败。
-      const ids = reconcileCapabilityIds(input.capabilityIds, catalogIds)
+      // 调和闸:主 agent 传来的 id 走同一条机械修复;全都不存在 → 大声失败;
+      // 部分修复/丢弃随结果出声(第七条:静默吞掉调用方点名的零件是最坏的静默)。
+      const reconciled = reconcileCapabilityIdsDetailed(input.capabilityIds, catalogIds)
+      const ids = reconciled.resolved
       // 前端硬闸:一个 preset 只有首个 frontend 模板生效——≥2 个不是权衡是死件,
       // 错误就按错误处理(实测 HR 场景曾装了 3 个模板)。context 补全治大半,这是兜底。
       const feIds = ids.filter((cid) => catalog.capabilities.find((c) => c.id === cid)?.via === 'frontend')
@@ -685,7 +688,7 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
       const selected = ids.map((cid) => byId.get(cid)).filter((c): c is CapabilityEntry => c !== undefined)
       const knowledge = installKnowledgePacks(selected, dir, dirname(catalogPath))
       if (knowledge.length > 0) progressAppend(dir, `知识包已随 preset 安装:${knowledge.map((k) => k.id).join('、')}`)
-      const equipment = installStateEquipment({
+      const { equipment, why: equipWhy } = installStateEquipment({
         ...(input.stateSchema !== undefined ? { stateSchema: input.stateSchema } : {}),
         selected,
         dir,
@@ -756,9 +759,11 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
         + `preset 文件:${join(dir, 'agent.cordis.yml')}\n`
         + (frontendInfo !== null ? `前端页面:${frontendInfo.url ?? frontendInfo.path}(模板 ${frontendInfo.template})\n` : '')
         + (equipment !== null ? '装备:预建数据库 schema(equipment/init.sql,双次执行门 PASS)\n' : '')
-        + (input.stateSchema !== undefined && equipment === null ? '注意:stateSchema 未落装备(未选 SQLite 零件,或 DDL 未过双次执行门——详见 host 日志)\n' : '')
+        + (input.stateSchema !== undefined && equipment === null ? `⚠ stateSchema 未落装备:${equipWhy ?? '未知原因'}——修正后同名重发即可补上\n` : '')
         + (knowledge.length > 0 ? `知识包:${knowledge.map((k) => `${k.id}(${String(k.docs)} 篇)`).join(';')}\n` : '')
         + (gapOrders.length > 0 ? `缺件工单:${String(gapOrders.length)} 份 → ${join(dir, 'gaps')}/\n` : '')
+        + (reconciled.repaired.length > 0 ? `id 已机械修复:${reconciled.repaired.map((r) => `${r.from}→${r.to}`).join(';')}\n` : '')
+        + (reconciled.dropped.length > 0 ? `⚠ 未知 id 已丢弃(不在目录):${reconciled.dropped.join(', ')}——用 search_catalog 确认真实 id 后同名重发补挂\n` : '')
         + (screened.rejected.length > 0 ? `参数被拒:${screened.rejected.map((r) => `${r.key}(${r.reason})`).join(';')}\n` : '')
         + (personaFindings.length > 0 ? `persona 检查:${personaFindings.map((f) => f.detail).join(';')}\n` : '')
         + secretLines
@@ -921,10 +926,11 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
           )
         }
         if (sketch !== null) {
-          plan = validateArchProbe(sketch, sanitizeMarks)
+          const checked = checkArchProbe(sketch, sanitizeMarks)
+          plan = checked.plan
           if (plan !== null) phase('验收探针:编排者草图过机械闸,直接执行(推导 0s)')
           else {
-            sketchNote = '(你的探针草图未过机械闸——token 两轮自足/取回轮不复述标记/长度与标记消毒,考官已自行推导)'
+            sketchNote = `(你的探针草图未过机械闸:${checked.why ?? '未知原因'}——考官已自行推导;修草图重验可省整段推导)`
             phase('编排者探针草图未过机械闸,考官自行推导…')
           }
         }
