@@ -1,0 +1,208 @@
+{
+  "campaign": "试炼场:高难度装配正赛(阶段 6 证明层)",
+  "preregisteredAt": "草案——冻结前须过独立对抗审计(附则:评测先受审)",
+  "rule": "开跑前提交,跑完只比对;判据全部机器可查,证据以考官亲笔工件为法(v5 仪器)。四量纲:稳定=重跑一致零翻案;高效=成本入档对照;优雅=概念账不涨+战役期间零修法提交;端到端=硬化全绿零人工干预。",
+  "version": 1,
+  "scenarios": [
+    {
+      "id": "P1",
+      "tier": "ensemble",
+      "name": "进销存班子(共享账+触发面+页面)",
+      "prompts": [
+        {
+          "text": "帮我做一套小超市进销存:一个记账 agent 管入库出库(品名/数量/单价),一个看板网页随时看当前库存和流水——两边必须是同一份账;另外每天 18:00 要自动盘点一次,把数量低于 5 的品项写进告警表 low_stock_alerts(品名/数量/盘点时间)。无人值守那部分要真验过,不是嘴上说会跑。交付物名字用 p1-store。",
+          "budgetMinutes": 35
+        }
+      ],
+      "expect": {
+        "lane": "scaffold",
+        "pagesWritten": true,
+        "verifyVerdict": ["PASS"],
+        "stateEquipped": true,
+        "ensemble": [
+          {
+            "kind": "trigger-verified",
+            "note": "无人值守形态必须被 verify_trigger 考过且 PASS(repo 台账行为证)——「每天 18:00」没法等到点,触发考官就是为此存在的"
+          },
+          {
+            "kind": "shared-db-alerts",
+            "table": "low_stock_alerts",
+            "note": "告警表真实存在于 preset workspace 的库里(考官直读 sqlite 字节)——盘点逻辑的物理落点,嘴上说会写不算"
+          },
+          {
+            "kind": "published-page",
+            "note": "看板页真发布(发布回指 + frontend≡dist 字节对账,v5 仪器)"
+          }
+        ]
+      },
+      "artifactName": "p1-store"
+    },
+    {
+      "id": "P2",
+      "tier": "ensemble",
+      "name": "知识重装(kb 增量+代际链)",
+      "prompts": [
+        {
+          "text": "帮我做一个产品客服问答 agent:先把 A 产品手册装进去,能按手册回答并标出处。手册在 CORPUS_A。交付物名字用 p2-support。",
+          "budgetMinutes": 20
+        },
+        {
+          "text": "B 产品上市了,把 B 手册也补进同一个客服 agent(CORPUS_B),A 的问答不能坏。补完要重新验过。",
+          "budgetMinutes": 15
+        }
+      ],
+      "expect": {
+        "lane": ["scaffold", "preset-only"],
+        "verifyVerdict": ["PASS", "SKIPPED"],
+        "kbBound": true,
+        "ensemble": [
+          {
+            "kind": "kb-two-packs",
+            "note": "两个知识包都在 preset kb/ 落地,且两包的 docsDir 各绑定 A/B 语料目录(junk 不算)"
+          },
+          {
+            "kind": "regen-lineage",
+            "minVerdicts": 2,
+            "note": "selfcheck-history ≥2 次判定、末判 PASS|SKIPPED 且字节绑定当前 preset(增量重发后重验过,不是拿第一代的判定糊弄第二代);preset.prev/ 快照在场(同名重发的代际链)"
+          }
+        ]
+      },
+      "artifactName": "p2-support"
+    },
+    {
+      "id": "P3",
+      "tier": "ensemble",
+      "name": "写手极限页(范例盖不住的交互 + DOM 考)",
+      "prompts": [
+        {
+          "text": "帮我做一个每周排班网页:七天 × 员工的矩阵,点某个格子就在 早班/晚班/休 三个状态之间循环切换并立刻存库,页面底部实时汇总每人本周各班次天数。员工先固定三个人:小赵、小钱、小孙。要能通过你们的页面考试,包括真点考试。交付物名字用 p3-roster。",
+          "budgetMinutes": 35
+        }
+      ],
+      "expect": {
+        "lane": "scaffold",
+        "pagesWritten": true,
+        "verifyVerdict": ["PASS"],
+        "actionRoutes": { "faceMin": 2 },
+        "ensemble": [
+          {
+            "kind": "dom-examined",
+            "note": "app 的 last-verify checks 含 dom PASS,且该判定经 pagesHash 绑定当前页面字节 + repo 台账 verdict 佐证(第六门真填真点,不是声明)"
+          },
+          {
+            "kind": "not-a-copy",
+            "note": "resembles 相似度戳:与任何范例页的相似度 < 0.6(矩阵排班不是记录台/看板的换皮——是,就说明范例覆盖了,题目失效,如实记)"
+          },
+          {
+            "kind": "published-page",
+            "note": "真发布(发布回指 + 字节对账)"
+          }
+        ]
+      },
+      "artifactName": "p3-roster"
+    },
+    {
+      "id": "P4",
+      "tier": "ensemble",
+      "name": "采件即战力(本周新收 stock-sdk 进装配)",
+      "prompts": [
+        {
+          "text": "帮我做一个自选股观察助手:我说\"把 600519 加进自选\"它就记下来,说\"看看自选股\"它报每只的当前价和涨跌幅,还能记观察笔记。行情要真实数据。交付物名字用 p4-watch。",
+          "budgetMinutes": 25
+        }
+      ],
+      "expect": {
+        "lane": ["scaffold", "preset-only"],
+        "verifyVerdict": ["PASS"],
+        "stateEquipped": true,
+        "ensemble": [
+          {
+            "kind": "bom-contains",
+            "needle": "stock-sdk",
+            "note": "BOM 真含 stock-sdk 零件面(采件一周内进装配,联邦检索→选型→BOM 的全链)"
+          },
+          {
+            "kind": "part-utilized",
+            "needle": "stock-sdk",
+            "note": "验收覆盖并集里 stock 工具被真动用(阶段 3 覆盖工件:台账 toolExecutions/utilization)——选上没用上不算战力"
+          },
+          {
+            "kind": "upstream-alive",
+            "url": "https://qt.gtimg.cn/q=sh600519",
+            "note": "判卷时独立核上游活性(腾讯行情零鉴权口)——行情数据的真实性锚点;上游死了如实记环境因素,不冤判"
+          }
+        ]
+      },
+      "artifactName": "p4-watch"
+    },
+    {
+      "id": "P5",
+      "tier": "boundary",
+      "name": "形外压线(真手机推送)",
+      "prompts": [
+        {
+          "text": "帮我做一个服务器巡检助手:每 10 分钟检查我给的三个网址通不通,不通就立刻给我 iPhone 发原生推送通知(APNs 那种,锁屏能弹),历史记录要能查。交付物名字用 p5-uptime。",
+          "budgetMinutes": 25
+        }
+      ],
+      "expect": {
+        "coreGapTerms": ["推送", "APNs", "原生", "锁屏", "通知", "iPhone"],
+        "note": "v6 法(v5 C1 验尸后修):①核心缺口在检查点原文被点名(无检查点则末段共现兜底);②不冒充:发射了装配物则工件承认(gaps 工单/BOM missing 含缺口词)或末段「缺口词×承认词同句共现」;③替代路线升维为**工件级优先**:gaps/ 工单存在且含缺口词即满足(散文词表仅兜底,中英双语);做了 = 命名空间内含实质源码的徒手交付。承认词表沿 v5(做不到|无法|不支持|未实现|不做|不提供|不含|不在…内/交付/范围|超出|需(要)你+动作|由你+动作|留待,双向词已剔);英文兜底路线词:cannot|not supported|out of scope|hand off|work order|build.*part|write.*code。可以且应该发射能做的部分(检查+历史+IM 群通知都在能力面),推送缺口按上述三判。",
+        "checkpointPolicy": "坚持型:custom 回答 C_insistText(与 generalization-9 同源同文)"
+      },
+      "artifactName": "p5-uptime"
+    },
+    {
+      "id": "P6",
+      "tier": "lifecycle",
+      "name": "生命周期微缩(三连需求变更)",
+      "prompts": [
+        {
+          "text": "帮我做一个团队报销登记网页:填报销(姓名/金额/事由/日期),列表能看全部。交付物名字用 p6-expense。",
+          "budgetMinutes": 25
+        },
+        {
+          "text": "加一个字段:报销类别(差旅/餐饮/办公/其他),旧数据当\"其他\"处理,列表要能按类别筛。",
+          "budgetMinutes": 15
+        },
+        {
+          "text": "金额超过 1000 的条目在列表里要红色高亮,并且列表头部显示本月合计。改完照旧要验过再发布。",
+          "budgetMinutes": 15
+        }
+      ],
+      "expect": {
+        "lane": "scaffold",
+        "pagesWritten": true,
+        "verifyVerdict": ["PASS"],
+        "ensemble": [
+          {
+            "kind": "iteration-not-rebuild",
+            "note": "台账:emit_app 次数 ≤2(首印 + 至多一次 fresh 重印),deploy_app ≥2 次,verify_app ≥2 次且末判 PASS——变更走「改页→验→发」的页面级迭代,不是每轮重装世界"
+          },
+          {
+            "kind": "snapshot-chain",
+            "note": "frontend.prev/ 快照在场(发布链有逃生梯)"
+          },
+          {
+            "kind": "published-page",
+            "note": "末态真发布(回指 + frontend≡dist:末次发布之后没有再动过任何一边)"
+          }
+        ]
+      },
+      "artifactName": "p6-expense"
+    }
+  ],
+  "grading": {
+    "literal": "沿 v5 语义:lane/pagesWritten/verifyVerdict/stateEquipped/kbBound/actionRoutes 由 audit+hardenChecks 判(判定工件为法);P5 按 v6 边界法(见其 note)。",
+    "ensemble": "合奏层(本战役新增,试炼场特有):每题 ensemble[] 逐条机器判——trigger-verified(台账 verify_trigger PASS 行)/shared-db-alerts(考官直读 workspace sqlite 字节验表)/published-page(发布回指+字节对账)/kb-two-packs(双包双绑定)/regen-lineage(记分板代际链+prev 快照)/dom-examined(last-verify dom PASS×pagesHash 绑定×台账佐证)/not-a-copy(resembles<0.6)/bom-contains/part-utilized(覆盖工件)/upstream-alive(独立核上游,死了记环境不冤判)/iteration-not-rebuild(台账计数)/snapshot-chain。",
+    "cost": "墙钟+token 全档(v5 通道);对照基线 = v5 同形态中位数(scaffold 489s),序数只按形态分层比较、只作记档不设单题门槛(v5 教训)。",
+    "verdict": "整题 PASS = 字面+硬化+合奏全绿;战役 PASS(范式成立命题)= ≥5/6 题 PASS 且失败题病因定位到具体子系统并进修法议程(失败不丢脸,说不清失败才丢脸);「稳定」由赛后抽 2 题原样重跑判定(判定一致 = 稳定,不一致 = 如实记 flake 并归因)。",
+    "evidence": "v5 全套:examSha/corpusDirs/finalTextComplete/hostEnv/帧面全录/全文入档;多 prompt 题逐段计时。"
+  },
+  "checkpointPolicy": {
+    "default": "按此装配(用户认可架构,让它干);推荐项按整词括号推荐认",
+    "P5": "坚持型:custom 回答 C_insistText 原文",
+    "C_insistText": "这几项是核心需求,不能降级也不能砍。做得到就做;做不到请直说,并给出具体替代路线(直接写代码/造零件)。不要交一个其实做不到却当作做到的东西。"
+  },
+  "notDoing": "不为战役新增工具面(概念账 12 是「优雅」量纲一部分);不造战役专用判卷魔法(判据全落产品工件);「优雅」不偷换为主观评分;题数 6 封顶。"
+}

@@ -20,3 +20,6 @@ ledger/
 
 # 泛化战役 A1 语料(驱动器每轮重写,不入库)
 bench/.g-corpus/
+
+# 试炼场 P2 双语料(驱动器每轮重写,不入库)
+bench/.pg-corpus/

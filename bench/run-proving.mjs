@@ -1,0 +1,222 @@
+#!/usr/bin/env node
+// 试炼场驱动器(阶段 6 正赛):每题一个真 DSH 会话,支持**多段 prompt 序列**
+// (生命周期题/增量题的需求变更用同一会话续发)。证据链沿 v5 全套(examSha/
+// corpusDirs/finalTextComplete/hostEnv/帧面全录/全文入档),判卷走 proving-grade
+// (v5 仪器 + 合奏层)。用法:node bench/run-proving.mjs [port] [P1,P3]
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { homedir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { audit, cleanSlate } from './lib/generalization-grade.mjs'
+import { gradeProving } from './lib/proving-grade.mjs'
+
+const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const PORT = Number(process.argv[2] ?? 3097)
+const ONLY = (process.argv[3] ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+const EXAM_PATH = join(REPO, 'bench', 'scenarios', 'proving-grounds.json')
+const SPEC = JSON.parse(readFileSync(EXAM_PATH, 'utf8'))
+const EXAM_SHA = createHash('sha256').update(readFileSync(EXAM_PATH)).digest('hex')
+const INSIST = String(SPEC.checkpointPolicy?.C_insistText ?? '')
+if (INSIST === '') throw new Error('考卷缺 checkpointPolicy.C_insistText')
+const OUT_DIR = join(REPO, 'bench', 'results', '2026-08-27-proving-v1')
+mkdirSync(OUT_DIR, { recursive: true })
+
+for (const line of readFileSync(join(homedir(), '.dsh', '.env'), 'utf8').split('\n')) {
+  const m = /^([A-Z0-9_]+)=(.*)$/.exec(line.trim())
+  if (m && !process.env[m[1]]) process.env[m[1]] = m[2]
+}
+
+// P2 双语料(A/B 两本互异的虚构手册;不进 ~/apps 考场,gitignored)
+const CORPUS_A = join(REPO, 'bench', '.pg-corpus', 'a')
+const CORPUS_B = join(REPO, 'bench', '.pg-corpus', 'b')
+mkdirSync(CORPUS_A, { recursive: true })
+mkdirSync(CORPUS_B, { recursive: true })
+writeFileSync(join(CORPUS_A, 'A-产品手册.md'), `# 澄音 A1 降噪耳机 手册(虚构)
+
+## 保修
+整机保修 **十二个月**;耳套为耗材不保。客服工号 CY-2210。
+
+## 降噪档位
+三档:通勤(-25dB)/办公(-18dB)/通透。切档长按左耳 2 秒。
+
+## 充电
+盒满电支持 4 次回充;快充 10 分钟听 2 小时。
+`)
+writeFileSync(join(CORPUS_B, 'B-产品手册.md'), `# 澄音 B2 骨传导耳机 手册(虚构)
+
+## 保修
+整机保修 **二十四个月**;含运动臂带。客服工号 CY-3345。
+
+## 佩戴
+不入耳,颞骨传导;IP67 防水,游泳不可用(蓝牙水下断连)。
+
+## 续航
+单次 9 小时;磁吸充电 1.5 小时充满。
+`)
+
+const rpc = async (method, payload) => {
+  const r = await fetch(`http://127.0.0.1:${PORT}/api/${method}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'client-request', rpcId: `pg-${Date.now()}-${Math.random().toString(36).slice(2)}`, method, payload }),
+    signal: AbortSignal.timeout(30_000),
+  })
+  const j = await r.json()
+  if (!j.result?.ok) throw new Error(`${method}: ${JSON.stringify(j.result?.error ?? j).slice(0, 200)}`)
+  return j.result.value
+}
+
+async function runOne(scn) {
+  const t0 = Date.now()
+  const cwdSnapshot = (() => { try { return readdirSync(join(homedir(), 'apps')).sort() } catch { return [] } })()
+  const { sessionId } = await rpc('session.create', { cwd: join(homedir(), 'apps') })
+  const frames = []
+  let tokenUsage = null
+  const otherFrameCounts = {}
+  const approvalFrames = []
+  const ws = new WebSocket(`ws://127.0.0.1:${PORT}/api/events.mux`)
+  ws.onmessage = (m) => {
+    try {
+      const f = JSON.parse(String(m.data))
+      if (f.payload?.type === 'session/event' && f.payload.sessionId === sessionId) frames.push(f.payload.event)
+      else if (f.payload?.type === 'question/requested' && f.payload.sessionId === sessionId) frames.push({ type: '__question', rpcId: f.rpcId, questions: f.payload.questions })
+      else if (f.payload?.type === 'session/projection' && f.payload.sessionId === sessionId && f.payload.key === 'tokenUsage') tokenUsage = f.payload.value ?? null
+      else if (f.payload?.sessionId === sessionId && typeof f.payload?.type === 'string') {
+        otherFrameCounts[f.payload.type] = (otherFrameCounts[f.payload.type] ?? 0) + 1
+        if (/approval|permission/i.test(f.payload.type)) approvalFrames.push(JSON.stringify(f.payload).slice(0, 400))
+      }
+    } catch { /* 非 JSON 帧 */ }
+  }
+  await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('ws failed')) })
+
+  const questionTexts = []
+  const answersGiven = []
+  let answerRejected = false
+  const answer = async (q) => {
+    questionTexts.push(JSON.stringify(q.questions ?? []))
+    const gapTerms = scn.expect?.coreGapTerms ?? []
+    const answers = (q.questions ?? []).map((item) => {
+      const itemText = JSON.stringify(item)
+      if (scn.tier === 'boundary' && (gapTerms.length === 0 || gapTerms.some((t) => itemText.includes(t)))) {
+        return { id: String(item.id), selected: [], custom: INSIST }
+      }
+      const labels = (item.options ?? []).map((o) => String(o.label ?? ''))
+      const pick = labels.find((l) => /\(Recommended\)|[((]推荐[))]/.test(l)) ?? labels[0]
+      return pick !== undefined ? { id: String(item.id), selected: [pick] } : { id: String(item.id), selected: [], custom: '按你的判断来,不用再问我。' }
+    })
+    answersGiven.push(answers)
+    const resp = await fetch(`http://127.0.0.1:${PORT}/api/respond`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'client-response', rpcId: q.rpcId, result: { ok: true, value: { sessionId, answer: { answers } } } }),
+      signal: AbortSignal.timeout(15_000),
+    })
+    try {
+      const receipt = await resp.json()
+      if (receipt?.accepted === false) { answerRejected = true; console.log(`    !! ${scn.id} 应答被拒收:${JSON.stringify(receipt).slice(0, 160)}`) }
+    } catch { /* 无回执体 */ }
+  }
+
+  const assistantTexts = []
+  const tools = []
+  const toolCalls = []
+  const segments = []
+  let scanned = 0
+  let answered = 0
+  // 多段 prompt:同一会话续发;每段独立预算与独立 ended 判定(sawTurnEnd 段内重置,
+  // pending 用全会话累计——续段的工具悬挂同样要等)。
+  for (let pi = 0; pi < scn.prompts.length; pi++) {
+    const seg = scn.prompts[pi]
+    const segT0 = Date.now()
+    const text = String(seg.text).replace('CORPUS_A', CORPUS_A).replace('CORPUS_B', CORPUS_B)
+    await rpc('session.prompt', { sessionId, mode: 'queue', content: [{ type: 'text', text }] })
+    console.log(`  ▶ ${scn.id} 段 ${pi + 1}/${scn.prompts.length}`)
+    const budget = (seg.budgetMinutes ?? 25) * 60_000
+    let lastActivity = Date.now()
+    let sawTurnEnd = false
+    let endReason = 'budget'
+    while (Date.now() - segT0 < budget) {
+      await new Promise((r) => setTimeout(r, 2000))
+      while (scanned < frames.length) {
+        const ev = frames[scanned++]
+        lastActivity = Date.now()
+        if (ev.type === '__question') { await answer(ev); answered++; console.log(`    ↳ 代答检查点(${scn.id})`) }
+        else if (ev.type === 'tool/call') {
+          const nm = String(ev.data?.name ?? '')
+          tools.push(nm)
+          toolCalls.push({ name: nm, seg: pi + 1, t: Math.round((Date.now() - t0) / 1000), args: String(ev.data?.arguments ?? '').slice(0, 200) })
+          console.log(`    · ${scn.id} 工具:${nm}(t+${Math.round((Date.now() - t0) / 1000)}s)`)
+        } else if (ev.type === 'assistant/message') {
+          const c = ev.data?.message?.content
+          const t = typeof c === 'string' ? c : Array.isArray(c) ? c.map((b) => (b?.type === 'text' ? b.text : '')).join('') : ''
+          if (t) assistantTexts.push(t)
+        } else if (ev.type === 'turn/end') { sawTurnEnd = true }
+      }
+      const pending = tools.length - frames.filter((ev) => ev.type === 'tool/result').length
+      if (sawTurnEnd && pending <= 0 && Date.now() - lastActivity > 8000) { endReason = 'ended'; break }
+      if (Date.now() - lastActivity > 6 * 60_000) { endReason = pending > 0 ? 'stalled-pending' : 'stalled'; console.log(`    !! ${scn.id} 段 ${pi + 1} 停滞保释(${endReason})`); break }
+    }
+    segments.push({ i: pi + 1, elapsedSeconds: Math.round((Date.now() - segT0) / 1000), endReason })
+    if (endReason !== 'ended' && pi < scn.prompts.length - 1) {
+      console.log(`    !! ${scn.id} 段 ${pi + 1} 非自然结束(${endReason}),后续段照发(生活流:用户不等它喘匀)`)
+    }
+  }
+  try { await rpc('session.cancel', { sessionId }) } catch { /* 已结束 */ }
+  try { ws.close() } catch { /* ignore */ }
+  return {
+    sessionId, cwdSnapshot, tools, toolCalls, segments,
+    finalText: assistantTexts.join('\n\n'), finalTextComplete: true, insistText: INSIST,
+    answered, answersGiven, answerRejected, questionTexts, otherFrameCounts, approvalFrames,
+    elapsedSeconds: Math.round((Date.now() - t0) / 1000), usage: tokenUsage, usageCollected: tokenUsage !== null,
+  }
+}
+
+// 清场:命名空间前缀 + 语料回收(p*-;.pg-corpus 不在 ~/apps)
+const todo = SPEC.scenarios.filter((s) => ONLY.length === 0 || ONLY.includes(s.id))
+const wiped = cleanSlate(todo, { corpusDirs: [CORPUS_A, CORPUS_B] })
+console.log(wiped.length > 0 ? `清场:${wiped.length} 项(${wiped.slice(0, 5).join(', ')}${wiped.length > 5 ? ' …' : ''})` : '清场:无残留')
+
+const results = []
+for (const scn of todo) {
+  console.log(`\n═══ ${scn.id} [${scn.tier}] ${scn.name} ═══`)
+  let run, aud, g
+  const tq0 = Date.now()
+  try {
+    run = await runOne(scn)
+    aud = await audit(scn, PORT)
+    g = await gradeProving(scn, run, aud, { windowStartMs: tq0 - 120_000, windowEndMs: Date.now() + 120_000, corpusDirs: [CORPUS_A, CORPUS_B] })
+  } catch (error) {
+    run = { tools: [], finalText: String(error.message), elapsedSeconds: Math.round((Date.now() - tq0) / 1000), segments: [], sessionId: null, answered: 0 }
+    aud = { error: String(error.message) }
+    g = { lane: 'error', checks: [{ name: '驱动器', ok: false, detail: String(error.message) }], passed: 0, total: 1, verdict: 'ERROR' }
+  }
+  // 上游活性独立取证(P4:判卷时点名的锚点由驱动器亲自核,入档不判分)
+  for (const e of scn.expect?.ensemble ?? []) {
+    if (e.kind === 'upstream-alive') {
+      try {
+        const r = await fetch(String(e.url), { signal: AbortSignal.timeout(8000) })
+        g.evidence = { ...(g.evidence ?? {}), [`upstream:${e.url}`]: `HTTP ${r.status}(${(await r.text()).slice(0, 60).replace(/\s+/g, ' ')})` }
+      } catch (error) {
+        g.evidence = { ...(g.evidence ?? {}), [`upstream:${e.url}`]: `不可达(环境因素,不冤判):${String(error?.message ?? error).slice(0, 80)}` }
+      }
+    }
+  }
+  console.log(`  → ${g.verdict} ${g.passed}/${g.total}(${run.elapsedSeconds}s,${(run.segments ?? []).length} 段)`)
+  for (const c of g.checks) console.log(`     ${c.ok ? '✓' : '✗'} ${c.name}:${c.detail}`)
+  const row = { id: scn.id, tier: scn.tier, name: scn.name, ...g, elapsedSeconds: run.elapsedSeconds, segments: run.segments ?? [], tools: run.tools, toolCalls: run.toolCalls ?? [], usage: run.usage ?? null, usageCollected: run.usageCollected === true, answersGiven: run.answersGiven ?? [], answerRejected: run.answerRejected === true, otherFrameCounts: run.otherFrameCounts ?? {}, approvalFrames: run.approvalFrames ?? [], cwdSnapshot: run.cwdSnapshot ?? [], audit: aud, sessionId: run.sessionId, questionTexts: run.questionTexts ?? [], finalText: run.finalText, finalTextComplete: run.finalTextComplete === true }
+  results.push(row)
+  writeFileSync(join(OUT_DIR, `${scn.id}.json`), JSON.stringify(row, null, 2))
+}
+
+console.log('\n═══ 试炼场汇总 ═══')
+for (const r of results) console.log(`${r.id} [${r.tier}] ${r.verdict} ${r.passed}/${r.total}(${r.elapsedSeconds}s)`)
+const total = results.filter((r) => r.verdict === 'PASS').length
+console.log(`总计 ${total}/${results.length};战役判据:≥5/6 且失败题病因可定位`)
+const hostEnv = (() => {
+  const dir = join(homedir(), '.dsh', 'profiles', 'web')
+  const profileShas = {}
+  try { for (const f of readdirSync(dir).filter((x) => x.endsWith('.yml'))) profileShas[f] = createHash('sha256').update(readFileSync(join(dir, f))).digest('hex') } catch { /* 取证尽力 */ }
+  return { port: PORT, profileShas }
+})()
+writeFileSync(join(OUT_DIR, 'summary.json'), JSON.stringify({ ranAt: new Date().toISOString(), examVersion: SPEC.version, examSha: EXAM_SHA, corpusDirs: [CORPUS_A, CORPUS_B], hostEnv, wiped, results }, null, 2))
+console.log(`结果落盘:${OUT_DIR.replace(REPO + '/', '')}`)
+process.exit(0)
