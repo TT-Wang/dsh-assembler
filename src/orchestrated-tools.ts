@@ -81,6 +81,7 @@ export const CONTRACT_TAGS: Record<string, string> = {
   FRONTEND_FACT: 'deepseek-v4',
   SCAFFOLD_BATON: 'deepseek-v4',
   PROBE_SKETCH_EXAMPLES: 'deepseek-v4',
+  ASSEMBLY_BATON: 'deepseek-v4',
 }
 
 // ── 承重契约句(集中定义:单测钉住它们,契约改动掉了哪句立刻红)────────────
@@ -93,6 +94,24 @@ export const CONTRACT_TAGS: Record<string, string> = {
 /** 最小覆盖集:从 match prompt 移植出来的那条纪律,现在住在检索/发射契约里。 */
 /** 前端物理事实:多装模板不是权衡,是死件。 */
 export const FRONTEND_FACT = '每 preset 仅首个 frontend 模板生效——选恰好一个交互形状。'
+
+/**
+ * 装配流接力棒(泛化战役 v4 首轮取证后加,2026-08-26):契约散文从工具描述削掉
+ * (16fadf1,每轮省 3174 token)是对的——但入口路由与流程契约随税一起死了,
+ * v4 首轮 A1/A2 实录:主 agent 面对「帮我做个记账网页」全程 bash/edit 徒手写码,
+ * 零装配、零考官、零 BOM(refuse 0/5 ×2,轮中止)。修法不是把税交回去:
+ * **入口一句留在 search_catalog 描述里(~40 token,不可再减的路由事实,全会话税);
+ * 流程契约整体搬进检索结果**——结果只出现在真装配的会话里,是信息不是税(第三条)。
+ */
+export const ASSEMBLY_BATON =
+  '【装配流契约】用户要"造一个 agent/助手/带 agent 的 app"时走这条路,不徒手写码:'
+  + '① 先出架构(用途/能力清单每条带 why/数据模型/工作流/接口形状/边界——五行一句话清单不算架构);'
+  + '② ask_user_question 呈架构与**全部缺口**(每个缺口给用户选:现场造件/降级/砍),用户点头前不 emit 不 verify;'
+  + '③ 逐需求检索选件(同义词换 2-3 种说法;检索即完成选型,match_catalog 是最后升级阀);'
+  + '④ emit_preset 发射(缺口如实进 missing/missingEntries 成工单)→ verify_preset 独立验收——你不能自己宣布可用;'
+  + '⑤ 页面:恰一个 frontend 模板,或 emit_app 起 scaffold 写手席写定制页(examples/ 整页拷来起步);'
+  + '⑥ 装配器资源(目录/preset/scaffold/知识包)只经工具面(read_preset/add_knowledge/submit_part),沙箱够不着,别 bash 硬闯;'
+  + '⑦ 个人即时的一次性小事可以直接自己做——铸 agent 是给交付/无人值守/他人使用的形态。'
 
 /**
  * 写手席接力棒(emit_app 专用):骨架落地后主 agent 就是写手——流程知识
@@ -682,6 +701,25 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
           )
         }
       }
+      // 同名重发前快照(代码强制,不靠散文;penguin 吸收):上一代的**装配工件**
+      // (组合/BOM/装备/体检包)原子归档进单槽 preset.prev/——FAIL 后可对照 diff、
+      // 可照旧 lock 重发复原。刻意不做"字节回滚":host 永不释放旧代 serverName,
+      // verbatim 恢复旧字节必撞自己前代的挂载(代际物理);复原 = 按快照 lock 的
+      // capabilityIds/persona 重发,不是拷回旧文件。workspace/kb 是数据不是工件,不动。
+      const prevExists = existsSync(join(dir, 'agent.cordis.yml'))
+      if (prevExists) {
+        try {
+          const snap = join(dir, 'preset.prev')
+          rmSync(snap, { recursive: true, force: true })
+          mkdirSync(snap, { recursive: true })
+          for (const f of ['agent.cordis.yml', 'parts.lock.yml', 'preset.yml', 'selfcheck.json', 'last-verify.json']) {
+            if (existsSync(join(dir, f))) cpSync(join(dir, f), join(snap, f))
+          }
+          if (existsSync(join(dir, 'equipment'))) cpSync(join(dir, 'equipment'), join(snap, 'equipment'), { recursive: true })
+        } catch (error: unknown) {
+          console.error(`[assembler] 重发快照失败(发射照常):${error instanceof Error ? error.message : String(error)}`)
+        }
+      }
       mkdirSync(dir, { recursive: true })
       progressAppend(dir, `══ emit_preset ${id}(编排模式:发射归我,决策归编排者)══`)
       const byId = new Map(catalog.capabilities.map((c) => [c.id, c]))
@@ -756,6 +794,7 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
         ? `\n所需凭证:${requiredSecrets.map((sec) => `${sec.env}${sec.configured ? '(已配置)' : sec.optional === true ? '(可选,未配则降级)' : '(待配置)'}`).join(';')}(凭证配到 host 环境变量,绝不进装配参数)`
         : ''
       return `preset「${id}」已发射:${ids.join(', ')}(${String(elapsed)}s)\n`
+        + (prevExists ? `上一代工件已存快照:${join(dir, 'preset.prev')}/(对照 diff / 按其 parts.lock 重发即复原)\n` : '')
         + `preset 文件:${join(dir, 'agent.cordis.yml')}\n`
         + (frontendInfo !== null ? `前端页面:${frontendInfo.url ?? frontendInfo.path}(模板 ${frontendInfo.template})\n` : '')
         + (equipment !== null ? '装备:预建数据库 schema(equipment/init.sql,双次执行门 PASS)\n' : '')
@@ -950,9 +989,16 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
           ? `验收探针:多轮场景共 ${String(plan.scenario.turns.length)} 轮——探针会话可在侧栏实时旁观`
           : '验收探针:单轮——探针会话可在侧栏实时旁观')
         const timeoutMs = config.verifyTimeoutMs ?? PROBE_TURN_BUDGET_MS
-        const verification: ProbeResult = plan.kind === 'scenario'
+        let verification: ProbeResult = plan.kind === 'scenario'
           ? await runScenario(port, id, plan.scenario, timeoutMs, phase, probeCwd)
           : await runProbe(port, id, plan.probe, timeoutMs, phase, probeCwd)
+        // 验中版本钉(penguin 吸收):考的是开跑那一刻的字节。判定落笔前重核盘上
+        // 文件,字节变了(并发装配互踩/中途重发)⇒ 本判定作废——把一份对旧字节的
+        // 证据记到新字节头上,是台账最危险的撒谎方式。
+        if (presetSha(readFileSync(presetPath, 'utf8')) !== sha) {
+          verification = { status: 'ERRORED', reason: 'preset 字节在验收期间被改动(并发装配或中途重发)——本判定对新字节无效,重发完成后重验' }
+          phase('⚠ 验中版本钉:preset 字节已变,判定作废')
+        }
         // 前端验收(同一张考卷):页面可达门 + 会话环路门。
         let feLine = ''
         if (existsSync(join(dir, 'frontend', 'index.html'))) {
@@ -964,6 +1010,16 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
             feLine = `\n前端验收:FAIL——${error instanceof Error ? error.message : String(error)}`
           }
         }
+        // 纵向记分板(penguin 吸收):每次真跑的判定追加一行——第 30 天故事的台账。
+        // 聚合数字由代码算,不由模型写;写失败绝不影响判定。
+        try {
+          appendFileSync(join(dir, 'selfcheck-history.jsonl'), `${JSON.stringify({
+            at: new Date().toISOString(), presetSha256: sha, verdict: verification.status,
+            ...(verification.kind !== undefined ? { kind: verification.kind } : {}),
+            elapsedSeconds: Math.round((Date.now() - t0) / 1000),
+            derive: { out: deriveUsage.outputTokens, reason: deriveUsage.reasoningTokens },
+          })}\n`)
+        } catch { /* 台账是加速器不是必需品 */ }
         let selfCheckLine = ''
         if (verification.status === 'PASS') {
           try {
@@ -1027,9 +1083,10 @@ export function searchCatalogToolDefinition(_ctx: Context, config: Config): Tool
   return defineTool({
     name: SEARCH_TOOL_NAME,
     description:
-      'The parts-ecosystem SEARCH ENGINE (mechanical BM25-weighted lexical search: zero LLM, instant, deterministic). '
-      + 'Search once per capability need; repeat with different phrasings. Each result row carries the facts for the decision: '
-      + 'price tag (prompt-tokens its manual costs the delivered agent EVERY turn, and whether it spawns a process), credentials, service face.',
+      'START HERE when the user asks to BUILD/create/装配 an agent, assistant, bot, or an agent-backed web app — the assembly flow '
+      + 'begins with this search, NOT with hand-writing code. The parts-ecosystem SEARCH ENGINE (mechanical BM25 lexical search: zero LLM, '
+      + 'instant, deterministic). Search once per capability need; repeat with different phrasings. Each result row carries the facts for '
+      + 'the decision: price tag (prompt-tokens its manual costs the delivered agent EVERY turn, whether it spawns a process), credentials, service face.',
     parameters: {
       query: { type: 'string', description: 'one search query — a capability need in natural language (Chinese or English); repeat the tool for each need', required: true },
       limit: { type: 'number', description: 'max results (default 10)' },
@@ -1070,11 +1127,11 @@ export function searchCatalogToolDefinition(_ctx: Context, config: Config): Tool
       }
       appendOrchLedger({ tool: SEARCH_TOOL_NAME, query: query.slice(0, 120), hits: hits.length })
       if (hits.length === 0) {
-        return `「${query}」检索 0 命中。${prose('换 2-3 种说法再试(同义词/英文词);仍无 → 这是真缺口,如实进 emit_preset 的 missing/missingEntries。')}`
+        return `「${query}」检索 0 命中。${prose(`换 2-3 种说法再试(同义词/英文词);仍无 → 这是真缺口,如实进 emit_preset 的 missing/missingEntries。\n${ASSEMBLY_BATON}`)}`
       }
       const rows = hits.map((h, i) => `${String(i + 1)}. ${h.entry.id} [${h.entry.via}](分 ${String(h.score)})— ${h.entry.description.slice(0, 110)}${priceOf(h.entry)}${serviceOf(h.entry)}${secretOf(h.entry)}`).join('\n')
       return `「${query}」top ${String(hits.length)}:\n${rows}`
-        + prose(`\n(BM25 词法排名,分数只是线索——选不选、选哪个由你判断。基线:交付 agent 的 LLM 自己能稳定做的不装零件;价签是它每轮 prompt 的固定税。UI 需求恰好配一个 via:frontend 模板、持久状态配存储零件。)`)
+        + prose(`\n(BM25 词法排名,分数只是线索——选不选、选哪个由你判断。基线:交付 agent 的 LLM 自己能稳定做的不装零件;价签是它每轮 prompt 的固定税。UI 需求恰好配一个 via:frontend 模板、持久状态配存储零件。)\n${ASSEMBLY_BATON}`)
     },
   })
 }
@@ -1717,6 +1774,15 @@ export function readPresetToolDefinition(_ctx: Context, config: Config): ToolDef
       if (on('selfcheck')) {
         const scPath = join(dir, 'selfcheck.json')
         out.push(`\n【自检包(随件考卷)】\n${existsSync(scPath) ? readFileSync(scPath, 'utf8').slice(0, 2000) : '(尚未验收通过)'}`)
+        // 纵向记分板:逐次判定的台账,聚合数字由代码算(penguin 软肋反着做)。
+        const histPath = join(dir, 'selfcheck-history.jsonl')
+        if (existsSync(histPath)) {
+          const rows = readFileSync(histPath, 'utf8').trim().split('\n').map((l) => { try { return JSON.parse(l) } catch { return null } }).filter((r): r is Record<string, unknown> => r !== null)
+          const byVerdict: Record<string, number> = {}
+          for (const r of rows) byVerdict[String(r.verdict)] = (byVerdict[String(r.verdict)] ?? 0) + 1
+          const last = rows[rows.length - 1]
+          out.push(`【验收记分板】共 ${rows.length} 次:${Object.entries(byVerdict).map(([k, v]) => `${k}×${v}`).join(' ')};最近 ${String(last?.at ?? '').slice(0, 19)} ${String(last?.verdict ?? '')}(字节 ${String(last?.presetSha256 ?? '').slice(0, 8)})`)
+        }
       }
       if (on('faces')) {
         const svcPath = join(dir, 'workspace', '.service.json')

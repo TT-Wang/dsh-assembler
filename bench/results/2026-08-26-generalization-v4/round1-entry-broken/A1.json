@@ -1,0 +1,81 @@
+{
+  "id": "A1",
+  "tier": "A",
+  "name": "产品手册问答",
+  "lane": "refuse",
+  "checks": [
+    {
+      "name": "形态路由",
+      "ok": false,
+      "detail": "实得 refuse,预期 scaffold|preset-only"
+    },
+    {
+      "name": "调了考官",
+      "ok": false,
+      "detail": "轨迹:无"
+    },
+    {
+      "name": "交付可达",
+      "ok": false,
+      "detail": "HTTP null"
+    },
+    {
+      "name": "自述判定",
+      "ok": false,
+      "detail": "未验收"
+    },
+    {
+      "name": "知识包随 preset 落地(kb/)",
+      "ok": false,
+      "detail": "kb 包数 0"
+    }
+  ],
+  "passed": 0,
+  "total": 5,
+  "verdict": "FAIL",
+  "elapsedSeconds": 359,
+  "tools": [
+    "bash",
+    "glob",
+    "read",
+    "skill",
+    "todo_write",
+    "write",
+    "write",
+    "bash",
+    "edit",
+    "edit",
+    "edit",
+    "bash",
+    "todo_write",
+    "preview_register",
+    "todo_write"
+  ],
+  "usage": {
+    "input": 0,
+    "output": 0
+  },
+  "audit": {
+    "presetName": "g-a1-manual",
+    "presetEmitted": false,
+    "apps": [],
+    "appEmitted": false,
+    "scaffolds": [],
+    "pagesWritten": 0,
+    "routes": {
+      "face": 0,
+      "wire": 0,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [],
+    "pageReachable": null,
+    "assetsOk": null,
+    "byteDiscipline": null,
+    "stateEquipped": false,
+    "kbPacks": 0
+  },
+  "sessionId": "session-859570f2-a28d-41bd-a20e-212a4f13a1b8",
+  "questionTexts": [],
+  "finalText": "完成 ✅ 交付物在 `g-a1-manual`,右下角预览窗已打开,可以直接试问。\n\n## 交付物\n\n**`/Users/tongtao/apps/g-a1-manual/`**\n\n- `index.html` — 单文件、自包含(无任何外部依赖,双击即可打开,可离线用)。手册内容内嵌于页面(来源 `g-corpus/产品手册.md` 已注明在文件头注释里)。\n- `tests/engine.test.mjs` — 引擎行为测试(25 个断言)。\n\n## 页面能力\n\n| 需求 | 实现 |\n|---|---|\n| 手册文档 → 可追问的页面 | 左侧「手册原文」面板(点击出处可定位高亮),右侧聊天问答 |\n| 追问 | 对话上下文承接:代词(\"它堵了怎么办\"→PP棉)、名词追问(\"凭证呢\")、延续词(\"然后呢\"\"换完要做什么\")、话题转移(\"那滤芯呢\"\"那多久换一次\") |\n| 回答标出处 | 每个答案附「📎 出处 · 章节」卡片,引用为手册原文**逐字摘录**,点击定位到左侧原文并高亮 |\n| 不说谎 | 手册未覆盖的内容(价格、安装、电话、清洁等)如实回复\"手册未提及\",不编造;找不到的问答兜底引导 |\n\n## 验证结果\n\n- 内嵌脚本 `node --check` 语法通过;\n- 引擎测试 **25/25 通过**:直接提问 10 条、追问链 5 组、手册外/边界 6 条;\n- 测试中发现并修复了两个真实边界问题:弱匹配单词命中不再直接作答(避免\"换完要做什么\"误答成换芯周期)、\"安装\"不再被误判为\"换芯\"。\n\n## 关键设计决策\n\n- **纯前端规则检索,零外部依赖**:手册很小(3 节),检索库/后端/LLM 都是过度设计;答案与引文全部由内置知识库生成,引文是原文逐字串,从机制上杜绝编造。\n- **出处逐字可核对**:所有 `quote` 字段与源文档原文比对过,页面渲染时引文用「」包裹,与回答正文分离。\n- **可扩展**:新增章节只需在 `SECTIONS`/`FAQS` 加条目;手册更新时同步嵌入内容即可(内容目前是构建时嵌入,不是运行时读取)。\n\n一个说明:由于是纯前端页面,答案来自内置知识库而非大模型——手册内容一旦更新需要重新嵌入;如果你之后想让手册直接\"可被大模型追问\",可以在这个页面上接一个后端/模型通道,页面骨架不用动。"
+}

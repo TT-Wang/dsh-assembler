@@ -213,7 +213,7 @@ const matchBare = matchCatalogToolDefinition(fakeCtx, {}).description
 if (savedBare === undefined) delete process.env.DSH_ASSEMBLER_BARE
 else process.env.DSH_ASSEMBLER_BARE = savedBare
 check('BARE:默认关、=1 开', bareMode() === false)
-check('到期制:每条导出散文常量都登记了适用模型代', ['FRONTEND_FACT', 'SCAFFOLD_BATON', 'PROBE_SKETCH_EXAMPLES'].every((k) => typeof CONTRACT_TAGS[k] === 'string' && CONTRACT_TAGS[k] !== '') && CONTRACT_GENERATION === 'deepseek-v4')
+check('到期制:每条导出散文常量都登记了适用模型代', ['FRONTEND_FACT', 'SCAFFOLD_BATON', 'PROBE_SKETCH_EXAMPLES', 'ASSEMBLY_BATON'].every((k) => typeof CONTRACT_TAGS[k] === 'string' && CONTRACT_TAGS[k] !== '') && CONTRACT_GENERATION === 'deepseek-v4')
 
 const planScn = { kind: 'scenario', scenario: { goal: 'g', turns: [{ prompt: '记 T-9 打车 30 元', mustInclude: ['T-9'] }, { prompt: '查 T-9 报分类', mustInclude: ['打车'] }] } }
 const sk = planToSketch(planScn)
@@ -465,6 +465,30 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   check('add_knowledge 闸:相对路径拒', await throwsK({ docsDir: 'rel/path', id: 'x', description: 'd', probes: [{ question: 'q', mustInclude: ['m'] }] }, '绝对路径'))
 }
 
+// ── 装配流入口(v4 首轮取证:A1/A2 徒手写码 0/5×2——入口随契约散文之死断链)──
+{
+  const { ASSEMBLY_BATON, searchCatalogToolDefinition: sct9 } = await import('./lib/orchestrated-tools.js')
+  const sDesc = sct9(fakeCtx, {}).description
+  check('入口线:search_catalog 描述教路由(BUILD→从这进,不徒手写码)', sDesc.includes('START HERE') && sDesc.includes('NOT with hand-writing code'))
+  check('契约钉:装配流接力棒承重句齐(架构/检查点 ask_user_question/缺口三选/独立验收/工具面资源/即时型豁免)',
+    ['架构', 'ask_user_question', '现场造件/降级/砍', 'verify_preset 独立验收', '只经工具面', '个人即时'].every((k) => ASSEMBLY_BATON.includes(k)))
+  // 接力棒走检索结果(信息面),且 BARE 可剥(消融不作弊)
+  const { writeFileSync: wf9, mkdtempSync: mk9 } = await import('node:fs')
+  const { join: j9 } = await import('node:path')
+  const { tmpdir: td9 } = await import('node:os')
+  const d9 = mk9(j9(td9(), 'baton-'))
+  const cp9 = j9(d9, 'capabilities.yml')
+  wf9(cp9, 'capabilities:\n  - id: sqlite-store\n    via: mcp\n    description: 持久存取\n    tags: ["数据库"]\n    config: {}\n')
+  const withBaton = await sct9(fakeCtx, { catalogPath: cp9 }).execute({ query: '数据库' })
+  check('接力棒随检索结果走(命中面)', withBaton.includes('【装配流契约】'))
+  const zeroBaton = await sct9(fakeCtx, { catalogPath: cp9 }).execute({ query: 'xyzzy 完全无关' })
+  check('接力棒随检索结果走(零命中面也不断链)', zeroBaton.includes('【装配流契约】'))
+  process.env.DSH_ASSEMBLER_BARE = '1'
+  const bare9 = await sct9(fakeCtx, { catalogPath: cp9 }).execute({ query: '数据库' })
+  delete process.env.DSH_ASSEMBLER_BARE
+  check('BARE:接力棒可剥、入口线(事实)保留在描述', !bare9.includes('【装配流契约】'))
+}
+
 // ── 宪法第八条:概念账钉(数概念,不数行;加一必删一——想改这些数字,先过第八条)──
 {
   const { readFileSync: rfc } = await import('node:fs')
@@ -477,7 +501,7 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   const { assemblerMode: am8 } = await import('./lib/orchestrated-tools.js')
   check('概念账:形态 = search 唯一(off 是停用开关不是形态)', typeof am8 === 'function')
   const { CONTRACT_TAGS: tags8 } = await import('./lib/orchestrated-tools.js')
-  check('概念账:承重散文常量 = 3 条(FRONTEND_FACT/SCAFFOLD_BATON/PROBE_SKETCH_EXAMPLES)', Object.keys(tags8).length === 3, Object.keys(tags8).join(','))
+  check('概念账:承重散文常量 = 4 条(+ASSEMBLY_BATON:v4 首轮取证的入口断链修复)', Object.keys(tags8).length === 4, Object.keys(tags8).join(','))
 }
 
 // ── 机械闸:契约要求的动作,逐条必须有够得着的工具面 ─────────────────────────
