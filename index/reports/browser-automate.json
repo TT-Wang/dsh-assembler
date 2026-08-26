@@ -1,34 +1,28 @@
 {
   "id": "browser-automate",
-  "repo": "microsoft/playwright",
-  "rev": "v1.45.0",
-  "license": "Apache-2.0",
-  "verified": true,
+  "verifiedAt": "2026-08-26T22:22:14.550Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
   "tools": [
     {
       "name": "browser-open",
-      "description": "打开一个 URL 并等待页面加载完成（浏览器自动化流程第一步）。参数 url（必填，http/https 开头）；waitUntil（load/domcontentloaded/networkidle/commit，默认 load）；timeout（毫秒，默认 30000）；headless（默认 true）。返回 JSON：{title, url, status, finalUrl}，status 为 HTTP 状态码。启动/复用单例浏览器，关闭旧页面并新建页面导航到目标地址。"
+      "description": "打开一个 URL 并等待页面加载完成。启动（或复用）浏览器，关闭旧页面并新建页面导航到目标地址。参数 url 为目标网址（http/https 开头）；waitUntil 控制等待条件（load=全部资源加载完，domcontentloaded=仅 DOM 就绪，networkidle=网络空闲，commit=刚收到响应头）；timeout 为超时毫秒数。返回 JSON：{title, url, status, finalUrl}（status 为 HTTP 状态码，可能为 null）。浏览器自动化流程的第一步，后续可用 browser-extract / browser-click / browser-screenshot 操作该页面。"
     },
     {
       "name": "browser-extract",
-      "description": "从当前页面提取文本内容。默认提取整页可见文本（body innerText）；selector 指定元素（第一个匹配）；attribute 改为提取属性值（如 href/src/value）；all=true 时返回所有匹配元素的 JSON 数组。用于抓取网页正文、链接地址、图片地址等。元素不存在时返回清晰错误。"
+      "description": "从当前页面提取文本内容。默认提取整个页面可见文本（body 的 innerText）；可通过 selector 提取某个元素（第一个匹配）的文本；attribute 改为提取该元素的指定属性值（如 href、src、value）；all=true 时提取所有匹配元素的文本并以 JSON 数组返回。用于抓取网页正文、链接地址、图片地址等。"
     },
     {
       "name": "browser-click",
-      "description": "在页面上点击指定 CSS 选择器对应的元素。参数 selector（必填）；timeout（毫秒，默认 30000）。自动等待元素可见并可交互后点击，返回被点击元素的标签名与可见文本。用于点击按钮、链接、选项卡等触发页面交互。"
+      "description": "在页面上点击指定 CSS 选择器对应的元素。自动等待元素出现并可交互后再点击；timeout 为等待超时毫秒数。常用于点击按钮、链接、选项卡等触发页面交互。点击后返回被点击元素的标签名与可见文本，便于确认操作对象。"
+    },
+    {
+      "name": "browser-fill",
+      "description": "向页面上指定 CSS 选择器对应的输入元素填入文本（input/textarea/contenteditable）。自动等待元素可见后填入；fill 会先清空原值再输入，派发真实 input 事件（React 受控组件可用）。返回填入后的元素值，便于确认。"
     },
     {
       "name": "browser-screenshot",
-      "description": "对当前页面（或指定元素）截图，截图以 base64 编码返回：MCP image 内容块（mimeType: image/png 或 image/jpeg）携带完整 base64，文本块给出字节数与 data URL 前缀。参数 selector（可选，只截该元素）、fullPage（可选，整页）、type（png/jpeg）、quality（jpeg 0-100）。用于页面视觉验证、元素外观检查。"
+      "description": "对当前页面（或指定元素）截图，截图以 base64 编码返回：文本块中给出 data URL 前缀与字节数，同时以 MCP image 内容块携带完整 base64（mimeType: image/png 或 image/jpeg）。fullPage=true 截取整个可滚动页面；selector 指定时只截取该元素；type=jpeg 时可用 quality(0-100) 控制压缩质量。用于页面视觉验证、元素外观检查。"
     }
-  ],
-  "smoke": "成功：listTools() 返回 4 个工具；真实调用 browser-open {url:https://example.com} 返回 status=200、title=Example Domain；browser-extract {selector:h1} 返回 Example Domain；browser-screenshot {} 返回 image/png 内容块（17663 字节，PNG 魔数 89504e47 校验通过）；缺参调用 browser-click {} 被 zod 校验拦截（MCP error -32602: Required at selector）。另验证真实点击往返：browser-open 后 browser-click {selector:a} 成功导航到下一页。node smoke.mjs 退出码 0，SMOKE RESULT: PASS，退出后无残留 node/chromium 进程。",
-  "issues": [
-    "浏览器二进制：npm install 时以 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 跳过下载以加速安装；随后 npx playwright install chromium 成功安装 chromium-1124（v1.45.0 对应构建，Chromium 127.0.6533.17）到 ~/Library/Caches/ms-playwright。若目标机器未下载二进制，server 自动回退到系统 Google Chrome（channel: 'chrome'），两者都不可用时才报错",
-    "无头浏览器需网络访问目标页面：冒烟使用 https://example.com，离线/代理受限环境会失败",
-    "server 为进程内单例浏览器/页面：browser-open 切换页面会关闭旧页面；并发工具调用共享同一页面，不适合并行改页场景",
-    "npm install 报告若干 audit 提示（playwright 依赖链传递），不影响适配器运行",
-    "上游源码为 TypeScript monorepo（packages/），本适配直接依赖 npm 发布的 playwright@1.45.0 预构建产物，未修改任何上游代码"
-  ],
-  "notes": "clone 源码（commit 4f3f6ee，v1.45.0 标签）仅用于 API 核验（chromium.launch / browser.newPage / page.goto / page.screenshot / page.click / locator 系列），实际依赖 npm 发布的 playwright@1.45.0。4 个工具覆盖浏览器自动化的导航/提取/交互/截图四类能力。截图按任务要求以 base64 返回（MCP image 块 + 文本 data URL），并在工具描述中注明。修复了两处健壮性问题：StdioServerTransport 不监听 stdin end/close，客户端断开后运行中的 chromium 会让事件循环永不结束 —— server 显式监听 stdin end/close，断开时关闭浏览器并 process.exit(0)，保证干净退出；browser-click 在点击前读取元素信息，避免点击触发导航后元素脱离 DOM 导致误报。服务名 browser-automate，工具名最终为 mcp__browser-automate__<tool>。"
+  ]
 }

@@ -55,6 +55,27 @@ async function main() {
   if (!magic.startsWith('89504e47')) throw new Error(`PNG 魔数校验失败: ${magic}`)
   console.log(`→ 图片块 OK: ${img.mimeType}, ${buf.length} 字节, PNG 魔数正确`)
 
+  // 4.5) 真实调用：browser-fill（本地自起考场页：input 镜像 div——fill 必须派发
+  // 真实 input 事件，React 受控输入才吃得住；镜像 div 即这条物理事实的见证人）
+  console.log('\n=== call browser-fill（本地镜像页）===')
+  const http = await import('node:http')
+  const pageHtml = '<!doctype html><input id="inp"><div id="mirror"></div><script>document.getElementById("inp").addEventListener("input",e=>{document.getElementById("mirror").textContent=e.target.value})</script>'
+  const srv = http.createServer((_q, res) => { res.setHeader('content-type', 'text/html'); res.end(pageHtml) })
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r))
+  const localPort = srv.address().port
+  const rOpen = await client.callTool({ name: 'browser-open', arguments: { url: `http://127.0.0.1:${localPort}/`, waitUntil: 'domcontentloaded' } })
+  if (rOpen.isError) throw new Error('browser-open 本地页失败: ' + textOf(rOpen))
+  const rf = await client.callTool({ name: 'browser-fill', arguments: { selector: '#inp', value: 'FILL-7788-试卷' } })
+  const tf = textOf(rf)
+  console.log('返回:', tf.slice(0, 200))
+  if (rf.isError) throw new Error('browser-fill 返回 isError: ' + tf)
+  if (!tf.includes('FILL-7788')) throw new Error('fill 回执未含填入值: ' + tf)
+  const rm = await client.callTool({ name: 'browser-extract', arguments: { selector: '#mirror' } })
+  const tm = textOf(rm)
+  if (!tm.includes('FILL-7788')) throw new Error(`镜像 div 未收到 input 事件（React 受控输入会同病）: ${tm}`)
+  console.log('→ fill 派发真实 input 事件，镜像验证通过')
+  srv.close()
+
   // 5) 缺参调用：browser-click {}（缺 selector，应被拦截）
   console.log('\n=== call browser-click {} (缺参，应报参数错误) ===')
   const r4 = await client.callTool({ name: 'browser-click', arguments: {} })

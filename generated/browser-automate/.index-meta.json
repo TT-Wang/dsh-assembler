@@ -1,0 +1,10 @@
+{
+  "id": "browser-automate",
+  "pkg": null,
+  "version": "0.0.2",
+  "repo": "microsoft/playwright",
+  "rev": "v1.45.0",
+  "license": "Apache-2.0",
+  "note": "meta 补建于 2026-08-27(老代零件无 .index-meta.json;出处逐字取自 index/catalog.yml 既有行)。0.0.2 加 browser-fill(DOM 层考的手)。",
+  "scaffoldedAt": "2026-08-27T02:00:00.000Z"
+}

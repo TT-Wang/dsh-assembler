@@ -1,7 +1,7 @@
 {
   "name": "@dsh-index/browser-automate",
   "type": "module",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "description": "MCP stdio server adapter for microsoft/playwright v1.45.0 (Apache-2.0) - browser automation",
   "dependencies": {

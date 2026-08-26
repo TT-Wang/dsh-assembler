@@ -276,6 +276,7 @@
     - { name: browser-open, description: 打开 URL 等待加载（无头浏览器）}
     - { name: browser-extract, description: 从当前页面提取文本/属性 }
     - { name: browser-click, description: 点击页面元素 }
+    - { name: browser-fill, description: 向输入元素填文本(真实 input 事件,受控组件可用) }
     - { name: browser-screenshot, description: 页面/元素截图（base64）}
 
 - id: ocr-parse

@@ -1,6 +1,6 @@
 // MCP stdio server adapter for microsoft/playwright v1.45.0 (Apache-2.0)
 // Capability id: browser-automate
-// Tools: browser-open, browser-extract, browser-click, browser-screenshot
+// Tools: browser-open, browser-extract, browser-click, browser-fill, browser-screenshot
 //
 // 依赖 playwright（官方浏览器自动化库）。进程内维护单例 Browser/Page：
 //   - 首次需要页面时惰性启动（优先使用 playwright 自带的 chromium；
@@ -207,6 +207,38 @@ server.tool(
       return ok(`已点击 ${tag} 元素 (selector="${selector}")${text ? `，其文本: ${JSON.stringify(text)}` : ''}`)
     } catch (err) {
       return fail(`browser-click 失败: ${err.message ?? String(err)}`)
+    }
+  }
+)
+
+// ---- 工具 3.5：browser-fill ------------------------------------------------
+// DOM 层考（装配器 verify_app 第六门）的手：click-only 驱不动最典型的建单流
+// （先填输入框再点按钮），且区分口令必须打进输入框才能织进证据链。
+// playwright fill 派发真实 input 事件，React 受控输入吃得住；locator 严格模式
+// 下多匹配即报错并列出候选（报错即界面白拿）。
+server.tool(
+  'browser-fill',
+  '向页面上指定 CSS 选择器对应的输入元素填入文本（input/textarea/contenteditable）。' +
+    '自动等待元素可见后填入；fill 会先清空原值再输入，派发真实 input 事件（React 受控组件可用）。' +
+    '返回填入后的元素值，便于确认。',
+  {
+    selector: z.string().min(1, 'selector 不能为空').describe('要填入元素的 CSS 选择器，例如 "#draft"、"input[name=title]"'),
+    value: z.string().describe('要填入的文本（会先清空原值）'),
+    timeout: z.number().int().positive().max(120000).optional().default(30000)
+      .describe('等待元素可见的超时毫秒数，默认 30000')
+  },
+  async (args) => {
+    const selector = String(args.selector ?? '').trim()
+    if (!selector) return fail('参数错误: selector 为必填字符串')
+    try {
+      const p = await getPage()
+      const loc = p.locator(selector)
+      await loc.waitFor({ state: 'visible', timeout: args.timeout })
+      await loc.fill(String(args.value ?? ''), { timeout: args.timeout })
+      const now = await loc.inputValue().catch(async () => (await loc.innerText().catch(() => '')).trim())
+      return ok(`已填入 (selector="${selector}")，当前值: ${JSON.stringify(String(now).slice(0, 200))}`)
+    } catch (err) {
+      return fail(`browser-fill 失败: ${err.message ?? String(err)}`)
     }
   }
 )
