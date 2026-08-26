@@ -142,8 +142,13 @@
       凭证契约含"半配置也拒")。**采-vs-造 诚实记录**:npm 上这批缺件没有可采的
       成品 MCP server(TTS 只有库、IM 只有需凭证的第三方件),故走"造";
       `node-edge-tts`(库)与 `minio`(库)是借来的实现,出处已入 BOM。
-- [ ] 下一批候选:日历写入(CalDAV)· Notion/飞书文档写 · 快递物流 · A股行情
-      (前两者需凭证,后两者上游质量待评估)。
+- [x] **A股行情**(2026-08-27):采 `stock-sdk`(26 工具面,零依赖周活跃,收编门
+      真调茅台五档 PASS);adopt 门新增 --bin-args(子命令启动采件的结构扩展)。
+- [x] **快递物流**(2026-08-27,凭证契约脸先行):造 `express-track`(快递鸟薄壳,
+      唯一可持续免费层 500 单/天)。smoke:签名离线向量 + 无凭证起服/listTools/
+      可行动错误(点名双 env+注册路径)+ SF 手机尾号前置闸;真调腿待用户注册
+      快递鸟后扣扳机(见"等用户")。侦察底册 docs/research/sourcing-express-stocks.md。
+- [ ] 下一批候选:日历写入(CalDAV)· Notion/飞书文档写(两者均需凭证,等扳机)。
 
 ## P5|产品体验与迭代回路
 
@@ -183,4 +188,7 @@
 
 - [ ] **重启 3096**(你的主 host 仍是旧构建:无 `/.service` 路由、无 scaffold 工具面)
 - [ ] **真凭证端到端**:按 docs/live-credential-e2e.md 配 env 后扣扳机
+- [ ] **快递鸟注册**:注册+实名+订免费套餐 → KDNIAO_EBUSINESS_ID/KDNIAO_API_KEY
+      进 env → 重跑 generated/express-track/smoke.mjs 补真调腿(顺带核实单号识别
+      2002 是否在免费套餐内)
 - [ ] **Lovable 正赛**:真 Lovable 账号对打 vs 开源复刻预赛,以及预算口径

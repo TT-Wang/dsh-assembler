@@ -1,0 +1,16 @@
+{
+  "id": "express-track",
+  "verifiedAt": "2026-08-26T17:07:51.568Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "tools": [
+    {
+      "name": "query-express",
+      "description": "查快递轨迹(快递鸟即时查询,2700+ 承运商)。需 carrier(承运商编码,如 SF/YTO/ZTO/STO/YD/JTSD/EMS/JD)+ trackingNo;顺丰需收/寄件人手机后四位(phone)。返回按时间排序的轨迹节点。"
+    },
+    {
+      "name": "detect-carrier",
+      "description": "按运单号识别承运商(快递鸟单号识别)。返回候选承运商编码列表,供 query-express 的 carrier 用。注:识别接口是否在免费套餐内以真凭证实测为准(采购侦察未能核实)。"
+    }
+  ]
+}

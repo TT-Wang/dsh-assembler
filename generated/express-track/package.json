@@ -1,0 +1,11 @@
+{
+  "name": "@dsh-index/express-track",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "description": "MCP stdio server: 快递物流查询(快递鸟即时查询薄壳,免费 500 单/天)",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  }
+}

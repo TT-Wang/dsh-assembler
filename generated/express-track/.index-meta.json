@@ -1,0 +1,18 @@
+{
+  "id": "express-track",
+  "pkg": null,
+  "version": "0.0.1",
+  "repo": "first-party",
+  "license": "MIT",
+  "kind": "service",
+  "service": "https://api.kdniao.com/Ebusiness/EbusinessOrderHandle.aspx",
+  "provider": "快递鸟(kdniao)",
+  "terms": "免费套餐 500 单/天,超量次日恢复;个人注册+实名可用",
+  "rateLimit": "500 单/天(免费层)",
+  "network": true,
+  "requiredSecrets": [
+    { "env": "KDNIAO_EBUSINESS_ID", "purpose": "快递鸟商户 ID(注册后获取)" },
+    { "env": "KDNIAO_API_KEY", "purpose": "快递鸟 ApiKey(签名用,注册后获取)" }
+  ],
+  "scaffoldedAt": "2026-08-27T01:00:00.000Z"
+}

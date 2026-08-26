@@ -1067,3 +1067,18 @@
     - { name: "is_trading_day", description: "判断某天是否为 A 股交易日（基于上游官方日历，能识别法定假日）。date 可选，支持 YYYY-MM-DD 或 YYYYMMDD；不传则判断今天。返回 boo" }
     - { name: "get_market_status", description: "获取市场当前实时状态：pre_market(盘前) / open(交易中) / lunch_break(午休) / after_hours(盘后) / clos" }
     - { name: "search", description: "模糊搜索股票 / 指数 / 基金（代码 / 名称 / 拼音）。返回 code、name、market、category。" }
+
+- id: express-track
+  kind: service
+  service: "https://api.kdniao.com/Ebusiness/EbusinessOrderHandle.aspx"
+  provider: "快递鸟(kdniao)"
+  license: "MIT"
+  terms: "免费套餐 500 单/天,超量次日恢复;个人注册+实名可用"
+  rateLimit: "500 单/天(免费层)"
+  network: true
+  requiredSecrets:
+    - { env: "KDNIAO_EBUSINESS_ID", purpose: "快递鸟商户 ID(注册后获取)" }
+    - { env: "KDNIAO_API_KEY", purpose: "快递鸟 ApiKey(签名用,注册后获取)" }
+  tools:
+    - { name: "query-express", description: "查快递轨迹(快递鸟即时查询,2700+ 承运商)。需 carrier(承运商编码,如 SF/YTO/ZTO/STO/YD/JTSD/EMS/JD)+ track" }
+    - { name: "detect-carrier", description: "按运单号识别承运商(快递鸟单号识别)。返回候选承运商编码列表,供 query-express 的 carrier 用。注:识别接口是否在免费套餐内以真凭证实测为" }
