@@ -10,7 +10,7 @@ import { audit, grade } from './lib/generalization-grade.mjs'
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const PORT = Number(process.argv[2] ?? 3097)
 const SPEC = JSON.parse(readFileSync(join(REPO, 'bench', 'scenarios', 'generalization-9.json'), 'utf8'))
-const DIR = join(REPO, 'bench', 'results', '2026-08-25-generalization')
+const DIR = join(REPO, 'bench', 'results', process.argv[3] ?? '2026-08-26-generalization-v4')
 
 const rows = []
 for (const scn of SPEC.scenarios) {

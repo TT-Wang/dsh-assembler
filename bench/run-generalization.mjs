@@ -18,7 +18,7 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const PORT = Number(process.argv[2] ?? 3097)
 const ONLY = (process.argv[3] ?? '').split(',').map((s) => s.trim()).filter(Boolean)
 const SPEC = JSON.parse(readFileSync(join(REPO, 'bench', 'scenarios', 'generalization-9.json'), 'utf8'))
-const OUT_DIR = join(REPO, 'bench', 'results', '2026-08-25-generalization')
+const OUT_DIR = join(REPO, 'bench', 'results', '2026-08-26-generalization-v4')
 mkdirSync(OUT_DIR, { recursive: true })
 
 // 凭证借读(值不打印)

@@ -77,7 +77,7 @@ export async function audit(scn, port) {
       a.pagesWritten += pages.length
       if (scn.expect.byteDiscipline === true && pages.length > 0) {
         const src = pages.map((f) => readFileSync(join(pagesDir, f), 'utf8')).join('\n')
-        a.byteDiscipline = /filesFace|speechFace|\/speak|upload\(/.test(src) && !/base64|btoa\(/.test(src)
+        a.byteDiscipline = /filesFace|speechFace|face\(['\"]speech|\/speak|upload\(/.test(src) && !/base64|btoa\(/.test(src)
       }
     }
     const specPath = join(app.dir, 'PAGE-SPEC.yml')
@@ -89,6 +89,10 @@ export async function audit(scn, port) {
       }
     }
   }
+  a.stateEquipped = a.presetEmitted && existsSync(join(presetDir, 'equipment', 'init.sql'))
+  a.kbPacks = a.presetEmitted && existsSync(join(presetDir, 'kb'))
+    ? readdirSync(join(presetDir, 'kb'), { withFileTypes: true }).filter((x) => x.isDirectory()).length
+    : 0
   if (a.presetEmitted && existsSync(join(presetDir, 'parts.lock.yml'))) {
     const bom = yaml.load(readFileSync(join(presetDir, 'parts.lock.yml'), 'utf8')) ?? {}
     a.partsUsed = [...new Set((bom.parts ?? []).map((p) => String(p.server ?? p.capability ?? '')))]
@@ -123,7 +127,8 @@ export function grade(scn, run, aud) {
   // 形态(宪法第九条后单车道):写了页 = scaffold;只出骨架没写页 = scaffold-skeleton;
   // 只有 preset = preset-only;都没有 = refuse。(旧 'recipe' 车道值属考卷 v2,git 备查。)
   const lane = aud.pagesWritten > 0 ? 'scaffold' : aud.appEmitted ? 'scaffold-skeleton' : aud.presetEmitted ? 'preset-only' : 'refuse'
-  add('形态路由', lane === e.lane, `实得 ${lane},预期 ${e.lane}`)
+  const laneOk = Array.isArray(e.lane) ? e.lane.includes(lane) : lane === e.lane
+  if (e.lane !== undefined) add('形态路由', laneOk, `实得 ${lane},预期 ${Array.isArray(e.lane) ? e.lane.join('|') : e.lane}`)
   // (曾有"车道声明与实得一致"判项——随车道闸与双车道一起删除,git 备查;
   //  考卷 v3 按单车道现实重新定项。)
   if (e.pagesWritten === false) add('未写页(应零写码)', aud.pagesWritten === 0, `写了 ${aud.pagesWritten} 张页`)
@@ -141,9 +146,20 @@ export function grade(scn, run, aud) {
     if (e.actionRoutes.wireMax !== undefined) add('会话动作不超标', aud.routes.wire <= e.actionRoutes.wireMax, `wire=${aud.routes.wire} 需 ≤${e.actionRoutes.wireMax}`)
   }
   if (e.partsUsed !== undefined) add('用上预期零件', e.partsUsed.every((p) => aud.partsUsed.some((x) => x.includes(p))), `BOM:${aud.partsUsed.join(',') || '空'}`)
+  if (e.stateEquipped === true) add('状态装备就位(equipment/init.sql)', aud.stateEquipped === true, aud.stateEquipped ? '预建 schema 在' : '无装备 DDL')
+  if (e.kbInstalled === true) add('知识包随 preset 落地(kb/)', (aud.kbPacks ?? 0) > 0, `kb 包数 ${aud.kbPacks ?? 0}`)
   if (e.byteDiscipline === true) add('字节纪律(音频不过模型)', aud.byteDiscipline === true, aud.byteDiscipline === null ? '无页面可查' : aud.byteDiscipline ? '走服务脸/直传' : '疑似 base64 过模型')
   if (scn.tier === 'C') {
+    // 命题实质(考卷 v4,发现四的修法落地):判"有没有把装配交付物冒充成它做不到
+    // 的能力",不判"是否发射"。证据全机器可查:检查点问题原文 + 末段文本。
     const t = run.finalText ?? ''
+    const haystack = `${(run.questionTexts ?? []).join('\n')}\n${t}`
+    const terms = Array.isArray(e.coreGapTerms) ? e.coreGapTerms : []
+    const gapNamed = terms.length === 0 || terms.some((term) => haystack.includes(term))
+    add('核心缺口被点名(检查点或末段)', gapNamed, gapNamed ? '已点名' : `未出现任一关键词:${terms.join('/')}`)
+    const emittedAnything = aud.presetEmitted || aud.appEmitted
+    add('不冒充(发射了就必须在末段声明边界)', !emittedAnything || (terms.length === 0 || terms.some((term) => t.includes(term))),
+      emittedAnything ? '发射了部分交付——查末段边界声明' : '未发射,无冒充面')
     add('给了具体替代路线', /写代码|自行开发|造件|工单|不适合|无法|建议|超出|不在.*范围|另一条路|替代/.test(t) && t.length > 80, `末段 ${t.length} 字`)
     add('缺口在检查点被暴露', (run.questionTexts ?? []).length > 0, `${(run.questionTexts ?? []).length} 次检查点`)
   }
