@@ -24,6 +24,7 @@
 import { spawn, execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { pageIdFileMismatches, runDomExam } from './scaffold-dom.js'
 import { createServer } from 'node:net'
 import { homedir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
@@ -59,7 +60,7 @@ export interface ScaffoldCheck {
    * 断言(零件不在场时考官自己拉起),wire 动作跑单轮场景探针(需 wirePort),
    * ai-thin 动作打 ai 服务脸一次补全(缺 key SKIPPED)。
    */
-  kind: 'build' | 'skeleton-lock' | 'pages-lint' | 'static-reach' | 'behavior'
+  kind: 'build' | 'skeleton-lock' | 'pages-lint' | 'static-reach' | 'behavior' | 'dom'
 }
 
 export interface ScaffoldSpec {
@@ -504,6 +505,11 @@ export async function runAppSelftest(
             if (declared['ai-thin'] > 0 && !usesAi) offenses.push(`PAGE-SPEC 声明 ${String(declared['ai-thin'])} 个 ai-thin 动作,页面却没有 aiFace 调用`)
             if (usesWire && declared.wire === 0) offenses.push('页面用了会话口(createClient/.ask)但 PAGE-SPEC 零 wire 声明——漏报路由')
             if (usesFace && declared.face === 0) offenses.push('页面用了服务脸但 PAGE-SPEC 零 face 声明——漏报路由')
+            // 页 id↔文件对应闸(DOM 刀3):App 的"找不到就回落首页"会让挂载考
+            // 考错页——声明的页必须真有文件,反之每张页面文件必须有考卷。
+            const psIds = ((ps as { pages?: Array<{ id?: unknown }> }).pages ?? []).map((pg) => String(pg.id ?? '')).filter((x) => x !== '')
+            const pageFiles3 = existsSync(pagesDir) ? readdirSync(pagesDir).filter((f) => /\.(tsx|jsx)$/.test(f)) : []
+            for (const mm of pageIdFileMismatches(psIds, pageFiles3)) offenses.push(mm)
           } catch { /* 考卷坏由 behavior 考报 */ }
         }
         checks.push({
@@ -545,8 +551,9 @@ export async function runAppSelftest(
         }
       } else if (c.kind === 'behavior') {
         // 行为考:PAGE-SPEC 的动作路由标注是考卷——face 动作打服务脸验库效,
-        // wire 动作跑真会话。不点 DOM(无浏览器驱动,已知诚实边界):页面层由
-        // lint 门"动作必经 SDK"+构建门类型检查夹住,SDK 之下的链路在此真跑。
+        // wire 动作跑真会话。本门只考 SDK 之下的链路;DOM 一跳(挂载死活/真填
+        // 真点)归第六门 dom(2026-08-27 收编,取证对样本:断 onClick 五门全绿
+        // 唯 dom FAIL)。仍不可考:视觉/布局/未标注动作的绑定(dom 门如实登记)。
         const specPath = join(targetDir, 'PAGE-SPEC.yml')
         if (!existsSync(specPath)) {
           checks.push({ check: 'behavior', status: 'FAIL', evidence: '缺 PAGE-SPEC.yml——写页之前先写动作路由标注(它就是这场考试的考卷)' })
@@ -666,6 +673,30 @@ export async function runAppSelftest(
           evidence: behaviorFail !== '' ? behaviorFail : results.join(';'),
         })
         if (behaviorFail !== '') break
+      } else if (c.kind === 'dom') {
+        // 第六门:DOM 层考——真开页面真填真点真看效果(器官在 scaffold-dom.ts,
+        // 共享件注入保持一份实现;先例:行为考自拉零件打服务脸)。
+        const specPath3 = join(targetDir, 'PAGE-SPEC.yml')
+        if (!existsSync(specPath3)) {
+          checks.push({ check: 'dom', status: 'FAIL', evidence: '缺 PAGE-SPEC.yml——写页之前先写动作路由标注(它就是这场考试的考卷)' })
+          break
+        }
+        const ps3 = (yaml.load(readFileSync(specPath3, 'utf8')) ?? {}) as { pages?: Array<{ id?: string; actions?: Array<Record<string, unknown>> }> }
+        const pageIds3 = (ps3.pages ?? []).map((pg) => String(pg.id ?? '')).filter((x) => x !== '')
+        const actions3 = (ps3.pages ?? []).flatMap((pg) => (pg.actions ?? []).map((a2) => ({ ...a2, page: String(pg.id ?? '') })))
+        const presetId3 = params.PRESET_ID ?? ''
+        const dom = await runDomExam({
+          repoRoot: REPO,
+          distDir: join(targetDir, 'dist'),
+          presetDir: join(opts.presetRoot ?? join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), '.agent-presets'), presetId3),
+          presetId: presetId3,
+          pageIds: pageIds3,
+          actions: actions3,
+          phase,
+          deps: { makeSub, assertEffect, acquireSqliteFace, sqliteFaceAlive },
+        })
+        checks.push({ check: 'dom', status: dom.status, evidence: dom.evidence })
+        if (dom.status === 'FAIL') break
       } else {
         checks.push({ check: String((c as ScaffoldCheck).kind), status: 'SKIPPED', evidence: '未知检查类型(底盘比考官新?升级装配器后重验)' })
       }

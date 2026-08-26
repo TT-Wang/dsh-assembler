@@ -263,6 +263,49 @@ check('自检包 v2:rerun 只带可草图化路径(probes[0].token 还原,3 轮�
   check('补考解析:整体畸形回空不炸', parseCoverageProbes({}, 3).length === 0)
 }
 
+// ── 阶段 3:DOM 层考纯件(考卷校验/页 id 对应/考场服务器/效果断言轮询)────────
+{
+  const { validateDomPaper, pageIdFileMismatches, startExamServer } = await import('./lib/scaffold-dom.js')
+  const legal = { name: '添加', route: 'face', effect: { sql: 'SELECT 1 WHERE t LIKE ?', sampleParams: ['%@@TOKEN@@%'], expect: 'x' }, dom: { steps: [{ fill: '#draft', value: '任务 @@TOKEN@@' }, { click: '#addBtn' }], expectText: '@@TOKEN@@' } }
+  check('DOM 考卷:合法标注过闸', validateDomPaper([legal]).length === 0)
+  check('DOM 考卷:词表外 step 键 FAIL(报错教词表)', validateDomPaper([{ ...legal, dom: { steps: [{ clcik: '#x' }] } }]).some((v) => v.includes('不合词表')))
+  check('DOM 考卷:wire 动作带 dom FAIL', validateDomPaper([{ name: 'w', route: 'wire', dom: { steps: [{ click: '#x' }] } }]).some((v) => v.includes('只考 face')))
+  check('DOM 考卷:缺区分口令 FAIL(防行为考直打冒充)', validateDomPaper([{ name: 'n', route: 'face', effect: { sql: 'SELECT 1 WHERE id=1', expect: 'x' }, dom: { steps: [{ fill: '#a', value: '无口令' }, { click: '#b' }] } }]).some((v) => v.includes('区分口令')))
+  check('页 id↔文件:双向错配都点名并列真实清单', (() => {
+    const mm = pageIdFileMismatches(['board', 'ghost'], ['board.tsx', 'orphan.tsx'])
+    return mm.some((x) => x.includes('ghost') && x.includes('board')) && mm.some((x) => x.includes('orphan'))
+  })())
+  // 考场服务器:fixture dist 上 base→index.html、.service 有/无、路径穿越
+  const { mkdtempSync: mkt9, mkdirSync: mkd9, writeFileSync: wf9 } = await import('node:fs')
+  const { join: jn9 } = await import('node:path')
+  const { tmpdir: td9 } = await import('node:os')
+  const dist9 = mkt9(jn9(td9(), 'dom-dist-'))
+  wf9(jn9(dist9, 'index.html'), '<div id="root">考场</div>')
+  const preset9 = mkt9(jn9(td9(), 'dom-preset-'))
+  mkd9(jn9(preset9, 'workspace'), { recursive: true })
+  const exam9 = await startExamServer(dist9, preset9, 'p9')
+  const g9 = async (path) => { const r = await fetch(`http://127.0.0.1:${exam9.port}${path}`); return { code: r.status, text: await r.text() } }
+  check('考场:base 回 index.html', (await g9('/assembler/ui/p9/')).text.includes('考场'))
+  check('考场:.service 缺文件 404(不假造脸)', (await g9('/assembler/ui/p9/.service')).code === 404)
+  wf9(jn9(preset9, 'workspace', '.service.json'), '{"sqlite":{"url":"http://x","token":"t"}}')
+  check('考场:.service 惰性读(自拉零件后新写的文件也读得到)', (await g9('/assembler/ui/p9/.service')).text.includes('sqlite'))
+  check('考场:路径穿越回落 index.html 不外泄', !(await g9('/assembler/ui/p9/../../etc/passwd')).text.includes('root:'))
+  exam9.close()
+  // assertEffect 预算语义:budget 0 = 单发;带预算 = 轮询到命中
+  const { assertEffect: ae9 } = await import('./lib/scaffold.js')
+  const http9 = await import('node:http')
+  let hits9 = 0
+  const stub9 = http9.createServer((_q, res) => { hits9 += 1; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ rows: hits9 >= 2 ? [{ v: 'GOAL-77' }] : [] })) })
+  await new Promise((r) => stub9.listen(0, '127.0.0.1', r))
+  const face9 = { url: `http://127.0.0.1:${stub9.address().port}`, token: 't' }
+  const sub9 = (v) => v
+  const one = await ae9(face9, { sql: 'SELECT', expect: 'GOAL-77' }, sub9, {})
+  check('效果断言:budget 0 = 单发(行为考语义不变)', one.ok === false && hits9 === 1)
+  const polled = await ae9(face9, { sql: 'SELECT', expect: 'GOAL-77' }, sub9, { budgetMs: 5000, pollMs: 100 })
+  check('效果断言:带预算轮询到命中(DOM 腿语义)', polled.ok === true && hits9 >= 2)
+  stub9.close()
+}
+
 // ── P2:registry 联邦适配器(纯件)────────────────────────────────────────────
 const { validateRegistryItem, fileTargetOf } = await import('./scripts/registry-add.mjs')
 check('registry 校验:合法条目过门', validateRegistryItem({ name: 'button', type: 'registry:ui', files: [{ path: 'ui/button.tsx', content: 'x' }] }).length === 0)
@@ -323,9 +366,9 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   const { join } = await import('node:path')
   const { tmpdir } = await import('node:os')
 
-  // 真底盘清单:五考齐、锁定面覆盖骨架/SDK/词汇、词汇表规模、SDK 三纪律
+  // 真底盘清单:六考齐、锁定面覆盖骨架/SDK/词汇、词汇表规模、SDK 三纪律
   const sc = loadScaffold()
-  check('scaffold:清单加载,五考齐(build/skeleton-lock/pages-lint/static-reach/behavior)', ['build','skeleton-lock','pages-lint','static-reach','behavior'].every((k) => sc.selftest.checks.some((c) => c.kind === k)))
+  check('scaffold:清单加载,六考齐(…/behavior/dom——概念账:加一记一)', ['build','skeleton-lock','pages-lint','static-reach','behavior','dom'].every((k) => sc.selftest.checks.some((c) => c.kind === k)))
   check('scaffold:lockPaths 覆盖骨架/SDK/词汇', Array.isArray(sc.lockPaths) && ['src/sdk','src/components','src/App.tsx'].every((k) => sc.lockPaths.includes(k)))
   check('scaffold:词汇表 ≥13 件(shadcn 联邦入库)', readdirSync2(join(SCAFFOLD_DIR,'template','src','components','ui')).filter((f) => f.endsWith('.tsx')).length >= 13)
   check('scaffold:TS 版 SDK 三纪律在(围栏出声/IME 守卫/服务脸)', (() => { const t = readFileSync(join(SCAFFOLD_DIR,'template','src','sdk','assembler-sdk.ts'),'utf8'); return t.includes('extractFence') && t.includes('isComposing') && t.includes('/.service') })())

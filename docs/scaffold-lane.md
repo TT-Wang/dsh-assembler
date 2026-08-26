@@ -10,7 +10,8 @@
 > run-writer-seat.mjs):deepseek 主 agent 从"便签墙"一句话独立走完 架构检查点→
 > emit_preset→emit_app→读手册写考卷写页→verify_app(五门 PASS 7s)→deploy_app,
 > 墙钟 406s;它写的 PAGE-SPEC 四动作全带效果断言(删除考还自带清场)。独立复核:
-> 页面 200、资产全通。剩余:ai-thin 路由实装、独立态 scaffold、DOM 层考(puppeteer 候选)。
+> 页面 200、资产全通。剩余:独立态 scaffold(ai-thin 已实装 2026-08-25;DOM 层考
+> 已落地 2026-08-27:第六门真填真点,见 src/scaffold-dom.ts 与 BACKLOG P7 结案条)。
 
 > 产品定位(用户裁定):**内嵌 agent 能力的 web app**。前端 = Vite + React +
 > shadcn/ui + Tailwind(Lovable 同款词汇,模型语料熟悉度最高);后端 = 双层运行

@@ -188,7 +188,14 @@
 ## P7|远期/条件触发
 
 - [ ] **装配器 MCP 化**(P4 老条目):三工具+考官打包成 MCP server,任何 harness 可用。
-- [ ] **DOM 层考**(已知诚实缺口):puppeteer 零件补"DOM 事件→SDK 调用"那一跳。
+- [x] **DOM 层考**(2026-08-27,六刀全落):verify_app 第六门——考官经
+      browser-automate 零件工具面驱动真浏览器(零件即手,0.0.2 加 browser-fill),
+      考场小服务器镜像生产路由(vite preview 的 sirv 拒 .service 点文件,实证);
+      每页挂载死活必考,face 动作可标 dom 步骤(封闭词表+区分口令闸防行为考直打
+      冒充);效果断言与行为考一份实现(DOM 腿轮询预算)。底盘 v5 出厂门 PASS;
+      取证对样本:断 onClick 五门全绿唯 dom FAIL(证据点名"onClick 没接线"),
+      修复六门全 PASS。边界诚实:宪法 UB 登记同步改写(未标注/拖拽键盘/延迟死亡
+      仍登记)。原案 puppeteer 系陈档,库里实为 playwright。
 - [ ] **规模触发**(挂条件):目录 >2000 条 → 向量混合召回 + match 复活为精排。
 - [ ] **移动车道**:Expo CNG 对齐(app-shell + config-plugin + EAS 零件)。
 

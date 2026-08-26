@@ -11,12 +11,13 @@
 # 改 template/ 任何字节(含 scaffold-sync-vocab 重同步)必须升 version 重过门:
 #   node scripts/index-add.mjs scaffold-gate
 id: scaffold-react
-version: 4
+version: 5
 description: >-
   定制前端骨架:Vite + React + shadcn/ui + Tailwind v4(13 件词汇已联邦入库)+
   固定通信 SDK(wire 会话/服务脸直连/围栏出声/IME 守卫)。写手在 src/pages/
   照 PAGE-SPEC(动作路由标注:face/wire/ai-thin/local)写任意形状的页面;
-  骨架锁字节,五道门验收(构建/骨架锁/页面 lint/可达/行为考)。
+  骨架锁字节,六道门验收(构建/骨架锁/页面 lint/可达/行为考/DOM 考:
+  真开页面真填真点,挂载死活每页必考,face 动作可标 dom 步骤验"点击→落库→回显")。
 license: BSD-3-Clause
 inspiredBy: >-
   Lovable 的 scaffold+词汇表形态(shadcn 源码预拷为 AI 写页词汇);组件经
@@ -67,6 +68,7 @@ selftest:
     - kind: pages-lint
     - kind: static-reach
     - kind: behavior
+    - kind: dom
 
 sample:
   pagesDir: sample/pages

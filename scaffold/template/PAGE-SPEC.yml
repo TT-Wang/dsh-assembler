@@ -4,6 +4,10 @@
 #   route: wire    判断流(真 agent 会话)   —— 必须给 probe(单轮考题)与 marks(验收标记)
 #   route: ai-thin 薄判断(一次补全)        —— v1 经 wire 承载,标注留档
 # 写手纪律:确定性动作(增删改查/汇总/渲染)一律 face;只有真需要判断的动作才 wire。
+# dom 标注(可选,只许 face 动作):steps 只有 {fill,value}/{click} 两种;fill 必须把
+# @@TOKEN@@ 织进输入、effect/expectText 至少一处含 @@TOKEN@@(区分口令,防行为考直打
+# SQL 的行冒充页面点出来的行);selector 用你自己起的稳定 id(如 #draft/#addBtn)。
+# 不标注也有保底:考官对每页做挂载死活考(#root 空白即 FAIL),未标注动作如实登记。
 pages: []
 # 示例:
 # pages:
@@ -18,6 +22,16 @@ pages: []
 #         sql: UPDATE tasks SET status = ? WHERE id = ?
 #         sampleParams: ['进行中', 1]
 #         effect: { sql: "SELECT status FROM tasks WHERE id = ?", sampleParams: [1], expect: '进行中' }
+#       - name: 添加任务          # ← dom 标注示例(第六门:真填真点验"点击→落库→回显")
+#         route: face
+#         sql: INSERT INTO tasks (title, status) VALUES (?, '待办')
+#         sampleParams: ['考题任务 @@TOKEN@@']
+#         effect: { sql: "SELECT status FROM tasks WHERE title LIKE ?", sampleParams: ['%@@TOKEN@@%'], expect: '待办' }
+#         dom:
+#           steps:
+#             - { fill: '#draft', value: '考题任务 @@TOKEN@@' }
+#             - { click: '#addBtn' }
+#           expectText: '@@TOKEN@@'   # 点完后页面根文本须回显(验"状态刷了")
 #       - name: 帮我排优先级
 #         route: wire
 #         probe: 请查看 tasks 表全部任务,给出优先级排序建议,并原样报出口令 @@TOKEN@@

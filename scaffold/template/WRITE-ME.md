@@ -101,6 +101,6 @@ input · label · select · separator · table · tabs · textarea
 
 1. ~~emit_app~~(已完成,骨架即本目录)
 2. **你:写 PAGE-SPEC.yml + src/pages/**
-3. `verify_app { targetDir }` — 五门:构建/骨架锁/页面 lint/资产可达/**行为考**(照你的考卷真考);FAIL 带证据,外科修复后重验,连续 3 次 FAIL 停手上报
+3. `verify_app { targetDir }` — 六门:构建/骨架锁/页面 lint/资产可达/**行为考**(照你的考卷真考)/**DOM 考**(真开页面:每页挂载死活必考;face 动作可标 dom 步骤,考官真填真点验"点击→落库→回显"——给要标注的交互元素起稳定 id,如 `#draft`/`#addBtn`,范例页 board.tsx 就是范本);FAIL 带证据,外科修复后重验,连续 3 次 FAIL 停手上报
 4. `deploy_app { targetDir, presetId }` — 构建产物发布进 preset,同源上线
 5. 如实向用户报告:页面 URL、考了什么、结论

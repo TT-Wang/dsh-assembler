@@ -151,7 +151,7 @@ export const SCAFFOLD_BATON =
   + '(2) WRITE PAGE-SPEC.yml first (every action tagged face/wire/local; face carries sql+effect, wire carries probe+marks — the examiner '
   + 'runs YOUR exam verbatim), then write src/pages/*.tsx. Free zone is ONLY PAGE-SPEC.yml and src/pages/ — everything else is hash-locked. '
   + 'Column names come from the paired preset\'s equipment DDL — copy them, never invent. Do NOT run npm/vite yourself. '
-  + '(3) verify_app {"targetDir": "<targetDir>"} — five gates incl. the behavior exam; FAIL comes back with evidence, fix surgically, '
+  + '(3) verify_app {"targetDir": "<targetDir>"} — six gates incl. the behavior exam and the DOM exam (real headless clicks); FAIL comes back with evidence, fix surgically, '
   + '同一 app 连续 3 次 FAIL 后停手上报. (4) deploy_app {"targetDir", "presetId"} publishes the built dist into the preset, same-origin. '
   + '(5) Report the page URL and what was examined, honestly.'
 
@@ -1641,7 +1641,7 @@ export function verifyAppToolDefinition(_ctx: Context, _config: Config): ToolDef
   return defineTool({
     name: VERIFY_APP_TOOL_NAME,
     description:
-      'INDEPENDENT examiner for scaffold apps: boots the app itself from its directory (own process, free port) and runs the five gates '
+      'INDEPENDENT examiner for scaffold apps: boots the app itself from its directory (own process, free port) and runs the six gates '
       + 'black-box — build / skeleton-lock / pages-lint / static-reach / behavior (PAGE-SPEC actions really executed: face SQL with '
       + 'effect assertions, wire scenario probes, ai-thin completions) — then kills the process. Verdict PASS / FAIL / SKIPPED with per-check evidence.'
 ,

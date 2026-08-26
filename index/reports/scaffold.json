@@ -2,8 +2,8 @@
   "id": "scaffold",
   "kind": "scaffold",
   "scaffold": "scaffold-react",
-  "version": 4,
-  "templateHash": "47ade98eec86e02d",
+  "version": 5,
+  "templateHash": "c76e5f6aef9063f7",
   "selftest": "pass",
   "checks": [
     {
@@ -14,7 +14,7 @@
     {
       "check": "skeleton-lock",
       "status": "PASS",
-      "evidence": "骨架/SDK/词汇字节未被越界改动(9cc47d4aef5c072c)"
+      "evidence": "骨架/SDK/词汇字节未被越界改动(c3d8598b880fd330)"
     },
     {
       "check": "pages-lint",
@@ -30,7 +30,12 @@
       "check": "behavior",
       "status": "PASS",
       "evidence": "local「本地添加条目」(纯本地 UI,无出网,免考);local「清单/表格切换」(纯本地 UI,无出网,免考)"
+    },
+    {
+      "check": "dom",
+      "status": "PASS",
+      "evidence": "挂载「demo」✓;dom 标注覆盖 0/0 个 face 动作"
     }
   ],
-  "verifiedAt": "2026-08-26T13:46:06.810Z"
+  "verifiedAt": "2026-08-26T22:29:21.910Z"
 }
