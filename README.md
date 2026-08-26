@@ -66,6 +66,7 @@ How it works:
 - **Page↔agent contract** — pages embed a ```json fence contract in their prompts (no persona coupling); replies render as boards/tables/stat cards
 - **Frontends are verified too** — assemble-then-verify gains two frontend gates: **page gate** (HTTP 200 + slots filled) and **loop gate** (a real session opened with the page's exact parameters must echo a token); carried runs re-run the page gate only
 - **One durable ledger** — the equipment lane pins the default database (workspace `data.db`) and pre-builds its schema, so frontend sessions and DSH conversations write the **same** store
+- **Pages the templates can't cover get written** — the scaffold writer's seat: `emit_app` lays down a locked-vocabulary frontend skeleton (Vite + React + shadcn/ui + a fixed comms SDK, with record-desk and kanban starter pages you can copy whole), the assistant writes any page shape inside the single free zone `src/pages/` against a PAGE-SPEC (every action routed face/wire/ai-thin/local); `verify_app` examines black-box through five gates (build / skeleton-lock / pages-lint / asset reach / **behavior**: face actions really execute SQL with effect assertions, wire actions run real-session probes), and `deploy_app` publishes into the preset same-origin with a snapshot for one-call rollback. Measured: a custom kanban's face round-trip at 5.1ms; the page and the chat sessions still share one ledger (two-faced delivery), the handoff proven by an independent examiner (one face writes, the other reads back)
 
 ---
 
