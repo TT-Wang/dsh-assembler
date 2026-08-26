@@ -106,13 +106,16 @@
 
 ## P3|penguin 吸收(证据链纵向化,三便宜活)
 
-- [ ] **selfcheck 升版本记分板**:每次同名重发/零件升级后复验追加一行(时间/
-      EMISSION_REV/preset 字节哈希/verdict/墙钟/成本/session id)——第 30 天故事
-      的纵向台账。**聚合数字由代码算,不由模型写**(反着做他们的软肋)。
-- [ ] **验中版本钉**:verify 开跑前记 preset 字节哈希,结束后重核,不一致判
-      verdict 无效(防并发装配互踩)。
-- [ ] **同名重发前快照**:旧 preset 原子归档进 `<preset>/snapshots/`,FAIL 一键
-      回滚;**快照由代码强制,不靠散文**。
+- [x] **selfcheck 升版本记分板**(2026-08-26,泛化战役 v5 硬化期间建成):
+      `selfcheck-history.jsonl` 每次判定追加一行(at/presetSha256/verdict/墙钟),
+      覆盖真跑/沿用/凭证跳过/headless 全路径;考卷 v5 以它为「考官亲笔判定」权威
+      证据源之一(orchestrated-tools.ts:934/1030)。聚合由代码算。
+- [x] **验中版本钉**(2026-08-26,同期):verify 开跑记字节哈希,判定落笔前重核,
+      不一致判定作废出声(orchestrated-tools.ts:1009-1014)。
+- [x] **同名重发前快照**(2026-08-26,同期):单槽 `preset.prev/` 原子归档
+      (组合/BOM/装备/体检包),FAIL 可对照 diff/按其 parts.lock 复原;frontend
+      同理 `frontend.prev/` 且 rollback 可再回滚。单槽是刻意的(无 UI 的多版本
+      只是磁盘垃圾)——P3 原题的 `snapshots/` 多版本形态按此判不做。
 - [ ] 设计注记(不动代码):任何未来"按体检包自我改进"的流程**禁读 selfcheck 标记
       原文**(Goodhart 防线),或标记转私有由考官持有。
 
