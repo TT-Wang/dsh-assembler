@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
- * 编排模式(B 臂)纯件单测:match_catalog 的输入归一/prompt 契约/响应整形、
- * emit_preset 的入参机械校验、verify_preset 的草图归一。跑法:node tests-orchestrated.mjs
- * (先 npm run build)。LLM 调用与探针执行不在此测(那是 E2E 与 A/B 战役的事)。
+ * 工具面纯件单测:match_catalog 的输入归一/prompt 契约/响应整形、emit_preset 的
+ * 入参机械校验与三道闸、verify_preset 的草图归一、检索/契约钉。跑法:
+ * node tests-orchestrated.mjs(先 npm run build)。LLM 调用与探针执行不在此测
+ * (那是 E2E 与战役的事)。
  */
 import {
-  assemblerMode, buildDraftPrompt, buildMatchPrompt, normalizeProbeSketch, normalizeSpecInput,
-  orchestratedMode, parseDraftResponse, parseMatchResponse, validateEmitArgs,
+  assemblerMode, buildMatchPrompt, normalizeProbeSketch, normalizeSpecInput,
+  parseMatchResponse, validateEmitArgs,
 } from './lib/orchestrated-tools.js'
 import { rankCapabilities } from './lib/capability-index.js'
 
@@ -196,19 +197,20 @@ const sk2 = normalizeProbeSketch({ task: '算 1+1', marks: ['2'] })
 check('草图归一:只有 task → single', sk2?.kind === 'single')
 check('草图归一:非对象 = null', normalizeProbeSketch('x') === null && normalizeProbeSketch(null) === null)
 
-// ── 模式矩阵(2026-08-23 身份裁定:默认 = 检索形态)─────────────────────────
+// ── 形态(宪法第八条执行后:search 唯一,off 停用;四个实验臂 git 备查)──────
 const saved = process.env.DSH_ASSEMBLER_MODE
 delete process.env.DSH_ASSEMBLER_MODE
-const modeDefault = assemblerMode() === 'search' && orchestratedMode() === false
-const modeChecks = ['pipeline', 'orchestrated', 'draft', 'dialogue', 'search'].every((m) => {
+const modeDefault = assemblerMode() === 'search'
+process.env.DSH_ASSEMBLER_MODE = 'off'
+const modeOff = assemblerMode() === 'off'
+// 死方言的名字不再是合法形态:显式设置也回落 search(git 备查,不留 if 备查)。
+const modeDead = ['pipeline', 'orchestrated', 'draft', 'dialogue', 'bogus'].every((m) => {
   process.env.DSH_ASSEMBLER_MODE = m
-  return assemblerMode() === m
+  return assemblerMode() === 'search'
 })
-process.env.DSH_ASSEMBLER_MODE = 'bogus'
-const modeBogus = assemblerMode() === 'search'
 if (saved === undefined) delete process.env.DSH_ASSEMBLER_MODE
 else process.env.DSH_ASSEMBLER_MODE = saved
-check('模式矩阵:默认 search(身份裁定)、五形态显式可选、非法值回退 search', modeDefault && modeChecks && modeBogus)
+check('形态:默认 search、off 可停用、死方言名与非法值一律回落 search', modeDefault && modeOff && modeDead)
 
 // ── 承重契约句(改契约掉了哪句立刻红——阶段1 的回归底线)────────────────────
 const { FRONTEND_FACT, PROBE_SKETCH_EXAMPLES } = await import('./lib/orchestrated-tools.js')
@@ -256,29 +258,7 @@ const { probePayloadViolation } = await import('./lib/verify.js')
 check('载荷闸:2KB base64 任务被抓', probePayloadViolation(['解析这本书:' + 'A'.repeat(80) + 'Zm9v'.repeat(60)]))
 check('载荷闸:正常任务不误伤(短 token/中文/路径)', !probePayloadViolation(['解析工作区 uploads/weichen.epub,报出书名与第二章标题', '记一笔 PO-4471 采购单', undefined]))
 
-// ── C 臂:parseDraftResponse / buildDraftPrompt ─────────────────────────────
-const dp = buildDraftPrompt('记账 agent', catalog)
-check('C prompt:两遍法(先架构后映射)+ GAP DISCIPLINE + 探针规则齐', dp.prompt.includes('PASS 1') && dp.prompt.includes('GAP DISCIPLINE') && dp.prompt.includes('"probe"'))
-const draft = parseDraftResponse({
-  spec: { purpose: '记账', capabilities: [{ name: '持久保存流水', why: '' }, '语音识别'], dataModel: '流水表', workflow: '记→查', interfaces: '网页' },
-  coverage: [
-    { need: '持久保存流水', capabilityId: 'sqlite-store' },
-    { need: '语音识别', capabilityId: null, gap: '语音转文字' },
-  ],
-  extraIds: ['frontend-data-desk'],
-  name: 'Expense Butler!',
-  persona: ' 你是记账助手 ',
-  stateSchema: 'CREATE TABLE IF NOT EXISTS expenses(id INTEGER PRIMARY KEY)',
-  probe: { createTask: '记一笔 T-9 打车 30 元', retrieveTask: '查 T-9 那笔', token: 'T-9', marks: ['30'] },
-}, dp.ids)
-check('C 整形:spec 宽进(字符串能力也收)+ purpose 带出', draft.spec.capabilities.length === 2 && draft.spec.purpose === '记账')
-check('C 整形:coverage 走同一套调和,capabilityIds 并 extraIds', draft.capabilityIds.includes('sqlite-store') && draft.capabilityIds.includes('frontend-data-desk') && draft.missing.length === 1)
-check('C 整形:name 消毒成 kebab、persona 修剪、schema 带出', draft.name === 'expense-butler' && draft.persona === '你是记账助手' && draft.stateSchema?.startsWith('CREATE TABLE'))
-check('C 整形:探针草图归一(缺 kind 推断 scenario)', draft.probe?.kind === 'scenario' && draft.probe?.token === 'T-9')
-const draftEmpty = parseDraftResponse({}, dp.ids)
-check('C 整形:全缺字段不炸(空洞留给审阅人红笔)', draftEmpty.spec.capabilities.length === 0 && draftEmpty.name === '' && draftEmpty.persona === '' && draftEmpty.probe === null)
-
-// ── F 臂:rankCapabilities ──────────────────────────────────────────────────
+// ── 检索:rankCapabilities ──────────────────────────────────────────────────
 const hits1 = rankCapabilities(catalog.capabilities, 'sqlite 持久存储', 5)
 check('F 检索:sqlite 需求命中 sqlite 零件且排第一', hits1.length > 0 && hits1[0].entry.id === 'sqlite-store')
 const hitsFe = rankCapabilities(catalog.capabilities, '记录台 ui 前端', 5)

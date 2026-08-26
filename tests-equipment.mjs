@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * 装备槽单测:双次执行门(validateStateSchema)、装备安装(installStateEquipment)、
- * emitPreset 的 extraServerEnv 注入、BOM equipment 记录、planReuse 知识版本闸。
+ * emitPreset 的 extraServerEnv 注入、BOM equipment 记录。
  * 全部离线(node:sqlite 内存库),不碰 LLM 与 host。
  */
 import {
-  validateStateSchema, installStateEquipment, emitPreset, renderPartsLock, planReuse, EMISSION_REV,
+  validateStateSchema, installStateEquipment, emitPreset, renderPartsLock,
 } from './lib/index.js'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
@@ -79,20 +79,6 @@ const lock = renderPartsLock({ presetId: 'agent-a', requirement: 'r', selected: 
 check('lock 记录 equipment', yaml.load(lock).equipment?.[0] === 'equipment/init.sql')
 const lockNo = renderPartsLock({ presetId: 'agent-a', requirement: 'r', selected: [SQLITE_CAP], presetText: withEq, index: [] })
 check('无装备时 lock 不出现 equipment 键', yaml.load(lockNo).equipment === undefined)
-
-// ── 5. planReuse 知识版本闸 ────────────────────────────────────────────────
-const catRoot = join(root, 'cat'); mkdirSync(join(catRoot, 'knowledge', 'kb-x'), { recursive: true })
-writeFileSync(join(catRoot, 'knowledge', 'kb-x', '.knowledge-meta.json'), JSON.stringify({ id: 'kb-x', version: '2026-08-21' }))
-const pDir = join(root, 'agent-kb'); mkdirSync(join(pDir, 'kb', 'kb-x'), { recursive: true })
-writeFileSync(join(pDir, 'agent.cordis.yml'), '- id: persona\n  name: x\n  config: { text: "p" }\n')
-const REQ2 = '知识台'
-const mkLock = (ver) => yaml.dump({ requirement: REQ2, emitter: EMISSION_REV, parts: [{ capability: 'mcp-sqlite-query-execute' }], knowledge: [{ id: 'kb-x', docs: 1, version: ver }] }, { lineWidth: -1 })
-writeFileSync(join(pDir, 'parts.lock.yml'), mkLock('2026-08-21'))
-const cat2 = { capabilities: [SQLITE_CAP], 'mcp-servers': {} }
-check('kb 版本一致 → 复用', planReuse({ name: 'agent-kb', requirement: REQ2, params: {}, presetRoot: root, catalog: cat2, catalogRoot: catRoot }) !== null)
-writeFileSync(join(pDir, 'parts.lock.yml'), mkLock('2026-08-17'))
-check('目录 kb 已升版 → 拒绝复用(新知识必须进 preset)', planReuse({ name: 'agent-kb', requirement: REQ2, params: {}, presetRoot: root, catalog: cat2, catalogRoot: catRoot }) === null)
-check('不给 catalogRoot(旧调用形)→ 不做版本闸,照常复用', planReuse({ name: 'agent-kb', requirement: REQ2, params: {}, presetRoot: root, catalog: cat2 }) !== null)
 
 rmSync(root, { recursive: true, force: true })
 console.log(`\n==== 装备槽单元测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)

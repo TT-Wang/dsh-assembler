@@ -118,23 +118,7 @@ function aggregateToolCalls(frames: readonly any[]): Array<{ name: string; calls
 }
 
 /**
- * Per-turn probe budget.
- *
- * 300s was too small for a heavy agent: the governance desk's first turn has to
- * batch-scan a dependency list, fetch a licence per hit and write the batch to
- * SQLite, and it was declared FAIL at 300s for running long rather than for
- * answering wrong — the worst kind of red, because it accuses the agent of a
- * defect the probe caused.
- *
- * Raising it costs nothing on the happy path (a turn that finishes in 60s still
- * finishes in 60s); it only lengthens the wait before a genuine failure is
- * called. A deployment that needs a different figure sets `verifyTimeoutMs` in
- * the assembler's plugin config.
- */
-export const DEFAULT_TURN_BUDGET_MS = 600_000;
-
-/**
- * 冒烟探针的每轮预算——比 DEFAULT_TURN_BUDGET_MS 紧得多,刻意的。
+ * 冒烟探针的每轮预算(刻意收紧;曾有过 600s 的宽预算,随 pipeline 形态删除)。
  *
  * 市场战役实测(s04 简历打分):首探让 agent 找不存在的文件,重试探针又踩空
  * 工作区,agent 不问人、只是硬试,把 600s×2 烧满(总 638s→再重试 906s)。
@@ -144,24 +128,6 @@ export const DEFAULT_TURN_BUDGET_MS = 600_000;
  * 需要更长的部署仍可用 verifyTimeoutMs 覆盖(合法长任务的逃生阀)。
  */
 export const PROBE_TURN_BUDGET_MS = 240_000;
-
-/** Most turns a derived scenario may have (the deriver is told "2-4 turns"). */
-export const MAX_SCENARIO_TURNS = 4;
-
-/**
- * How long a CALLER must be willing to wait for one `assemble` call, worst case.
- *
- * Exported so no outer layer has to guess. Guessing has already cost three
- * false verdicts in one afternoon: `solution apply` waited 12 minutes and
- * declared a still-running agent UNKNOWN, a one-off driver waited 9 and called
- * it TIMEOUT, and the probe's own per-turn budget accused a working agent of
- * failing. Every one of them was an outer wait shorter than the inner worst
- * case. Deriving the figure means raising the turn budget moves all of them.
- *
- * The margin covers what surrounds the turns themselves: the matcher call, part
- * federation, preset emission, probe derivation, and the session handshake.
- */
-export const ASSEMBLE_WORST_CASE_MS = PROBE_TURN_BUDGET_MS * MAX_SCENARIO_TURNS + 10 * 60_000;
 
 /**
  * Deadline for one probe wire RPC (session.create, session.prompt).
@@ -838,12 +804,11 @@ export async function runScenario(
 }
 
 /**
- * 方案级共享数据探针:证明一套班子**真的共享数据**,而不只是各库钉到同一文件。
- *
- * FDE 天花板的最后一环(市场战役 f01):assemble_solution 让主 agent 拆出 N 个
- * agent、各 agent 的 SQLITE_DEFAULT_DB 钉到同一共享库——但这只是"结构上共享"。
- * 真正的证明是黑盒的:让 writer agent 写一条带独特 token 的记录,再让 reader
- * agent(另一个 preset、同一共享库)去读到它。读得到 = 数据真的在班子间流动。
+ * 跨 preset 共享数据探针的形状:证明一套班子**真的共享数据**,而不只是各库钉
+ * 到同一文件——writer 写一条带独特 token 的记录,reader(另一个 preset、同一
+ * 共享库)把它读回来。读得到 = 数据真的在班子间流动。交接由编排者自己设计
+ * (verify_shared_data 的机械闸把守 token/payload 纪律),不再有 LLM 派生器
+ * (旧派生器随 pipeline 形态删除,git 备查)。
  */
 export interface SharedDataProbe {
   writerId: string;
@@ -851,55 +816,6 @@ export interface SharedDataProbe {
   readerId: string;
   readerTask: string;
   mustInclude: string[];
-}
-
-/**
- * 派生一个跨 agent 的写→读交接:给定共享表 + agent 清单,快模型设计
- * "writer 用自己的领域语言写一条带独特 token 的记录、reader 用自己的领域语言
- * 把它读回来"。token 由派生器发明(如 ORD-7788),reader 的验收标记就是它。
- */
-export async function deriveSharedDataProbe(
-  ctx: Context,
-  opts: { requirement: string; sharedTables: string[]; sharedDdl?: string; agents: Array<{ id: string; requirement: string }> },
-  llm: AuxLlm,
-  onUsage?: (u: AuxUsage) => void,
-): Promise<SharedDataProbe | null> {
-  if (opts.agents.length < 2) return null;
-  const roster = opts.agents.map((a) => `- ${a.id}`).join("\n");
-  const prompt = [
-    "You design a SHARED-DATABASE CONNECTIVITY probe for a freshly assembled multi-agent solution.",
-    "Purpose: prove that two DIFFERENT agent presets (separate processes) read and write ONE shared SQLite database — i.e. what one agent writes, another can read. This is a PLUMBING check, not a domain check, so make BOTH sides EXPLICIT database operations (do not rely on the agents' domain flows).",
-    opts.sharedDdl !== undefined && opts.sharedDdl !== ""
-      ? `The shared database schema (use REAL column names and satisfy NOT NULL columns):\n${opts.sharedDdl.slice(0, 1600)}`
-      : `Shared tables: ${opts.sharedTables.join(", ")}`,
-    "Agents (every one has a SQL/database tool pointing at the shared DB):",
-    roster,
-    "",
-    "Pick exactly ONE shared table T. Invent a KEY token (for the primary/lookup column, e.g. ORD-7788) and a PAYLOAD token — a distinctive STRING (e.g. \"HANDOFF-4821-OK\") to put in a TEXT column of T.",
-    "- writerId + writerTask: pick any agent; the task is an EXPLICIT insert — e.g. \"用你的数据库/SQL 工具,向共享库表 `T` 插入一行:<keyCol>='<KEY>',<textCol>='<PAYLOAD>',其余 NOT NULL 列填任意合法占位值(先用 PRAGMA/表结构确认列)。这是共享库连通性测试,直接执行 INSERT,不要走别的流程,完成后回一句 done。\" Reference REAL columns from the schema so the insert satisfies NOT NULL.",
-    "- readerId (a DIFFERENT agent) + readerTask: an EXPLICIT query — e.g. \"用你的数据库/SQL 工具查询共享库表 `T` 里 <keyCol>='<KEY>' 的那一行,原样报出它的 <textCol> 字段值。直接查库按结果回答,查不到就说没查到,不要问任何人。\" NEVER put the payload value in this task — the reader must fetch it.",
-    "- mustInclude: EXACTLY the PAYLOAD string (verbatim). Never a formatted number, never the KEY (the reader's prompt already contains the key).",
-    'Respond with JSON only: {"table": "...", "writerId": "...", "writerTask": "...", "readerId": "...", "readerTask": "...", "mustInclude": ["<PAYLOAD>"]}',
-    "- table MUST be one of the shared tables; writerId and readerId MUST be two different ids from the agent list.",
-  ].join("\n");
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = await callDeriver(ctx, prompt, llm, onUsage);
-  } catch {
-    return null;
-  }
-  const ids = new Set(opts.agents.map((a) => a.id));
-  const writerId = String(parsed.writerId ?? "");
-  const readerId = String(parsed.readerId ?? "");
-  if (!ids.has(writerId) || !ids.has(readerId) || writerId === readerId) return null;
-  if (typeof parsed.writerTask !== "string" || typeof parsed.readerTask !== "string") return null;
-  // table 必须是声明的共享表之一:派生器读了共享表外的东西(实测 f01:让对账
-  // agent 读"库存",而共享表只有 products/orders)是这个探针最主要的假红来源。
-  const table = String(parsed.table ?? "");
-  if (table !== "" && !opts.sharedTables.includes(table)) return null;
-  const marks = sanitizeMarks(Array.isArray(parsed.mustInclude) ? parsed.mustInclude : []);
-  if (marks.length === 0) return null;
-  return { writerId, writerTask: parsed.writerTask, readerId, readerTask: parsed.readerTask, mustInclude: marks };
 }
 
 /**

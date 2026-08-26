@@ -1,22 +1,21 @@
 /**
- * 编排模式(B 臂):assembler 退成"零件专家",编排智力归主 agent。
+ * 装配器的工具面——这门语言的唯一形态(宪法第八/九条:形态是装配出来的结果)。
  *
- * A/B 实验设计定稿见 docs/ab-orchestrated-mode.md(用户裁定 2026-08-23):
- * assembler 是插件,插件就该做一项工作——它的一项工作是**零件专业**:
+ * 分工(2026-08-23 身份裁定,四臂 A/B 实测后定稿;死臂已按宪法第八条删除,
+ * git 备查,战役档案见 docs/ab-orchestrated-mode.md 与 bench/results/):
  *
- *   match_catalog  唯一的智力工作:架构需求 → 零件映射(它是唯一认识零件库的人)
- *   emit_preset    哑工具:确定性印刷 + 全部闸门,零智力(cordis 物理:serverName
- *                  代际哈希必须由确定性代码执行,主 agent 手写文件一次就撞代际)
- *   verify_preset  独立考官:黑盒探针,主 agent 可调、可拿证据,不能判卷;
- *                  **不自动重试**——FAIL 带证据返回,外科决策归主 agent
+ *   search_catalog  零件生态的搜索引擎:机械 BM25 检索,零 LLM,结果行带价签
+ *   match_catalog   备用精排阀:架构需求 → 零件映射(平时零调用,拿不准时升级)
+ *   emit_preset     哑发射:确定性印刷 + 全部闸门,零智力(cordis 物理:serverName
+ *                   代际哈希必须由确定性代码执行,主 agent 手写文件一次就撞代际)
+ *   verify_preset   独立考官:黑盒探针,主 agent 可调、可拿证据,不能判卷;
+ *                   **不自动重试**——FAIL 带证据返回,外科决策归主 agent
+ *   (另有 app/共享账/触发面的发射与考官,以及 add_knowledge/read_preset/
+ *    submit_part 三个"装配器资源只经工具面"的通道)
  *
  * 架构 spec、persona、stateSchema、命名、缺件处置、重试策略全归主 agent(编排者)。
  * 流程契约走两条腿:工具描述(教流程)+ 结果尾部的接力棒段落(决策点上的新鲜
  * 契约,市场战役 F6 证明比工具描述里的陈年一句可靠)。
- *
- * flag:DSH_ASSEMBLER_MODE=orchestrated 才注册这三件,且**不注册** assemble/
- * assemble_solution(两臂互斥,A/B 数据才干净)。验收机器与 A 臂共用同一套
- * (runProbe/runScenario/validateArchProbe/marksPresent)——两臂同一张考卷。
  */
 import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -51,8 +50,6 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 export const MATCH_TOOL_NAME = 'match_catalog'
 export const EMIT_TOOL_NAME = 'emit_preset'
 export const VERIFY_TOOL_NAME = 'verify_preset'
-export const DRAFT_TOOL_NAME = 'draft_assembly'
-export const ASK_TOOL_NAME = 'ask_catalog'
 export const SEARCH_TOOL_NAME = 'search_catalog'
 export const VERIFY_SHARED_TOOL_NAME = 'verify_shared_data'
 
@@ -144,27 +141,19 @@ export const SCAFFOLD_BATON =
 export { PROBE_SKETCH_EXAMPLES } from './verify.js'
 
 /**
- * 装配器与主 agent 的配合形态(host 级环境变量 DSH_ASSEMBLER_MODE):
- *  search       **默认**(2026-08-23 身份裁定 + 四臂实测):装配器 = 零件生态的
- *               搜索引擎。search_catalog 机械检索(零 LLM,BM25 加权,带价签)+
- *               match_catalog 备用精排阀 + 哑发射 + 独立考官。四臂对跑:Σ墙钟比
- *               B 快 40%,辅助思考 114.5k→7.8k,质量不掉(forms-bcdf-8.md)。
- *  pipeline     旧一条龙(assemble/assemble_solution),自动化/回归后备,显式开。
- *  orchestrated B 臂(match 映射,无 search)——战役复现用。
- *  draft        C 臂提案审阅——已判负结果(红笔率 0/8),留档复现用。
- *  dialogue     D 臂对话专家——已判死重(ask Σ0),目录过数千条复议。
+ * 形态(host 级环境变量 DSH_ASSEMBLER_MODE):
+ *  search  **唯一形态**(2026-08-23 身份裁定 + 四臂实测:Σ墙钟比 B 臂快 40%,
+ *          辅助思考 114.5k→7.8k,质量不掉,forms-bcdf-8.md):装配器 = 零件
+ *          生态的搜索引擎 + 哑发射 + 独立考官,编排智力归主 agent。
+ *  off     完全停用(纯写码对照/实验环境):零工具零命令,前端路由仍伺服既有页。
+ *
+ * 曾有 pipeline/orchestrated/draft/dialogue 四个实验臂,均已判负并按宪法第八条
+ * 删除(该由 git 备查,不该由 `if` 备查)——战役档案在 docs/ 与 bench/results/。
  */
-export type AssemblerMode = 'pipeline' | 'orchestrated' | 'draft' | 'dialogue' | 'search' | 'off'
+export type AssemblerMode = 'search' | 'off'
 
 export function assemblerMode(): AssemblerMode {
-  const m = process.env.DSH_ASSEMBLER_MODE
-  if (m === 'pipeline' || m === 'orchestrated' || m === 'draft' || m === 'dialogue' || m === 'search' || m === 'off') return m
-  return 'search'
-}
-
-/** 兼容旧名:B 臂判定。 */
-export function orchestratedMode(): boolean {
-  return assemblerMode() === 'orchestrated'
+  return process.env.DSH_ASSEMBLER_MODE === 'off' ? 'off' : 'search'
 }
 
 // ── 共享小件 ────────────────────────────────────────────────────────────────
@@ -187,7 +176,7 @@ function progressAppend(dir: string, line: string): void {
   } catch { /* 直播是加速器不是必需品 */ }
 }
 
-/** B 臂账本:每次工具调用一行(A/B 分析的数据面)。写失败绝不影响工具。 */
+/** 工具面台账:每次工具调用一行(战役分析与动用率的数据面)。写失败绝不影响工具。 */
 function appendOrchLedger(record: Record<string, unknown>): void {
   try {
     const dir = join(REPO, 'ledger')
@@ -232,7 +221,7 @@ function startJob(ctx: Context, kind: string, label: string): {
   }
 }
 
-/** 与 llmMapRequirement 同款的辅助调用纪律(flash 钉模型、档位归 auxReasoningEffort)。 */
+/** 辅助调用纪律:flash 钉模型(选型/映射是轻任务,不继承重会话模型)、档位归 auxReasoningEffort。 */
 async function callAux(ctx: Context, label: string, prompt: string, config: Config, onUsage?: (u: AuxUsage) => void): Promise<Record<string, unknown>> {
   const selection = (ctx.get('agentDefaultModel') as { currentSelection?: () => { provider?: string } | undefined } | undefined)?.currentSelection?.()
   const request: GenerateOptions = {
@@ -256,32 +245,6 @@ async function callAux(ctx: Context, label: string, prompt: string, config: Conf
   let text = ''
   for (const block of assembler.message().content) if (block.type === 'text') text += block.text
   return parseModelJson(text)
-}
-
-/** 自由文本辅助调用(D 臂问答用):同一套纪律,但不解析 JSON,原文返回。 */
-async function callAuxText(ctx: Context, label: string, prompt: string, config: Config, onUsage?: (u: AuxUsage) => void): Promise<string> {
-  const selection = (ctx.get('agentDefaultModel') as { currentSelection?: () => { provider?: string } | undefined } | undefined)?.currentSelection?.()
-  const request: GenerateOptions = {
-    provider: config.provider ?? selection?.provider ?? 'deepseek-official',
-    model: config.model ?? 'deepseek-v4-flash',
-    ...(config.auxReasoningEffort !== undefined ? { reasoningEffort: config.auxReasoningEffort as GenerateOptions['reasoningEffort'] } : {}),
-    messages: [createUserMessage({ content: [{ type: 'text', text: prompt }], source: { kind: 'user' } })],
-    ...(AUX_CALL_TIMEOUT_MS > 0 ? { signal: AbortSignal.timeout(AUX_CALL_TIMEOUT_MS) } : {}),
-  }
-  const assembler = new BlockAssembler()
-  const usage: AuxUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cacheReadTokens: 0 }
-  for await (const chunk of ctx.llm.stream(request)) {
-    addUsage(usage, chunk)
-    assembler.push(chunk)
-  }
-  onUsage?.(usage)
-  const finish = assembler.finish
-  if (finish.kind === 'error' || finish.kind === 'aborted') {
-    throw new Error(`${label}: model call ${finish.kind}: ${finish.failure.message}`)
-  }
-  let text = ''
-  for (const block of assembler.message().content) if (block.type === 'text') text += block.text
-  return text.trim()
 }
 
 // ── match_catalog:纯件(单测覆盖)────────────────────────────────────────────
@@ -315,7 +278,7 @@ export function normalizeSpecInput(raw: unknown): OrchSpec | null {
 }
 
 /**
- * 匹配 prompt:llmMapRequirement 的瘦身版——**只出映射**。persona/name/stateSchema/
+ * 匹配 prompt:**只出映射**(旧一条龙选型 prompt 的瘦身遗产)。persona/name/stateSchema/
  * 前端形状选择的智力全删(归主 agent),保留的每条规则都是战役实证:GAP DISCIPLINE
  * (F14 缺口误报比漏报贵)、UI≠browser(F3)、逐条覆盖或标缺口(架构优先的核心)。
  */
@@ -737,7 +700,7 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
       // 调和闸:主 agent 传来的 id 走同一条机械修复;全都不存在 → 大声失败。
       const ids = reconcileCapabilityIds(input.capabilityIds, catalogIds)
       // 前端硬闸:一个 preset 只有首个 frontend 模板生效——≥2 个不是权衡是死件,
-      // 错误就按错误处理(F 臂实测 HR 装了 3 个模板)。context 补全治大半,这是兜底。
+      // 错误就按错误处理(实测 HR 场景曾装了 3 个模板)。context 补全治大半,这是兜底。
       const feIds = ids.filter((cid) => catalog.capabilities.find((c) => c.id === cid)?.via === 'frontend')
       if (feIds.length >= 2) {
         throw new Error(`emit_preset: 选了 ${String(feIds.length)} 个 frontend 模板(${feIds.join(', ')}),但${FRONTEND_FACT}挑一个交互形状最贴的重新调用。`)
@@ -763,7 +726,7 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
       const presetRoot = presetRootOf(config)
       const id = sanitizePresetName(input.name)
       const dir = join(presetRoot, id)
-      // 同名占用裁决(A 臂同款三选一,治 F1 静默铸 -2 病):同概念 → 原地重发;
+      // 同名占用裁决(三选一,治 F1 静默铸 -2 病):同概念 → 原地重发;
       // 异概念 → 没有 fresh 就拒绝。
       if (existsSync(join(dir, 'agent.cordis.yml'))) {
         const sameConcept = sameConceptOnDisk({ name: id, requirement: input.requirement, params: screened.accepted, presetRoot })
@@ -820,7 +783,7 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
       const gapOrders = writeGapWorkOrders({ presetDir: dir, presetId: id, requirement: input.requirement, missingEntries: input.missingEntries })
       if (gapOrders.length > 0) progressAppend(dir, `缺件工单已落盘:${String(gapOrders.length)} 份 → ${join(dir, 'gaps')}/`)
       const requiredSecrets = collectRequiredSecrets(selected, catalog['mcp-servers'] ?? {})
-      // BOM:与 A 臂同一台账语义(emitter 代号、缺口、目录指纹全记)。
+      // BOM:统一台账语义(emitter 代号、缺口、目录指纹全记)。
       const index = catalogChain(catalogPath).flatMap((layer) => {
         const indexPath = join(dirname(layer), 'index', 'catalog.yml')
         if (!existsSync(indexPath)) return []
@@ -1111,195 +1074,7 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
   })
 }
 
-// ── C 臂:draft_assembly(提案审阅制)────────────────────────────────────────
-
-/** 方案书(C 臂一次调用的产物):架构 + 选型映射 + 组装决策草案,全部待主 agent 审阅。 */
-export interface AssemblyDraft {
-  spec: OrchSpec & { purpose: string }
-  coverage: MatchOutcome['coverage']
-  capabilityIds: string[]
-  missing: string[]
-  missingEntries: MissingDraft[]
-  name: string
-  persona: string
-  stateSchema?: string
-  probe: ReturnType<typeof normalizeProbeSketch>
-}
-
-/**
- * 方案书响应的机械整形(纯函数,单测覆盖):spec 宽进、coverage 走 match 同一套
- * id 调和 + 漏行补缺口、persona/name 字符串化、probe 走草图归一。任何字段缺失
- * 都不炸——审阅者(主 agent)看得见空洞,空洞本身就是要红笔的地方。
- */
-export function parseDraftResponse(parsed: Record<string, unknown>, catalogIds: readonly string[]): AssemblyDraft {
-  const specRaw = parsed.spec !== null && typeof parsed.spec === 'object' ? parsed.spec as Record<string, unknown> : {}
-  const spec = normalizeSpecInput(specRaw) ?? { capabilities: [], dataModel: '', workflow: '', interfaces: '' }
-  const needs = spec.capabilities.map((c) => c.name)
-  const match = parseMatchResponse(parsed, catalogIds, needs)
-  return {
-    spec: { ...spec, purpose: String(specRaw.purpose ?? '').trim() },
-    coverage: match.coverage,
-    capabilityIds: match.capabilityIds,
-    missing: match.missing,
-    missingEntries: match.missingEntries,
-    name: sanitizePresetName(String(parsed.name ?? '')),
-    persona: String(parsed.persona ?? '').trim(),
-    ...(typeof parsed.stateSchema === 'string' && parsed.stateSchema.trim() !== '' ? { stateSchema: parsed.stateSchema.trim() } : {}),
-    probe: normalizeProbeSketch(parsed.probe),
-  }
-}
-
-/** C 臂方案书 prompt:架构师 + 目录映射 + persona/schema/探针起草,合并成一次调用。 */
-export function buildDraftPrompt(requirement: string, catalog: Catalog): { prompt: string; ids: string[] } {
-  const usable = catalog.capabilities.filter((c) => c.config?.enabled !== false)
-  const ids = usable.map((c) => c.id)
-  const tagsIndex = usable.map((c) => `${c.id}: ${c.tags.join(', ')} — ${c.description}`).join('\n')
-  const prompt = [
-    'You are the assembly PROPOSAL DRAFTER of an agent-assembly system. Produce ONE complete assembly proposal for the requirement below. A senior ORCHESTRATOR will review and红笔 (amend) your draft — so be exhaustive and honest; a gap you hide is worse than a gap you flag.',
-    '',
-    'Work in TWO mental passes:',
-    'PASS 1 — architecture, WITHOUT looking at the catalog: purpose; the FULL list of capabilities this agent architecturally needs (generic descriptions with why — storage, retrieval, export included); dataModel (entities + key fields); workflow (main flow across turns); interfaces (what humans interact through).',
-    'PASS 2 — map every architectural need onto the catalog below, then draft the assembly decisions.',
-    '',
-    'Catalog:',
-    tagsIndex,
-    '',
-    'Respond with JSON only:',
-    '{"spec":{"purpose":"...","capabilities":[{"name":"...","why":"..."}],"dataModel":"...","workflow":"...","interfaces":"..."},',
-    ' "coverage":[{"need":"...","capabilityId":"..."|null,"gap":"..."}], "extraIds":[...], "missingEntries":[...],',
-    ' "name":"...", "persona":"...", "stateSchema":"...", "probe":{...}}',
-    'Rules:',
-    '- coverage: exactly one row per spec capability, in order; capabilityId from this exact set or null+gap: ' + ids.join(', '),
-    '- GAP DISCIPLINE: before marking any need null, exhaustively check the catalog under other names — persistent state/ledgers → SQLite parts; workspace files → filesystem parts; searching imported docs → kb/fs-search; document output → docx/pdf/excel parts. NEVER invent vendor ids; describe missing capabilities generically. For every null row add one missingEntries item {id, via, description, tags, tool?, mount?}.',
-    '- 网页/页面/看板 in the requirement usually means the DELIVERED web UI: cover it with EXACTLY ONE via:"frontend" template id whose interaction SHAPE fits (form desk / data desk / dashboard / chat console); never browser-automation for it. Put it in extraIds if no need row names it.',
-    '- name: kebab-case slug naming what the agent IS (2-5 words).',
-    '- persona: the agent\'s system persona — role, tone, answer in the requirement\'s language, tool discipline, durability constraint when state parts are selected ("跨轮事实必须写入账本/文件,不依赖记忆"), domain safety boundaries when the domain has them (medical/legal/finance). Judgeable constraints only — NEVER numbered procedures.',
-    '- stateSchema: ONLY when a SQLite capability is selected — short idempotent DDL ("CREATE TABLE IF NOT EXISTS ..." / "CREATE INDEX IF NOT EXISTS ..." only), implementing exactly the dataModel entities. English column names, sensible keys. Omit otherwise.',
-    '- probe: a smoke-test sketch of the MAIN workflow. Cross-turn state: {"kind":"scenario","createTask":"...","retrieveTask":"...","token":"...","marks":["..."]} — invent a distinctive token (e.g. INV-7781); createTask CREATES the central record carrying it with ALL data invented inline (empty workspace, nobody attending); retrieveTask retrieves BY the token WITHOUT restating stored values and reports one stored value. Pure compute: {"kind":"single","task":"...","marks":["..."]}. marks: 1-3 content-bearing strings — never invented dates as facts, never refusal wording, never UI words, never formatted numbers, never long body text that goes into a file. Size each turn under ~2 minutes.',
-    '',
-    `Requirement: ${requirement}`,
-  ].join('\n')
-  return { prompt, ids }
-}
-
-export function draftAssemblyToolDefinition(ctx: Context, config: Config): ToolDefinition {
-  return defineTool({
-    name: DRAFT_TOOL_NAME,
-    description:
-      'PROPOSAL-REVIEW ASSEMBLY step 1 of 3 (you are the REVIEWING orchestrator; the assembler drafts, you red-pen). '
-      + 'Call this with the user\'s full requirement: the assembler returns ONE complete assembly proposal — architecture spec, '
-      + 'per-need catalog coverage (or gaps), preset name, persona, state schema, acceptance-probe sketch. '
-      + 'Your job AFTER it returns: REVIEW it critically against what the user actually said — challenge the architecture '
-      + '(missing needs? invented needs?), the persona (safety boundaries? durability constraint?), the schema, the gaps '
-      + '(is a "gap" actually covered by some part? is a real need silently dropped?). Show the user the key points and let them '
-      + 'correct the direction BEFORE assembly. Then call emit_preset with the (amended) fields, then verify_preset (the draft\'s '
-      + 'probe sketch may be passed along). Rubber-stamping without review is the failure mode this flow exists to prevent.',
-    parameters: {
-      requirement: { type: 'string', description: 'the user\'s full natural-language requirement', required: true },
-    },
-    output: {
-      schema: { type: 'string' as const },
-      render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
-    },
-    execute: async (args: unknown): Promise<string> => {
-      const requirement = String((args as { requirement?: unknown })?.requirement ?? '').trim()
-      if (requirement === '') throw new Error('draft_assembly needs {"requirement": "..."}')
-      const t0 = Date.now()
-      const job = startJob(ctx, 'draft-assembly', '方案书起草')
-      try {
-        const catalog = await federateMcpTools(loadCatalog(config.catalogPath ?? join(REPO, 'capabilities.yml')))
-        job.phase(`零件联邦就绪:${String(catalog.capabilities.length)} 条可装配`)
-        const { prompt, ids } = buildDraftPrompt(requirement, catalog)
-        job.phase('方案书起草中(架构+选型+persona+schema+探针,一次调用)…')
-        let usage: AuxUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cacheReadTokens: 0 }
-        const parsed = await callAux(ctx, DRAFT_TOOL_NAME, prompt, config, (u) => { usage = u })
-        const draft = parseDraftResponse(parsed, ids)
-        const elapsed = Math.round((Date.now() - t0) / 1000)
-        job.settle('completed', `${String(draft.capabilityIds.length)} 零件 / ${String(draft.missing.length)} 缺口`)
-        appendOrchLedger({
-          tool: DRAFT_TOOL_NAME, requirement, needs: draft.spec.capabilities.length,
-          selected: draft.capabilityIds, missing: draft.missing, name: draft.name, elapsedSeconds: elapsed,
-          usage: { out: usage.outputTokens, reason: usage.reasoningTokens, cache: usage.cacheReadTokens },
-        })
-        const byId = new Map(catalog.capabilities.map((c) => [c.id, c]))
-        const rows = draft.coverage.map((r, i) => r.capabilityId !== null
-          ? `  ${String(i + 1)}. ${r.need} → ${r.capabilityId}(${byId.get(r.capabilityId)?.via ?? '?'})`
-          : `  ${String(i + 1)}. ${r.need} → 【缺口】${r.gap ?? ''}`).join('\n')
-        const detail = usageDetail(usage)
-        return `方案书(${String(elapsed)}s${detail !== '' ? `,${detail}` : ''})——以下全部是**草案**,等你红笔:\n`
-          + `用途:${draft.spec.purpose}\n`
-          + `数据模型:${draft.spec.dataModel}\n工作流:${draft.spec.workflow}\n接口:${draft.spec.interfaces}\n`
-          + `覆盖明细:\n${rows}\n`
-          + `建议 preset 名:${draft.name}\n`
-          + `选中零件 capabilityIds:${draft.capabilityIds.join(', ')}\n`
-          + (draft.missingEntries.length > 0 ? `缺件草案 missingEntries:${JSON.stringify(draft.missingEntries)}\n` : '')
-          + `persona 草案:\n${draft.persona}\n`
-          + (draft.stateSchema !== undefined ? `stateSchema 草案:\n${draft.stateSchema}\n` : '')
-          + (draft.probe !== null ? `探针草图:${JSON.stringify(draft.probe)}\n` : '')
-          + [
-            '',
-            '【接力棒——你是审阅人,不是传声筒】',
-            '- 逐项挑刺再放行:架构漏了/多了什么?缺口是不是其实有零件能覆盖(或反过来,真需求被静默丢了)?persona 有没有该领域的安全边界与持久化约束?schema 是否与数据模型一比一?',
-            '- 把架构要点给用户看一眼、允许当场改方向;然后带着(修订后的)字段调 emit_preset(name/requirement/capabilityIds/persona[/stateSchema][/missing,missingEntries]),再 verify_preset(可附探针草图)。',
-            '- 橡皮图章是这个流程的头号失败模式:草案没有一处要改,本身就值得怀疑。',
-          ].join('\n')
-      } catch (error: unknown) {
-        job.settle('failed', error instanceof Error ? error.message.slice(0, 120) : String(error))
-        throw error
-      }
-    },
-  })
-}
-
-// ── D 臂:ask_catalog(对话式零件专家)───────────────────────────────────────
-
-export function askCatalogToolDefinition(ctx: Context, config: Config): ToolDefinition {
-  return defineTool({
-    name: ASK_TOOL_NAME,
-    description:
-      'Free-form Q&A with the CATALOG EXPERT (knows every part: what it does, alternatives, credentials, limits). '
-      + 'Use it when the requirement is AMBIGUOUS or NOVEL and you need to understand the parts landscape before deciding — '
-      + '"有能读 mobi 的零件吗?"、"这两个 sqlite 零件差在哪?"、"发邮件的零件要什么凭证?". '
-      + 'For ROUTINE requirements do NOT chat — go straight to match_catalog. Each question is one aux model call; '
-      + 'batch related questions into one message. The expert answers about parts only; assembly decisions stay yours.',
-    parameters: {
-      question: { type: 'string', description: 'your question(s) about the parts catalog, batched into one message', required: true },
-    },
-    output: {
-      schema: { type: 'string' as const },
-      render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
-    },
-    execute: async (args: unknown): Promise<string> => {
-      const question = String((args as { question?: unknown })?.question ?? '').trim()
-      if (question === '') throw new Error('ask_catalog needs {"question": "..."}')
-      const t0 = Date.now()
-      const catalog = await federateMcpTools(loadCatalog(config.catalogPath ?? join(REPO, 'capabilities.yml')))
-      const usable = catalog.capabilities.filter((c) => c.config?.enabled !== false)
-      const tagsIndex = usable.map((c) => `${c.id} [${c.via}]: ${c.tags.join(', ')} — ${c.description}`).join('\n')
-      const servers = catalog['mcp-servers'] ?? {}
-      const secretLines = Object.entries(servers)
-        .filter(([, cfg]) => Array.isArray(cfg.requiredSecrets) && (cfg.requiredSecrets as unknown[]).length > 0)
-        .map(([sv, cfg]) => `${sv}: ${(cfg.requiredSecrets as Array<{ env?: string; optional?: boolean }>).map((s) => `${s.env ?? '?'}${s.optional === true ? '(可选)' : ''}`).join(', ')}`)
-        .join('\n')
-      const prompt = [
-        'You are the CATALOG EXPERT of an agent-assembly system. Answer the orchestrator\'s question about the parts catalog below — concretely, citing part ids. Compare alternatives when asked. Say plainly when NOTHING covers something (never invent parts). Answer in the question\'s language, compact (this is a working conversation, not a report).',
-        '',
-        'Catalog:',
-        tagsIndex,
-        secretLines !== '' ? `\nParts requiring credentials (env vars, values live on the host):\n${secretLines}` : '',
-        '',
-        `Question: ${question}`,
-      ].join('\n')
-      let usage: AuxUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cacheReadTokens: 0 }
-      const answer = await callAuxText(ctx, ASK_TOOL_NAME, prompt, config, (u) => { usage = u })
-      const elapsed = Math.round((Date.now() - t0) / 1000)
-      appendOrchLedger({ tool: ASK_TOOL_NAME, question: question.slice(0, 200), elapsedSeconds: elapsed, usage: { out: usage.outputTokens, reason: usage.reasoningTokens, cache: usage.cacheReadTokens } })
-      return `${answer}\n\n(零件专家答毕,${String(elapsed)}s。决策仍归你:清楚了就走 match_catalog → emit_preset → verify_preset。)`
-    },
-  })
-}
-
-// ── F 臂:search_catalog(纯机械检索)────────────────────────────────────────
+// ── search_catalog(纯机械检索)──────────────────────────────────────────────
 
 export function searchCatalogToolDefinition(_ctx: Context, config: Config): ToolDefinition {
   return defineTool({

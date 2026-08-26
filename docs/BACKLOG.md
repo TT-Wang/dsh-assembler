@@ -1,7 +1,22 @@
-# 待办账本(2026-08-25 结算)
+# 待办账本(2026-08-26 结算)
 
 > 本文件是活账本:开工即改状态,完成即划掉并注明战役/commit。排序 = 杠杆,
-> 不是时间。ROADMAP.md 管方向,本文件管队列。
+> 不是时间。ROADMAP.md(v3)管方向,本文件管队列。
+
+## P0|宪法判决执行(ROADMAP v3 阶段 0)
+
+- [x] **0.1 删四死方言**(2026-08-26):pipeline/orchestrated/draft/dialogue 按可达性
+      闭包整删——assemble 一条龙脊柱、/assemble 命令、assemble_solution、solution CLI、
+      45 题 bench、B/C/D 臂驱动器与 sweep 对比器、shortlist 粗筛器、spec_experiment、
+      共享探针 LLM 派生器全数同葬(git 备查)。src 8019→5711 行,工具面 17→12,
+      形态 6→2(search/off)。缺件工单闭环指令改指 emit_preset;全测试链绿。
+      **随臂死、待重生的能力**:HANDOVER 交付报告生成器(原 writeHandover,读 lock
+      的确定性纯件)——若 FDE 需要,应在 search 面以确定性工具重生,不随散文承诺。
+- [ ] **0.2 配方并进 scaffold**(第九条判):app 交付只留一条路;rag-qa/record-desk
+      降级为写手起始页;emit_app/verify_app 五门并进统一考官后,车道闸/分叉行随
+      双车道消失。牵扯 recipes/、两个工具面、战役题面——单独一刀。
+- [ ] **0.3 泛化战役 v3**(阶段 1 验收门):单车道现实上重跑三档九题,考卷判据
+      已冻结方向(C 档改命题实质、题面去车道指令、artifactName 进 JSON)。
 
 ## 已完成基线(免得重复造)
 

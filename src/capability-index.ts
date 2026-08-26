@@ -1,18 +1,14 @@
 /**
- * 能力目录:选型前的确定性粗筛器(两阶段选型的第一阶段)。
+ * 能力目录的机械检索——search 形态的心脏(search_catalog 的后端)。
  *
- * 病灶(用户 2026-08-22 指出):选型把整个目录(~230 个能力)全文塞进 prompt,
- * 满档一次推理 225s——又慢又噪。先例(retrieve→rerank,"Tools Are Not Islands"
- * 的 set-level 检索)给的方案:先粗筛出相关子集,LLM 只在小集合上精选。
+ * 设计裁定:走 lexical(tags 倒排 + IDF 加权),不上 embedding——当前规模
+ * lexical 毫秒级够快,tags 是人工标注的强信号,确定性可单测可解释。规模真涨
+ * 到几千条再上向量混合召回(ROADMAP 阶段 4 的规模触发器)。
  *
- * 设计裁定:走 lexical(tags 倒排 + 打分),不上 embedding——230 规模 lexical
- * 毫秒级够快,tags 是人工标注的强信号,确定性可单测可解释,且 DeepSeek 的
- * embedding 端点可用性存疑。规模真涨到几千再上向量。
- *
- * set-level 落地:archSpec 的每个架构需求单独当 query 召回 top-M,并集去重
- * ——保证每个需求的最佳候选都进小集合,不被全局分挤掉(否则某需求的唯一匹配
- * 被压掉 = 假缺口)。数量少的架构类(persona/前端/状态)全保留,只粗筛量大的
- * mcp 工具。粗筛是加速器不是过滤器:召回优先,K 给足,可关(DSH_ASSEMBLER_SHORTLIST=0)。
+ * 历史:本文件曾另有两阶段选型的粗筛器 shortlistCapabilities(选型 LLM 的
+ * 输入压缩)。A/B 实测(2026-08-22)证明选型是推理绑定而非目录大小绑定,粗筛
+ * 不提速还有召回风险;其唯一消费者(llmMapRequirement)随 pipeline 形态删除
+ * (宪法第八条),粗筛器同葬,git 备查。
  */
 import type { CapabilityEntry } from './index.js'
 
@@ -49,21 +45,6 @@ function buildDoc(c: CapabilityEntry): DocTokens {
   return { id: c.id, tag, desc }
 }
 
-/** 一个 doc 对一个 query 词袋的打分:tag 命中×3,description 命中×1。 */
-function score(doc: DocTokens, queryTokens: readonly string[]): number {
-  let s = 0
-  for (const qt of queryTokens) {
-    if (doc.tag.has(qt)) s += 3
-    else if (doc.desc.has(qt)) s += 1
-  }
-  return s
-}
-
-/** mcp 判定:量大的库型/服务型工具,粗筛主要压的就是它们。 */
-function isMcp(c: CapabilityEntry): boolean {
-  return c.via === 'mcp'
-}
-
 /**
  * 同分次序:词法证据打平时,先给**交付更完整**的那件——配方是整套可独立运行的
  * app 图纸,模板/零件都是要装进 preset 才成形的半件。只在同分时生效,不改分数。
@@ -73,17 +54,9 @@ function completenessRank(c: CapabilityEntry): number {
 }
 
 /**
- * 粗筛:返回喂进选型 prompt 的候选 id 集。
- *
- * - 非 mcp(harness/frontend/package/knowledge 等,数量少、架构性强)全保留。
- * - mcp:每个 query(archSpec 需求 + requirement 兜底)召回 top-M,并集;再按
- *   全局最高分补到 maxMcp。命中 0 分的不进(纯噪音)。
- * - queries 为空(无 archSpec)时退化:只用 requirement 当单一 query。
- */
-/**
- * 带排名的全目录检索(检索形态的后端):对一个自然语言 query 返回按分排序的
- * top-N 条目(含 frontend/knowledge/persona 等非 mcp 条目——主 agent 要自己
- * 找到交互面和知识包,不能只搜库型工具)。纯机械,零 LLM,毫秒级,确定性可单测。
+ * 带排名的全目录检索:对一个自然语言 query 返回按分排序的 top-N 条目
+ * (含 frontend/knowledge/persona 等非 mcp 条目——主 agent 要自己找到交互面
+ * 和知识包,不能只搜库型工具)。纯机械,零 LLM,毫秒级,确定性可单测。
  *
  * 打分是 BM25 味的 IDF 加权(先例:Anthropic Tool Search Tool 开箱即 regex+BM25
  * 双变体):每个命中词按 idf = ln(1+(N-df+0.5)/(df+0.5)) 计权,tag 命中 ×3、
@@ -131,43 +104,4 @@ export function rankCapabilities(
       || completenessRank(a.entry) - completenessRank(b.entry)
       || a.entry.id.localeCompare(b.entry.id))
     .slice(0, topN)
-}
-
-export function shortlistCapabilities(
-  capabilities: readonly CapabilityEntry[],
-  queries: readonly string[],
-  opts: { perQueryTopM?: number; maxMcp?: number } = {},
-): { ids: Set<string>; total: number; keptNonMcp: number; shortlistedMcp: number } {
-  const perQueryTopM = opts.perQueryTopM ?? 6
-  const maxMcp = opts.maxMcp ?? 60
-  const ids = new Set<string>()
-  let keptNonMcp = 0
-  const mcpDocs: DocTokens[] = []
-  const mcpById = new Map<string, CapabilityEntry>()
-  for (const c of capabilities) {
-    if (isMcp(c)) { mcpDocs.push(buildDoc(c)); mcpById.set(c.id, c) }
-    else { ids.add(c.id); keptNonMcp++ }
-  }
-  const qTokens = queries.map((q) => tokenize(q)).filter((t) => t.length > 0)
-  // 每个 query 召回 top-M(set-level:各需求的最佳候选都保住)
-  const globalBest = new Map<string, number>()
-  for (const qt of qTokens) {
-    const scored = mcpDocs
-      .map((d) => ({ id: d.id, s: score(d, qt) }))
-      .filter((x) => x.s > 0)
-      .sort((a, b) => b.s - a.s)
-    for (const x of scored.slice(0, perQueryTopM)) ids.add(x.id)
-    for (const x of scored) globalBest.set(x.id, Math.max(globalBest.get(x.id) ?? 0, x.s))
-  }
-  // 全局补齐到 maxMcp(并集已含各 query top-M;按全局最高分补剩余额度)
-  const shortlistedMcpBefore = [...ids].filter((id) => mcpById.has(id)).length
-  if (shortlistedMcpBefore < maxMcp) {
-    const rest = [...globalBest.entries()]
-      .filter(([id]) => !ids.has(id))
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, maxMcp - shortlistedMcpBefore)
-    for (const [id] of rest) ids.add(id)
-  }
-  const shortlistedMcp = [...ids].filter((id) => mcpById.has(id)).length
-  return { ids, total: capabilities.length, keptNonMcp, shortlistedMcp }
 }

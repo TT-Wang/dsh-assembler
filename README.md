@@ -26,13 +26,12 @@ The catalog grows through an **induction pipeline**: open-source libraries, publ
 
 ## What it does
 
-- **Just talk** — describe the agent in any DSH session. The assistant reviews the architecture with you (gaps included — each one is your decision), finds parts by instant search, assembles, and hands over only what an independent probe has verified. A classic one-shot pipeline (`/assemble` command + `assemble` / `assemble_solution` tools) remains available for scripted and batch use via `DSH_ASSEMBLER_MODE=pipeline`.
+- **Just talk** — describe the agent in any DSH session. The assistant reviews the architecture with you (gaps included — each one is your decision), finds parts by instant search, assembles, and hands over only what an independent probe has verified.
 - **Assemble-then-verify** — after emitting a preset, the assembler derives an acceptance probe, runs it in a **real session bound to that preset**, and judges the reply against content-bearing marks. A FAIL comes back with evidence — which turn, which missing acceptance mark, what the agent actually replied — so the fix is surgical (swap a part, tighten the persona, re-emit under the same name) rather than a blind retry; a PASS also drops a `selfcheck.json` beside the preset, so the agent can be re-examined with the same probe after any later change. `find → assemble → **verify**`, on by default. The probe fails fast and honestly: an agent that asks the (absent) user for help is scored FAIL with the question quoted back, and every probe turn narrates its tool actions live.
 - **Multi-turn scenario probes** — the deriver picks the probe shape itself: one turn for pure-compute agents, a 2–4 turn scenario when the requirement implies work that outlives a turn (bookkeeping, filing, tracking). Scenario turns run in **one session**, and a later turn queries what an earlier turn wrote. Judgement stays black-box: replies only, never the trajectory.
-- **Multi-agent teams** — ask for a suite ("one agent for support, one for reconciliation, one for inventory — all on the same product/order data") and the agents are assembled one by one against **one shared database**, then the handoff itself is proven: an independent probe has one agent write a record and a *different* agent read it back. In pipeline mode, `assemble_solution` and a CLI (`scripts/solution.mjs`) drive the same delivery as a batch and grow a `HANDOVER.md` out of the artifacts — per-agent verdicts, shared tables, credential checklist, supply-chain BOM.
+- **Multi-agent teams** — ask for a suite ("one agent for support, one for reconciliation, one for inventory — all on the same product/order data") and the agents are assembled one by one against **one shared database**, then the handoff itself is proven: an independent probe has one agent write a record and a *different* agent read it back.
 - **Gap work orders** — when selection reports a capability the catalog cannot yet cover, the assembler writes an actionable work order to `<preset>/gaps/`: the spec, the real induction-pipeline commands to build the missing part, and the exact re-assemble command that closes the loop. The writing of the missing part is handed to the **calling agent** (which has a full coding harness); the assembly spine stays deterministic, and the verdict always comes from the assembler's own black-box probe.
 - **Assembly console (live)** — every assembly dual-writes its action chain to `<preset>/progress.log`; a live console page (`/assembler/ui/_console`) polls it so a slow assembly is a visible, timestamped trail — "stuck or working?" answered at a glance — not a silent spinner. Selection, emission, probe rounds, per-turn tool actions and a 20s heartbeat all scroll there.
-- **Solution packs (the FDE unit of delivery)** — `solutions/<name>/solution.yml` declares an entire engagement: which agents, which catalog, deployment parameters, client knowledge. `solution apply` assembles them all, each through verification; `solution handover` **grows a delivery report out of the artifacts themselves**. Multi-tenant is `--param` plus a different credential set — never a forked manifest.
 - **Knowledge packs (`via: knowledge`)** — a client's manuals, SOPs and product catalogues enter as **static teaching material**, past a **retrieval-hit gate** (a probe question whose expected snippet cannot be found is refused), and are **copied into the preset's `kb/`** at assembly time. The handover is one self-contained directory.
 - **Credential contract (interface first, key later)** — parts **declare** the environment variable they need and what it is for; the **value never enters a preset**. Unconfigured, a part still starts, `listTools` still succeeds, and a call returns an **actionable error** (which variable, what for, where to get it). On the assembly side: assembly succeeds, the probe degrades to **SKIPPED** with configuration guidance. Optional credentials (GitHub public reads, polite-pool mailtos) take the anonymous path and do not hold verification back.
 - **Client-private catalogs** — `catalogs/<client>/` carries its own `generated/`, `index/`, `capabilities.yml` and `knowledge/`. One client's parts **cannot** surface in another's assembly, because isolation is by **separate files**, not by a filter someone can forget.
@@ -40,7 +39,7 @@ The catalog grows through an **induction pipeline**: open-source libraries, publ
 - **Parts BOM** — every assembly emits `parts.lock.yml` beside the preset: per part its origin, licence, verified status and the serverName actually mounted, plus knowledge sources with versions and the pending-credential list.
 - **Federation cache** — each part's tool list is cached under (connection config + adapter file fingerprint): cold ~5s, **warm 0.002s**.
 - **persona lint** — mechanical checks on the persona text: every tool it names must be in the mounted surface, step-numbered choreography is rejected, length is bounded.
-- **Design notes** — [DESIGN.md](DESIGN.md) (Chinese) states what the assembler does, what it deliberately does not, and where the boundary sits.
+- **Constitution & design notes** — [docs/CONSTITUTION.md](docs/CONSTITUTION.md) (vibe assembly governed as a programming language, nine articles each with a test) · [DESIGN.md](DESIGN.md) states what the assembler does, what it deliberately does not, and where the boundary sits.
 
 ---
 
@@ -48,7 +47,7 @@ The catalog grows through an **induction pipeline**: open-source libraries, publ
 
 Assembly does not stop at the preset — every agent also gets an **operable web frontend**, served same-origin by the assembler on the host (`/assembler/ui/<preset>`). The page speaks the host's public wire (session.create / session.prompt / events.mux) and shares the same agent and the same durable workspace as the DSH conversation view; it pulls current state on open.
 
-Each screenshot below is the **real product of a single `/assemble` command** (real assembly, real data, real capture — verdict lines quoted verbatim):
+Each screenshot below is the **real product of a single assembly** (real assembly, real data, real capture — verdict lines quoted verbatim):
 
 > `任务管理助手 … 要一个可以拖拽的任务看板页面` → 自动验证:PASS · 前端验收:页面门+环路门 PASS
 
@@ -86,9 +85,9 @@ How it works:
 └───────────────────────────────────────────────────────────────────────┘
                               ↓
 ┌───────── Delivery (FDE) ──────────────────────────────────────────────┐
-│ solution apply (assemble every agent in the manifest)                 │
-│   → solution handover: report (verdicts / params / pending secrets /  │
-│     knowledge / BOM / rebuild command)                                │
+│ multi-agent suite: emit_preset per agent, pinned to one sharedDb      │
+│   → verify_shared_data handoff exam (one writes, another reads back)  │
+│   → every agent carries its own parts.lock.yml BOM record             │
 └───────────────────────────────────────────────────────────────────────┘
                               ↓
 ┌───────── Runtime (the harness's territory) ───────────────────────────┐
@@ -126,26 +125,9 @@ Open the DSH web UI and just say it:
 
 You will be shown the architecture (and any catalog gaps, each yours to decide) before anything is built; after your go-ahead the agent assembles, an independent probe verifies it in a real session, and you get the preset id, the verdict with evidence, and a web page at `/assembler/ui/<preset>`. Artifacts land in `~/.dsh/.agent-presets/<preset>/` — `parts.lock.yml` (BOM), `selfcheck.json`, `progress.log`.
 
-For scripted or batch use, start the host with `DSH_ASSEMBLER_MODE=pipeline` and use the one-shot form:
-
-```
-/assemble build a support bot that looks up customers, opens tickets, and hands off to a human --name customer-service-bot
-```
-
 ### 3. Deliver a whole team (the FDE path)
 
-Just ask for a suite of agents in one session — "give me a set of ops agents: one for support, one for reconciliation, one for inventory, one for content, all sharing the same product/order data, plus a handover doc". The assistant splits the request into focused agents, assembles and verifies each, pins them to one shared database, and the handoff itself gets probed (one agent writes a record, another reads it back). Under pipeline mode the same request runs end-to-end through the **`assemble_solution`** tool and writes a `HANDOVER.md`.
-
-For non-agent batch delivery, the CLI drives the same pipeline:
-
-```bash
-npm run solution -- init acme-service --client acme     # manifest skeleton
-# edit the agents list in solutions/acme-service/solution.yml
-npm run solution -- apply solutions/acme-service/solution.yml --port 3096
-npm run solution -- handover solutions/acme-service/solution.yml
-```
-
-`HANDOVER.md` lists what was delivered with each verdict, the shared tables, the deployment parameters, the **pending-credential checklist**, knowledge packs with source and version, the supply-chain BOM, and the rebuild command — assembled from the artifacts, with **nothing hand-filled**. Anything that can be forgotten does not belong in a handover.
+Just ask for a suite of agents in one session — "give me a set of ops agents: one for support, one for reconciliation, one for inventory, one for content, all sharing the same product/order data". The assistant splits the request into focused agents, assembles and verifies each (`emit_preset` pins every member to one shared `sharedDb`), and the handoff itself is examined independently (`verify_shared_data`: one agent writes a record, a different agent reads it back — the reader's instruction may not contain the answer, the copy gate). Each agent's `parts.lock.yml` is its delivery record: verdict, part provenance, pending credentials, knowledge versions — all grown from artifacts.
 
 ---
 
@@ -154,28 +136,22 @@ npm run solution -- handover solutions/acme-service/solution.yml
 ```
 dsh-assembler/
 ├── src/
-│   ├── index.ts            # assembly core: catalog, matching, emission, BOM, params, secrets, knowledge
-│   ├── verify.ts           # assemble-then-verify: probe derivation (single/scenario) + real-session driver
+│   ├── index.ts            # assembly core: catalog, federation, deterministic emission, BOM, equipment, knowledge
+│   ├── orchestrated-tools.ts # the tool surface: parts search · deterministic emit · independent examiner
+│   ├── verify.ts           # assemble-then-verify: probe machinery (single/scenario) + real-session driver
+│   ├── capability-index.ts # BM25 parts search backend
 │   ├── persona-lint.ts     # mechanical persona checks
 │   ├── frontend.ts         # frontend lane: template emission + same-origin route + live console
-│   ├── solution.ts         # multi-agent solution delivery + HANDOVER from artifacts
-│   ├── solution-tool.ts    # the assemble_solution agent tool (pipeline mode)
-│   ├── orchestrated-tools.ts # default mode: parts search · deterministic emit · independent examiner
-│   ├── capability-index.ts # BM25 parts search backend
-│   ├── assemble-tool.ts    # the assemble agent tool
 │   └── client/             # browser half: assembly console tab in the DSH sidebar
 ├── capabilities.yml        # ★ public catalog: capability entries + mcp-servers + requiredSecrets
 ├── index/                  # ★ public part index (origin/licence/terms) + smoke reports
 ├── generated/              # ★ part library: 80+ MCP adapter servers, one directory each
 ├── catalogs/<client>/      # ★ client-private catalog: its own generated/ index/ capabilities.yml knowledge/
-├── solutions/<name>/       # ★ solution pack: solution.yml + last-apply.json + HANDOVER.md
 ├── bench/results/          # assembly-quality ledgers (run-tagged, committed)
 ├── presets/
 │   └── agent-template.yml  # preset template ({{persona}}/{{packageRows}}/{{extraRows}}/{{param:k}})
 └── scripts/
     ├── index-add.mjs       # ★ induction pipeline CLI
-    ├── solution.mjs        # ★ solution pack CLI
-    ├── assembly-bench.mjs  # 45-item assembly benchmark
     └── link-dsh.mjs        # link DSH peer packages
 ```
 
@@ -499,9 +475,8 @@ knowledge:
 ```bash
 npm run link:dsh   # link DSH peer packages (needs DSH_SOURCE or ~/.dsh/source/current)
 npm run build      # tsc → lib/
-npm test           # build + three suites (generation invariants / verdicts & BOM / federation cache)
+npm test           # build + the full unit-test chain (emission gates / verdicts / federation cache / tool-surface contract pins…)
 npm run index:check   # full part-smoke regression
-npm run bench      # 45-item assembly benchmark
 ```
 
 Changes under `lib/` need a DSH web restart; changes to `capabilities.yml` do not (the catalog is read at assembly time).

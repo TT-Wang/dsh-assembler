@@ -26,13 +26,12 @@
 
 ## 特性
 
-- **直接开口**:在任意 DSH 会话里描述你要的 agent。助手先和你过一遍架构(缺口逐个由你拍板),毫秒级检索选件,装配后只交付独立探针验证过的东西。一条龙式的一次性管线(`/assemble` 命令 + `assemble` / `assemble_solution` 工具)保留给脚本与批处理场景,`DSH_ASSEMBLER_MODE=pipeline` 开启
+- **直接开口**:在任意 DSH 会话里描述你要的 agent。助手先和你过一遍架构(缺口逐个由你拍板),毫秒级检索选件,装配后只交付独立探针验证过的东西
 - **装配即验证**:装配完成后自动派生验收探针,在绑定新 preset 的**真实会话**里试跑,按内容型验收标记判 PASS/FAIL;FAIL 带证据返回——哪一轮、缺哪个验收标记、agent 实际回了什么——修复因此是外科式的(换零件、收紧 persona、同名重发),而不是盲目重试;PASS 时还会在 preset 旁落一份 `selfcheck.json`,日后任何改动都能用同一张考卷复查(find → assemble → **verify** 闭环)。探针快速且诚实:agent 中途向(不在场的)用户求助即判 FAIL 并带回问题原文,每一轮探针的工具动作实时上链
 - **多轮场景探针**:派生器自行决定探针形态——纯计算需求出单轮题,跨轮需求(记账/归档/追踪)出 2-4 轮场景脚本,**同一会话**里逐轮验收,后面的轮次查询前面轮次写入的状态。全程黑盒:只看回复,不看轨迹
-- **多 agent 班子**:直接要一套("客服、对账、库存三个 agent,共享同一套商品/订单数据"),agent 逐个装配并钉到**同一个共享数据库**,交接本身也被验证:独立探针让一个 agent 写入一条记录、再让**另一个** agent 读回来。pipeline 模式下 `assemble_solution` 与 CLI(`scripts/solution.mjs`)以批处理跑同一条交付线,并从工件长出 `HANDOVER.md`(每 agent 验收、共享表、待配凭证清单、供应链 BOM)
+- **多 agent 班子**:直接要一套("客服、对账、库存三个 agent,共享同一套商品/订单数据"),agent 逐个装配并钉到**同一个共享数据库**,交接本身也被验证:独立探针让一个 agent 写入一条记录、再让**另一个** agent 读回来
 - **缺件工单**:选型报出目录尚不能覆盖的能力时,装配器把可执行工单写进 `<preset>/gaps/`:缺什么、造零件的真实入库命令、以及闭环的重跑命令。写缺失零件的活交给**调用方 agent**(它有全套 coding harness);装配脊柱保持确定性,验收永远归装配器自己的黑盒探针
 - **装配直播台**:每次装配把行动链双写进 `<preset>/progress.log`;直播台页面(`/assembler/ui/_console`)轮询它,让慢装配变成一条可见的、带时间戳的轨迹——"卡了还是在干活"一眼可判,而不是一颗沉默的转圈 chip。选型、发射、探针轮次、每轮工具动作、20s 心跳都在那里滚动
-- **方案包(FDE 交付单元)**:`solutions/<name>/solution.yml` 声明一次交付的全部——几个 agent、用哪份目录、部署参数、客户知识。`solution apply` 一条命令按清单装配并逐个验收;`solution handover` 从每个 preset 的 BOM **自动长出**交付报告。多租户 = 换 `--param` 换凭证,不分叉清单
 - **知识包(`via: knowledge`)**:客户手册/SOP/产品目录作为**静态教材**进目录,过**检索命中门**(探针问题检不出预期片段就拒收),装配时**拷进 preset 的 `kb/`**——交付物自包含
 - **凭证契约(接口先就位,key 后补)**:零件只**声明**需要哪个环境变量及用途,**值永不进 preset**;未配时零件照常启动、`listTools` 成功、调用返回**可行动错误**;装配侧对应为"装配成功 + 探针 SKIPPED + 配置指引"。可选凭证(如 GitHub 公开读)走匿名降级不拦验证
 - **客户私有目录**:`catalogs/<client>/` 自带 `generated/`、`index/`、`capabilities.yml`——A 客户的零件**不会出现在** B 客户的装配里,隔离靠**分文件**而非过滤条件
@@ -40,7 +39,7 @@
 - **零件物料清单(BOM)**:每次装配随 preset 发射 `parts.lock.yml`——每个零件的出处、许可、验证状态、实际挂载名、知识包来源版本、待配凭证清单
 - **联邦索引缓存**:零件工具清单按(连接配置 + 适配器文件指纹)缓存,冷 ~5s → 热 **0.002s**
 - **persona lint**:机械核查 persona(点名的工具必须在挂载面里、禁止"第 N 步"编舞句式、长度界)
-- **设计文档**:[DESIGN.md](DESIGN.md)(中文)—— 装配器做什么、不做什么,以及边界在哪
+- **宪法与设计文档**:[docs/CONSTITUTION.md](docs/CONSTITUTION.md)(把 vibe assembly 当一门编程语言来治,九条全带判法)· [DESIGN.md](DESIGN.md) —— 装配器做什么、不做什么,以及边界在哪
 
 ---
 
@@ -48,7 +47,7 @@
 
 装配不只发射 preset——每个 agent 同时得到一张**可直接操作的网页前端**,由装配器在 host 上同源伺服(`/assembler/ui/<preset>`)。页面直连 host 公开 wire(session.create / session.prompt / events.mux),与 DSH 对话页共用同一个 agent、同一个持久工作区;打开页面自动拉取当前状态。
 
-下面每张图都是**一条 `/assemble` 命令的真实产物**(真实装配、真实数据、真实截图;判定行原样摘自装配结果):
+下面每张图都是**一次真实装配的产物**(真实装配、真实数据、真实截图;判定行原样摘自装配结果):
 
 > `任务管理助手,帮我记录和推进待办任务,要一个可以拖拽的任务看板页面` → 自动验证:PASS · 前端验收:页面门+环路门 PASS
 
@@ -92,8 +91,8 @@
 └─────────────────────────────────────────────────────────────────────────┘
                               ↓
 ┌───────── 交付(FDE) ─────────────────────────────────────────────────┐
-│ solution apply(按清单装配全部 agent)                                  │
-│   → solution handover:交付报告(验收/参数/待配凭证/知识/BOM/重建命令) │
+│ 多 agent 班子:逐台 emit_preset 钉同一 sharedDb 共享库                  │
+│   → verify_shared_data 交接考(一台写、另一台读回)→ 每台自带 BOM 档案  │
 └─────────────────────────────────────────────────────────────────────────┘
                               ↓
 ┌───────── 运行时(harness 的领土) ────────────────────────────────────┐
@@ -131,26 +130,9 @@
 
 动工前你会先看到架构(以及目录缺口,逐个由你拍板);点头后装配、独立探针在真实会话里验收,然后你拿到 preset id、带证据的验收结论、和一张网页(`/assembler/ui/<preset>`)。工件都在 `~/.dsh/.agent-presets/<preset>/`:`parts.lock.yml`(BOM)、`selfcheck.json`(体检包)、`progress.log`(装配直播链)。
 
-脚本/批处理场景用 `DSH_ASSEMBLER_MODE=pipeline` 启动 host,走一次性命令:
-
-```
-/assemble 帮我组装一个客服机器人,能查客户信息、创建工单、转人工 --name customer-service-bot
-```
-
 ### 3. 交付一整套班子(FDE 路径)
 
-直接在会话里要一套 agent——"给我一套运营 agent 班子:客服、对账、库存、内容四个,共享同一套商品/订单数据,各有前端,再给我一份交付说明书"——助手把需求拆成分工明确的 agent、逐个装配并验收、钉到同一个共享库,交接本身也被探针验证(一个 agent 写、另一个读回)。pipeline 模式下同样的请求由 **`assemble_solution`** 工具一次跑完并写出 `HANDOVER.md`。
-
-不经 agent 的批处理交付,用 CLI 走同一条流水线:
-
-```bash
-npm run solution -- init acme-service --client acme     # 起清单
-# 编辑 solutions/acme-service/solution.yml 的 agents
-npm run solution -- apply solutions/acme-service/solution.yml --port 3096
-npm run solution -- handover solutions/acme-service/solution.yml
-```
-
-产出 `HANDOVER.md`:交付了哪些 agent 与验收结论、共享表、部署参数、**待配凭证清单**、知识包来源版本、供应链 BOM、重建命令。全部从工件里长出来,**没有一处靠人填写**。
+直接在会话里要一套 agent——"给我一套运营 agent 班子:客服、对账、库存、内容四个,共享同一套商品/订单数据,各有前端"——助手把需求拆成分工明确的 agent、逐个装配并验收(每台发射时钉同一个共享库),交接本身也被独立考官验证(`verify_shared_data`:一个 agent 写、另一个读回,读取指令里不许出现答案——照抄闸)。每台 agent 的 `parts.lock.yml` 就是它的交付档案:验收结论、零件出处、待配凭证、知识版本,全部从工件长出来。
 
 ---
 
@@ -159,22 +141,19 @@ npm run solution -- handover solutions/acme-service/solution.yml
 ```
 dsh-assembler/
 ├── src/
-│   ├── index.ts            # 装配核心:目录加载/选型/发射/BOM/参数/凭证/知识
-│   ├── verify.ts           # 装配即验证:探针派生(单轮/多轮场景)+ 真实会话驱动
-│   ├── persona-lint.ts     # persona 机械核查
-│   └── assemble-tool.ts    # assemble agent 工具定义
+│   ├── index.ts            # 装配核心:目录加载/联邦/确定性发射/BOM/装备/知识
+│   ├── orchestrated-tools.ts # 工具面:检索/发射/独立考官(search 唯一形态)
+│   ├── verify.ts           # 装配即验证:探针机器(单轮/多轮场景)+ 真实会话驱动
+│   └── persona-lint.ts     # persona 机械核查
 ├── capabilities.yml        # ★ 公共组装目录:能力条目 + mcp-servers + requiredSecrets
 ├── index/                  # ★ 公共零件索引(出处/许可/条款)+ 冒烟报告
 ├── generated/              # ★ 零件库:78 个 MCP 适配服务器(每零件一目录)
 ├── catalogs/<client>/      # ★ 客户私有目录:自带 generated/ index/ capabilities.yml knowledge/
-├── solutions/<name>/       # ★ 方案包:solution.yml + last-apply.json + HANDOVER.md
 ├── bench/results/          # 装配质量基准账本(run-tagged,git 收录)
 ├── presets/
 │   └── agent-template.yml  # preset 模板({{persona}}/{{packageRows}}/{{extraRows}}/{{param:k}})
 └── scripts/
     ├── index-add.mjs       # ★ 索引流水线 CLI
-    ├── solution.mjs        # ★ 方案包 CLI
-    ├── assembly-bench.mjs  # 45 题装配质量基准
     └── link-dsh.mjs        # 链接 DSH peer 包
 ```
 
@@ -497,9 +476,8 @@ knowledge:
 ```bash
 npm run link:dsh   # 链接 DSH peer 包(需要 DSH_SOURCE 或 ~/.dsh/source/current)
 npm run build      # tsc 构建到 lib/
-npm test           # 构建 + 三套单测(命名代际不变式 / 验收判定与 BOM / 联邦缓存)
+npm test           # 构建 + 全套单测(命名与发射闸 / 验收判定 / 联邦缓存 / 工具面契约钉…)
 npm run index:check   # 全量零件冒烟回归
-npm run bench      # 45 题装配基准
 ```
 
 改 `lib/` 后需重启 DSH web 进程生效;改 `capabilities.yml` 无需重启(装配时实时读取)。

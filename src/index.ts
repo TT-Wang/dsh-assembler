@@ -1,37 +1,23 @@
 /**
- * assemble — the vibe-assembly core, as a dsh plugin.
+ * 装配核心 —— 这门语言的"编译器芯",作为 dsh 插件。
  *
- * Natural-language agent requirement → composed agent preset, by matching
- * against the capability catalog (capabilities.yml). The LLM does ONLY the
- * semantic mapping (requirement → capability ids); preset emission is
- * deterministic (catalog lookup + template fill), so the output is
- * auditable and replayable.
+ * 本文件是确定性的那一半:目录加载与联邦、确定性发射(emitPreset + 全部闸门)、
+ * BOM/缺件工单/知识包/装备槽、验收台账,以及 host 接线(工具面注册 + 前端路由)。
+ * 工具面本体(检索/发射/考官)在 orchestrated-tools.ts;编排智力归主 agent。
  *
- * The plugin exposes the capability twice: the `/assemble` command (human
- * shortcut) and the `assemble` tool (agent-native: the agent loop renders the
- * call with full trajectory — see assemble-tool.ts). Both write a new agent
- * preset under $DSH_HOME/.agent-presets/<id>/, which the roster picks up for
- * later sessions. Unlike the CLI prototype, model calls go through the host's
- * `ctx.llm` (provider/key from the host config), not a private fetch.
+ * 历史:这里曾有一条龙 `assemble()` 脊柱(选型 LLM + 自动重试 + /assemble 命令,
+ * pipeline 形态)。四个实验形态均已判负并按宪法第八条删除——git 备查。
  */
-import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, readdirSync, appendFileSync, mkdtempSync, rmSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, readdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
-import type { CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
-import { BlockAssembler, type GenerateOptions } from '@deepseek-ai/dsh-llm'
-import { createUserMessage } from '@deepseek-ai/dsh-llm/message'
 import yaml from 'js-yaml'
-import { assembleToolDefinition } from './assemble-tool.js'
-import { solutionToolDefinition } from './solution-tool.js'
-import { addKnowledgeToolDefinition, askCatalogToolDefinition, readPresetToolDefinition, submitPartToolDefinition, assemblerMode, deployAppToolDefinition, draftAssemblyToolDefinition, emitAppToolDefinition, emitPresetToolDefinition, matchCatalogToolDefinition, searchCatalogToolDefinition, verifyAppToolDefinition, verifyPresetToolDefinition, verifyTriggerToolDefinition, verifySharedDataToolDefinition } from './orchestrated-tools.js'
-import { specExperimentToolDefinition, deriveArchSpec, validateArchProbe } from './arch-spec.js'
-import { shortlistCapabilities } from './capability-index.js'
-import { AUX_CALL_TIMEOUT_MS, addUsage, deriveProbePlan, parseModelJson, runFrontendGate, runProbe, runScenario, sanitizeMarks, usageDetail, type AuxUsage, type ProbePlan, type ProbeResult } from './verify.js'
-import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend, frontendRouteHandler } from './frontend.js'
+import { addKnowledgeToolDefinition, readPresetToolDefinition, submitPartToolDefinition, assemblerMode, deployAppToolDefinition, emitAppToolDefinition, emitPresetToolDefinition, matchCatalogToolDefinition, searchCatalogToolDefinition, verifyAppToolDefinition, verifyPresetToolDefinition, verifyTriggerToolDefinition, verifySharedDataToolDefinition } from './orchestrated-tools.js'
+import { FRONTEND_ROUTE, frontendRouteHandler } from './frontend.js'
 
 export { FRONTEND_ROUTE, FRONTEND_TEMPLATES_DIR, DEFAULT_FRONTEND_TEMPLATE, emitFrontend, fillTemplate, shortTitle, listAssemblyProgress, listFrontendTemplates, resolveFrontendFile, frontendRouteHandler } from './frontend.js'
 import { lintPersona, resolvePersonaText, type PersonaLintFinding } from './persona-lint.js'
@@ -237,136 +223,6 @@ export function loadCatalog(path: string, seen: readonly string[] = []): Catalog
     capabilities: [...base.capabilities.filter((c) => !overridden.has(c.id)), ...own.capabilities],
     'mcp-servers': { ...base['mcp-servers'], ...own['mcp-servers'] },
   }
-}
-
-export async function llmMapRequirement(
-  ctx: Context,
-  requirement: string,
-  catalog: Catalog,
-  model: { provider?: string; model?: string },
-  config?: Config,
-  onUsage?: (u: AuxUsage) => void,
-  archSpec?: import('./arch-spec.js').ArchSpec,
-  onShortlist?: (info: { total: number; kept: number }) => void,
-): Promise<AssembleRequest> {
-  const usableAll = catalog.capabilities.filter((c) => c.config?.enabled !== false)
-  // 两阶段选型第一阶段(能力目录粗筛):**默认关**,DSH_ASSEMBLER_SHORTLIST=1 才开。
-  // 诚实结论(2026-08-22 A/B 实测):粗筛把 267→91 候选,但选型时间**没变快**
-  // (粗筛开 275s / 关 174s,更慢那次是运行间抖动)——选型是**推理绑定**,不是
-  // 目录大小绑定(呼应"99% 是模型解码"取证),压缩输入治不了满档推理时间。粗筛
-  // 保留在此当"小模型做零件发现"的规则版基础,但默认不开:它不提速、还有召回
-  // 风险,不该误当提速。真正的提速杠杆在别处:重试轮(实测一轮 297s = 又一次
-  // 选型+探针)、探针并行、以及降推理档(用户裁定生产不降)。
-  const SHORTLIST_THRESHOLD = 100
-  let usable = usableAll
-  if (process.env.DSH_ASSEMBLER_SHORTLIST === '1' && usableAll.length > SHORTLIST_THRESHOLD) {
-    const queries = archSpec !== undefined && archSpec.capabilities.length > 0
-      ? [...archSpec.capabilities.map((c) => `${c.name} ${c.why}`), requirement]
-      : [requirement]
-    const sl = shortlistCapabilities(usableAll, queries)
-    usable = usableAll.filter((c) => sl.ids.has(c.id))
-    onShortlist?.({ total: usableAll.length, kept: usable.length })
-  }
-  const ids = usable.map((c) => c.id)
-  const tagsIndex = usable.map((c) => `${c.id}: ${c.tags.join(', ')} — ${c.description}`).join('\n')
-  // 架构优先(实验证明:选型优先对复杂 agent 三战三次报"0 缺口",静默丢弃真需求,
-  // 含医疗导诊的安全缺口)。给了架构 spec 就把它的完整需求清单钉进 prompt,逼选型
-  // 逐条"覆盖或标缺口、不许静默丢"——治"0 缺口"病,又不逼过度选型(仍取最小覆盖集)。
-  const archBlock = archSpec !== undefined && archSpec.capabilities.length > 0
-    ? [
-        '',
-        'ARCHITECTURE-FIRST — this agent was first designed WITHOUT the catalog. Its architectural needs are:',
-        archSpec.capabilities.map((c, i) => `${String(i + 1)}. ${c.name}${c.why !== '' ? ` — ${c.why}` : ''}`).join('\n'),
-        archSpec.dataModel !== '' ? `ARCHITECTURE DATA MODEL: ${archSpec.dataModel}` : '',
-        archSpec.interfaces !== '' ? `ARCHITECTURE INTERFACES: ${archSpec.interfaces}` : '',
-        'GO THROUGH EVERY architectural need above: each must end up EITHER covered by a selected catalog id OR listed in "missing" — NEVER silently dropped. Still keep the selection minimal (smallest covering set; do not over-mount), but completeness on the gap axis is mandatory: an unmet need you neither select nor flag is the exact failure this step exists to prevent.',
-      ].join('\n')
-    : ''
-  // 段序即缓存工程(Prompt→App 工厂调研 §09:静态前缀 = 缓存,cache read ~0.1x;
-  // 全行业 scaffold 锁栈的第一收益就是它):巨大而字节稳定的目录+规则放最前,
-  // 每次都变的 archBlock/requirement 沉到尾部——此前 archBlock 插在目录前,
-  // 一字之动废掉整段前缀缓存。
-  const prompt = [
-    'You are the capability matcher of a vibe-assembly system. A user describes an agent they want to build.',
-    'Pick which capabilities from the catalog are needed, and say which needed capabilities are MISSING.',
-    '',
-    'Catalog:',
-    tagsIndex,
-    '',
-    'Rules:',
-    '- Respond with JSON only: {"capabilityIds": [...], "missing": [...], "missingEntries": [...], "persona": "...", "name": "...", "rationale": "..."}',
-    `- capabilityIds must ONLY use ids from this exact set: ${ids.join(', ')}`,
-    '- If the requirement asks for something the catalog cannot provide, list it in "missing" (e.g. "phone support", "payment").',
-    // 市场战役 F14:matcher 把 sqlite 能覆盖的"持久状态"、fs-search 能覆盖的
-    // "知识检索"报成缺口,还发明 vendor 名(agently-mail-*)——缺口误报比漏报
-    // 更贵:每个缺口都会生成一份施工工单。
-    '- GAP DISCIPLINE: before listing anything in "missing", exhaustively check the catalog for an existing part covering it under another name — persistent state/ledgers → the SQLite parts; saving/reading workspace files → the filesystem parts; searching/citing imported docs → the kb/fs-search entries; document output → the docx/pdf/excel parts. Report a gap ONLY when nothing plausibly covers it, and NEVER invent vendor-specific ids — describe the missing capability generically.',
-    // 市场战役 F3:看板需求被配了 browser-automate——"网页上操作"指的是交付的
-    // 前端页(装配器自动随件发),不是 agent 要去浏览网页。
-    '- A requirement mentioning 网页/页面/看板/面板 usually means the DELIVERED web UI (the assembler ships one automatically) — do NOT select browser-automation or http parts for that; select them only when the AGENT itself must visit EXTERNAL sites.',
-    '- Include capabilities that are implied (a support agent needs a persona).',
-    // A workstation, not a script: work that outlives a turn (bookkeeping,
-    // filing, tracking, archiving) needs somewhere to PUT state. Selecting the
-    // storage part is a capability decision; how and when to write is the
-    // model\'s. See DESIGN.md — give the desk, never the choreography.
-    '- When the requirement implies work that OUTLIVES one turn (bookkeeping, filing, tracking, archiving, "later I can query it"), also select a state-keeping capability (a file-writing or database part) — an agent with no place to put state cannot honor such a requirement.',
-    '- When you select a state-keeping capability, the persona MUST carry a durability constraint, e.g. "跨轮事实必须写入账本/文件,不依赖记忆" — a constraint judgeable at any point, NEVER a numbered procedure ("第一步…第二步…" is forbidden in personas).',
-    // 装配时预思考:schema 设计是"每次运行都要现想一遍"的最贵深思(实测单次 75s),
-    // 把它提前到装配时想一次,烧进 preset 的装备槽,运行时的模型开库即有表。
-    '- When (and only when) you select a SQLite capability for persistent state, ALSO return "stateSchema": a short idempotent SQLite DDL string containing ONLY "CREATE TABLE IF NOT EXISTS ..." / "CREATE INDEX IF NOT EXISTS ..." statements (no INSERT/DROP/PRAGMA), pre-designing the tables this agent needs for its requirement. If an ARCHITECTURE DATA MODEL was given above, the schema MUST implement exactly those entities and their fields (do not redesign or omit them). Design the schema HERE, once — the running agent will find the tables ready-built and must never redesign them. Column names in English; include sensible keys.',
-    // 前端零件是交互面模板:选形状,不选功能——功能由其余零件供给。
-    '- via:"frontend" entries are human-facing UI templates for this agent. Select EXACTLY ONE when the requirement implies a page/UI (页面/前端/网页/表单/工单/看板/仪表盘/面板/dashboard/form/UI), picking the template whose interaction SHAPE fits (form submission → form desk; records & queries → data desk; metrics overview → dashboard; plain conversation → chat console). If ARCHITECTURE INTERFACES were given above, let that description drive the shape choice. Select NONE when no UI is implied — a chat console ships with every preset by default.',
-    '- When NO catalog persona matches the requirement, write a "persona" string: a concise assistant persona for the assembled agent (role, tone, answer in the user\'s language, tool-use discipline). Omit it when a catalog persona IS selected — the catalog text wins.',
-    '- Write a "name" for the assembled preset: a short kebab-case slug naming what the agent IS (2-5 words, lowercase letters, digits and hyphens only, e.g. "customer-service-bot", "web-research-assistant"). It becomes the preset id users pick in the roster.',
-    '- For every item in "missing", add one matching entry to "missingEntries": {id, via, description, tags, tool?, mount?} — id is kebab-case; via is "package" | "harness" | "mcp"; when you know a harness plugin package that provides the capability, set mount.name to it (e.g. "@deepseek-ai/dsh-tool-fs-search"), else omit mount; set tool only for via: "package". Omit "missingEntries" entirely when nothing is missing.',
-    archBlock,
-    '',
-    `Requirement: ${requirement}`,
-  ].join('\n')
-  const assembler = new BlockAssembler()
-  // The mapping call is a light selection task: pin a FAST model instead of
-  // inheriting the session's agent model. Measured: inheriting a heavy agent
-  // model (deepseek-v4-pro + max reasoning) made assembly take ~10min on a
-  // 130-entry catalog; flash finishes in seconds. Provider still follows the
-  // host selection (routing correctness); model is config-pinnable.
-  const selection = ctx.get('agentDefaultModel')?.currentSelection()
-  const request: GenerateOptions = {
-    provider: model.provider ?? config?.provider ?? selection?.provider ?? 'deepseek-official',
-    model: model.model ?? config?.model ?? 'deepseek-v4-flash',
-    // 选型档位归装配器配置管(auxReasoningEffort;默认不降档,见 Config 注释)。
-    // 与用户会话的模型档位无关。
-    ...(config?.auxReasoningEffort !== undefined ? { reasoningEffort: config.auxReasoningEffort as GenerateOptions['reasoningEffort'] } : {}),
-    messages: [createUserMessage({
-      content: [{ type: 'text', text: prompt }],
-      source: { kind: 'user' },
-    })],
-    // Deadline, not decoration: this call runs inside the user's assemble
-    // turn, and an upstream that neither answers nor closes would otherwise
-    // hang that turn forever (see AUX_CALL_TIMEOUT_MS in verify.ts — observed
-    // live on the probe-deriver twin of this call).
-    ...(AUX_CALL_TIMEOUT_MS > 0 ? { signal: AbortSignal.timeout(AUX_CALL_TIMEOUT_MS) } : {}),
-  }
-  const stream = ctx.llm.stream(request)
-  let text = ''
-  const usage: AuxUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cacheReadTokens: 0 }
-  for await (const chunk of stream) {
-    addUsage(usage, chunk)
-    assembler.push(chunk)
-  }
-  onUsage?.(usage)
-  const finish = assembler.finish
-  if (finish.kind === 'error' || finish.kind === 'aborted') {
-    throw new Error(`assemble: model call ${finish.kind}: ${finish.failure.message}`)
-  }
-  if (finish.kind === 'max-tokens') {
-    throw new Error('assemble: model call hit max-tokens')
-  }
-  for (const block of assembler.message().content) {
-    if (block.type === 'text') text += block.text
-  }
-  const parsed = parseModelJson(text) as unknown as AssembleRequest
-  parsed.capabilityIds = reconcileCapabilityIds(parsed.capabilityIds ?? [], ids)
-  return parsed
 }
 
 /**
@@ -851,62 +707,10 @@ export function installStateEquipment(opts: {
   }
 }
 
-// ── 选型台账(训练数据的第 0 级)────────────────────────────────────────────
-// assemble→probe→verdict 闭环天生是标签工厂:每次真选型产出一条带验证判定的
-// (需求, 选型, 判定) 样本;FAIL→重选→PASS 更是黄金纠错对。台账从今天开始积累,
-// 未来若专训零件选择小模型(Gorilla/xLAM 路线),这就是别人没有的数据飞轮。
-// 纪律:只记真选型(复用轮不记——选型没跑);写失败绝不影响装配;默认不进公共
-// git(ledger/ 在 .gitignore——需求文本可能含客户信息,归档要人工挑)。
-
-/** 一条选型样本。字段面向未来的训练/评测消费者,宁全勿缺,但值保持紧凑。 */
-export interface SelectionLedgerRecord {
-  at: string
-  /** 完整需求文本(训练输入,不截断)。 */
-  requirement: string
-  presetId: string
-  /** 选择集的身份:目录路径 + 条数 + id 集合哈希(可按目录纪元过滤样本)。 */
-  catalogPath: string
-  catalogSize: number
-  catalogHash: string
-  params: Record<string, string>
-  selected: string[]
-  missing: string[]
-  /** persona 来源:目录手写 / 匹配器生成 / 通用兜底——三者的选型难度不同。 */
-  personaSource: 'catalog' | 'generated' | 'default'
-  /** 是否起草了状态 schema(装备槽)。 */
-  stateSchema: boolean
-  /** 辅助调用档位与账目(off/low/high/max;'inherit' = 未配置继承连接默认)。 */
-  aux: {
-    effort: string
-    selection?: { out: number; reason: number; cache: number }
-    derive?: { out: number; reason: number; cache: number }
-  }
-  probe: { status: string; kind?: string; turns?: number; reason?: string }
-  /** FAIL→重选的纠错对(黄金样本);没触发重试为 null。 */
-  retry: null | { firstSelected: string[]; failReason: string; retrySelected: string[]; retryStatus: string }
-  /** 前端验收结果(PASS / FAIL:原因 / SKIPPED);没发前端就没有这个键。 */
-  frontendGate?: string
-  timings: Array<{ stage: string; seconds: number; detail?: string }>
-  totalSeconds: number
-}
-
-/** 追加一条样本到台账(JSONL,一行一样本);返回台账路径。 */
-export function appendSelectionLedger(record: SelectionLedgerRecord, dir = join(REPO, 'ledger')): string {
-  mkdirSync(dir, { recursive: true })
-  const path = join(dir, 'selections.jsonl')
-  appendFileSync(path, `${JSON.stringify(record)}\n`)
-  return path
-}
-
 /** 目录 id 集合的短哈希:样本按"当时的选择集"分层用。 */
 export function catalogIdsHash(catalog: Catalog): string {
   const ids = catalog.capabilities.map((c) => c.id).sort()
   return createHash('sha256').update(ids.join('\n')).digest('hex').slice(0, 16)
-}
-
-/** One-shot fallback id for when no usable name exists: stable, short, collision-free enough. */
-function mintPresetId(): string {
-  return `assembled-${Date.now().toString(36)}`
 }
 
 /**
@@ -923,28 +727,6 @@ export function sanitizePresetName(raw: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, MAX_PRESET_ID_LENGTH)
   return PRESET_ID_RE.test(slug) ? slug : ''
-}
-
-/**
- * Resolve the preset id to write under `presetRoot`.
- *
- * Precedence: caller-supplied name (sanitized) → matcher-suggested name
- * (sanitized) → {@link mintPresetId}. A name whose directory already exists
- * gains a `-2`/`-3`/… suffix instead of silently colliding, so a re-assembly
- * of the same concept never overwrites or fails.
- */
-export function resolvePresetId(
-  requestedName: string | undefined,
-  suggestedName: string | undefined,
-  presetRoot: string,
-): string {
-  const base = sanitizePresetName(requestedName ?? '') || sanitizePresetName(suggestedName ?? '')
-  const desired = base !== '' ? base : mintPresetId()
-  let id = desired
-  for (let n = 2; existsSync(join(presetRoot, id)); n++) {
-    id = `${desired}-${n}`
-  }
-  return id
 }
 
 /**
@@ -1027,14 +809,11 @@ export function writePresetFile(path: string, content: string): void {
   writeFileSync(path, content)
 }
 
-// ── 增量验收(verify ledger)与同名复用 ─────────────────────────────────────
-// 法医实测:一次重装配 24 分钟里 99% 是探针会话的模型解码;而 solution apply 每次
-// 重跑都全量重探,买回来的验收证据和上次一模一样。两件机器让"没变的东西不再付费":
-//  - verify ledger:验收结论跟着 preset 字节哈希入账,同字节 + 未过期 ⇒ 沿用 PASS
-//    (明写"沿用",绝不冒充新跑——账本文化);
-//  - 同名复用:需求与参数与上次完全相同 ⇒ 跳过重选型与重发射,连 -2/-3 目录都
-//    不再铸(顺带治掉 handover 永远读旧目录、roster 长满代际垃圾两个病)。
-// 先例:promptfoo 的响应缓存 + resume 跳过已完成对(TTL + 强制绕过开关同款形态)。
+// ── 增量验收(verify ledger)─────────────────────────────────────────────────
+// 法医实测:一次重装配 24 分钟里 99% 是探针会话的模型解码,而重跑买回来的验收
+// 证据和上次一模一样。verify ledger 让"没变的东西不再付费":验收结论跟着 preset
+// 字节哈希入账,同字节 + 未过期 ⇒ 沿用 PASS(明写"沿用",绝不冒充新跑——账本
+// 文化)。先例:promptfoo 的响应缓存(TTL + 强制绕过开关同款形态)。
 
 /** 一份 preset 字节的验收台账:证明"这些字节被探过且 PASS"。 */
 export interface VerifyLedger {
@@ -1057,10 +836,10 @@ export const VERIFY_LEDGER_FILE = 'last-verify.json'
 export const VERIFY_CARRY_TTL_MS = 7 * 24 * 3600 * 1000
 
 /**
- * 发射代号:发射产物的语义版本。任何改变"同样输入会发射出什么"的改动
- * (装备 env、模板槽位、行渲染……)都必须把它 +1——同名复用闸会因此对
- * 全体旧 preset 失效一次,让下一次装配用新语义全新发射。教训:装备槽
- * 新增 SQLITE_DEFAULT_DB 后,三个旧 preset 经复用原样上桌,修复没上车。
+ * 发射代号:发射产物的语义版本,随 BOM 入档(lock.emitter)。任何改变"同样
+ * 输入会发射出什么"的改动(装备 env、模板槽位、行渲染……)都必须把它 +1——
+ * 工件由哪一代发射语义产出,审计与重发决策都读它。(曾另有同名复用闸靠它
+ * 判新鲜度;闸随 pipeline 形态删除,git 备查。)
  * rev 2:装备槽注入 SQLITE_DEFAULT_DB(钉死默认库)。
  * rev 3:默认库改为**绝对路径** preset workspace/data.db——相对路径解析进的是
  *        部件进程 cwd(= host 检出目录),实测五个 preset 的表混进同一个文件。
@@ -1129,9 +908,9 @@ export function personaFromPresetText(presetText: string): string | undefined {
 
 /**
  * 同概念判定:盘上这个名字是否就是"同一个 agent"(需求与参数一致),不问
- * 代际新旧。planReuse 因新鲜度(发射代号/知识版本)拒绝复用时,全新装配应当
- * **原地重发**同一 id——-2/-3 兄弟目录只留给"真正不同的新概念"防撞名。教训:
- * 发射代号闸上线后,三个升级重装全被铸成 *-2 兄弟,roster 又开始长代际垃圾。
+ * 代际新旧。emit_preset 的同名占用裁决用它:同概念 → 原地重发同一 id;
+ * -2/-3 兄弟目录只留给"真正不同的新概念"防撞名。教训:曾因只看名字,三个
+ * 升级重装全被铸成 *-2 兄弟,roster 长满代际垃圾。
  */
 export function sameConceptOnDisk(opts: {
   name?: string
@@ -1153,100 +932,6 @@ export function sameConceptOnDisk(opts: {
   const lockParams = (lock.params !== null && typeof lock.params === 'object' ? lock.params : {}) as Record<string, string>
   const canon = (p: Record<string, string>): string => JSON.stringify(Object.entries(p).sort())
   return canon(lockParams) === canon(opts.params)
-}
-
-/** 同名复用的产物:选型、盘上的 preset 文本、知识包事实,全部来自既有工件。 */
-export interface ReusePlan {
-  id: string
-  capabilityIds: string[]
-  presetText: string
-  knowledge: InstalledPack[]
-}
-
-/**
- * 同名复用计划:调用者点名的 preset 已存在,且 parts.lock 记录的需求与参数和
- * 这次完全相同 ⇒ 跳过重选型(LLM 选型天生抖动,一抖字节就变、台账就废)与重发射,
- * 沿用现有目录。任何一个条件不满足就返回 null 走全新装配:
- *  - 名字必须是调用者显式给的(匹配器起的名不参与复用);
- *  - lock 里每个能力仍在当前目录中且未停用(目录变了 ⇒ 旧选型不可信);
- *  - 需求文本按 lock 同款归一(压空白、截 140)后必须相等,参数逐键相等。
- * 复用不重写任何文件——preset 的 mtime 是 host 的代际标记,白翻新一次就白换一代。
- */
-export function planReuse(opts: {
-  name?: string
-  requirement: string
-  params: Record<string, string>
-  presetRoot: string
-  catalog: Catalog
-  /**
-   * 目录根(catalogPath 所在目录)。给了才能做知识包版本闸:目录里的包升了版
-   * 而 lock 记的还是旧版 ⇒ 拒绝复用,走全新装配把新知识拷进 preset——否则
-   * "同名复用"会永远交付过期知识。
-   */
-  catalogRoot?: string
-}): ReusePlan | null {
-  const id = sanitizePresetName(opts.name ?? '')
-  if (id === '') return null
-  const dir = join(opts.presetRoot, id)
-  const presetPath = join(dir, 'agent.cordis.yml')
-  const lockPath = join(dir, 'parts.lock.yml')
-  if (!existsSync(presetPath) || !existsSync(lockPath)) return null
-  let lock: { requirement?: unknown; params?: unknown; emitter?: unknown; parts?: Array<Record<string, unknown>>; knowledge?: Array<Record<string, unknown>> }
-  try {
-    lock = (yaml.load(readFileSync(lockPath, 'utf8')) ?? {}) as typeof lock
-  } catch {
-    return null
-  }
-  // 发射代号闸:旧代发射的 preset 不复用——装配器的发射语义升级必须落到工件上。
-  if ((typeof lock.emitter === 'number' ? lock.emitter : 1) !== EMISSION_REV) return null
-  const wantReq = opts.requirement.replace(/\s+/g, ' ').trim().slice(0, 140)
-  if (lock.requirement !== wantReq) return null
-  const lockParams = (lock.params !== null && typeof lock.params === 'object' ? lock.params : {}) as Record<string, string>
-  const canon = (p: Record<string, string>): string => JSON.stringify(Object.entries(p).sort())
-  if (canon(lockParams) !== canon(opts.params)) return null
-  // 缺口生长闸(缺件工单闭环的另一半):上次装配欠着件(lock.missing 在案),
-  // 而目录指纹已变(通常 = 主 agent 照工单造件入库了)⇒ 拒绝复用、重新选型,
-  // 给新零件上桌的机会。目录没变则照常复用——重选也只会报出同样的缺口,
-  // 白付一次选型抖动。无缺口的 lock 不看指纹:目录生长与它无关。
-  const lockMissing = Array.isArray((lock as { missing?: unknown }).missing) ? ((lock as { missing?: unknown[] }).missing as unknown[]) : []
-  const lockCatalogHash = (lock as { catalogIdsHash?: unknown }).catalogIdsHash
-  if (lockMissing.length > 0 && typeof lockCatalogHash === 'string' && lockCatalogHash !== catalogIdsHash(opts.catalog)) return null
-  const byId = new Map(opts.catalog.capabilities.map((c) => [c.id, c]))
-  const ids: string[] = []
-  for (const p of Array.isArray(lock.parts) ? lock.parts : []) {
-    const cid = typeof p.capability === 'string' ? p.capability : ''
-    const cap = byId.get(cid)
-    if (cap === undefined || cap.config?.enabled === false) return null
-    ids.push(cid)
-  }
-  if (ids.length === 0) return null
-  // 知识包事实从盘上读回:docs 已随上次装配拷进 kb/,复用只是把事实复述给报告。
-  const knowledge: InstalledPack[] = []
-  for (const k of Array.isArray(lock.knowledge) ? lock.knowledge : []) {
-    const kid = typeof k.id === 'string' ? k.id : ''
-    if (kid === '') continue
-    // 知识版本闸:目录里的包与 lock 记录版本不一致 ⇒ 不复用(新知识必须进 preset)。
-    if (opts.catalogRoot !== undefined && typeof k.version === 'string') {
-      try {
-        const meta = JSON.parse(readFileSync(join(opts.catalogRoot, 'knowledge', kid, '.knowledge-meta.json'), 'utf8')) as { version?: unknown }
-        if (typeof meta.version === 'string' && meta.version !== k.version) return null
-      } catch { /* 包已不在目录:无从确认新旧,不因此阻断复用 */ }
-    }
-    const kdir = join(dir, 'kb', kid)
-    let files: string[] = []
-    try {
-      files = readdirSync(kdir)
-    } catch { /* kb 目录被手动清掉:仍复用,篇数如实报 0 */ }
-    knowledge.push({
-      id: kid,
-      docs: files.length,
-      dir: kdir,
-      files,
-      ...(typeof k.source === 'string' ? { source: k.source } : {}),
-      ...(typeof k.version === 'string' ? { version: k.version } : {}),
-    })
-  }
-  return { id, capabilityIds: [...new Set(ids)], presetText: readFileSync(presetPath, 'utf8'), knowledge }
 }
 
 /**
@@ -1670,11 +1355,11 @@ export function renderGapWorkOrder(draft: MissingDraft, opts: { presetId: string
     '',
     '## 完工闭环',
     '',
-    '零件入库后重跑本次装配(同名同需求会同 id 原地换代,新零件被选中并过独立验收):',
+    '零件入库后重新发射本 preset(同名重发即原地换代),再独立验收:',
     '',
-    '```',
-    `/assemble ${opts.requirement.replace(/\s+/g, ' ').trim()} --name ${opts.presetId}`,
-    '```',
+    `1. search_catalog 确认新零件已可检得;`,
+    `2. emit_preset {"name": "${opts.presetId}", ...} —— capabilityIds 带上新零件,其余入参照旧;`,
+    `3. verify_preset {"presetId": "${opts.presetId}"} —— 新零件上桌后必须重过独立考官。`,
     '',
   ].join('\n')
 }
@@ -1724,803 +1409,50 @@ export function renderMissingDraft(draft: MissingDraft): string {
   return lines.join('\n')
 }
 
-/**
- * Assemble one preset from a requirement and persist it under the preset
- * root. Returns the preset id, the selection, the missing report, and
- * copy-paste-ready catalog drafts for every missing capability.
- *
- * `options.name` is the caller's requested preset id (kebab-case slug). When
- * absent, the matcher's suggested name is used; when neither yields a usable
- * slug, the timestamp fallback id applies. The resolved id is minted BEFORE
- * emission because emitted MCP serverNames carry a hash suffix derived from
- * it — that is what keeps every preset's servers collision-free inside the
- * host's process-global serverName registry.
- */
-export async function assemble(
-  ctx: Context,
-  requirement: string,
-  config: Config,
-  options: {
-    name?: string
-    params?: Record<string, string>
-    onPhase?: (line: string) => void
-    /** Force a fresh probe even when the verify ledger would carry (--reverify). */
-    reverify?: boolean
-    /** Skip same-name reuse: full re-selection and re-emit (--fresh). */
-    fresh?: boolean
-    /**
-     * 方案共享库(solution 级):给了则本 agent 的 SQLite 默认库钉到这个绝对
-     * 路径,与同套班子的其他 agent 读写同一份账。由 assemble_solution 传入。
-     */
-    sharedDb?: string
-  } = {},
-): Promise<{
-  id: string
-  capabilityIds: string[]
-  missing: string[]
-  presetPath: string
-  drafts: string[]
-  /** 缺件工单文件的绝对路径(preset/gaps/ 下,每缺口一份;无缺口为空)。 */
-  gapOrders: string[]
-  verification: ProbeResult
-  personaLint: PersonaLintFinding[]
-  params: Record<string, string>
-  paramsRejected: ParamRejection[]
-  requiredSecrets: Array<RequiredSecret & { server: string; configured: boolean }>
-  knowledge: Array<{ id: string; docs: number; source?: string; version?: string }>
-  /** Per-stage wall clock, in pipeline order — see the 耗时账单 note below. */
-  timings: Array<{ stage: string; seconds: number; detail?: string }>
-  /** Whole-assemble wall clock in seconds. */
-  totalSeconds: number
-  /** True when the same-name reuse path served this assembly (no re-selection, no re-emit). */
-  reused: boolean
-  /** 随 preset 发射的前端页:模板名、本地路径、host 在线时的可打开 URL。 */
-  frontend: { template: string; url?: string; path: string } | null
-  /** 前端验收(页面可达门+会话环路门);null = headless 无从验(结果行写"待验")。 */
-  frontendCheck: { pass: boolean; reason?: string } | null
-}> {
-  const catalogPath = config.catalogPath ?? join(REPO, 'capabilities.yml')
-  const templatePath = config.templatePath ?? join(REPO, 'presets', 'agent-template.yml')
-  // Progress narration for whoever is watching (the jobs panel): a swallowed
-  // reporter must never fail an assembly, hence the try around every call.
-  // 进度双写:jobs 通道(readOutput)之外,同一行还落进 preset 的 progress.log
-  // ——装配直播台(/assembler/ui/_console)靠轮询这份文件把行动链摆到用户眼前。
-  // web 的后台任务面板只渲染条目与终态、从不消费 readOutput(源码坐实),
-  // 没有这份文件,用户面对慢装配只能看一颗 chip 猜"卡了还是 bug"。
-  const progressBuf: string[] = []
-  let progressPath: string | null = null
-  // 本地时间(不是 UTC):直播台是给盯着屏幕的人看的,11:17 与墙上钟的 19:17
-  // 对不上号,第一反应是"这日志是不是旧的"(实测用户就这么问)。
-  const stamp = (): string => {
-    const d = new Date()
-    return [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, '0')).join(':')
-  }
-  // 开工时刻在此定格:头行(══ assemble <id> 开始 ══)要等 id 解出才能落盘,
-  // 若用落盘时刻做头行时间戳,会晚于它下面缓冲行的时间戳——链首乱序(实测)。
-  const startedStamp = stamp()
-  const phase = (line: string): void => {
-    try { options.onPhase?.(line) } catch { /* a broken reporter must not break the build */ }
-    try {
-      const entry = `${stamp()} ${line}\n`
-      if (progressPath !== null) appendFileSync(progressPath, entry)
-      else progressBuf.push(entry)
-    } catch { /* 直播是加速器不是必需品 */ }
-  }
-  // 无闸辅助调用的心跳:AUX 兜底闸已按用户裁定禁用(见 AUX_CALL_TIMEOUT_MS),
-  // "还在推理"与"挂了"从此只能靠直播区分——每 20s 报一次经过时间。
-  const hb = async <T>(label: string, p: Promise<T>): Promise<T> => {
-    const t = Date.now()
-    const timer = setInterval(() => { phase(`  …${label}进行中(${String(Math.round((Date.now() - t) / 1000))}s)`) }, 20_000)
-    try { return await p } finally { clearInterval(timer) }
-  }
-  const t0 = Date.now()
-  const secs = (from: number): string => `${String(Math.round((Date.now() - from) / 1000))}s`
-  {
-    const consolePort = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
-    if (consolePort !== undefined) phase(`直播台:http://127.0.0.1:${String(consolePort)}${FRONTEND_ROUTE}/_console(实时行动链在此)`)
-  }
-  // ── 耗时账单 ──────────────────────────────────────────────────────────
-  // Every stage stamps its wall time into an ordered ledger that ships in
-  // the RESULT text, not just the transient phase stream. Motivation is the
-  // operator's actual question after every slow assemble: "为什么跑了这么久?"
-  // — which the product used to leave unanswerable (phase lines scroll away;
-  // the result said nothing). Measured on the bench: median 70s, p90 164s,
-  // real deliveries up to 24 minutes — an unaccounted minute reads as a hang,
-  // the SAME minute itemized ("验收探针 2 轮 130s") reads as work. A stage
-  // showing 0s is information too: it says the federation cache was warm.
-  const timings: Array<{ stage: string; seconds: number; detail?: string }> = []
-  // detail 是这段钱的去向明细(token 账目):秒数说"花了多久",明细说"为什么"。
-  const mark = (stage: string, from: number, detail?: string): void => {
-    timings.push({ stage, seconds: Math.round((Date.now() - from) / 1000), ...(detail !== undefined && detail !== '' ? { detail } : {}) })
-  }
-  // 辅助调用共用的路由+档位(effort 只辖装配器内部调用;默认不降档,见 Config 注释)。
-  const auxLlm = { provider: config.provider, model: config.model, effort: config.auxReasoningEffort }
-  const staticCatalog = loadCatalog(catalogPath)
-  const catalog = await federateMcpTools(staticCatalog)
-  mark('零件联邦', t0)
-  phase(`零件联邦就绪:${String(catalog.capabilities.length)} 条可装配(${secs(t0)})`)
-  // Parameter screening happens BEFORE selection and emission: the reuse gate
-  // compares the accepted set against the lock, and a refused key must never
-  // influence either. Rejections are reported, not silently dropped.
-  const screened = screenParams(options.params ?? {})
-  const template = readFileSync(templatePath, 'utf8')
-  const presetRoot = config.presetRoot ?? join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), '.agent-presets')
-  // ── 直播从第 1 秒起(临时链)────────────────────────────────────────────
-  // progress.log 过去要等 id 解出(选型之后)才创建,而满档选型实测可达 185s
-  // ——那段最焦虑的开头("到底启动没")直播台一片空白,缓冲行等选型完成才一次性
-  // 刷出(用户实测:15:24 开始的链 15:28 才显示)。这里先落一份临时链,phase()
-  // 立刻真写盘、心跳每 20s 刷新 mtime,选型全程可见;id 解出后把正文搬进正式
-  // 目录、删临时目录。临时目录名以 _ 打头 → 前端路由的 ID_RE 天然不收,只被
-  // 直播台的目录列举读到。
-  const pendingDir = join(presetRoot, `_pending-${createHash('sha256').update(`${requirement}${startedStamp}`).digest('hex').slice(0, 8)}`)
-  try {
-    mkdirSync(pendingDir, { recursive: true })
-    progressPath = join(pendingDir, 'progress.log')
-    const reqSnip = requirement.replace(/\s+/g, ' ').trim().slice(0, 40)
-    writeFileSync(progressPath, `${startedStamp} ══ 装配启动中·选型中…(${reqSnip})══\n${progressBuf.join('')}`)
-  } catch { progressPath = null }
-  // ── 同名复用(增量装配的前半)────────────────────────────────────────────
-  // 调用者点名的 preset 已存在且需求/参数与其 lock 完全相同 ⇒ 不再让天生抖动的
-  // LLM 重新选型(一抖 persona 字节就变,验收台账就废),也不再铸 -2/-3 代际目录
-  // (那正是 roster 垃圾与 handover 永远读旧目录两个病的共同病根)。
-  const reuse = options.fresh === true
-    ? null
-    : planReuse({ ...(options.name !== undefined ? { name: options.name } : {}), requirement, params: screened.accepted, presetRoot, catalog, catalogRoot: dirname(catalogPath) })
-  let req: AssembleRequest
-  let id: string
-  // 台账采集位:选型账目、推导账目、重试纠错对(只在各自发生处赋值)。
-  let selUsageLedger: AuxUsage | null = null
-  let deriveUsageLedger: AuxUsage | null = null
-  let retryLedger: SelectionLedgerRecord['retry'] = null
-  // 架构 spec 提到外层作用域:选型分支产出它,下游探针派生(workflow 驱动)也要读它。
-  let archSpec: import('./arch-spec.js').ArchSpec | undefined
-  if (reuse !== null) {
-    req = { capabilityIds: reuse.capabilityIds, params: screened.accepted, missing: [], rationale: '同名复用:需求与参数未变' }
-    id = reuse.id
-    timings.push({ stage: '选型(复用)', seconds: 0 })
-    phase(`选型复用:需求与参数未变,沿用 ${id} 现有选型(${String(reuse.capabilityIds.length)} 个能力;全新重装用 --fresh)`)
-  } else {
-    // 架构优先:选型前先无目录地出一份架构 spec(这个 agent 架构上需要什么),
-    // 再让选型逐条覆盖或标缺口。DSH_ASSEMBLER_ARCH_FIRST=0 可关(退回纯选型优先)。
-    // 实验(2026-08-22,HR/科研/医院导诊三例)证明:纯选型优先三战三次报"0 缺口"
-    // 静默丢真需求(含医疗导诊的急危重症识别、边界拒答两个安全缺口)。
-    if (process.env.DSH_ASSEMBLER_ARCH_FIRST !== '0') {
-      try {
-        const tArch = Date.now()
-        phase('架构 spec 推导中(先无目录列全需求,避免目录偏置)…')
-        archSpec = await hb('架构 spec 推导', deriveArchSpec(ctx, requirement, { provider: config.provider, model: config.model }, config))
-        mark('架构 spec', tArch)
-        phase(`架构 spec 就绪:${String(archSpec.capabilities.length)} 项架构需求(选型将逐条覆盖或标缺口)`)
-      } catch (error: unknown) {
-        console.error(`[assembler] 架构 spec 推导失败(退回纯选型优先):${error instanceof Error ? error.message : String(error)}`)
-        archSpec = undefined
-      }
-    }
-    const tSel = Date.now()
-    let selUsage: AuxUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cacheReadTokens: 0 }
-    req = await hb('选型推理', llmMapRequirement(ctx, requirement, catalog, { provider: config.provider, model: config.model }, config, (u) => { selUsage = u }, archSpec, (info) => phase(`能力目录粗筛:${String(info.total)} → ${String(info.kept)} 候选(选型只看相关子集)`)))
-    selUsageLedger = selUsage
-    mark('选型', tSel, usageDetail(selUsage))
-    phase(`选型完成:${String(req.capabilityIds.length)} 个能力${req.missing.length > 0 ? `,${String(req.missing.length)} 项缺口` : ''}(${secs(tSel)})`)
-    req.params = screened.accepted
-    // 同概念原地重发:复用被新鲜度闸拒绝(发射代号/知识版本升级)时,同名同
-    // 需求同参数的重装覆写原目录换代,而不是铸 -2 兄弟;-N 只防"不同新概念"撞名。
-    const explicit = sanitizePresetName(options.name ?? '')
-    const sameConcept = sameConceptOnDisk({ ...(options.name !== undefined ? { name: options.name } : {}), requirement, params: screened.accepted, presetRoot })
-    if (explicit !== '' && existsSync(join(presetRoot, explicit)) && !sameConcept) {
-      // 显式点名撞上"另一个概念"占着这个名字:绝不静默铸 -2(市场战役 F1 实录:
-      // 主 agent 换措辞重装铸出 kanban-2,再想 rm -rf 抢回原名、申请升权)。
-      // --fresh = 调用方明确要覆盖 ⇒ 原地换概念;否则把选择权还给人。
-      if (options.fresh !== true) {
-        throw new Error(
-          `assemble: preset 名「${explicit}」已存在,且承载的是另一个需求(与本次不同)。三选一:`
-          + `换一个名字;确定要覆盖旧概念就加 --fresh;或不指定名字由我起名。绝不静默铸「${explicit}-2」。`,
-        )
-      }
-      id = explicit
-      phase(`显式覆盖:「${explicit}」原承载的旧概念被 --fresh 替换(旧 kb/工作区文件保留在原目录)`)
-    } else {
-      id = sameConcept ? explicit : resolvePresetId(options.name, req.name, presetRoot)
-    }
-  }
-  const dir = join(presetRoot, id)
-  mkdirSync(dir, { recursive: true })
-  // 直播文件就位:把临时链的正文(去掉临时头)搬进正式目录、换上正式头行,
-  // 删临时目录。临时链创建失败(progressPath 为 null)时,phase() 一直在写
-  // progressBuf,回退用它。
-  try {
-    const realPath = join(dir, 'progress.log')
-    let body = progressBuf.join('')
-    if (progressPath !== null && progressPath !== realPath) {
-      try { body = readFileSync(progressPath, 'utf8').split('\n').slice(1).join('\n') } catch { /* 读不到临时链就用缓冲 */ }
-    }
-    writeFileSync(realPath, `${startedStamp} ══ assemble ${id} 开始 ══\n${body}`)
-    if (progressPath !== realPath && existsSync(pendingDir) && pendingDir !== dir) {
-      try { rmSync(pendingDir, { recursive: true, force: true }) } catch { /* 临时目录删不掉不影响交付 */ }
-    }
-    progressPath = realPath
-  } catch { /* 保留 progressPath 现值(可能仍指向临时链,至少还在直播) */ }
-  // Knowledge packs travel WITH the preset (copied into kb/), so the handover is
-  // one self-contained directory rather than a pointer back to this machine.
-  // Installed BEFORE emission because the persona has to name where they landed
-  // — an agent that has to go looking for its own documents pays for the search
-  // every single session.
-  const knowledgeInstalled = reuse !== null ? reuse.knowledge : (() => {
-    try {
-      const byIdK = new Map(catalog.capabilities.map((c) => [c.id, c]))
-      const selK = req.capabilityIds.map((cid) => byIdK.get(cid)).filter((c): c is CapabilityEntry => c !== undefined)
-      return installKnowledgePacks(selK, dir, dirname(catalogPath))
-    } catch (error: unknown) {
-      console.error(`[assembler] knowledge install failed: ${error instanceof Error ? error.message : String(error)}`)
-      return []
-    }
-  })()
-  if (reuse === null && knowledgeInstalled.length > 0) phase(`知识包已随 preset 安装:${knowledgeInstalled.map((k) => k.id).join('、')}`)
-  // 死知识:装了教材却没挂能打开它的零件(实录 A1:交付出去的 agent 当场向用户
-  // 求助「本会话无法读取手册文件」)。emit_preset 那条路是硬闸(调用方能立刻补挂
-  // 重来);这条一条龙路是一次性的,拦下等于整轮作废,所以**大声记账不拦**——
-  // 静默才是真正要禁的那件事。
-  if (reuse === null && knowledgeInstalled.length > 0) {
-    const byIdR = new Map(catalog.capabilities.map((c) => [c.id, c]))
-    const selR = req.capabilityIds.map((cid) => byIdR.get(cid)).filter((c): c is CapabilityEntry => c !== undefined)
-    if (!selR.some((c) => canReadKb(c, catalog['mcp-servers'] ?? {}))) {
-      phase(`⚠ 死知识:装了 ${knowledgeInstalled.map((k) => k.id).join('、')} 却没挂任何够得着 kb/ 的零件——交付的 agent 打不开自己的教材,补挂文件读取/内容检索件后重装`)
-    }
-  }
-  // 装备:装配时预思考的 schema。仅 fresh 路径——复用轮连字节都不动,盘上装备照旧。
-  let equipmentNow: StateEquipment | null = null
-  if (reuse === null) {
-    const byIdEq = new Map(catalog.capabilities.map((c) => [c.id, c]))
-    const selectedForEquip = req.capabilityIds.map((cid) => byIdEq.get(cid)).filter((c): c is CapabilityEntry => c !== undefined)
-    equipmentNow = installStateEquipment({
-      ...(req.stateSchema !== undefined ? { stateSchema: req.stateSchema } : {}),
-      selected: selectedForEquip,
-      dir,
-      ...(options.sharedDb !== undefined ? { sharedDb: options.sharedDb } : {}),
-    })
-    if (equipmentNow !== null) phase(`装备已发射:预建数据库 schema(equipment/init.sql,双次执行门 PASS)${options.sharedDb !== undefined ? '——钉方案共享库' : ''}`)
-  }
-  const tEmit = Date.now()
-  const preset = reuse !== null
-    ? reuse.presetText
-    : emitPreset(req, catalog, template, id, knowledgeLocatorText(knowledgeInstalled) + (equipmentNow?.personaText ?? ''), equipmentNow?.extraServerEnv, join(dir, 'workspace'))
-  if (reuse === null) {
-    writePresetFile(join(dir, 'agent.cordis.yml'), preset)
-    mark('发射', tEmit)
-    phase(`preset 已发射:${id}`)
-    // Display metadata beside the composition: the roster picker shows the name
-    // and a one-line description (harness dsh-agent-presets reads preset.yml).
-    const description = requirement.replace(/\s+/g, ' ').trim().slice(0, 140)
-    writeFileSync(join(dir, 'preset.yml'), yaml.dump({ name: id, description }, { lineWidth: -1 }))
-  } else {
-    // 复用轮零写入:preset 的 mtime+size 是 host 的代际标记,白翻新一次就白换一代
-    // (换代 ⇒ 新 serverName ⇒ 旧会话与新会话各绑一代,平添混乱)。
-    phase(`preset 复用:${id}(字节未动,host 代际保持)`)
-  }
-  // ── 前端车道:每个 preset 装完即有可操作页 ────────────────────────────────
-  // 选中 via:'frontend' 零件用其模板;没选则发兜底聊天台。模板填参确定性 ⇒
-  // 复用轮重发是 no-op(顺带给老 preset 自动补页)。前端发射失败不毁装配。
-  let frontendInfo: { template: string; url?: string; path: string } | null = null
-  try {
-    const byIdFe = new Map(catalog.capabilities.map((c) => [c.id, c]))
-    const feCap = req.capabilityIds.map((cid) => byIdFe.get(cid)).find((c) => c?.via === 'frontend')
-    const template = (feCap?.config?.template as string | undefined) ?? DEFAULT_FRONTEND_TEMPLATE
-    const fe = emitFrontend({ template, presetDir: dir, presetId: id, requirement, workdir: join(dir, 'workspace') })
-    // workspace + kb 双根都保证存在:filesystem 零件把它们当允许根,缺一即拒启。
-    mkdirSync(join(dir, 'workspace'), { recursive: true })
-    mkdirSync(join(dir, 'kb'), { recursive: true })
-    const fePort = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
-    frontendInfo = {
-      template: fe.template,
-      path: join(dir, 'frontend', 'index.html'),
-      ...(fePort !== undefined ? { url: `http://127.0.0.1:${String(fePort)}${FRONTEND_ROUTE}/${id}` } : {}),
-    }
-    if (fe.changed) phase(`前端已就位:${fe.template}${frontendInfo.url !== undefined ? ` → ${frontendInfo.url}` : ''}`)
-  } catch (error: unknown) {
-    console.error(`[assembler] 前端发射失败(装配照常):${error instanceof Error ? error.message : String(error)}`)
-  }
-  // Declared here because both the BOM block and the verify block read it.
-  let requiredSecrets: Array<RequiredSecret & { server: string; configured: boolean }> = []
-
-  // ── Assemble-then-verify ─────────────────────────────────────────────
-  // vibe assembly's promise is find → assemble → VERIFY. Default-on probe:
-  // derive an acceptance probe (the deriver picks one turn or a multi-turn
-  // scenario), run it in a real session bound to this preset, judge the
-  // replies. One FAIL triggers a re-selection (the matcher is told what
-  // failed) and a single re-emit under the same id — failure changes the
-  // ROOM (which parts are mounted), never the model's head.
-  // Credentials the chosen parts need, and whether this host has them.
-  // Computed before verification because an unconfigured secret changes what
-  // the probe can prove — not whether the assembly is correct.
-  {
-    const byIdSel = new Map(catalog.capabilities.map((c) => [c.id, c]))
-    const selectedNow = req.capabilityIds.map((cid) => byIdSel.get(cid)).filter((c): c is CapabilityEntry => c !== undefined)
-    requiredSecrets = collectRequiredSecrets(selectedNow, catalog['mcp-servers'] ?? {})
-  }
-  let verification: ProbeResult = { status: 'SKIPPED', reason: 'verify disabled' }
-  let personaFindings: PersonaLintFinding[] = []
-  // Set when the verify-retry re-emitted the file: the BOM must then be
-  // rewritten even on a reuse run (the artifact is no longer the reused one).
-  let presetRewritten = false
-  if (config.verify !== false) {
-    // ── 增量验收:同字节 + 台账 PASS + 未过期 ⇒ 沿用,不再开探针会话 ──────
-    // 沿用判定放在端口/凭证检查之前:一份已被证明过的字节不需要 host 在场,
-    // headless 复装同样能拿到(如实标注的)沿用判定。
-    const ttlMs = config.verifyCarryTtlMs ?? VERIFY_CARRY_TTL_MS
-    const carry = options.reverify === true
-      ? { carry: false, why: '--reverify 强制重验' }
-      : carryDecision(loadVerifyLedger(dir), presetSha(preset), Date.now(), ttlMs)
-    const port = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
-    // Only a REQUIRED, unconfigured credential blocks verification. An
-    // optional one leaves an anonymous path the probe can still exercise.
-    const missingSecrets = requiredSecrets.filter((sec) => !sec.configured && sec.optional !== true)
-    if (carry.carry) {
-      const led = loadVerifyLedger(dir)
-      verification = {
-        status: 'PASS',
-        carried: true,
-        reason: carry.why,
-        ...(led?.kind !== undefined ? { kind: led.kind } : {}),
-      }
-      timings.push({ stage: '验收(沿用)', seconds: 0 })
-      phase(`验收沿用:${carry.why}(增量验收;强制重验用 --reverify)`)
-    } else if (port === undefined) {
-      verification = { status: 'SKIPPED', reason: 'webServer port unavailable (headless run?)' }
-      phase('验收跳过:无 webServer 端口(headless?)')
-    } else if (missingSecrets.length > 0) {
-      // The interface is in place and the preset is mountable; what is absent
-      // is the operator's key. Calling that a FAILED assembly would be a lie
-      // about whose problem it is (DESIGN.md: probes prove the assembly, not
-      // the deployment).
-      verification = {
-        status: 'SKIPPED',
-        reason: `待配置凭证:${missingSecrets.map((sec) => sec.env).join(', ')}——装配正确但无法实调外部服务,配好后重跑装配即可验证`,
-      }
-      // 这行以前漏了:凭证 SKIPPED 只设 verification 不 phase,直播台一片空白、
-      // 账单无探针段,旁观者会以为"怎么没验收"(实测 hr-arch2/hr-noshortlist 都
-      // 静默走了这条)。SKIPPED 是设计内降级,但必须看得见。
-      phase(`验收跳过:待配置凭证 ${missingSecrets.map((sec) => sec.env).join(', ')}(装配正确,配好凭证后重跑即验;探针不对未配服务打假拳)`)
-    } else {
-      const byId = new Map(catalog.capabilities.map((c) => [c.id, c]))
-      // 前端零件不进探针推导的工具单:它是给人用的交互面,agent 摸不到——
-      // 实测推导器会把它当工具、设计"回显前端模板名"的验收标记,必假红
-      // (fe-e2e 首败:标记里出现 frontend-data-desk / 记录台前端)。
-      const selected = req.capabilityIds.map((cid) => byId.get(cid))
-        .filter((c): c is CapabilityEntry => c !== undefined && c.via !== 'frontend')
-      // 探针在 preset 自己的 workspace/ 里跑(不再用一次性 mkdtemp):
-      //  1. filesystem 零件的根就钉在这里,探针读写的"工作区"与工具面指同一目录;
-      //  2. 与前端页的会话共用一个持久工作区,探针验证的就是交付后真实使用的那间屋。
-      const probeCwd = join(dir, 'workspace')
-      mkdirSync(probeCwd, { recursive: true })
-      mkdirSync(join(dir, 'kb'), { recursive: true })
-      const runPlan = async (plan: ProbePlan): Promise<ProbeResult> => (
-        plan.kind === 'scenario'
-          ? await runScenario(port, id, plan.scenario, config.verifyTimeoutMs, phase, probeCwd)
-          : await runProbe(port, id, plan.probe, config.verifyTimeoutMs, phase, probeCwd)
-      )
-      try {
-        const tDerive = Date.now()
-        // 真瓶颈打法 B(确定性构造探针):架构师在 archSpec 里顺手写了探针草图,
-        // 机械校验合格就直接用——整段 ~160s 的 LLM 探针推导省掉(实测它是满档
-        // 推理绑定的第二大墙钟)。校验任何一条不过 → 回退 LLM 推导,不冒质量险。
-        // DSH_ASSEMBLER_ARCH_PROBE=0 强制全走 LLM 推导。
-        let plan: ProbePlan | null = null
-        if (process.env.DSH_ASSEMBLER_ARCH_PROBE !== '0' && archSpec?.probe !== undefined) {
-          plan = validateArchProbe(archSpec.probe, sanitizeMarks)
-          if (plan !== null) {
-            timings.push({ stage: '探针推导(架构直构)', seconds: 0 })
-            phase(plan.kind === 'scenario'
-              ? `验收探针:架构直构,多轮场景共 ${String(plan.scenario.turns.length)} 轮(推导 0s,省掉整段 LLM 推导)——探针会话可在侧栏实时旁观`
-              : '验收探针:架构直构,单轮(推导 0s)——探针会话可在侧栏实时旁观')
-          } else {
-            phase('架构探针草图未过机械校验,回退 LLM 推导…')
-          }
-        }
-        if (plan === null) {
-          phase('探针推导中(定单轮或多轮场景)…')
-          const deriveUsage: AuxUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cacheReadTokens: 0 }
-          plan = await hb('探针推导', deriveProbePlan(ctx, requirement, selected, auxLlm, (u) => { addUsage(deriveUsage, { type: 'usage', usage: u }) }, archSpec !== undefined ? { workflow: archSpec.workflow, dataModel: archSpec.dataModel } : undefined))
-          deriveUsageLedger = deriveUsage
-          mark('探针推导', tDerive, usageDetail(deriveUsage))
-          phase(plan.kind === 'scenario'
-            ? `验收探针:多轮场景共 ${String(plan.scenario.turns.length)} 轮(推导 ${secs(tDerive)})——探针会话可在侧栏实时旁观`
-            : `验收探针:单轮(推导 ${secs(tDerive)})——探针会话可在侧栏实时旁观`)
-        }
-        const tProbe = Date.now()
-        verification = await runPlan(plan)
-        mark(plan.kind === 'scenario' ? `验收探针(${String(plan.scenario.turns.length)}轮)` : '验收探针(单轮)', tProbe)
-        if (verification.status === 'FAIL') {
-          // One re-selection with failure feedback, re-emit under the same id.
-          // Its own catch: a transient failure INSIDE the retry (a flaky model
-          // call, a wire hiccup) must not erase the first probe's verdict —
-          // the FAIL plus its evidence is the actionable result.
-          try {
-            phase('首探 FAIL → 携失败反馈重选型、同 id 重发一次…')
-            const tRetry = Date.now()
-            // 纠错对采集:重选前的选型 + 失败原因,是台账里最值钱的样本。
-            const firstSelectedIds = [...req.capabilityIds]
-            const firstFailReason = (verification.reason ?? '回复未包含验收标记').slice(0, 200)
-            const retryReq = await hb('重选型推理', llmMapRequirement(
-              ctx,
-              `${requirement}\n\n(上一次装配选了 [${req.capabilityIds.join(', ')}],冒烟探针未通过:${verification.reason ?? '回复未包含验收标记'}。请重新选型,优先替换可能不匹配的零件。)`,
-              catalog,
-              { provider: config.provider, model: config.model },
-              config,
-            ))
-            const retrySelected = retryReq.capabilityIds.map((cid) => byId.get(cid))
-              .filter((c): c is CapabilityEntry => c !== undefined && c.via !== 'frontend')
-            // 重选可能换掉状态零件或重画 schema:装备随重选一起重装,preset 的
-            // env 指针与 persona 句都以重试代际为准。
-            const retryEquipment = installStateEquipment({
-              ...(retryReq.stateSchema !== undefined ? { stateSchema: retryReq.stateSchema } : {}),
-              selected: retrySelected,
-              dir,
-              ...(options.sharedDb !== undefined ? { sharedDb: options.sharedDb } : {}),
-            })
-            equipmentNow = retryEquipment
-            const retryPreset = emitPreset(retryReq, catalog, template, id, knowledgeLocatorText(knowledgeInstalled) + (retryEquipment?.personaText ?? ''), retryEquipment?.extraServerEnv, join(dir, 'workspace'))
-            writePresetFile(join(dir, 'agent.cordis.yml'), retryPreset)
-            presetRewritten = true
-            const retryPlan = await hb('重试探针推导', deriveProbePlan(ctx, requirement, retrySelected, auxLlm, undefined, archSpec !== undefined ? { workflow: archSpec.workflow, dataModel: archSpec.dataModel } : undefined))
-            verification = await runPlan(retryPlan)
-            mark('重试轮(重选+重验)', tRetry)
-            retryLedger = {
-              firstSelected: firstSelectedIds,
-              failReason: firstFailReason,
-              retrySelected: retryReq.capabilityIds,
-              retryStatus: verification.status,
-            }
-            if (verification.status === 'PASS') {
-              req.capabilityIds = retryReq.capabilityIds
-              // The persona of record is the retry's too — the lock lints the
-              // text that actually shipped, not the first generation's.
-              req.persona = retryReq.persona
-              // 缺口报告与缺件工单同理:以实际上桌的重试选型为准。
-              req.missing = retryReq.missing
-              req.missingEntries = retryReq.missingEntries
-            }
-          } catch (retryError: unknown) {
-            verification = {
-              ...verification,
-              reason: `${verification.reason ?? '回复未包含验收标记'};重试轮出错:${retryError instanceof Error ? retryError.message : String(retryError)}`,
-            }
-          }
-        }
-      } catch (error: unknown) {
-        // ERRORED, not SKIPPED: the probe machinery broke, so this agent is
-        // UNVERIFIED. A caller aggregating verdicts must be able to fail on it.
-        verification = { status: 'ERRORED', reason: `probe error: ${error instanceof Error ? error.message : String(error)}` }
-      }
-    }
-  }
-
-  // ── 前端验收(纳入装配即验证)─────────────────────────────────────────
-  // 页面可达门每轮都打(发射对了但伺服不通 = 交付白屏);会话环路门只在
-  // 非沿用轮打(用页面同款参数开真会话回显口令,证页面那套接线端到端活着)。
-  let frontendCheck: { pass: boolean; reason?: string } | null = null
-  if (frontendInfo !== null && config.verify !== false) {
-    const gatePort = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
-    if (gatePort !== undefined) {
-      const tFe = Date.now()
-      try {
-        frontendCheck = await runFrontendGate(gatePort, id, dir, { loop: verification.carried !== true })
-      } catch (error: unknown) {
-        frontendCheck = { pass: false, reason: error instanceof Error ? error.message : String(error) }
-      }
-      mark('前端验收', tFe)
-      phase(frontendCheck.pass ? `前端验收:${frontendCheck.reason ?? 'PASS'}` : `前端验收:FAIL——${frontendCheck.reason ?? ''}`)
-    }
-  }
-
-  // ── 缺件工单(在验收之后落盘:重试轮可能换过选型,工单以上桌代际为准)──
-  // 草案与工单同源 req.missingEntries;工单是"主 agent 拿了就能开工"的施工单,
-  // 详见 renderGapWorkOrder 的设计裁定注释。落盘失败不毁装配(缺口在结果文本
-  // 里仍有报告)。
-  const drafts = (req.missingEntries ?? []).map(renderMissingDraft)
-  let gapOrders: string[] = []
-  try {
-    gapOrders = writeGapWorkOrders({ presetDir: dir, presetId: id, requirement, missingEntries: req.missingEntries ?? [] })
-    if (gapOrders.length > 0) {
-      phase(`缺件工单已落盘:${String(gapOrders.length)} 份 → ${join(dir, 'gaps')}/(照单造件入库,重跑本次 assemble 即闭环)`)
-    }
-  } catch (error: unknown) {
-    console.error(`[assembler] 缺件工单落盘失败(装配照常):${error instanceof Error ? error.message : String(error)}`)
-  }
-
-  // 台账落笔:新鲜 PASS 才入账(沿用不重写台账;FAIL/SKIPPED/ERRORED 没有可记的
-  // 证据)。哈希取盘上实文而非内存变量:重试轮可能已重发,盘上那份才是被探过的。
-  if (verification.status === 'PASS' && verification.carried !== true) {
-    try {
-      const onDisk = readFileSync(join(dir, 'agent.cordis.yml'), 'utf8')
-      const summary = verification.kind === 'scenario' ? verification.scenario?.goal : verification.probe?.task
-      saveVerifyLedger(dir, {
-        presetSha256: presetSha(onDisk),
-        status: 'PASS',
-        ...(verification.kind !== undefined ? { kind: verification.kind } : {}),
-        verifiedAt: new Date().toISOString(),
-        ...(typeof summary === 'string' && summary !== '' ? { summary: summary.slice(0, 120) } : {}),
-      })
-    } catch (error: unknown) {
-      // 台账是加速器不是必需品:写不上只损失下次的沿用,不损失这次的判定。
-      console.error(`[assembler] verify ledger write failed: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
-
-  // Parts BOM — written LAST so it reflects the final generation: after a
-  // verify-retry re-selection, req.capabilityIds and the preset bytes on
-  // disk are both the retry's, and the lock reads them from there.
-  try {
-    const byIdAll = new Map(catalog.capabilities.map((c) => [c.id, c]))
-    const finalSelected = req.capabilityIds
-      .map((cid) => byIdAll.get(cid))
-      .filter((c): c is CapabilityEntry => c !== undefined)
-    // Persona lint on the FINAL generation's actual text — read back from the
-    // preset ON DISK (the artifact being handed over), falling back to the
-    // resolution chain only if the file cannot yield a persona row. On a reuse
-    // run req.persona is undefined, so the disk text is the ONLY honest source.
-    const mcpServersAll = catalog['mcp-servers'] ?? {}
-    const hostMounted = Object.keys(mcpServersAll).filter((sv) => mcpServersAll[sv].hostMounted === true)
-    const diskPreset = readFileSync(join(dir, 'agent.cordis.yml'), 'utf8')
-    personaFindings = lintPersona(personaFromPresetText(diskPreset) ?? resolvePersonaText(req.persona, finalSelected), finalSelected, hostMounted)
-    // 复用轮且未重发 ⇒ BOM 不重写:内容与上次逐字节相同,重写只翻新 assembledAt
-    // 时间戳——工件字节稳定优先(diff 干净、mtime 不骗人)。
-    if (reuse === null || presetRewritten) {
-      // The index lives BESIDE the catalog in use: a client catalog
-      // (catalogs/<client>/capabilities.yml) has its own index/catalog.yml, and
-      // reading the public one instead produced BOM rows with no provenance at
-      // all for client parts — the one thing a handover document exists to show.
-      // One index per catalog layer, base first, so a client layer's own parts
-      // override the public entry of the same id.
-      const index = catalogChain(catalogPath).flatMap((layer) => {
-        const indexPath = join(dirname(layer), 'index', 'catalog.yml')
-        if (!existsSync(indexPath)) return []
-        const parsed = yaml.load(readFileSync(indexPath, 'utf8'))
-        return Array.isArray(parsed) ? (parsed as IndexRecord[]) : []
-      })
-      writeFileSync(join(dir, 'parts.lock.yml'), renderPartsLock({
-        presetId: id,
-        requirement,
-        selected: finalSelected,
-        presetText: diskPreset,
-        index,
-        personaFindings,
-        params: screened.accepted,
-        requiredSecrets,
-        knowledge: knowledgeInstalled,
-        ...(equipmentNow !== null ? { equipment: equipmentNow.files } : {}),
-        missing: req.missing,
-        catalogIdsHash: catalogIdsHash(catalog),
-      }))
-    }
-  } catch (error: unknown) {
-    // The lock is provenance metadata: failing to write it must not fail
-    // the assembly the user asked for.
-    console.error(`[assembler] parts.lock.yml write failed: ${error instanceof Error ? error.message : String(error)}`)
-  }
-
-  const totalSeconds = Math.round((Date.now() - t0) / 1000)
-  // 选型台账:只记真选型(复用轮选型没跑,不是样本);写失败绝不影响装配。
-  if (reuse === null) {
-    try {
-      const byIdL = new Map(catalog.capabilities.map((c) => [c.id, c]))
-      const selectedL = req.capabilityIds.map((cid) => byIdL.get(cid)).filter((c): c is CapabilityEntry => c !== undefined)
-      const auxNums = (u: AuxUsage | null): { out: number; reason: number; cache: number } | undefined =>
-        u === null ? undefined : { out: u.outputTokens, reason: u.reasoningTokens, cache: u.cacheReadTokens }
-      appendSelectionLedger({
-        at: new Date().toISOString(),
-        requirement,
-        presetId: id,
-        catalogPath: catalogPath.replace(`${REPO}/`, ''),
-        catalogSize: catalog.capabilities.length,
-        catalogHash: catalogIdsHash(catalog),
-        params: screened.accepted,
-        selected: req.capabilityIds,
-        missing: req.missing,
-        personaSource: selectedL.some((c) => c.config?.persona !== undefined)
-          ? 'catalog'
-          : (typeof req.persona === 'string' && req.persona.trim() !== '' ? 'generated' : 'default'),
-        stateSchema: equipmentNow !== null,
-        aux: {
-          effort: config.auxReasoningEffort ?? 'inherit',
-          ...(auxNums(selUsageLedger) !== undefined ? { selection: auxNums(selUsageLedger) } : {}),
-          ...(auxNums(deriveUsageLedger) !== undefined ? { derive: auxNums(deriveUsageLedger) } : {}),
-        },
-        probe: {
-          status: verification.status,
-          ...(verification.kind !== undefined ? { kind: verification.kind } : {}),
-          ...(verification.turns !== undefined ? { turns: verification.turns.length } : {}),
-          ...(verification.reason !== undefined ? { reason: verification.reason.slice(0, 200) } : {}),
-        },
-        retry: retryLedger,
-        ...(frontendInfo !== null ? { frontendGate: frontendCheck === null ? 'SKIPPED' : frontendCheck.pass ? 'PASS' : `FAIL:${(frontendCheck.reason ?? '').slice(0, 120)}` } : {}),
-        timings,
-        totalSeconds,
-      })
-    } catch (error: unknown) {
-      console.error(`[assembler] selection ledger write failed: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
-  phase(`装配完成:共 ${String(totalSeconds)}s — ${timings.map((s) => `${s.stage} ${String(s.seconds)}s`).join(' · ')}`)
-  return { id, capabilityIds: req.capabilityIds, missing: req.missing, presetPath: join(dir, 'agent.cordis.yml'), drafts, gapOrders, verification, personaLint: personaFindings, params: screened.accepted, paramsRejected: screened.rejected, requiredSecrets, knowledge: knowledgeInstalled, timings, totalSeconds, reused: reuse !== null, frontend: frontendInfo, frontendCheck }
-}
-
-/** Shared human-facing result text for the command and the tool. */
-export function assembleResultText(result: Awaited<ReturnType<typeof assemble>>): string {
-  const missing = result.missing.length > 0
-    ? `\nmissing capabilities (not in catalog): ${result.missing.join(', ')}`
-    : ''
-  // 缺件工单优先:有工单时结果只报路径与闭环指令(草案 YAML 已在工单里,
-  // 不再整段刷进对话);工单落盘失败才回退到内联草案,缺口报告绝不失踪。
-  const gapOrders = result.gapOrders ?? []
-  const drafts = gapOrders.length > 0
-    ? `\n\n缺件工单(${String(gapOrders.length)} 份)——请照单造件并入库,入库后重跑本次 assemble 即闭环:\n${gapOrders.map((p) => `  ${p}`).join('\n')}\n(工单含施工路线、质检门命令与目录条目草案;新零件必须走 index 流水线入库,不要直接改本 preset。)`
-    : result.drafts.length > 0
-      ? `\n\n补件草案 (append to the "capabilities:" section of capabilities.yml):\n${result.drafts.join('\n')}`
-      : ''
-  const v = result.verification
-  // Two probe shapes render differently: a single probe reports its task and
-  // marks; a scenario reports the turn ladder, which is the evidence that
-  // state survived across turns. A CARRIED verdict renders neither: its
-  // evidence is the ledger reference, and saying so out loud is the whole
-  // honesty contract of incremental acceptance.
-  let verifyLine: string
-  if (v.carried === true) {
-    verifyLine = `\n自动验证:PASS — ${v.reason ?? '沿用上次验收'}(增量验收:同字节不重探;强制重验加 --reverify)`
-  } else if (v.kind === 'scenario' && v.scenario !== undefined) {
-    const ladder = (v.turns ?? [])
-      .map((t) => `  第${String(t.index)}轮 ${t.pass ? '✓' : '✗'} 「${t.prompt.slice(0, 50)}」标记 [${t.mustInclude.join(', ')}]`)
-      .join('\n')
-    const head = `场景「${v.scenario.goal.slice(0, 60)}」共 ${String(v.scenario.turns.length)} 轮`
-    verifyLine = v.status === 'PASS'
-      ? `\n自动验证:PASS — 多轮${head},逐轮通过\n${ladder}`
-      : v.status === 'FAIL'
-        ? `\n自动验证:FAIL — 多轮${head};${v.reason ?? ''}\n${ladder}(preset 已生成,建议人工试用)`
-        : v.status === 'ERRORED'
-          ? `\n自动验证:未能验证(${v.reason ?? ''})——preset 已生成但没有跑过验收,不可当作通过`
-          : `\n自动验证:跳过(${v.reason ?? ''})`
-  } else {
-    const marks = v.probe !== undefined ? `;验收标记 [${v.probe.mustInclude.join(', ')}]` : ''
-    verifyLine = v.status === 'PASS'
-      ? `\n自动验证:PASS — 探针「${v.probe?.task.slice(0, 80) ?? ''}」通过${marks}`
-      : v.status === 'FAIL'
-        ? `\n自动验证:FAIL — ${v.reason ?? '探针回复未含验收标记'}${marks};探针「${v.probe?.task.slice(0, 80) ?? ''}」`
-          + `${v.reply !== undefined && v.reply !== '' ? `;回复摘录「${v.reply.slice(0, 120)}」` : ''}(preset 已生成,建议人工试用)`
-        : v.status === 'ERRORED'
-          ? `\n自动验证:未能验证(${v.reason ?? ''})——preset 已生成但没有跑过验收,不可当作通过`
-          : `\n自动验证:跳过(${v.reason ?? ''})`
-  }
-  const paramLine = Object.keys(result.params).length > 0
-    ? `\n装配参数:${Object.entries(result.params).map(([k, v]) => `${k}=${v}`).join(', ')}`
-    : ''
-  const rejectLine = result.paramsRejected.length > 0
-    ? `\n参数被拒:${result.paramsRejected.map((r) => `${r.key}(${r.reason})`).join(';')}`
-    : ''
-  const kbLine = result.knowledge.length > 0
-    ? `\n知识包:${result.knowledge.map((k) => `${k.id}(${String(k.docs)} 篇${k.version !== undefined ? `,版本 ${k.version}` : ''})`).join(';')} — 已拷入 preset 的 kb/`
-    : ''
-  const secretLines = result.requiredSecrets.length > 0
-    ? `\n所需凭证:${result.requiredSecrets.map((sec) => `${sec.env}${sec.configured ? '(已配置)' : sec.optional === true ? '(可选,未配则降级)' : '(待配置)'}${sec.purpose !== undefined ? ` — ${sec.purpose}` : ''}`).join(';')}`
-      + (result.requiredSecrets.some((sec) => !sec.configured && sec.optional !== true)
-        ? '\n  配置方式:把待配置的变量写进 host 环境或部署的 .env(值不会写进 preset 文件),配好后重跑装配即可完成验证'
-        : '')
-    : ''
-  const lint = result.personaLint.length > 0
-    ? `\npersona 检查:${String(result.personaLint.length)} 条提示 — ${result.personaLint.map((f) => f.detail).join(';')}`
-    : ''
-  // 耗时账单 renders in the RESULT, not only the transient phase stream:
-  // "为什么跑了这么久" must be answerable after the fact, from the artifact
-  // the user actually keeps. Stages that never ran (verify off) simply don't
-  // appear; time no stage claimed (session handshake, BOM write, retry paths
-  // that errored mid-way) is surfaced as 其他 rather than silently vanishing.
-  const accounted = result.timings.reduce((a, s) => a + s.seconds, 0)
-  const other = result.totalSeconds - accounted
-  const billParts = [
-    // detail 是 token 去向(出/思/缓):同一个 90s,写成"探针推导 90s(出7.1k/思6.2k/缓1.1k)"
-    // 才回答得了"为什么"——秒数指认哪段贵,明细指认贵在推理链还是预填。
-    ...result.timings.map((s) => `${s.stage} ${String(s.seconds)}s${s.detail !== undefined ? `(${s.detail})` : ''}`),
-    ...(other >= 2 ? [`其他 ${String(other)}s`] : []),
-  ]
-  const billLine = `\n耗时:共 ${String(result.totalSeconds)}s — ${billParts.join(' · ')}`
-  const reuseLine = result.reused
-    ? '\n选型复用:需求与参数与上次相同,preset 未重发(全新重装加 --fresh)'
-    : ''
-  const fe = result.frontend ?? null
-  const fc = result.frontendCheck ?? null
-  const fcText = fe === null ? '' : fc === null ? ';前端验收:待验(headless)' : fc.pass ? `;前端验收:${fc.reason ?? 'PASS'}` : `;前端验收:FAIL(${fc.reason ?? ''})`
-  const feLine = fe !== null
-    ? `\n前端页面:${fe.url ?? fe.path}(模板 ${fe.template},浏览器打开即可直接操作)${fcText}`
-    : ''
-  // ── 给调用方 agent 的行为契约 ──────────────────────────────────────────
-  // 市场战役 F6 实录:FAIL 判决后主 agent 义警修复全谱系——改写需求重调 assemble
-  // (铸 -2 兄弟)、rm -rf 产物目录、edit 手改 preset persona、自行经 wire 重跑
-  // 探针、grep 装配器源码试图调试装配器。契约随结果走:决策点上的新鲜段落,
-  // 比工具描述里的陈年一句可靠。逐条对症,不是空洞礼貌。
-  const failed = v.status === 'FAIL' || v.status === 'ERRORED'
-  const contract = [
-    '',
-    '【给调用方 agent 的行为契约】',
-    '- 如实向用户转述:preset id、验证结论' + (result.frontend?.url !== undefined ? '、前端 URL(用户要能点开)' : '') + (gapOrders.length > 0 ? '、缺件工单路径' : '') + '。',
-    ...(failed ? [
-      '- 装配器已自带一次"携失败反馈重选型"的重试,本结果就是重试后的终局。不要再调 assemble 重试,不要改写需求另装一台。',
-      '- preset 目录与装配器源码不是你的修理对象:禁止编辑/删除 preset 文件,禁止自行重跑探针,禁止翻装配器源码调试。把失败原因与证据转述给用户,等用户定夺。',
-    ] : []),
-    ...(gapOrders.length > 0 ? ['- 缺件工单先转述、征得用户同意后再照单施工(在 dsh-assembler 检出目录下执行工单命令,新零件必须入库)。'] : []),
-    ...(result.requiredSecrets.some((s) => !s.configured) || result.paramsRejected.length > 0
-      ? ['- 待配置凭证/被拒的秘密参数必须转述给用户:凭证配到 host 环境变量,绝不进装配参数。'] : []),
-  ].join('\n')
-  return `assembled preset "${result.id}" with: ${result.capabilityIds.join(', ')}${missing}${drafts}${reuseLine}${verifyLine}${feLine}${kbLine}${secretLines}${paramLine}${rejectLine}${lint}${billLine}${contract}\n`
-    + `preset file: ${result.presetPath}\n`
-    + `start a new session and select preset ${result.id} to use it.`
-}
-
 export const name = 'dsh-assembler'
-export const inject = ['commands', 'llm', 'tools']
+export const inject = ['llm', 'tools']
 
 // NOTE: no `export default` — the cordis loader's unwrapExports reads
 // `exports.default ?? exports`, so a default export would hide the named
 // `inject`/`name` exports from it (same trap as dsh-cs-tools).
 
 export function apply(ctx: Context, config: Config = {}): void {
-  // ── 配合形态注册矩阵(DSH_ASSEMBLER_MODE,一臂一台 host,互不污染)────────
-  // 形态探索(docs/ab-orchestrated-mode.md + C/D/F 扩展):pipeline = A 臂一条龙;
-  // orchestrated = B 臂三工具;draft = C 臂提案审阅;dialogue = D 臂对话专家;
-  // search = F 臂纯检索。非 pipeline 模式一律不注册 assemble*(臂间互斥,数据干净);
-  // emit_preset/verify_preset(哑发射+独立考官)是所有新形态的公共底座。
+  // ── 工具面注册(唯一形态 search;off = 完全停用)──────────────────────────
+  // 形态曾有六种(pipeline/orchestrated/draft/dialogue/search/off),四个实验臂
+  // 已判负并按宪法第八条删除(git 备查,战役档案在 docs/ 与 bench/results/)。
+  // registration effect 标签(assembler.tool.*)被 tests-orchestrated 的
+  // CONTRACT_ACTIONS 闸逐条断言——契约点名的动作漏注册工具,测试当场红。
   const mode = assemblerMode()
-  if (mode === 'off') {
-    // 完全停用(实验对照/纯写码环境):零工具零命令。前端路由仍伺服既有 preset
-    // 页面(它们是静态字节,不属于装配面)。
-  } else if (mode === 'pipeline') {
-    // Agent-native path: the same capability as a tool, so the agent loop
-    // renders the call (reasoning → tool card → result) in the conversation.
-    // Registered on the host plane (like dsh-cs-tools), visible to every agent.
-    ctx.effect(() => ctx.tools.register(assembleToolDefinition(ctx, config)), 'assembler.tool.assemble()')
-    // 多 agent 方案交付:assemble 装一个,assemble_solution 装一整套班子 + HANDOVER。
-    // FDE 级实测(f01)暴露:没有它,主 agent 面对多 agent 需求只能揉成巨型单体。
-    ctx.effect(() => ctx.tools.register(solutionToolDefinition(ctx, config)), 'assembler.tool.assemble_solution()')
-  } else {
+  if (mode !== 'off') {
+    // 检索是选型的默认入口:机械 BM25,零 LLM,结果行带价签。
+    ctx.effect(() => ctx.tools.register(searchCatalogToolDefinition(ctx, config)), 'assembler.tool.search_catalog()')
+    // match 是"专家精排"备用阀:平时零调用,检索拿不准时升级。
+    ctx.effect(() => ctx.tools.register(matchCatalogToolDefinition(ctx, config)), 'assembler.tool.match_catalog()')
+    // 哑发射 + 独立考官(preset 车道)。
     ctx.effect(() => ctx.tools.register(emitPresetToolDefinition(ctx, config)), 'assembler.tool.emit_preset()')
     ctx.effect(() => ctx.tools.register(verifyPresetToolDefinition(ctx, config)), 'assembler.tool.verify_preset()')
-    // 共享数据考官:多 agent 班子(同一 sharedDb)的 FDE 闭环,所有编排形态可用。
+    // 共享数据考官:多 agent 班子(同一 sharedDb)的 FDE 闭环。
     ctx.effect(() => ctx.tools.register(verifySharedDataToolDefinition(ctx, config)), 'assembler.tool.verify_shared_data()')
-    // 配方车道(app 形态):哑实例化 + app 独立考官,与 preset 车道同构。
+    // 配方车道(app 形态):哑实例化 + app 独立考官 + 发布(与 preset 车道同构)。
     ctx.effect(() => ctx.tools.register(emitAppToolDefinition(ctx, config)), 'assembler.tool.emit_app()')
     ctx.effect(() => ctx.tools.register(verifyAppToolDefinition(ctx, config)), 'assembler.tool.verify_app()')
     ctx.effect(() => ctx.tools.register(deployAppToolDefinition(ctx, config)), 'assembler.tool.deploy_app()')
-    // 触发面考官:无人值守形态(cron/webhook 唤醒)的第四格——打一发,验后果。
+    // 触发面考官:无人值守形态的第四格——打一发,验后果。
     ctx.effect(() => ctx.tools.register(verifyTriggerToolDefinition(ctx, config)), 'assembler.tool.verify_trigger()')
-    // 知识包入库的工具面:治"造件管道住在仓库里、会话沙箱够不着"(泛化战役 A1 实录)。
+    // 装配器资源只经工具面读写(目录/preset/配方/知识包都在会话沙箱之外)。
     ctx.effect(() => ctx.tools.register(addKnowledgeToolDefinition(ctx, config)), 'assembler.tool.add_knowledge()')
-    // 装配器资源只经工具面读写:读 preset(装备 DDL/BOM/persona)、造零件(过门入库)。
     ctx.effect(() => ctx.tools.register(readPresetToolDefinition(ctx, config)), 'assembler.tool.read_preset()')
     ctx.effect(() => ctx.tools.register(submitPartToolDefinition(ctx, config)), 'assembler.tool.submit_part()')
-    if (mode === 'search' || mode === 'orchestrated' || mode === 'dialogue') {
-      // search 默认形态里 match 是"专家精排"备用阀:平时零调用,检索拿不准时升级。
-      ctx.effect(() => ctx.tools.register(matchCatalogToolDefinition(ctx, config)), 'assembler.tool.match_catalog()')
-    }
-    if (mode === 'dialogue') {
-      ctx.effect(() => ctx.tools.register(askCatalogToolDefinition(ctx, config)), 'assembler.tool.ask_catalog()')
-    }
-    if (mode === 'draft') {
-      ctx.effect(() => ctx.tools.register(draftAssemblyToolDefinition(ctx, config)), 'assembler.tool.draft_assembly()')
-    }
-    if (mode === 'search') {
-      ctx.effect(() => ctx.tools.register(searchCatalogToolDefinition(ctx, config)), 'assembler.tool.search_catalog()')
-    }
-  }
-  // 实验工具(flag 门控,不进正常面):DSH_ASSEMBLER_EXPERIMENT=1 才注册,验完即撤。
-  // 对照"选型优先 vs 架构优先"的实际产出差异(用户 2026-08-22 提的架构-first 问题)。
-  if (process.env.DSH_ASSEMBLER_EXPERIMENT === '1') {
-    ctx.effect(() => ctx.tools.register(specExperimentToolDefinition(ctx, config)), 'assembler.tool.spec_experiment()')
   }
 
   // 前端路由:/assembler/ui/<id> 同源伺服各 preset 的 frontend/ 静态文件。
-  // webServer 走可选注入(dsh-ios 同款):headless profile 没有它,装配照常,
+  // webServer 走可选注入(dsh-ios 同款):headless profile 没有它,工具照常,
   // 只是结果里给本地路径而非 URL。装配器只发静态字节,不参与会话执行——
-  // 与 roster 伺服 preset 同性质,运行时判据不越界。
+  // 与 roster 伺服 preset 同性质,运行时判据不越界。off 模式也伺服:既有
+  // 页面是静态字节,不属于装配面。
   try {
-    const inject = (ctx as unknown as { inject?: (deps: string[], cb: (c2: Context) => void) => void }).inject
-    inject?.call(ctx, ['webServer'], (c2: Context) => {
+    const injectFn = (ctx as unknown as { inject?: (deps: string[], cb: (c2: Context) => void) => void }).inject
+    injectFn?.call(ctx, ['webServer'], (c2: Context) => {
       const ws = (c2 as unknown as { webServer: { register: (route: { kind: string; path: string; handler: unknown }) => () => void } }).webServer
       const presetRoot = config.presetRoot ?? join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), '.agent-presets')
       c2.effect(() => ws.register({ kind: 'prefix', path: FRONTEND_ROUTE, handler: frontendRouteHandler(presetRoot) }), 'assembler.frontend.route')
@@ -2528,64 +1460,4 @@ export function apply(ctx: Context, config: Config = {}): void {
   } catch (error: unknown) {
     console.error(`[assembler] 前端路由注册失败(headless?):${error instanceof Error ? error.message : String(error)}`)
   }
-
-  if (mode === 'off') return
-  ctx.commands.register({
-    name: 'assemble',
-    description: 'Assemble an agent from a natural-language requirement (vibe assembly). Usage: /assemble <requirement> [--name <kebab-case-preset-name>] [--param key=value ...]',
-    // input.hint is REQUIRED for the web client's slash pipeline to claim
-    // the token and route "/assemble <args>" to command.execute. Without it,
-    // an argued line falls through to the default chat sink (the LLM gets
-    // "/assemble ..." as plain text) and only a bare /assemble executes —
-    // which the handler then rejects as missing its requirement. Same
-    // contract as the built-in feedback/goal/permission/plan commands.
-    input: { hint: '<requirement>' },
-    handler: async (invocation: CommandInvocation): Promise<CommandResult> => {
-      const raw = invocation.rawInput.trim()
-      if (raw === '') {
-        return {
-          kind: 'error',
-          text: 'usage: /assemble <what you want the agent to do> [--name <kebab-case-preset-name>] [--param k=v ...] [--reverify] [--fresh]',
-        }
-      }
-      // Optional flags, any order after the requirement:
-      //   --name <slug>        name the preset id directly
-      //   --param k=v          non-secret deployment parameter (repeatable)
-      //   --reverify           ignore the verify ledger, probe fresh
-      //   --fresh              skip same-name reuse, full re-selection
-      // Parsed off the tail so the requirement itself keeps its own wording;
-      // boolean flags are stripped FIRST because the tail parsers anchor to $.
-      const params: Record<string, string> = {}
-      let rest = raw
-      let reverify = false
-      let fresh = false
-      rest = rest.replace(/\s--reverify\b/g, () => { reverify = true; return '' })
-      rest = rest.replace(/\s--fresh\b/g, () => { fresh = true; return '' })
-      for (;;) {
-        const paramMatch = rest.match(/\s--param(?:=|\s+)([A-Za-z][A-Za-z0-9_-]{0,39})=(\S+)\s*$/)
-        if (paramMatch === null) break
-        params[paramMatch[1]] = paramMatch[2]
-        rest = rest.slice(0, paramMatch.index).trimEnd()
-      }
-      const nameMatch = rest.match(/^(.*?)\s+--name(?:=|\s+)([a-zA-Z0-9][a-zA-Z0-9-]{0,63})\s*$/)
-      const requirement = (nameMatch ? nameMatch[1] : rest).trim()
-      if (requirement === '') {
-        return { kind: 'error', text: 'usage: /assemble <what you want the agent to do> [--name <kebab-case-preset-name>] [--param k=v ...] [--reverify] [--fresh]' }
-      }
-      try {
-        const result = await assemble(ctx, requirement, config, {
-          ...(nameMatch?.[2] !== undefined ? { name: nameMatch[2] } : {}),
-          params,
-          ...(reverify ? { reverify: true } : {}),
-          ...(fresh ? { fresh: true } : {}),
-        })
-        return { kind: 'success', text: assembleResultText(result) }
-      } catch (error: unknown) {
-        return {
-          kind: 'error',
-          text: `assemble failed: ${error instanceof Error ? error.message : String(error)}`,
-        }
-      }
-    },
-  })
 }

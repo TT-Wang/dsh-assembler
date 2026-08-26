@@ -19,14 +19,14 @@
   (evals/prompt_ab 模式:改 prompt 必须量化验证)。
 - **③ 选型账本 few-shot 回路**:ledger/selections.jsonl 躺着几十条含重试纠错对的
   样本,零回流。检索历史相似需求的 PASS 选型当 few-shot;也是训小模型的前站。
+  (2026-08-26 注:样本 writer 已随 pipeline 形态删除,存量样本仍在 ledger/ 归档;
+  现役数据面是 ledger/orchestrated.jsonl——回路若做,喂它。)
 
-## 2. 砍选型(130-275s,满档推理绑定;用户叫停,方案已备)
+## 2. ~~砍选型(130-275s,满档推理绑定)~~ — 已被第八条结构性解决(2026-08-26)
 
-- **A 确定性预绑定(推荐)**:能力目录粗筛器(方向 4 资产,现默认关)翻正当预绑定器
-  ——唯一匹配(top1 分远超 top2)的架构需求确定性绑定,LLM 只推理模糊项;预绑定项
-  进 prompt 标注可否决。对症(压推理量,不是压输入)。
-- **C 输出拆分**:persona/stateSchema 是浅活(off 档 2-6s 实测),拆出去低档另出,
-  满档只出 ids+missing。persona 降档触碰"生产不降档"裁定,需 A/B 或用户点头。
+选型 LLM 那条路(llmMapRequirement)随 pipeline 形态整条删除:现役默认是零 LLM 的
+机械检索(search_catalog),match_catalog 只作备用精排阀。原方案 A(粗筛翻正预绑定)
+/C(输出拆分)随之失去对象,粗筛器已同删。若 match 备用阀将来成为瓶颈再另立条目。
 
 ## 3. 真凭证端到端
 

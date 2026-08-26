@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * 能力目录粗筛单测:分词 + set-level 召回 + 保底类。用真实目录验召回不掉链子
- * (粗筛是加速器不是过滤器——该有的能力必须进候选,否则选型报假缺口)。
+ * 检索单测:分词 + rankCapabilities(search_catalog 的后端)。用真实目录验召回
+ * 不掉链子——该有的能力必须进榜,否则检索面报假缺口。
  * 跑法:node tests-capability-index.mjs(先 npm run build)
+ * (曾另测两阶段选型的粗筛器 shortlistCapabilities——随 pipeline 形态删除,git 备查。)
  */
-import { tokenize, shortlistCapabilities } from './lib/capability-index.js'
+import { tokenize, rankCapabilities } from './lib/capability-index.js'
 import { loadCatalog } from './lib/index.js'
 import { join } from 'node:path'
 
@@ -20,7 +21,7 @@ check('英文词进袋', t1.includes('attendance') && t1.includes('tracking'))
 check('中文 2-gram 进袋', t1.includes('审批') && t1.includes('请假'))
 check('单字中文不进袋(太泛)', !tokenize('单').length)
 
-// 2. 打分召回:构造小目录,验 tag 命中优先
+// 2. 排名:小目录上 tag 命中优先、topN 截断、确定性
 const mkMcp = (id, tags, desc) => ({ id, via: 'mcp', tags, description: desc, config: { server: id.replace('mcp-', '') } })
 const mkHarness = (id, tags) => ({ id, via: 'harness', tags, description: '', config: {} })
 const small = [
@@ -30,23 +31,15 @@ const small = [
   mkMcp('mcp-weather-forecast', ['weather', '天气', '预报'], 'weather forecast'),
   mkHarness('web-lookup', ['web', 'search', '搜索']),
 ]
-// 记账需求 → 必须召回 sqlite;不该因为噪音丢掉
-const sl1 = shortlistCapabilities(small, ['持久化存储账目 persist bookkeeping records', '数据库查询'], { maxMcp: 3 })
-check('记账需求召回 sqlite', sl1.ids.has('mcp-sqlite-query-execute'), [...sl1.ids].join(','))
-check('非 mcp(harness)全保留', sl1.ids.has('web-lookup'))
-// 读书需求 → 召回 pdf
-const sl2 = shortlistCapabilities(small, ['解析上传的 PDF 文档 parse uploaded documents'], { maxMcp: 2 })
-check('读书需求召回 pdf', sl2.ids.has('mcp-pdf-extract-get-text'))
-// 邮件需求 → 召回 email
-const sl3 = shortlistCapabilities(small, ['发送提醒邮件 send reminder email'], { maxMcp: 2 })
-check('邮件需求召回 email', sl3.ids.has('mcp-email-send'))
+const r1 = rankCapabilities(small, '持久化存储账目 数据库', 3)
+check('记账需求 sqlite 排第一', r1.length > 0 && r1[0].entry.id === 'mcp-sqlite-query-execute', JSON.stringify(r1.map((h) => h.entry.id)))
+const r2 = rankCapabilities(small, '解析上传的 PDF 文档', 3)
+check('文档需求 pdf 排第一', r2.length > 0 && r2[0].entry.id === 'mcp-pdf-extract-get-text')
+check('topN 截断生效', rankCapabilities(small, '数据库 文档 邮件 天气', 2).length <= 2)
+check('确定性(两跑同序)', JSON.stringify(rankCapabilities(small, '数据库', 5)) === JSON.stringify(rankCapabilities(small, '数据库', 5)))
+check('零命中返回空(不硬凑)', rankCapabilities(small, '完全无关的词汇 xyzzy', 5).length === 0)
 
-// 3. set-level:多需求各自的最佳候选都要在(不被全局分挤掉)
-const slMulti = shortlistCapabilities(small, ['持久化账目', '解析 PDF 文档', '发送邮件'], { perQueryTopM: 1, maxMcp: 3 })
-check('set-level:三需求的候选都在', slMulti.ids.has('mcp-sqlite-query-execute') && slMulti.ids.has('mcp-pdf-extract-get-text') && slMulti.ids.has('mcp-email-send'), [...slMulti.ids].join(','))
-
-// 4. 模拟联邦后的大目录(静态 mcp-servers 只在联邦时才变 capability,单测不联邦,
-//    故手工注入一批模拟 mcp + 静态非 mcp)——验 HR 需求在噪音中精准召回、且压缩。
+// 3. 真实目录 + 模拟联邦:HR 三类需求逐条检索,该召回的召回、噪音不进前排
 const cat = loadCatalog(join(process.cwd(), 'capabilities.yml'))
 const staticNonMcp = cat.capabilities.filter((c) => c.config?.enabled !== false && c.via !== 'mcp')
 const mcpSim = [
@@ -55,25 +48,15 @@ const mcpSim = [
   mkMcp('mcp-pdf-report-create', ['pdf', 'report', '报表', '工资条', '导出'], 'create a PDF report'),
   mkMcp('mcp-pdf-extract-text', ['pdf', 'extract', '文档', '解析'], 'extract PDF text'),
   mkMcp('mcp-excel-write', ['excel', 'xlsx', '表格', '导出'], 'write xlsx'),
-  mkMcp('mcp-docx-generate', ['docx', 'word', '文档', '生成'], 'generate docx'),
   mkMcp('mcp-email-send', ['email', 'smtp', '邮件', '发送', '通知'], 'send email'),
-  mkMcp('mcp-http-request', ['http', 'api', '接口', '请求'], 'http request'),
-  mkMcp('mcp-csv-parse', ['csv', '解析', '数据'], 'parse csv'),
-  mkMcp('mcp-date-format', ['date', '日期', '时间', '格式'], 'format date'),
   mkMcp('mcp-weather-forecast', ['weather', '天气', '预报'], 'weather'),
   mkMcp('mcp-qrcode-generate', ['qrcode', '二维码', '生成'], 'qr code'),
-  mkMcp('mcp-ocr-parse', ['ocr', '识别', '图片'], 'ocr'),
-  mkMcp('mcp-currency-calc', ['currency', '货币', '汇率', '计算'], 'currency calc'),
-  mkMcp('mcp-image-process', ['image', '图片', '处理'], 'image process'),
 ]
 const federated = [...staticNonMcp, ...mcpSim]
-check('模拟联邦目录足够大(值得粗筛)', federated.length > 20, String(federated.length))
-const realSl = shortlistCapabilities(federated, ['员工考勤打卡统计持久化', '月度工资条生成导出 PDF 工资条', '员工问答查公司制度带出处'], { maxMcp: 8 })
-check('HR 需求召回 sqlite 类', [...realSl.ids].some((id) => id.includes('sqlite')), [...realSl.ids].filter((id) => id.includes('sqlite')).join(','))
-check('HR 需求召回 pdf 类', [...realSl.ids].some((id) => id.includes('pdf')))
-check('HR 需求没被噪音淹没(天气/二维码不该进 top)', !realSl.ids.has('mcp-weather-forecast') || !realSl.ids.has('mcp-qrcode-generate'))
-check('粗筛确实压缩了(候选 < 全量)', realSl.ids.size < federated.length, `${realSl.ids.size} / ${federated.length}`)
-check('粗筛保留了非 mcp 架构类(frontend/persona)', [...realSl.ids].some((id) => id.includes('frontend') || id.includes('persona')))
+const top = (q, n = 8) => rankCapabilities(federated, q, n).map((h) => h.entry.id)
+check('考勤持久化 → sqlite 进榜', top('员工考勤打卡统计持久化 数据库').some((id) => id.includes('sqlite')), top('员工考勤打卡统计持久化 数据库').join(','))
+check('工资条导出 → pdf 报表进榜', top('月度工资条生成导出 PDF').some((id) => id.includes('pdf')))
+check('噪音不进前排(考勤查询不含天气/二维码)', !top('员工考勤打卡统计持久化 数据库', 5).some((id) => id.includes('weather') || id.includes('qrcode')))
 
-console.log(`\n==== 能力目录单元测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)
+console.log(`\n==== 检索单元测试: ${failures === 0 ? '全部通过 ✅' : `${failures} 项失败 ❌`} ====`)
 process.exit(failures === 0 ? 0 : 1)
