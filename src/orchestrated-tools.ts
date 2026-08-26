@@ -1564,7 +1564,7 @@ export function verifyTriggerToolDefinition(ctx: Context, config: Config): ToolD
           onPhase: phase,
         })
         job.settle(out.pass ? 'completed' : 'failed', out.pass ? 'PASS' : 'FAIL')
-        appendOrchLedger({ tool: VERIFY_TRIGGER_TOOL_NAME, presetId, pass: out.pass, reason: out.reason.slice(0, 160), elapsedSeconds: out.elapsedSeconds })
+        appendOrchLedger({ tool: VERIFY_TRIGGER_TOOL_NAME, presetId, pass: out.pass, reason: out.reason.slice(0, 160), task: task.slice(0, 200), effectSql: effectSql.slice(0, 200), elapsedSeconds: out.elapsedSeconds })
         return `触发面验收 ${out.pass ? 'PASS' : 'FAIL'}(${String(out.elapsedSeconds)}s)— ${out.reason}`
           + (out.sessionId !== undefined ? `\n被唤醒的会话:${out.sessionId}` : '')
           + prose(out.pass
@@ -1694,7 +1694,7 @@ export function verifyAppToolDefinition(_ctx: Context, _config: Config): ToolDef
           verdict: result.status,
           at: new Date().toISOString(),
           ...(pagesHash !== null ? { pagesHash } : {}),
-          checks: result.checks.map((c) => ({ check: c.check, status: c.status })),
+          checks: result.checks.map((c) => ({ check: c.check, status: c.status, evidence: c.evidence.slice(0, 300) })),
           ...(resembles.length > 0 ? { resembles } : {}),
           elapsedSeconds: result.elapsedSeconds,
         }, null, 2) + '\n')

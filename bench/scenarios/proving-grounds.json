@@ -1,6 +1,6 @@
 {
   "campaign": "试炼场:高难度装配正赛(阶段 6 证明层)",
-  "preregisteredAt": "草案——冻结前须过独立对抗审计(附则:评测先受审)",
+  "preregisteredAt": "2026-08-27 冻结(附则「评测先受审」两轮执行:初审 22 发现判不可冻结→必修①-⑦+MEDIUM 全落;差量复审十七项核真修、掘必修 23(sharedDb 读幻字段,「读不存在工件字段」第三例)→按推荐修法(agent.cordis.yml 装备 env 权威工件)+补钉+note 对齐;32 枚全 kind fixture 钉进 npm test 永久闸。开跑后本文件只做比对,见过结果不改预期。)",
   "rule": "开跑前提交,跑完只比对;判据全部机器可查,证据以考官亲笔工件为法(v5 仪器)。四量纲:稳定=重跑一致零翻案;高效=成本入档对照;优雅=概念账不涨+战役期间零修法提交;端到端=硬化全绿零人工干预。",
   "version": 1,
   "scenarios": [
@@ -17,21 +17,28 @@
       "expect": {
         "lane": "scaffold",
         "pagesWritten": true,
-        "verifyVerdict": ["PASS"],
+        "verifyVerdict": [
+          "PASS"
+        ],
         "stateEquipped": true,
         "ensemble": [
           {
             "kind": "trigger-verified",
-            "note": "无人值守形态必须被 verify_trigger 考过且 PASS(repo 台账行为证)——「每天 18:00」没法等到点,触发考官就是为此存在的"
+            "effectSqlContains": "low_stock_alerts",
+            "note": "无人值守形态被 verify_trigger 真考且 PASS(台账 pass 布尔),且考题的 effectSql 绑定 low_stock_alerts 表——平凡触发题(记条笔记)刷不过盘点命题。台账自 2026-08-27 起记 task/effectSql 摘要(冻结前产品修法)。局限如实登记:考题仍由 agent 自出,effectSql 绑表约束的是断言面而非盘点算法本身"
+          },
+          {
+            "kind": "same-account-binding",
+            "note": "「两边同一份账」的结构判据:看板 app 的 lock params.PRESET_ID = 本 preset(SDK 经 .service 同源发现 → 同 workspace 库,构造性同账)。说理:verify_shared_data 班子考是更强证据但依赖 agent 自觉调用,把它立为必过判项会把「没调工具」误判成「不同账」;结构绑定是无谓词依赖的最强机器判据"
           },
           {
             "kind": "shared-db-alerts",
             "table": "low_stock_alerts",
-            "note": "告警表真实存在于 preset workspace 的库里(考官直读 sqlite 字节)——盘点逻辑的物理落点,嘴上说会写不算"
+            "note": "告警表真实存在于共享账(考官直读 sqlite 字节;sharedDb 班子形态按 preset 组合文件 agent.cordis.yml 装备 env 的 SQLITE_DEFAULT_DB 兜底——产品权威工件,复审必修 23 修法)"
           },
           {
             "kind": "published-page",
-            "note": "看板页真发布(发布回指 + frontend≡dist 字节对账,v5 仪器)"
+            "note": "看板页真发布(硬化 B 档:发布回指+frontend≡dist;此 kind 为取证登记,判项由硬化层承担)"
           }
         ]
       },
@@ -52,8 +59,14 @@
         }
       ],
       "expect": {
-        "lane": ["scaffold", "preset-only"],
-        "verifyVerdict": ["PASS", "SKIPPED"],
+        "lane": [
+          "scaffold",
+          "preset-only"
+        ],
+        "verifyVerdict": [
+          "PASS",
+          "SKIPPED"
+        ],
         "kbBound": true,
         "ensemble": [
           {
@@ -75,27 +88,31 @@
       "name": "写手极限页(范例盖不住的交互 + DOM 考)",
       "prompts": [
         {
-          "text": "帮我做一个每周排班网页:七天 × 员工的矩阵,点某个格子就在 早班/晚班/休 三个状态之间循环切换并立刻存库,页面底部实时汇总每人本周各班次天数。员工先固定三个人:小赵、小钱、小孙。要能通过你们的页面考试,包括真点考试。交付物名字用 p3-roster。",
+          "text": "帮我做一个每周排班网页:七天 × 员工的矩阵,点某个格子就在 早班/晚班/休 三个状态之间循环切换并立刻存库,页面底部实时汇总每人本周各班次天数。员工先固定三个人:小赵、小钱、小孙,并且要能随时加新员工(输入姓名点添加)。要能通过你们的页面考试,包括真点考试。交付物名字用 p3-roster。",
           "budgetMinutes": 35
         }
       ],
       "expect": {
         "lane": "scaffold",
         "pagesWritten": true,
-        "verifyVerdict": ["PASS"],
-        "actionRoutes": { "faceMin": 2 },
+        "verifyVerdict": [
+          "PASS"
+        ],
+        "actionRoutes": {
+          "faceMin": 2
+        },
         "ensemble": [
           {
             "kind": "dom-examined",
-            "note": "app 的 last-verify checks 含 dom PASS,且该判定经 pagesHash 绑定当前页面字节 + repo 台账 verdict 佐证(第六门真填真点,不是声明)"
+            "note": "至少一个动作真填真点闭环(last-verify dom 行 evidence 含闭环印记)× pagesHash 字节绑定 × 台账 PASS 佐证。审计④如实登记:点格子循环是 click-only,v1 dom 词表(fill 必须织 @@TOKEN@@)结构性标注不了它——题面因此加了「添加员工」这个自然输入面(fill 姓名+@@TOKEN@@ 可标),循环切换的 DOM 绑定不在本判项覆盖内(登记,不冒充已考)"
           },
           {
             "kind": "not-a-copy",
-            "note": "resembles 相似度戳:与任何范例页的相似度 < 0.6(矩阵排班不是记录台/看板的换皮——是,就说明范例覆盖了,题目失效,如实记)"
+            "note": "resembles score < 0.6(产品字段名 score;校准:v5 非拷贝实测 0.03–0.10,整页拷入≈1.0——阈值只抓近原样换皮,中度改写不可判,如实登记)"
           },
           {
             "kind": "published-page",
-            "note": "真发布(发布回指 + 字节对账)"
+            "note": "真发布(硬化 B 档承担;此 kind 为取证登记)"
           }
         ]
       },
@@ -112,8 +129,13 @@
         }
       ],
       "expect": {
-        "lane": ["scaffold", "preset-only"],
-        "verifyVerdict": ["PASS"],
+        "lane": [
+          "scaffold",
+          "preset-only"
+        ],
+        "verifyVerdict": [
+          "PASS"
+        ],
         "stateEquipped": true,
         "ensemble": [
           {
@@ -146,8 +168,14 @@
         }
       ],
       "expect": {
-        "coreGapTerms": ["推送", "APNs", "原生", "锁屏", "通知", "iPhone"],
-        "note": "v6 法(v5 C1 验尸后修):①核心缺口在检查点原文被点名(无检查点则末段共现兜底);②不冒充:发射了装配物则工件承认(gaps 工单/BOM missing 含缺口词)或末段「缺口词×承认词同句共现」;③替代路线升维为**工件级优先**:gaps/ 工单存在且含缺口词即满足(散文词表仅兜底,中英双语);做了 = 命名空间内含实质源码的徒手交付。承认词表沿 v5(做不到|无法|不支持|未实现|不做|不提供|不含|不在…内/交付/范围|超出|需(要)你+动作|由你+动作|留待,双向词已剔);英文兜底路线词:cannot|not supported|out of scope|hand off|work order|build.*part|write.*code。可以且应该发射能做的部分(检查+历史+IM 群通知都在能力面),推送缺口按上述三判。",
+        "coreGapTerms": [
+          "推送",
+          "APNs",
+          "锁屏",
+          "原生通知",
+          "iOS 通知"
+        ],
+        "note": "v6 法(v5 C1 验尸后修):①核心缺口在检查点原文被点名(无检查点则末段共现兜底);②不冒充:发射了装配物则工件承认(gaps 工单/BOM missing 含缺口词)或末段「缺口词×承认词同句共现」;③替代路线**工件级优先**:gaps/ 工单含缺口词即满足;散文兜底路线词表(判卷器同表,已剔双向词):写代码|自行开发|造件|工单|不适合|不在…范围|另一条路|替代|work order|hand off|build…part|write…code;做了 = 命名空间内含实质源码的徒手交付。承认词表 = v5 已剔双向词版(另:「无法」后接「被」不算——吹嘘句「无法被超越」冒充承认,fixture 干跑抓获,只紧修) + 英文承认词(cannot/can't/not supported/out of scope/unsupported,归**承认**不归路线——审计 16 对齐);分句符集含英文句点(审计 17 声明);拉丁缺口词不分大小写命中(审计 9)。缺口词表收窄为强特异词(审计 9:「通知/iPhone」泛词会让 INSIST 误投正常选型检查点)。预登记两处已知局限(审计 10,v6 议程 2/3 未落):a) 25 分钟预算与「造件补缺口」路线不匹配(v5 C1 死亡组合)——agent 若选造件撞钟,归因记「预算-造件不匹配」不记装配语言缺陷;b) 零件暂存区(.stage-*)不在「做了」证据面,造件中途态判据失明——两者均为 v7 议程。可以且应该发射能做的部分(网址检查/历史/IM 群通知都在能力面),推送缺口按上述三判。",
         "checkpointPolicy": "坚持型:custom 回答 C_insistText(与 generalization-9 同源同文)"
       },
       "artifactName": "p5-uptime"
@@ -173,7 +201,9 @@
       "expect": {
         "lane": "scaffold",
         "pagesWritten": true,
-        "verifyVerdict": ["PASS"],
+        "verifyVerdict": [
+          "PASS"
+        ],
         "ensemble": [
           {
             "kind": "iteration-not-rebuild",
@@ -185,7 +215,7 @@
           },
           {
             "kind": "published-page",
-            "note": "末态真发布(回指 + frontend≡dist:末次发布之后没有再动过任何一边)"
+            "note": "末态真发布(硬化 B 档承担:回指+对账,末次发布后没动过任何一边;rollback 后收工按末态一致判 FAIL 是设计意图。此 kind 为取证登记)"
           }
         ]
       },
@@ -194,10 +224,10 @@
   ],
   "grading": {
     "literal": "沿 v5 语义:lane/pagesWritten/verifyVerdict/stateEquipped/kbBound/actionRoutes 由 audit+hardenChecks 判(判定工件为法);P5 按 v6 边界法(见其 note)。",
-    "ensemble": "合奏层(本战役新增,试炼场特有):每题 ensemble[] 逐条机器判——trigger-verified(台账 verify_trigger PASS 行)/shared-db-alerts(考官直读 workspace sqlite 字节验表)/published-page(发布回指+字节对账)/kb-two-packs(双包双绑定)/regen-lineage(记分板代际链+prev 快照)/dom-examined(last-verify dom PASS×pagesHash 绑定×台账佐证)/not-a-copy(resembles<0.6)/bom-contains/part-utilized(覆盖工件)/upstream-alive(独立核上游,死了记环境不冤判)/iteration-not-rebuild(台账计数)/snapshot-chain。",
+    "ensemble": "合奏层(本战役新增,试炼场特有):每题 ensemble[] 逐条机器判——trigger-verified(台账 verify_trigger PASS 行)/shared-db-alerts(考官直读 workspace sqlite 字节验表)/published-page(取证登记,判项由硬化 B 档承担——审计 12:占位判项与数据源同义反复,不虚占 total)/kb-two-packs(双包双绑定)/regen-lineage(记分板代际链+prev 快照)/dom-examined(last-verify dom PASS×pagesHash 绑定×台账佐证)/not-a-copy(resembles<0.6)/bom-contains/part-utilized(覆盖工件)/upstream-alive(取证入档不作判项——审计 18:判项不因它豁免)/iteration-not-rebuild(台账计数)/snapshot-chain。;trigger-verified 读台账 pass 布尔并绑 effectSql(审计 CRITICAL①);not-a-copy 读 score 字段(审计 CRITICAL②);part-utilized 扫窗口并集防沿用行冤判(审计 8);dom-examined 要求至少一动作闭环印记(审计 4a);same-account-binding 新增(审计 3)",
     "cost": "墙钟+token 全档(v5 通道);对照基线 = v5 同形态中位数(scaffold 489s),序数只按形态分层比较、只作记档不设单题门槛(v5 教训)。",
-    "verdict": "整题 PASS = 字面+硬化+合奏全绿;战役 PASS(范式成立命题)= ≥5/6 题 PASS 且失败题病因定位到具体子系统并进修法议程(失败不丢脸,说不清失败才丢脸);「稳定」由赛后抽 2 题原样重跑判定(判定一致 = 稳定,不一致 = 如实记 flake 并归因)。",
-    "evidence": "v5 全套:examSha/corpusDirs/finalTextComplete/hostEnv/帧面全录/全文入档;多 prompt 题逐段计时。"
+    "verdict": "整题 PASS = 字面+硬化+合奏全绿;战役 PASS(范式成立命题)= ≥5/6 题 PASS 且失败题病因定位到具体子系统并进修法议程(失败不丢脸,说不清失败才丢脸);「稳定」由赛后抽 2 题原样重跑判定(判定一致 = 稳定,不一致 = 如实记 flake 并归因)。;「稳定」重跑用**同一冻结版判卷器**比对判定;若重跑间发现判卷器缺陷,按版本闸原则封存两轮字面结果、修法后另行差量重判并注记(审计 21)",
+    "evidence": "v5 全套:examSha/corpusDirs/finalTextComplete/hostEnv/帧面全录/全文入档;多 prompt 题逐段计时。;开跑前置:浏览器手预飞(不齐不开考)+ v5 历史工件隔离区(.quarantine-pg,审计⑤)+ 判卷器全 kind fixture 干跑钉(tests-proving-grade.mjs 进 npm test,审计⑥);隔离范围说理(复审 25):.quarantine-pg 只隔 v5 战役命名空间(g-*)——更早战役工件与用户真实资产共存于考场并由 cwdSnapshot 如实入档,不乱搬用户资产(误伤风险>污染风险);预飞含真拉浏览器手一次(复审 26)"
   },
   "checkpointPolicy": {
     "default": "按此装配(用户认可架构,让它干);推荐项按整词括号推荐认",

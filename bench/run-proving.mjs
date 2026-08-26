@@ -3,7 +3,7 @@
 // (生命周期题/增量题的需求变更用同一会话续发)。证据链沿 v5 全套(examSha/
 // corpusDirs/finalTextComplete/hostEnv/帧面全录/全文入档),判卷走 proving-grade
 // (v5 仪器 + 合奏层)。用法:node bench/run-proving.mjs [port] [P1,P3]
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -122,38 +122,49 @@ async function runOne(scn) {
   const segments = []
   let scanned = 0
   let answered = 0
+  let turnEnds = 0
+  // 帧消化独立成函(审计⑦):段间发下一条 prompt 前先 drain 干净,已到的帧全部
+  // 记到前段账上;结束判定按 turn/end **计数**(≥已发 prompt 数),迟到帧不冒充。
+  const drain = async () => {
+    while (scanned < frames.length) {
+      const ev = frames[scanned++]
+      lastActivityRef.t = Date.now()
+      if (ev.type === '__question') { await answer(ev); answered++; console.log(`    ↳ 代答检查点(${scn.id})`) }
+      else if (ev.type === 'tool/call') {
+        const nm = String(ev.data?.name ?? '')
+        tools.push(nm)
+        toolCalls.push({ name: nm, seg: segRef.i, t: Math.round((Date.now() - t0) / 1000), args: String(ev.data?.arguments ?? '').slice(0, 200) })
+        console.log(`    · ${scn.id} 工具:${nm}(t+${Math.round((Date.now() - t0) / 1000)}s)`)
+      } else if (ev.type === 'assistant/message') {
+        const c = ev.data?.message?.content
+        const t = typeof c === 'string' ? c : Array.isArray(c) ? c.map((b) => (b?.type === 'text' ? b.text : '')).join('') : ''
+        if (t) assistantTexts.push(t)
+      } else if (ev.type === 'turn/end') { turnEnds += 1 }
+    }
+  }
+  const lastActivityRef = { t: Date.now() }
+  const segRef = { i: 0 }
   // 多段 prompt:同一会话续发;每段独立预算与独立 ended 判定(sawTurnEnd 段内重置,
   // pending 用全会话累计——续段的工具悬挂同样要等)。
   for (let pi = 0; pi < scn.prompts.length; pi++) {
     const seg = scn.prompts[pi]
+    await drain() // 审计⑦:先把上段迟到帧消化干净再发新段(此刻 segRef 仍指前段,迟到帧记前段账——复审 24)
+    segRef.i = pi + 1
     const segT0 = Date.now()
     const text = String(seg.text).replace('CORPUS_A', CORPUS_A).replace('CORPUS_B', CORPUS_B)
     await rpc('session.prompt', { sessionId, mode: 'queue', content: [{ type: 'text', text }] })
     console.log(`  ▶ ${scn.id} 段 ${pi + 1}/${scn.prompts.length}`)
     const budget = (seg.budgetMinutes ?? 25) * 60_000
-    let lastActivity = Date.now()
-    let sawTurnEnd = false
+    lastActivityRef.t = Date.now()
     let endReason = 'budget'
     while (Date.now() - segT0 < budget) {
       await new Promise((r) => setTimeout(r, 2000))
-      while (scanned < frames.length) {
-        const ev = frames[scanned++]
-        lastActivity = Date.now()
-        if (ev.type === '__question') { await answer(ev); answered++; console.log(`    ↳ 代答检查点(${scn.id})`) }
-        else if (ev.type === 'tool/call') {
-          const nm = String(ev.data?.name ?? '')
-          tools.push(nm)
-          toolCalls.push({ name: nm, seg: pi + 1, t: Math.round((Date.now() - t0) / 1000), args: String(ev.data?.arguments ?? '').slice(0, 200) })
-          console.log(`    · ${scn.id} 工具:${nm}(t+${Math.round((Date.now() - t0) / 1000)}s)`)
-        } else if (ev.type === 'assistant/message') {
-          const c = ev.data?.message?.content
-          const t = typeof c === 'string' ? c : Array.isArray(c) ? c.map((b) => (b?.type === 'text' ? b.text : '')).join('') : ''
-          if (t) assistantTexts.push(t)
-        } else if (ev.type === 'turn/end') { sawTurnEnd = true }
-      }
+      await drain()
       const pending = tools.length - frames.filter((ev) => ev.type === 'tool/result').length
-      if (sawTurnEnd && pending <= 0 && Date.now() - lastActivity > 8000) { endReason = 'ended'; break }
-      if (Date.now() - lastActivity > 6 * 60_000) { endReason = pending > 0 ? 'stalled-pending' : 'stalled'; console.log(`    !! ${scn.id} 段 ${pi + 1} 停滞保释(${endReason})`); break }
+      // 结束按计数:本段结束 = 全会话 turn/end 数 ≥ 已发 prompt 数(迟到的上段
+      // turn/end 只能把计数补到 pi,冒充不了 pi+1)。
+      if (turnEnds >= pi + 1 && pending <= 0 && Date.now() - lastActivityRef.t > 8000) { endReason = 'ended'; break }
+      if (Date.now() - lastActivityRef.t > 6 * 60_000) { endReason = pending > 0 ? 'stalled-pending' : 'stalled'; console.log(`    !! ${scn.id} 段 ${pi + 1} 停滞保释(${endReason})`); break }
     }
     segments.push({ i: pi + 1, elapsedSeconds: Math.round((Date.now() - segT0) / 1000), endReason })
     if (endReason !== 'ended' && pi < scn.prompts.length - 1) {
@@ -169,6 +180,52 @@ async function runOne(scn) {
     elapsedSeconds: Math.round((Date.now() - t0) / 1000), usage: tokenUsage, usageCollected: tokenUsage !== null,
   }
 }
+
+// 预飞(审计⑭):DOM 门要浏览器手——零件依赖或 chromium 缺席会让 P1/P3/P6 整排
+// verify 变 SKIPPED 连锁冤判。环境不齐不开考,报修法后退出。
+const preflight = {
+  browserPart: existsSync(join(REPO, 'generated', 'browser-automate', 'node_modules')),
+  chromiumCache: existsSync(join(homedir(), 'Library', 'Caches', 'ms-playwright')),
+  browserHandLive: false,
+}
+if (!preflight.browserPart || !preflight.chromiumCache) {
+  console.error(`预飞失败:browser-automate 依赖 ${preflight.browserPart ? '✓' : '✗'} / chromium 缓存 ${preflight.chromiumCache ? '✓' : '✗'}——修法:cd generated/browser-automate && npm install && npx playwright install chromium。环境不齐不开考。`)
+  process.exit(1)
+}
+// 复审 26:目录在 ≠ 浏览器拉得起(版本错配同样考场塌)。真拉一次浏览器手(约 3s)。
+try {
+  const { openBrowserHand } = await import('../lib/scaffold-dom.js')
+  const hand = await openBrowserHand(REPO)
+  await hand.close()
+  preflight.browserHandLive = true
+  console.log('预飞:浏览器手真拉一次 ✓')
+} catch (error) {
+  console.error(`预飞失败:浏览器手拉不起(${String(error?.message ?? error).slice(0, 160)})——修法同上。环境不齐不开考。`)
+  process.exit(1)
+}
+
+// 考场隔离(审计⑤):v5 历史成品(g-b1-stock-ui 与 P1 同题材等)是"上届答案可见"
+// 的污染面,proving 清场的 p*- 前缀够不到——搬进隔离区(不删:历史工件仍是档案)。
+const quarantined = []
+const qa = join(homedir(), 'apps', '.quarantine-pg')
+const qp = join(homedir(), '.dsh', '.agent-presets', '.quarantine-pg')
+mkdirSync(qa, { recursive: true })
+mkdirSync(qp, { recursive: true })
+try {
+  for (const e of readdirSync(join(homedir(), 'apps'), { withFileTypes: true })) {
+    if (e.isDirectory() && /^(g-|\.stage-g)/.test(e.name)) {
+      try { renameSync(join(homedir(), 'apps', e.name), join(qa, e.name)); quarantined.push(`app:${e.name}`) } catch { /* 已隔离 */ }
+    }
+  }
+} catch { /* 无 apps 目录 */ }
+try {
+  for (const e of readdirSync(join(homedir(), '.dsh', '.agent-presets'), { withFileTypes: true })) {
+    if (e.isDirectory() && /^g-/.test(e.name)) {
+      try { renameSync(join(homedir(), '.dsh', '.agent-presets', e.name), join(qp, e.name)); quarantined.push(`preset:${e.name}`) } catch { /* 已隔离 */ }
+    }
+  }
+} catch { /* 无 preset 根 */ }
+console.log(quarantined.length > 0 ? `考场隔离:${quarantined.length} 项历史工件移入 .quarantine-pg` : '考场隔离:无待隔离历史工件')
 
 // 清场:命名空间前缀 + 语料回收(p*-;.pg-corpus 不在 ~/apps)
 const todo = SPEC.scenarios.filter((s) => ONLY.length === 0 || ONLY.includes(s.id))
@@ -217,6 +274,6 @@ const hostEnv = (() => {
   try { for (const f of readdirSync(dir).filter((x) => x.endsWith('.yml'))) profileShas[f] = createHash('sha256').update(readFileSync(join(dir, f))).digest('hex') } catch { /* 取证尽力 */ }
   return { port: PORT, profileShas }
 })()
-writeFileSync(join(OUT_DIR, 'summary.json'), JSON.stringify({ ranAt: new Date().toISOString(), examVersion: SPEC.version, examSha: EXAM_SHA, corpusDirs: [CORPUS_A, CORPUS_B], hostEnv, wiped, results }, null, 2))
+writeFileSync(join(OUT_DIR, 'summary.json'), JSON.stringify({ ranAt: new Date().toISOString(), examVersion: SPEC.version, examSha: EXAM_SHA, corpusDirs: [CORPUS_A, CORPUS_B], hostEnv, preflight, quarantined, wiped, results }, null, 2))
 console.log(`结果落盘:${OUT_DIR.replace(REPO + '/', '')}`)
 process.exit(0)
