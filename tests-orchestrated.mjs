@@ -214,6 +214,15 @@ if (savedBare === undefined) delete process.env.DSH_ASSEMBLER_BARE
 else process.env.DSH_ASSEMBLER_BARE = savedBare
 check('BARE:默认关、=1 开', bareMode() === false)
 check('到期制:每条导出散文常量都登记了适用模型代', ['FRONTEND_FACT', 'SCAFFOLD_BATON', 'PROBE_SKETCH_EXAMPLES', 'ASSEMBLY_BATON'].every((k) => typeof CONTRACT_TAGS[k] === 'string' && CONTRACT_TAGS[k] !== '') && CONTRACT_GENERATION === 'deepseek-v4')
+{
+  // 到期哨(阶段 2 收尾):登记代此前没人对表真实 host 模型——换代靠人记得。
+  // 钉抽取器行为;哨本体挂 search_catalog 入口,喝 CONTRACT_GENERATION 原泉。
+  const { proseGenerationOf } = await import('./lib/orchestrated-tools.js')
+  check('到期哨:代际抽取(flash 变体归代)', proseGenerationOf('deepseek-v4-flash') === 'deepseek-v4')
+  check('到期哨:换代可辨(v5 ≠ 登记代)', proseGenerationOf('deepseek-v5-pro') === 'deepseek-v5' && proseGenerationOf('deepseek-v5-pro') !== CONTRACT_GENERATION)
+  check('到期哨:登记代自身是规范形(抽取幂等)', proseGenerationOf(CONTRACT_GENERATION) === CONTRACT_GENERATION)
+  check('到期哨:认不出的 id 原样返回不硬猜', proseGenerationOf('mystery-model') === 'mystery-model')
+}
 
 const planScn = { kind: 'scenario', scenario: { goal: 'g', turns: [{ prompt: '记 T-9 打车 30 元', mustInclude: ['T-9'] }, { prompt: '查 T-9 报分类', mustInclude: ['打车'] }] } }
 const sk = planToSketch(planScn)

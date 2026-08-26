@@ -95,6 +95,32 @@ export const CONTRACT_TAGS: Record<string, string> = {
 /** 前端物理事实:多装模板不是权衡,是死件。 */
 export const FRONTEND_FACT = '每 preset 仅首个 frontend 模板生效——选恰好一个交互形状。'
 
+/** 模型 id → 代际前缀('deepseek-v4-flash' → 'deepseek-v4';认不出则原样返回)。 */
+export const proseGenerationOf = (model: string): string =>
+  /^[a-z0-9]+-v?\d+(?:\.\d+)?/.exec(model.toLowerCase())?.[0] ?? model.toLowerCase()
+
+let proseGateFired = false
+/**
+ * 散文到期哨(阶段 2「BARE 消融挂代际」的自动触发环——到期制登记在
+ * CONTRACT_GENERATION,此前没有任何代码把它和真实 host 模型对表,换代靠人记得):
+ * 每进程一次,host 主模型代 ≠ CONTRACT_GENERATION → 出声(console + 台账),不拦。
+ * 重审法:DSH_ASSEMBLER_BARE=1 对照跑一轮泛化战役,按消融差重裁散文去留,
+ * 然后更新 CONTRACT_GENERATION/CONTRACT_TAGS(带新战役证据)。
+ */
+function maybeWarnProseGeneration(ctx: Context): void {
+  if (proseGateFired) return
+  proseGateFired = true
+  try {
+    const sel = (ctx.get?.('agentDefaultModel') as { currentSelection?: () => { model?: string } | undefined } | undefined)?.currentSelection?.()
+    const model = sel?.model
+    if (typeof model !== 'string' || model === '') return // 观察不到就不假装观察到
+    const actual = proseGenerationOf(model)
+    if (actual === CONTRACT_GENERATION) return
+    console.error(`[assembler] 散文到期哨:host 主模型 ${model}(代 ${actual})≠ 散文契约登记代 ${CONTRACT_GENERATION}——承重散文全部到期,可能失效或变冗余。重审法:DSH_ASSEMBLER_BARE=1 对照跑一轮泛化战役,按消融差重裁散文并更新 CONTRACT_GENERATION。`)
+    appendOrchLedger({ tool: 'prose-generation-gate', calibrated: CONTRACT_GENERATION, actual, model })
+  } catch { /* 哨是取证不是闸,失败不拦装配 */ }
+}
+
 /**
  * 装配流接力棒(泛化战役 v4 首轮取证后加,2026-08-26):契约散文从工具描述削掉
  * (16fadf1,每轮省 3174 token)是对的——但入口路由与流程契约随税一起死了,
@@ -1118,7 +1144,7 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
 
 // ── search_catalog(纯机械检索)──────────────────────────────────────────────
 
-export function searchCatalogToolDefinition(_ctx: Context, config: Config): ToolDefinition {
+export function searchCatalogToolDefinition(ctx: Context, config: Config): ToolDefinition {
   return defineTool({
     name: SEARCH_TOOL_NAME,
     description:
@@ -1138,6 +1164,7 @@ export function searchCatalogToolDefinition(_ctx: Context, config: Config): Tool
       const a = args as { query?: unknown; limit?: unknown } | null
       const query = String(a?.query ?? '').trim()
       if (query === '') throw new Error('search_catalog needs {"query": "..."}')
+      maybeWarnProseGeneration(ctx)
       const limit = typeof a?.limit === 'number' && a.limit >= 1 && a.limit <= 30 ? Math.floor(a.limit) : 10
       const catalog = await federateMcpTools(loadCatalog(config.catalogPath ?? join(REPO, 'capabilities.yml')))
       const hits = rankCapabilities(catalog.capabilities, query, limit)
