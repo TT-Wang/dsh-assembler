@@ -844,6 +844,10 @@ export interface VerifyLedger {
   verifiedAt: string
   /** 一行摘要(场景 goal 或探针任务),给读台账的人看这份证据证明了什么。 */
   summary?: string
+  /** 阶段 3 覆盖:本次判定跑了几条探针路径(旧档缺席 = 单路径代)。 */
+  paths?: number
+  /** 阶段 3 覆盖:动用率并集(旧档缺席时沿用行如实说"旧代未记覆盖")。 */
+  utilization?: { mounted: number; used: number }
 }
 
 export const VERIFY_LEDGER_FILE = 'last-verify.json'

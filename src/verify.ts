@@ -130,6 +130,35 @@ function aggregateToolCalls(frames: readonly any[]): Array<{ name: string; calls
 export const PROBE_TURN_BUDGET_MS = 240_000;
 
 /**
+ * 验收覆盖(阶段 3):一次验收最多几条探针路径(1 主 + ≤3 覆盖)。覆盖路径每题
+ * 打包 2-4 件相邻零件 → 上限可覆盖 ~12 件工具零件,恰在"工具过多致准确率下滑
+ * 阈值 10-15 件"的现实 preset 尺寸内。要调改常量,不进 Config——调用方不该多
+ * 一个概念(AUX_CALL_TIMEOUT_MS 先例)。
+ */
+export const VERIFY_MAX_PATHS = 4;
+
+/**
+ * 非主路径软预算:verify 已耗墙钟超过它就不再开下一条路径(草图的与推导的一视
+ * 同仁),逐件出声"未考(预算截断)"。只管"开不开下一条",绝不中断进行中的轮
+ * (不替用户砍)。主路径永远跑。
+ */
+export const VERIFY_EXTRA_PATH_SOFT_BUDGET_MS = 480_000;
+
+/**
+ * 多路径动用并集:各路径 toolsUsed 按工具名合并求和(排序稳定)。全部输入
+ * undefined(如全路径 ERRORED 无轨迹)时如实返回 undefined,不假装有证据。
+ */
+export function mergeToolsUsed(
+  lists: Array<Array<{ name: string; calls: number }> | undefined>,
+): Array<{ name: string; calls: number }> | undefined {
+  const real = lists.filter((l): l is Array<{ name: string; calls: number }> => l !== undefined);
+  if (real.length === 0) return undefined;
+  const sum = new Map<string, number>();
+  for (const l of real) for (const u of l) sum.set(u.name, (sum.get(u.name) ?? 0) + u.calls);
+  return [...sum.entries()].map(([name, calls]) => ({ name, calls })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
  * Deadline for one probe wire RPC (session.create, session.prompt).
  *
  * These are supposed to return in milliseconds: session.prompt uses mode:queue,
@@ -200,7 +229,8 @@ export const PROBE_SKETCH_EXAMPLES =
   + '— output goes to a file, so marks are the filename and a computed count, never the body text. '
   + 'LARGE FIXTURES (a real epub/csv/image): NEVER paste the payload (base64 etc.) into the task — no LLM copies 2KB of base64 byte-exactly '
   + '(measured: transcription corrupts past ~1.2K chars and burns retries). Write the fixture INTO the preset workspace as a file first, '
-  + 'then reference its relative path in the task (e.g. "解析工作区 uploads/sample.epub,报出书名与第二章标题").';
+  + 'then reference its relative path in the task (e.g. "解析工作区 uploads/sample.epub,报出书名与第二章标题"). '
+  + 'COVERAGE PATHS: verify_preset also takes {"probes": [<same shapes>]} — path [0] is the main workflow; each probes[] entry exercises parts the main path never touches (bundle 2-4 related parts per path, ≤4 paths total). Skip it and the examiner auto-derives coverage probes after the main path passes.';
 
 /**
  * 大载荷机械闸:探针任务里出现 ≥200 连续 base64 形字符 = 有人在往指令里塞
@@ -395,6 +425,59 @@ export async function deriveProbe(
     throw new Error(`probe deriver 的验收标记全被消毒剔除(原标记:${parsed.mustInclude.map(String).join(", ").slice(0, 80)})——重调 verify_preset 并附上你自己的探针草图可绕过整段推导(出题范例见 emit_preset 结果)`);
   }
   return { task: parsed.task, mustInclude: marks };
+}
+
+/**
+ * 覆盖补推导的解析纯件:{"probes":[{task,mustInclude}...]} → 消毒后的 ProbeSpec[]。
+ * 脏题(缺字段/标记全被消毒)逐题丢弃(调用方出声),超 cap 截断;整体不炸。
+ */
+export function parseCoverageProbes(parsed: Record<string, unknown>, maxProbes: number): ProbeSpec[] {
+  const raw = Array.isArray(parsed.probes) ? parsed.probes : [];
+  const out: ProbeSpec[] = [];
+  for (const item of raw) {
+    if (out.length >= maxProbes) break;
+    const o = item as Record<string, unknown> | null;
+    if (o === null || typeof o.task !== "string" || o.task.trim() === "" || !Array.isArray(o.mustInclude)) continue;
+    const marks = sanitizeMarks(o.mustInclude);
+    if (marks.length === 0) continue;
+    out.push({ task: o.task, mustInclude: marks });
+  }
+  return out;
+}
+
+/**
+ * 覆盖补推导(阶段 3):考完已排路径后,按**经验未覆盖清单**一次批量出题——
+ * 覆盖是轨迹事实不是申报事实(草图不设 covers 字段:申报会把闸变成可刷的靶子,
+ * 第六条不认"它说它考了")。恒一次 aux 调用,不是每件一次(成本上限第一道)。
+ * 每题强制单轮、打包 2-4 件相邻零件;整体解析失败由调用方接 throw 并出声取消,
+ * 不影响已成立的主路径判定。
+ */
+export async function deriveCoverageProbes(
+  ctx: Context,
+  requirement: string,
+  uncovered: CapabilityEntry[],
+  maxProbes: number,
+  llm: AuxLlm,
+  onUsage?: (u: AuxUsage) => void,
+): Promise<ProbeSpec[]> {
+  if (uncovered.length === 0 || maxProbes <= 0) return [];
+  const tools = uncovered.map((c) => `- ${c.tool ?? c.id}: ${c.description.slice(0, 120)}`).join("\n");
+  // 段序即缓存工程(§09):静态规则前置,requirement/清单沉尾。
+  const prompt = [
+    "You design COVERAGE smoke probes for an already-verified agent: its MAIN workflow passed, but the tools listed at the END were never touched by any probe. Write probes that exercise them.",
+    "",
+    "Rules:",
+    `- Respond with JSON only: {"probes": [{"task": "...", "mustInclude": ["..."]}, ...]} — at most ${String(maxProbes)} probes.`,
+    "- Each task: ONE turn (< 2 minutes), self-sufficient, in the requirement's language; bundle 2-4 RELATED listed tools into one task when natural (fewer probes beat more).",
+    "- Only exercise the listed tools; do not re-test the main workflow.",
+    ...MARK_RULES,
+    "",
+    `The agent was assembled for this requirement: ${requirement}`,
+    "Never-touched tools:",
+    tools,
+  ].join("\n");
+  const parsed = await callDeriver(ctx, prompt, llm, onUsage);
+  return parseCoverageProbes(parsed, maxProbes);
 }
 
 /** What the deriver decided to run: one turn, or a multi-turn scenario. */

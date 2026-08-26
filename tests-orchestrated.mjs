@@ -229,8 +229,39 @@ const sk = planToSketch(planScn)
 check('自检包:2 轮场景计划可还原成草图(token=轮1标记)', sk?.kind === 'scenario' && sk?.token === 'T-9' && sk?.createTask === '记 T-9 打车 30 元')
 check('自检包:单轮计划还原', planToSketch({ kind: 'single', probe: { task: '算 1+1', mustInclude: ['2'] } })?.kind === 'single')
 check('自检包:3+ 轮场景如实返回 null(rerun 走重推导)', planToSketch({ kind: 'scenario', scenario: { goal: 'g', turns: [{ prompt: 'a', mustInclude: ['x'] }, { prompt: 'b', mustInclude: ['y'] }, { prompt: 'c', mustInclude: ['z'] }] } }) === null)
-const scJson = JSON.parse(renderSelfCheck({ presetId: 'p1', presetSha256: 'abc', plan: planScn, verifiedAt: '2026-08-23T00:00:00Z' }))
-check('自检包:渲染带版本/代际/rerun 参数(reverify+probe)', scJson.version === 1 && scJson.generation === CONTRACT_GENERATION && scJson.rerun.args.reverify === true && scJson.rerun.args.probe.token === 'T-9')
+// 钉迁移(阶段 3 覆盖,v1→v2):plans 数组 + rerun.probes;3 轮场景不可草图化,
+// 不进 rerun 但在 plans,note 点名——不撒谎补草图。
+const planSingle = { kind: 'single', probe: { task: '算 1+1', mustInclude: ['2'] } }
+const plan3turn = { kind: 'scenario', scenario: { goal: 'g3', turns: [{ prompt: 'a', mustInclude: ['x'] }, { prompt: 'b', mustInclude: ['y'] }, { prompt: 'c', mustInclude: ['z'] }] } }
+const scJson = JSON.parse(renderSelfCheck({ presetId: 'p1', presetSha256: 'abc', plans: [planScn, planSingle, plan3turn], verifiedAt: '2026-08-23T00:00:00Z' }))
+check('自检包 v2:版本/代际/plans 全量', scJson.version === 2 && scJson.generation === CONTRACT_GENERATION && scJson.plans.length === 3)
+check('自检包 v2:rerun 只带可草图化路径(probes[0].token 还原,3 轮场景剔除)', scJson.rerun.args.reverify === true && scJson.rerun.args.probes.length === 2 && scJson.rerun.args.probes[0].token === 'T-9' && scJson.note.includes('1 条路径不可草图化'))
+
+// ── 阶段 3:验收覆盖(多路径)纯件 ───────────────────────────────────────────
+{
+  const { normalizeProbeSketchList, partsUtilization } = await import('./lib/orchestrated-tools.js')
+  const skA = { kind: 'single', task: 't1', marks: ['m'] }
+  const skB = { kind: 'single', task: 't2', marks: ['n'] }
+  check('草图清单:probe 在前为主路径', (() => { const l = normalizeProbeSketchList(skA, [skB]); return l.length === 2 && l[0].task === 't1' && l[1].task === 't2' })())
+  check('草图清单:仅 probes 也成清单;垃圾元素剔除', (() => { const l = normalizeProbeSketchList(undefined, [skB, 42, null]); return l.length === 1 && l[0].task === 't2' })())
+  const lockP = [
+    { capability: 'mcp-a-x', tool: 'mcp__a__x', server: 'a', serverName: 'a-gen7' },
+    { capability: 'host-y', tool: 'host_y', plane: 'host' },
+    { capability: 'pkg-z', tool: 'pkg_z' },
+    { capability: 'kb-doc' },
+  ]
+  check('覆盖=动用率一份实现:serverName 代际改写命中', (() => { const u = partsUtilization(lockP, new Set(['mcp__a-gen7__x'])); return u !== null && u.usedCount === 1 && u.unused.includes('host-y') && u.unused.includes('pkg-z') })())
+  check('覆盖:host 平面/包工具用原名;无 tool 行不进分母', (() => { const u = partsUtilization(lockP, new Set(['host_y', 'pkg_z'])); return u !== null && u.mounted === 3 && u.usedCount === 2 && !u.unused.includes('kb-doc') })())
+  check('覆盖:无轨迹如实 null(不假装有证据)', partsUtilization(lockP, undefined) === null)
+  const { mergeToolsUsed, parseCoverageProbes } = await import('./lib/verify.js')
+  check('并集:同名求和、排序稳定', (() => { const m = mergeToolsUsed([[{ name: 'b', calls: 1 }], [{ name: 'a', calls: 2 }, { name: 'b', calls: 3 }]]); return m.length === 2 && m[0].name === 'a' && m[1].calls === 4 })())
+  check('并集:全 undefined 如实 undefined', mergeToolsUsed([undefined, undefined]) === undefined)
+  check('补考解析:合格题过、脏题剔、超 cap 截断', (() => {
+    const out = parseCoverageProbes({ probes: [{ task: 'q1', mustInclude: ['K-11'] }, { task: '', mustInclude: ['xx'] }, { task: 'q2', mustInclude: [] }, { task: 'q3', mustInclude: ['K-33'] }, { task: 'q4', mustInclude: ['K-44'] }] }, 2)
+    return out.length === 2 && out[0].task === 'q1' && out[1].task === 'q3'
+  })())
+  check('补考解析:整体畸形回空不炸', parseCoverageProbes({}, 3).length === 0)
+}
 
 // ── P2:registry 联邦适配器(纯件)────────────────────────────────────────────
 const { validateRegistryItem, fileTargetOf } = await import('./scripts/registry-add.mjs')

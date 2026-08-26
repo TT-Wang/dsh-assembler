@@ -36,7 +36,8 @@ import {
   type CapabilityEntry, type Catalog, type Config, type MissingDraft,
 } from './index.js'
 import {
-  AUX_CALL_TIMEOUT_MS, PROBE_SKETCH_EXAMPLES, PROBE_TURN_BUDGET_MS, addUsage, deriveProbePlan, parseModelJson,
+  AUX_CALL_TIMEOUT_MS, PROBE_SKETCH_EXAMPLES, PROBE_TURN_BUDGET_MS, VERIFY_EXTRA_PATH_SOFT_BUDGET_MS, VERIFY_MAX_PATHS,
+  addUsage, deriveCoverageProbes, deriveProbePlan, mergeToolsUsed, parseModelJson,
   probePayloadViolation, runFrontendGate, runProbe, runScenario, sanitizeMarks, usageDetail,
   type AuxUsage, type ProbePlan, type ProbeResult,
 } from './verify.js'
@@ -528,6 +529,52 @@ export function normalizeProbeSketch(raw: unknown): { kind: 'scenario' | 'single
   }
 }
 
+/** 草图清单归一(阶段 3 覆盖):probe 在前为主路径,probes[] 依次为覆盖路径。 */
+export function normalizeProbeSketchList(probe: unknown, probes: unknown): Array<NonNullable<ReturnType<typeof normalizeProbeSketch>>> {
+  const out: Array<NonNullable<ReturnType<typeof normalizeProbeSketch>>> = []
+  const main = normalizeProbeSketch(probe)
+  if (main !== null) out.push(main)
+  if (Array.isArray(probes)) {
+    for (const item of probes) {
+      const sk = normalizeProbeSketch(item)
+      if (sk !== null) out.push(sk)
+    }
+  }
+  return out
+}
+
+/**
+ * 动用率/验收覆盖(一份实现):一个工具零件"被动用" = 探针轨迹里出现了它的
+ * 运行时工具名。自装 mcp 行的运行时名带代际后缀(mcp__<serverName>__<tool>),
+ * host 平面与 package 工具用目录名原样。单路径时代吃一个会话的 toolsUsed;
+ * 多路径时代吃 mergeToolsUsed 并集——同一个函数,不开第二个概念。
+ * 语义边界:探针只走主流程与补考题,未动用≠无用。
+ */
+export function partsUtilization(
+  lockParts: Array<{ capability: string; tool?: string; server?: string; serverName?: string; plane?: string }>,
+  usedNames: Set<string> | undefined,
+): { mounted: number; usedCount: number; unused: string[] } | null {
+  if (usedNames === undefined) return null
+  const toolParts = lockParts.filter((p) => p.tool !== undefined)
+  if (toolParts.length === 0) return null
+  const unused: string[] = []
+  let usedCount = 0
+  for (const p of toolParts) {
+    const t = p.tool ?? ''
+    const candidates = new Set<string>([t])
+    // mcp__<server>__<tool> 按双下划线切段(server/tool 内的连字符与单下划线不受影响);
+    // 自装行的运行时名把 server 换成本代际 serverName。
+    const seg = t.split('__')
+    if (seg.length >= 3 && seg[0] === 'mcp' && p.serverName !== undefined) {
+      candidates.add(`mcp__${p.serverName}__${seg.slice(2).join('__')}`)
+    }
+    const hit = [...candidates].some((c) => usedNames.has(c))
+    if (hit) usedCount++
+    else unused.push(p.capability)
+  }
+  return { mounted: toolParts.length, usedCount, unused }
+}
+
 // ── 自检包(P0:验证双轨的自验证半边)────────────────────────────────────────
 // Bun 重写的教训:模型长跑的前提是手里有自己的测试套件。考官的探针从"一次性
 // 考卷"升级为交付物随行的体检包:PASS 时把探针计划落进 preset(selfcheck.json),
@@ -545,17 +592,21 @@ export function planToSketch(plan: ProbePlan): Record<string, unknown> | null {
 }
 
 /** 体检包渲染(纯函数,单测覆盖)。 */
-export function renderSelfCheck(opts: { presetId: string; presetSha256: string; plan: ProbePlan; verifiedAt: string }): string {
-  const sketch = planToSketch(opts.plan)
+export function renderSelfCheck(opts: { presetId: string; presetSha256: string; plans: ProbePlan[]; verifiedAt: string }): string {
+  // v2(阶段 3 覆盖):plans 数组,可草图化的路径进 rerun.probes;3+ 轮场景照旧
+  // planToSketch=null(语义不动),从 rerun 剔除并在 note 点名——不撒谎补草图。
+  const sketches = opts.plans.map((pl) => planToSketch(pl))
+  const probes = sketches.filter((x) => x !== null)
+  const unsketchable = sketches.length - probes.length
   return JSON.stringify({
-    version: 1,
+    version: 2,
     presetId: opts.presetId,
     presetSha256: opts.presetSha256,
     verifiedAt: opts.verifiedAt,
     generation: CONTRACT_GENERATION,
-    plan: opts.plan,
-    rerun: { tool: VERIFY_TOOL_NAME, args: { presetId: opts.presetId, reverify: true, ...(sketch !== null ? { probe: sketch } : {}) } },
-    note: '交付物随行体检包:改 persona/升零件后重跑同卷自检;独立验收台账(last-verify.json)仍以考官为准。',
+    plans: opts.plans,
+    rerun: { tool: VERIFY_TOOL_NAME, args: { presetId: opts.presetId, reverify: true, ...(probes.length > 0 ? { probes } : {}) } },
+    note: `交付物随行体检包:改 persona/升零件后重跑同卷自检;独立验收台账(last-verify.json)仍以考官为准。${unsketchable > 0 ? `${String(unsketchable)} 条路径不可草图化(3+ 轮场景),重验时由考官重推导。` : ''}`,
   }, null, 2) + '\n'
 }
 
@@ -855,7 +906,7 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
         + prose([
           '',
           '【接力棒】',
-          `- 发射完成 ≠ 可用。立即调 verify_preset {"presetId": "${id}"} 独立验收,并附上你按主工作流设计的探针草图(草图过机械闸 = 验收推导 0s;不给则考官满档自行推导,贵且慢)。`,
+          `- 发射完成 ≠ 可用。立即调 verify_preset {"presetId": "${id}"} 独立验收,并附上你按主工作流设计的探针草图(草图过机械闸 = 验收推导 0s;不给则考官满档自行推导,贵且慢)。主工作流之外的能力各配一路覆盖草图经 probes 数组递交(一路打包 2-4 件,共 ≤4 路;不给则考官考完主路自动补考未覆盖件)。`,
           `- 出题范例(照这个形状写):${PROBE_SKETCH_EXAMPLES}`,
           '- 红线:绝不手改 preset 目录下的任何文件(host 按字节代际挂载,手改必撞名);要改选型/persona/schema,一律重调 emit_preset 同名重发。',
         ].join('\n'))
@@ -886,6 +937,11 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
           marks: { type: 'array', items: { type: 'string' }, description: '1-3 content-bearing acceptance strings that appear in the reply IFF it truly worked' },
         },
       },
+      probes: {
+        type: 'array',
+        description: 'coverage probe sketches, same shape as probe (path [0] = probe = main workflow; each probes[] entry exercises capabilities the main path does not touch — bundle 2-4 related parts per path, ≤4 paths total). Omit to let the examiner auto-derive coverage probes for never-touched parts after the main path passes.',
+        items: { type: 'object', additionalProperties: true },
+      },
       reverify: { type: 'boolean', description: 'force a fresh probe even when the ledger would carry a same-bytes PASS' },
     },
     output: {
@@ -893,7 +949,7 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
       render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
     },
     execute: async (args: unknown): Promise<string> => {
-      const a = args as { presetId?: unknown; probe?: unknown; reverify?: unknown } | null
+      const a = args as { presetId?: unknown; probe?: unknown; probes?: unknown; reverify?: unknown } | null
       const id = sanitizePresetName(typeof a?.presetId === 'string' ? a.presetId : '')
       if (id === '') throw new Error('verify_preset needs {"presetId": "<emitted preset id>"}')
       const presetRoot = presetRootOf(config)
@@ -933,31 +989,7 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
         // "正常无案卷"。出声;真缺席(文件不存在)仍按正常退化走。
         if (existsSync(join(dir, 'parts.lock.yml'))) phase('⚠ parts.lock.yml 读取失败(损坏?)——案卷缺席:动用率与需求文本退化;建议同名重发补 lock')
       }
-      // 动用率映射:一个工具零件"被动用" = 探针会话里出现了它的运行时工具名。
-      // 自装 mcp 行的运行时名带代际后缀(mcp__<serverName>__<tool>),host 平面
-      // 与 package 工具用目录名原样。语义边界:探针只走主流程,未动用≠无用。
-      const utilization = (used: Array<{ name: string; calls: number }> | undefined): { mounted: number; usedCount: number; unused: string[] } | null => {
-        if (used === undefined) return null
-        const usedNames = new Set(used.map((u) => u.name))
-        const toolParts = lockParts.filter((p) => p.tool !== undefined)
-        if (toolParts.length === 0) return null
-        const unused: string[] = []
-        let usedCount = 0
-        for (const p of toolParts) {
-          const t = p.tool ?? ''
-          const candidates = new Set<string>([t])
-          // mcp__<server>__<tool> 按双下划线切段(server/tool 内的连字符与单下划线不受影响);
-          // 自装行的运行时名把 server 换成本代际 serverName。
-          const seg = t.split('__')
-          if (seg.length >= 3 && seg[0] === 'mcp' && p.serverName !== undefined) {
-            candidates.add(`mcp__${p.serverName}__${seg.slice(2).join('__')}`)
-          }
-          const hit = [...candidates].some((c) => usedNames.has(c))
-          if (hit) usedCount++
-          else unused.push(p.capability)
-        }
-        return { mounted: toolParts.length, usedCount, unused }
-      }
+      // (动用率映射已提升为顶层 partsUtilization——覆盖与动用率一份实现。)
       const presetText = readFileSync(presetPath, 'utf8')
       const sha = presetSha(presetText)
       const contractPass = prose([
@@ -974,9 +1006,10 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
       ].join('\n'))
       try {
         // 增量验收:同字节 + 台账 PASS + 未过期 ⇒ 沿用(明说,绝不冒充新跑)。
+        const priorLedger = loadVerifyLedger(dir)
         const carry = a?.reverify === true
           ? { carry: false, why: 'reverify 强制重验' }
-          : carryDecision(loadVerifyLedger(dir), sha, Date.now(), config.verifyCarryTtlMs ?? VERIFY_CARRY_TTL_MS)
+          : carryDecision(priorLedger, sha, Date.now(), config.verifyCarryTtlMs ?? VERIFY_CARRY_TTL_MS)
         // 记分板对**每种**判定出口都记一行(审计实证:SKIPPED 只进 repo 台账不进
         // 记分板,硬化判卷差点把在预期内的 SKIPPED 冤判成"考官从未真判")。
         const scoreboard = (verdict: string, note?: string): void => {
@@ -992,7 +1025,10 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
           phase(`验收沿用:${carry.why}`)
           scoreboard('PASS', `沿用:${carry.why}`)
           settleAndLedger({ status: 'PASS', carried: true }, 'completed', 'PASS(沿用)')
-          return `验收 PASS(沿用)——${carry.why}。同字节不重探;强制重验传 {"reverify": true}。${contractPass}`
+          const carryCov = priorLedger?.utilization !== undefined
+            ? `;当时覆盖 ${String(priorLedger.utilization.used)}/${String(priorLedger.utilization.mounted)}`
+            : '(旧代台账未记覆盖)'
+          return `验收 PASS(沿用)——${carry.why}${carryCov}。同字节不重探;强制重验传 {"reverify": true}。${contractPass}`
         }
         const port = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
         if (port === undefined) {
@@ -1015,54 +1051,132 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
           settleAndLedger({ status: 'SKIPPED', reason: `待配置凭证:${names}` }, 'completed', 'SKIPPED(凭证)')
           return `验收跳过:待配置凭证 ${names}——装配正确但无法实调外部服务;把凭证配到 host 环境变量后重验即可。探针不对未配服务打假拳。${contractPass}`
         }
-        // 探针计划:编排者草图优先(过机械闸),不合格/没给 → 考官自己推导。
-        let plan: ProbePlan | null = null
-        let sketchNote = ''
-        const sketch = normalizeProbeSketch(a?.probe)
+        // 探针计划(阶段 3 覆盖版):编排者草图优先(过机械闸),不合格/没给 →
+        // 考官推导主路径;主路径之外按 parts.lock 的**经验**未覆盖清单补考——
+        // 覆盖是轨迹事实不是申报事实(不设 covers 申报字段:申报会把闸变成可刷
+        // 的靶子,第六条不认"它说它考了")。
+        const sketchInputs = normalizeProbeSketchList(a?.probe, a?.probes)
         // 大载荷硬闸:任务里塞文件本体(≥200 连续 base64 形字符)直接报错并教
         // 夹具模式——LLM 逐字节复制 2KB base64 必抄坏(读书助手 e2e 实测 40 分钟
         // 三轮笔误),这不是质量问题是物理问题,回退推导也救不了它。
-        if (sketch !== null && probePayloadViolation([sketch.createTask, sketch.retrieveTask, sketch.task])) {
-          throw new Error(
-            'verify_preset: 探针任务里内嵌了大载荷(≥200 连续 base64 形字符)——LLM 无法逐字节复制这种长度,必抄坏。'
-            + '改用夹具模式:先把文件写进 preset 的 workspace(如 workspace/uploads/sample.epub),探针任务按相对路径引用它。',
-          )
+        for (const sk of sketchInputs) {
+          if (probePayloadViolation([sk.createTask, sk.retrieveTask, sk.task])) {
+            throw new Error(
+              'verify_preset: 探针任务里内嵌了大载荷(≥200 连续 base64 形字符)——LLM 无法逐字节复制这种长度,必抄坏。'
+              + '改用夹具模式:先把文件写进 preset 的 workspace(如 workspace/uploads/sample.epub),探针任务按相对路径引用它。',
+            )
+          }
         }
-        if (sketch !== null) {
-          const checked = checkArchProbe(sketch, sanitizeMarks)
-          plan = checked.plan
-          if (plan !== null) phase('验收探针:编排者草图过机械闸,直接执行(推导 0s)')
-          else {
+        if (sketchInputs.length > VERIFY_MAX_PATHS) {
+          throw new Error(`verify_preset: 探针路径最多 ${String(VERIFY_MAX_PATHS)} 条(收到 ${String(sketchInputs.length)})——把相邻能力合并进同一路径(一路可考 2-4 件),或删掉覆盖草图让考官考完主路按未覆盖清单自动补考`)
+        }
+        let sketchNote = ''
+        const pathNotes: string[] = []
+        const plans: ProbePlan[] = []
+        const mainSketch = sketchInputs[0] ?? null
+        if (mainSketch !== null) {
+          const checked = checkArchProbe(mainSketch, sanitizeMarks)
+          if (checked.plan !== null) {
+            plans.push(checked.plan)
+            phase('验收探针:编排者草图过机械闸,直接执行(推导 0s)')
+          } else {
             sketchNote = `(你的探针草图未过机械闸:${checked.why ?? '未知原因'}——考官已自行推导;修草图重验可省整段推导)`
             phase('编排者探针草图未过机械闸,考官自行推导…')
           }
         }
         let deriveUsage: AuxUsage = { inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cacheReadTokens: 0 }
-        if (plan === null) {
+        const addAuxInto = (u: AuxUsage | null): void => {
+          if (u === null) return
+          deriveUsage = {
+            inputTokens: deriveUsage.inputTokens + u.inputTokens,
+            outputTokens: deriveUsage.outputTokens + u.outputTokens,
+            reasoningTokens: deriveUsage.reasoningTokens + u.reasoningTokens,
+            cacheReadTokens: deriveUsage.cacheReadTokens + u.cacheReadTokens,
+          }
+        }
+        if (plans.length === 0) {
           if (selected.length === 0) {
             settleAndLedger({ status: 'ERRORED', reason: 'no lock parts' }, 'failed', 'ERRORED')
             return `验收未能进行:读不到 parts.lock.yml 的选型记录,且没有合格的探针草图。重发一次 emit_preset 或附上探针草图。${contractFail}`
           }
           phase('探针推导中(定单轮或多轮场景)…')
-          plan = await deriveProbePlan(ctx, lockRequirement !== '' ? lockRequirement : `preset ${id}`, selected, { provider: config.provider, model: config.model, effort: config.auxReasoningEffort }, (u) => { deriveUsage = u })
+          let mainUsage: AuxUsage | null = null
+          plans.push(await deriveProbePlan(ctx, lockRequirement !== '' ? lockRequirement : `preset ${id}`, selected, { provider: config.provider, model: config.model, effort: config.auxReasoningEffort }, (u) => { mainUsage = u }))
+          addAuxInto(mainUsage)
+        }
+        // 覆盖草图(第 2 份起):逐份过同一道机械闸,坏份出声丢弃,不拖累主路径。
+        for (let si = 1; si < sketchInputs.length; si++) {
+          const checked = checkArchProbe(sketchInputs[si] as NonNullable<ReturnType<typeof normalizeProbeSketch>>, sanitizeMarks)
+          if (checked.plan !== null) plans.push(checked.plan)
+          else pathNotes.push(`覆盖草图第 ${String(si + 1)} 份未过机械闸:${checked.why ?? '未知原因'}——已丢弃(考官考后按未覆盖清单补考)`)
         }
         const probeCwd = join(dir, 'workspace')
         mkdirSync(probeCwd, { recursive: true })
         mkdirSync(join(dir, 'kb'), { recursive: true })
-        phase(plan.kind === 'scenario'
-          ? `验收探针:多轮场景共 ${String(plan.scenario.turns.length)} 轮——探针会话可在侧栏实时旁观`
-          : '验收探针:单轮——探针会话可在侧栏实时旁观')
         const timeoutMs = config.verifyTimeoutMs ?? PROBE_TURN_BUDGET_MS
-        let verification: ProbeResult = plan.kind === 'scenario'
-          ? await runScenario(port, id, plan.scenario, timeoutMs, phase, probeCwd)
-          : await runProbe(port, id, plan.probe, timeoutMs, phase, probeCwd)
-        // 验中版本钉(penguin 吸收):考的是开跑那一刻的字节。判定落笔前重核盘上
-        // 文件,字节变了(并发装配互踩/中途重发)⇒ 本判定作废——把一份对旧字节的
-        // 证据记到新字节头上,是台账最危险的撒谎方式。
-        if (presetSha(readFileSync(presetPath, 'utf8')) !== sha) {
-          verification = { status: 'ERRORED', reason: 'preset 字节在验收期间被改动(并发装配或中途重发)——本判定对新字节无效,重发完成后重验' }
-          phase('⚠ 验中版本钉:preset 字节已变,判定作废')
+        const outcomes: Array<{ i: number; plan: ProbePlan; result: ProbeResult }> = []
+        let stopWhy: string | null = null
+        const runPlan = async (plan: ProbePlan, i: number, total: number): Promise<ProbeResult> => {
+          phase(plan.kind === 'scenario'
+            ? `验收路径 ${String(i)}/${String(total)}:多轮场景共 ${String(plan.scenario.turns.length)} 轮——探针会话可在侧栏实时旁观`
+            : `验收路径 ${String(i)}/${String(total)}:单轮——探针会话可在侧栏实时旁观`)
+          let r: ProbeResult = plan.kind === 'scenario'
+            ? await runScenario(port, id, plan.scenario, timeoutMs, phase, probeCwd)
+            : await runProbe(port, id, plan.probe, timeoutMs, phase, probeCwd)
+          // 验中版本钉(penguin 吸收)升格为每路径落笔重核:考的是开跑那一刻的字节,
+          // 任一路径途中字节变了 ⇒ 整卷作废——对旧字节的部分证据记到新字节头上
+          // 同样是台账撒谎。
+          if (presetSha(readFileSync(presetPath, 'utf8')) !== sha) {
+            r = { status: 'ERRORED', reason: 'preset 字节在验收期间被改动(并发装配或中途重发)——本判定对新字节无效,重发完成后重验' }
+            phase('⚠ 验中版本钉:preset 字节已变,判定作废')
+          }
+          return r
         }
+        for (let i = 0; i < plans.length; i++) {
+          if (stopWhy !== null) { pathNotes.push(`路径 ${String(i + 1)} 未考(${stopWhy})`); continue }
+          if (i > 0 && Date.now() - t0 > VERIFY_EXTRA_PATH_SOFT_BUDGET_MS) { stopWhy = '预算截断'; pathNotes.push(`路径 ${String(i + 1)} 未考(预算截断)`); continue }
+          const cur = plans[i] as ProbePlan
+          const r = await runPlan(cur, i + 1, plans.length)
+          outcomes.push({ i: i + 1, plan: cur, result: r })
+          if (r.status !== 'PASS') stopWhy = `前路已 ${r.status}`
+        }
+        // 覆盖补考:已排路径全 PASS 且有余量时,按经验未覆盖清单一次批量出题
+        // (整卷恒 ≤2 次 aux 调用:主路径 1 + 覆盖批量 1——成本上限第一道)。
+        let coverageDeriveNote = ''
+        if (stopWhy === null && outcomes.length > 0 && outcomes.every((o) => o.result.status === 'PASS')) {
+          const union0 = mergeToolsUsed(outcomes.map((o) => o.result.toolsUsed))
+          const u0 = partsUtilization(lockParts, union0 === undefined ? undefined : new Set(union0.map((x) => x.name)))
+          const room = VERIFY_MAX_PATHS - plans.length
+          if (u0 !== null && u0.unused.length > 0 && room > 0 && Date.now() - t0 <= VERIFY_EXTRA_PATH_SOFT_BUDGET_MS) {
+            const uncoveredEntries = u0.unused.map((cid) => byId.get(cid)).filter((c): c is CapabilityEntry => c !== undefined)
+            try {
+              phase(`覆盖补考:${String(u0.unused.length)} 件零件未被动用,批量出题(≤${String(room)} 路,单轮)…`)
+              let covUsage: AuxUsage | null = null
+              const extra = await deriveCoverageProbes(ctx, lockRequirement !== '' ? lockRequirement : `preset ${id}`, uncoveredEntries, room, { provider: config.provider, model: config.model, effort: config.auxReasoningEffort }, (u) => { covUsage = u })
+              addAuxInto(covUsage)
+              for (const sp of extra) {
+                if (stopWhy !== null) break
+                if (Date.now() - t0 > VERIFY_EXTRA_PATH_SOFT_BUDGET_MS) { stopWhy = '预算截断'; pathNotes.push('覆盖补考被预算截断:剩余补考题未跑'); break }
+                if (probePayloadViolation([sp.task])) { pathNotes.push('覆盖补考一题含大载荷,已丢弃'); continue }
+                const plan: ProbePlan = { kind: 'single', probe: sp }
+                plans.push(plan)
+                const r = await runPlan(plan, plans.length, plans.length)
+                outcomes.push({ i: plans.length, plan, result: r })
+                if (r.status !== 'PASS') stopWhy = `前路已 ${r.status}`
+              }
+            } catch (error: unknown) {
+              coverageDeriveNote = `\n覆盖补考推导失败:${(error instanceof Error ? error.message : String(error)).slice(0, 120)}——覆盖按已跑路径如实计,主判定不受影响`
+              phase('覆盖补考推导失败(主判定不受影响)')
+            }
+          }
+        }
+        // 判定:任一执行路径非 PASS 即整卷非 PASS(首败即停已保证);代表性 result
+        // 取失败路径(证据口径)或主路径(kind/summary 口径)。
+        const failedOutcome = outcomes.find((o) => o.result.status !== 'PASS')
+        const verification: ProbeResult = failedOutcome?.result ?? (outcomes[0]?.result ?? { status: 'ERRORED', reason: '无路径被执行' })
+        const usedUnion = mergeToolsUsed(outcomes.map((o) => o.result.toolsUsed))
+        const util = partsUtilization(lockParts, usedUnion === undefined ? undefined : new Set(usedUnion.map((x) => x.name)))
+        const pathsSummary = { total: plans.length, passed: outcomes.filter((o) => o.result.status === 'PASS').length }
         // 前端验收(同一张考卷):页面可达门 + 会话环路门。
         let feLine = ''
         if (existsSync(join(dir, 'frontend', 'index.html'))) {
@@ -1080,6 +1194,8 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
           appendFileSync(join(dir, 'selfcheck-history.jsonl'), `${JSON.stringify({
             at: new Date().toISOString(), presetSha256: sha, verdict: verification.status,
             ...(verification.kind !== undefined ? { kind: verification.kind } : {}),
+            paths: pathsSummary,
+            ...(util !== null ? { utilization: { mounted: util.mounted, used: util.usedCount } } : {}),
             elapsedSeconds: Math.round((Date.now() - t0) / 1000),
             derive: { out: deriveUsage.outputTokens, reason: deriveUsage.reasoningTokens },
           })}\n`)
@@ -1094,10 +1210,12 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
               presetSha256: presetSha(onDisk), status: 'PASS',
               ...(verification.kind !== undefined ? { kind: verification.kind } : {}),
               verifiedAt,
+              paths: plans.length,
+              ...(util !== null ? { utilization: { mounted: util.mounted, used: util.usedCount } } : {}),
               ...(typeof summary === 'string' && summary !== '' ? { summary: summary.slice(0, 120) } : {}),
             })
             // 自检包随 PASS 落盘:考官的卷子沉淀为交付物自己的测试套件。
-            writeFileSync(join(dir, 'selfcheck.json'), renderSelfCheck({ presetId: id, presetSha256: presetSha(onDisk), plan, verifiedAt }))
+            writeFileSync(join(dir, 'selfcheck.json'), renderSelfCheck({ presetId: id, presetSha256: presetSha(onDisk), plans, verifiedAt }))
             selfCheckLine = '\n自检包:selfcheck.json 已随 preset 落盘(改 persona/升零件后可重跑同卷体检)'
           } catch (error: unknown) {
             console.error(`[assembler] verify ledger write failed: ${error instanceof Error ? error.message : String(error)}`)
@@ -1105,35 +1223,38 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
           }
         }
         const elapsed = Math.round((Date.now() - t0) / 1000)
-        phase(`验收完成:${verification.status}(${String(elapsed)}s)`)
-        // 动用率:实测证据回填(②context 的事后镜子)。字段名对齐 OTel GenAI
-        // 的 execute_tool / gen_ai.tool.name,台账将来可直喂观测平台。
-        const util = utilization(verification.toolsUsed)
+        phase(`验收完成:${verification.status}(${String(elapsed)}s,${String(outcomes.length)}/${String(pathsSummary.total)} 路径)`)
+        // 动用率/验收覆盖:多路径并集上的实测证据回填(②context 的事后镜子)。
+        // 字段名对齐 OTel GenAI 的 execute_tool / gen_ai.tool.name,台账可直喂观测平台。
         settleAndLedger({
           status: verification.status,
           ...(verification.kind !== undefined ? { kind: verification.kind } : {}),
           ...(verification.reason !== undefined ? { reason: verification.reason.slice(0, 200) } : {}),
-          sketch: sketch !== null && sketchNote === '',
+          sketch: sketchInputs.length > 0 && sketchNote === '',
+          paths: pathsSummary,
+          pathResults: outcomes.map((o) => ({ i: o.i, kind: o.plan.kind, status: o.result.status, ...(o.result.reason !== undefined ? { reason: o.result.reason.slice(0, 120) } : {}) })),
           derive: { out: deriveUsage.outputTokens, reason: deriveUsage.reasoningTokens },
-          ...(verification.toolsUsed !== undefined ? { toolExecutions: verification.toolsUsed.map((u) => ({ 'gen_ai.tool.name': u.name, calls: u.calls })) } : {}),
+          ...(usedUnion !== undefined ? { toolExecutions: usedUnion.map((u) => ({ 'gen_ai.tool.name': u.name, calls: u.calls })) } : {}),
           ...(util !== null ? { utilization: { mounted: util.mounted, used: util.usedCount } } : {}),
         }, verification.status === 'PASS' ? 'completed' : 'failed', verification.status)
-        const utilLine = util === null ? '' : `\n动用率:${String(util.usedCount)}/${String(util.mounted)} 个工具零件被探针动用${util.unused.length > 0 ? `;未动用:${util.unused.slice(0, 12).join(', ')}${prose('(探针只走主流程,未动用≠无用——这是修剪线索:确认多余就调 emit_preset 去掉重发)')}` : ''}`
-        const ladder = (verification.turns ?? [])
-          .map((t) => `  第${String(t.index)}轮 ${t.pass ? '✓' : '✗'} 「${t.prompt.slice(0, 50)}」标记 [${t.mustInclude.join(', ')}]${t.pass ? '' : `;回复摘录「${t.reply.slice(0, 120)}」`}`)
-          .join('\n')
+        const utilLine = util === null ? '' : `\n验收覆盖:${String(util.usedCount)}/${String(util.mounted)} 个工具零件被探针动用(${String(outcomes.length)} 路径)${util.unused.length > 0 ? `;未覆盖:${util.unused.slice(0, 12).join(', ')}${prose('(探针只走主流程与补考题,未动用≠无用——这是修剪线索:确认多余就调 emit_preset 去掉重发)')}` : ''}`
+        const structParts = lockParts.filter((p) => p.tool === undefined)
+        const structLine = structParts.length > 0 ? `\n结构件(不按轨迹计覆盖):${structParts.slice(0, 8).map((p) => { const via = byId.get(p.capability)?.via; return `${p.capability}(${via === 'knowledge' ? '教材,另有检索门' : via === 'frontend' ? '前端,另有页面门' : '结构'})` }).join('、')}` : ''
+        const notesLine = pathNotes.length > 0 ? `\n${pathNotes.map((n) => `⚠ ${n}`).join('\n')}` : ''
+        const pathLadder = outcomes.map((o) => {
+          const label = o.plan.kind === 'scenario' ? `场景「${o.plan.scenario.goal.slice(0, 50)}」${String(o.plan.scenario.turns.length)} 轮` : `单轮「${o.plan.probe.task.slice(0, 60)}」`
+          const single = o.plan.kind === 'single' ? `;标记 [${o.plan.probe.mustInclude.join(', ')}]${o.result.status !== 'PASS' && o.result.reply !== undefined ? `;回复摘录「${o.result.reply.slice(0, 120)}」` : ''}` : ''
+          const turns = (o.result.turns ?? [])
+            .map((t) => `    第${String(t.index)}轮 ${t.pass ? '✓' : '✗'} 「${t.prompt.slice(0, 50)}」标记 [${t.mustInclude.join(', ')}]${t.pass ? '' : `;回复摘录「${t.reply.slice(0, 120)}」`}`)
+            .join('\n')
+          return `  路径 ${String(o.i)} ${o.result.status === 'PASS' ? '✓' : '✗'} ${label}${single}${o.result.status !== 'PASS' && o.result.reason !== undefined ? `;${o.result.reason.slice(0, 160)}` : ''}${turns !== '' ? `\n${turns}` : ''}`
+        }).join('\n')
         const detail = usageDetail(deriveUsage)
-        const head = `验收 ${verification.status}(${String(elapsed)}s${detail !== '' ? `,推导 ${detail}` : ''})${sketchNote}`
+        const head = `验收 ${verification.status}(${String(elapsed)}s,${String(outcomes.length)} 路径${detail !== '' ? `,推导 ${detail}` : ''})${sketchNote}`
         if (verification.status === 'PASS') {
-          const evidence = verification.kind === 'scenario'
-            ? `多轮场景「${verification.scenario?.goal.slice(0, 60) ?? ''}」共 ${String(verification.scenario?.turns.length ?? 0)} 轮逐轮通过\n${ladder}`
-            : `探针「${verification.probe?.task.slice(0, 80) ?? ''}」通过;验收标记 [${verification.probe?.mustInclude.join(', ') ?? ''}]`
-          return `${head} — ${evidence}${feLine}${utilLine}${selfCheckLine}${contractPass}`
+          return `${head}\n${pathLadder}${feLine}${utilLine}${structLine}${coverageDeriveNote}${notesLine}${selfCheckLine}${contractPass}`
         }
-        const evidence = verification.kind === 'scenario'
-          ? `${verification.reason ?? ''}\n${ladder}`
-          : `${verification.reason ?? '回复未含验收标记'};探针「${verification.probe?.task.slice(0, 80) ?? ''}」;标记 [${verification.probe?.mustInclude.join(', ') ?? ''}]${verification.reply !== undefined ? `;回复摘录「${verification.reply.slice(0, 150)}」` : ''}`
-        return `${head} — ${evidence}${feLine}${utilLine}${verification.status === 'FAIL' || verification.status === 'ERRORED' ? contractFail : contractPass}`
+        return `${head}\n${pathLadder}${feLine}${utilLine}${coverageDeriveNote}${notesLine}${verification.status === 'FAIL' || verification.status === 'ERRORED' ? contractFail : contractPass}`
       } catch (error: unknown) {
         settleAndLedger({ status: 'ERRORED', reason: error instanceof Error ? error.message.slice(0, 200) : String(error) }, 'failed', 'ERRORED')
         throw error
@@ -1912,7 +2033,8 @@ export function readPresetToolDefinition(_ctx: Context, config: Config): ToolDef
           const byVerdict: Record<string, number> = {}
           for (const r of rows) byVerdict[String(r.verdict)] = (byVerdict[String(r.verdict)] ?? 0) + 1
           const last = rows[rows.length - 1]
-          out.push(`【验收记分板】共 ${rows.length} 次:${Object.entries(byVerdict).map(([k, v]) => `${k}×${v}`).join(' ')};最近 ${String(last?.at ?? '').slice(0, 19)} ${String(last?.verdict ?? '')}(字节 ${String(last?.presetSha256 ?? '').slice(0, 8)})`)
+          const lastUtil = last?.utilization as { mounted?: number; used?: number } | undefined
+          out.push(`【验收记分板】共 ${rows.length} 次:${Object.entries(byVerdict).map(([k, v]) => `${k}×${v}`).join(' ')};最近 ${String(last?.at ?? '').slice(0, 19)} ${String(last?.verdict ?? '')}(字节 ${String(last?.presetSha256 ?? '').slice(0, 8)})${typeof lastUtil?.mounted === 'number' ? `;覆盖 ${String(lastUtil.used ?? 0)}/${String(lastUtil.mounted)}` : ''}`)
         }
       }
       if (on('faces')) {
