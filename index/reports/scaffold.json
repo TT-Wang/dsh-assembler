@@ -19,7 +19,7 @@
     {
       "check": "pages-lint",
       "status": "PASS",
-      "evidence": "页面纪律干净(无裸出网/注入面/外链)"
+      "evidence": "页面纪律干净(无裸出网/注入面/外链;路由声明与实现一致)"
     },
     {
       "check": "static-reach",
@@ -32,5 +32,5 @@
       "evidence": "local「本地添加条目」(纯本地 UI,无出网,免考);local「清单/表格切换」(纯本地 UI,无出网,免考)"
     }
   ],
-  "verifiedAt": "2026-08-26T11:26:14.899Z"
+  "verifiedAt": "2026-08-26T13:46:06.810Z"
 }

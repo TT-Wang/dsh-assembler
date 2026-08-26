@@ -146,6 +146,13 @@ export async function audit(scn, port) {
       }
     }
   }
+  // 徒手证据面:战役命名空间内无 lock 的目录(审计:徒手交付被判 refuse 是
+  // 标签撒谎——"什么都没做"与"亲手写了一套"必须可分)。
+  a.handwrittenDirs = existsSync(APPS)
+    ? readdirSync(APPS, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && (e.name === presetName || e.name.startsWith(`${presetName}-`)) && !existsSync(join(APPS, e.name, 'scaffold.lock.yml')))
+      .map((e) => e.name)
+    : []
   a.stateEquipped = a.presetEmitted && existsSync(join(presetDir, 'equipment', 'init.sql'))
   a.kbPacks = a.presetEmitted && existsSync(join(presetDir, 'kb'))
     ? readdirSync(join(presetDir, 'kb'), { withFileTypes: true }).filter((x) => x.isDirectory()).length
@@ -183,7 +190,7 @@ export function grade(scn, run, aud) {
   const add = (name, ok, detail) => checks.push({ name, ok, detail })
   // 形态(宪法第九条后单车道):写了页 = scaffold;只出骨架没写页 = scaffold-skeleton;
   // 只有 preset = preset-only;都没有 = refuse。(旧 'recipe' 车道值属考卷 v2,git 备查。)
-  const lane = aud.pagesWritten > 0 ? 'scaffold' : aud.appEmitted ? 'scaffold-skeleton' : aud.presetEmitted ? 'preset-only' : 'refuse'
+  const lane = aud.pagesWritten > 0 ? 'scaffold' : aud.appEmitted ? 'scaffold-skeleton' : aud.presetEmitted ? 'preset-only' : ((aud.handwrittenDirs ?? []).length > 0 ? 'handwritten' : 'refuse')
   const laneOk = Array.isArray(e.lane) ? e.lane.includes(lane) : lane === e.lane
   if (e.lane !== undefined) add('形态路由', laneOk, `实得 ${lane},预期 ${Array.isArray(e.lane) ? e.lane.join('|') : e.lane}`)
   // (曾有"车道声明与实得一致"判项——随车道闸与双车道一起删除,git 备查;

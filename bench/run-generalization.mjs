@@ -8,7 +8,7 @@
 // 病史(2026-08-25 第二次):第一次修"判卷器按目录名猜实例"时只改了离线重判器,
 // 驱动器里那份原样留着,文档却写了"两者共用一份实现"——于是现场判分继续跑旧代码,
 // 而我据此又报了一轮结论。**"两份实现必然走偏"这句话,我是在自己身上验的第二遍。**
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -62,14 +62,20 @@ const rpc = async (method, payload) => {
 /** 跑一题:开会话 → 发需求 → 代答检查点 → 跟到静默 → 收集轨迹。 */
 async function runOne(scn) {
   const t0 = Date.now()
+  // 考场快照(混杂变量入档,审计发现 11:cwd 是生活环境——判卷不用,复盘要查)
+  const cwdSnapshot = (() => { try { return readdirSync(join(homedir(), 'apps')).sort() } catch { return [] } })()
   const { sessionId } = await rpc('session.create', { cwd: join(homedir(), 'apps') })
   const frames = []
+  // token 计量走 session/projection 的 tokenUsage 累计帧(协议挖掘:mux 上不存在
+  // token_usage/usage 会话事件,旧采集是死代码假零 13 连)。保留最后一帧的累计值。
+  let tokenUsage = null
   const ws = new WebSocket(`ws://127.0.0.1:${PORT}/api/events.mux`)
   ws.onmessage = (m) => {
     try {
       const f = JSON.parse(String(m.data))
       if (f.payload?.type === 'session/event' && f.payload.sessionId === sessionId) frames.push(f.payload.event)
       else if (f.payload?.type === 'question/requested' && f.payload.sessionId === sessionId) frames.push({ type: '__question', rpcId: f.rpcId, questions: f.payload.questions })
+      else if (f.payload?.type === 'session/projection' && f.payload.sessionId === sessionId && f.payload.key === 'tokenUsage') tokenUsage = f.payload.value ?? null
     } catch { /* 非 JSON 帧 */ }
   }
   await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('ws failed')) })
@@ -149,7 +155,7 @@ async function runOne(scn) {
   try { ws.close() } catch { /* ignore */ }
   // finalText = 全部 assistant 文本按序拼接,**全文,不截断**(审计发现 13:只留
   // 末条 + 截 1200 已实际咬掉 C 档档案;边界声明常写在倒数第二条)。
-  return { sessionId, tools, toolCalls, finalText: assistantTexts.join('\n\n'), answered, answersGiven, answerRejected, questionTexts, endReason, elapsedSeconds: Math.round((Date.now() - t0) / 1000), usage: null, usageCollected: false }
+  return { sessionId, cwdSnapshot, tools, toolCalls, finalText: assistantTexts.join('\n\n'), answered, answersGiven, answerRejected, questionTexts, endReason, elapsedSeconds: Math.round((Date.now() - t0) / 1000), usage: tokenUsage, usageCollected: tokenUsage !== null }
 }
 
 
@@ -179,7 +185,7 @@ for (const scn of todo) {
   }
   console.log(`  → ${g.verdict} ${g.passed}/${g.total}(${run.elapsedSeconds}s)`)
   for (const c of g.checks) console.log(`     ${c.ok ? '✓' : '✗'} ${c.name}:${c.detail}`)
-  const row = { id: scn.id, tier: scn.tier, name: scn.name, ...g, elapsedSeconds: run.elapsedSeconds, tools: run.tools, toolCalls: run.toolCalls ?? [], usage: run.usage ?? null, usageCollected: run.usageCollected === true, endReason: run.endReason ?? null, answersGiven: run.answersGiven ?? [], answerRejected: run.answerRejected === true, audit: aud, sessionId: run.sessionId, questionTexts: run.questionTexts ?? [], finalText: run.finalText }
+  const row = { id: scn.id, tier: scn.tier, name: scn.name, ...g, elapsedSeconds: run.elapsedSeconds, tools: run.tools, toolCalls: run.toolCalls ?? [], usage: run.usage ?? null, usageCollected: run.usageCollected === true, endReason: run.endReason ?? null, answersGiven: run.answersGiven ?? [], answerRejected: run.answerRejected === true, cwdSnapshot: run.cwdSnapshot ?? [], audit: aud, sessionId: run.sessionId, questionTexts: run.questionTexts ?? [], finalText: run.finalText }
   results.push(row)
   writeFileSync(join(OUT_DIR, `${scn.id}.json`), JSON.stringify(row, null, 2))
 }

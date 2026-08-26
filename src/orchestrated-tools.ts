@@ -44,7 +44,7 @@ import { checkArchProbe } from './arch-spec.js'
 import { rankCapabilities } from './capability-index.js'
 import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend } from './frontend.js'
 import { execFileSync, spawn as spawnPart } from 'node:child_process'
-import { hashLockPaths, loadScaffold, materializeApp, runAppSelftest } from './scaffold.js'
+import { SCAFFOLD_DIR as SCAFFOLD_ROOT_FOR_RESEMBLE, hashLockPaths, loadScaffold, materializeApp, runAppSelftest } from './scaffold.js'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -1487,11 +1487,34 @@ export function verifyAppToolDefinition(_ctx: Context, _config: Config): ToolDef
       // (src/pages/** + PAGE-SPEC.yml)。没有它,"先用最小真页过考、验后改页改声明"
       // 离线不可判;有了它,判卷器重算哈希即知判定对的是不是盘上这份页面。
       try {
+        // 范例相似度(取证不判分):每张写手页与底盘范例页的行集 Jaccard——
+        // "贴形"从无账可查变成有戳可核(第九条待判问与 A 档量纲的证据面)。
+        const resembles: Array<{ page: string; example: string; score: number }> = []
+        try {
+          const pagesDir = join(targetDir, 'src', 'pages')
+          const exDir = join(SCAFFOLD_ROOT_FOR_RESEMBLE, 'template', 'examples')
+          if (existsSync(pagesDir) && existsSync(exDir)) {
+            const lineSet = (t: string): Set<string> => new Set(t.split('\n').map((l) => l.trim()).filter((l) => l.length > 8))
+            const examples = readdirSync(exDir).filter((f) => f.endsWith('.tsx')).map((f) => ({ f, set: lineSet(readFileSync(join(exDir, f), 'utf8')) }))
+            for (const pf of readdirSync(pagesDir).filter((f) => /\.(tsx|jsx)$/.test(f))) {
+              const ps = lineSet(readFileSync(join(pagesDir, pf), 'utf8'))
+              let best = { example: '', score: 0 }
+              for (const ex of examples) {
+                let inter = 0
+                for (const l of ps) if (ex.set.has(l)) inter++
+                const score = ps.size + ex.set.size - inter > 0 ? Math.round((inter / (ps.size + ex.set.size - inter)) * 100) / 100 : 0
+                if (score > best.score) best = { example: ex.f, score }
+              }
+              if (best.score > 0) resembles.push({ page: pf, example: best.example, score: best.score })
+            }
+          }
+        } catch { /* 相似度是取证不是判据 */ }
         writeFileSync(join(targetDir, 'last-verify.json'), JSON.stringify({
           verdict: result.status,
           at: new Date().toISOString(),
           pagesHash: hashLockPaths(targetDir, ['src/pages', 'PAGE-SPEC.yml']),
           checks: result.checks.map((c) => ({ check: c.check, status: c.status })),
+          ...(resembles.length > 0 ? { resembles } : {}),
           elapsedSeconds: result.elapsedSeconds,
         }, null, 2) + '\n')
       } catch (error: unknown) {

@@ -376,10 +376,17 @@ export async function runAppSelftest(
       } else if (c.kind === 'pages-lint') {
         const pagesDir = join(targetDir, 'src', 'pages')
         const offenses: string[] = []
+        // 页面实际用到的 SDK 出网口(路由一致性证据面)
+        let usesFace = false
+        let usesWire = false
+        let usesAi = false
         if (existsSync(pagesDir)) {
           for (const f of walkFiles(pagesDir).filter((x) => /\.(tsx|ts|jsx|js)$/.test(x))) {
             const text = readFileSync(f, 'utf8')
             const rel = relative(targetDir, f)
+            if (/sqliteFace|filesFace|face\(/.test(text)) usesFace = true
+            if (/createClient|\.ask\(/.test(text)) usesWire = true
+            if (/aiFace/.test(text)) usesAi = true
             for (const [re, why] of [
               [/(?<![.\w])fetch\s*\(/, '裸 fetch(出网必须经 @/sdk/assembler-sdk)'],
               [/new\s+WebSocket/, '裸 WebSocket(出网必须经 SDK)'],
@@ -391,10 +398,30 @@ export async function runAppSelftest(
             }
           }
         }
+        // 路由一致性闸(对抗审计后加):PAGE-SPEC 的 route 声明与页面实际使用的
+        // SDK 出网口必须对得上——声明即得分的口子从"声明纸"缝到实现字节上。
+        // 只做方向级一致(声明了某路由 → 对应 SDK 口必须在页面里出现;反之亦然),
+        // 动作粒度的真伪仍归行为考。
+        const specPath2 = join(targetDir, 'PAGE-SPEC.yml')
+        if (existsSync(specPath2)) {
+          try {
+            const ps = (yaml.load(readFileSync(specPath2, 'utf8')) ?? {}) as { pages?: Array<{ actions?: Array<Record<string, unknown>> }> }
+            const declared = { face: 0, wire: 0, 'ai-thin': 0 }
+            for (const pg of ps.pages ?? []) for (const act of pg.actions ?? []) {
+              const rt = String(act.route ?? '')
+              if (rt in declared) declared[rt as keyof typeof declared] += 1
+            }
+            if (declared.face > 0 && !usesFace) offenses.push(`PAGE-SPEC 声明 ${String(declared.face)} 个 face 动作,页面却没有任何服务脸调用(sqliteFace/face()——声明与实现脱节`)
+            if (declared.wire > 0 && !usesWire) offenses.push(`PAGE-SPEC 声明 ${String(declared.wire)} 个 wire 动作,页面却没有会话调用(createClient/.ask)`)
+            if (declared['ai-thin'] > 0 && !usesAi) offenses.push(`PAGE-SPEC 声明 ${String(declared['ai-thin'])} 个 ai-thin 动作,页面却没有 aiFace 调用`)
+            if (usesWire && declared.wire === 0) offenses.push('页面用了会话口(createClient/.ask)但 PAGE-SPEC 零 wire 声明——漏报路由')
+            if (usesFace && declared.face === 0) offenses.push('页面用了服务脸但 PAGE-SPEC 零 face 声明——漏报路由')
+          } catch { /* 考卷坏由 behavior 考报 */ }
+        }
         checks.push({
           check: 'pages-lint',
           status: offenses.length === 0 ? 'PASS' : 'FAIL',
-          evidence: offenses.length === 0 ? '页面纪律干净(无裸出网/注入面/外链)' : offenses.slice(0, 5).join(';'),
+          evidence: offenses.length === 0 ? '页面纪律干净(无裸出网/注入面/外链;路由声明与实现一致)' : offenses.slice(0, 5).join(';'),
         })
         if (offenses.length > 0) break
       } else if (c.kind === 'static-reach') {
