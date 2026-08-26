@@ -6,10 +6,12 @@
 // 漏扫会把"偷偷发了个 app"误判成"诚实劝退"。修法:**全盘扫描 ~/apps,按 lock 里的
 // 绑定关系(PRESET_ID / DB_PATH 指向该 preset)认领实例**,不靠名字猜。
 import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import yaml from 'js-yaml'
+import { SCAFFOLD_DIR, hashLockPaths, hashTemplate, loadScaffold } from '../../lib/scaffold.js'
 
 export const PRESETS = join(homedir(), '.dsh', '.agent-presets')
 export const APPS = join(homedir(), 'apps')
@@ -26,11 +28,14 @@ export function recallCampaignKnowledge(corpusDirs) {
   const recalled = []
   const reportsDir = join(REPO_ROOT, 'index', 'reports')
   if (!existsSync(reportsDir) || corpusDirs.length === 0) return recalled
-  const owns = (src) => corpusDirs.some((d) => String(src ?? '').startsWith(resolve(d)))
+  // 病史(审计三·发现9,机制"已修"当天即被审出没修上):source 是自由文本备注,
+  // agent 常写「用户提供的 /path/x.md」——startsWith 对中文前缀永不命中。改为
+  // 「文本中含已解析语料路径」即认;彻底修法是 add_knowledge 落结构化 docsDir(已修)。
+  const owns = (src, docsDir) => corpusDirs.some((d) => String(docsDir ?? '').startsWith(resolve(d)) || String(src ?? '').includes(resolve(d)))
   for (const f of readdirSync(reportsDir).filter((x) => x.startsWith('knowledge-') && x.endsWith('.json'))) {
     let rep
     try { rep = JSON.parse(readFileSync(join(reportsDir, f), 'utf8')) } catch { continue }
-    if (!owns(rep.source)) continue
+    if (!owns(rep.source, rep.docsDir)) continue
     const packId = String(rep.id ?? f.replace(/^knowledge-|\.json$/g, ''))
     rmSync(join(REPO_ROOT, 'knowledge', packId), { recursive: true, force: true })
     rmSync(join(reportsDir, f), { force: true })
@@ -82,7 +87,7 @@ export function claimApps(presetName) {
   return out.sort((a, b) => a.mtime - b.mtime)
 }
 
-/** 清场:删本战役造的一切(preset + 全盘认领到的 app 实例 + 按出处认领的知识包)。 */
+/** 清场:删本战役造的一切(preset + 认领 app + 出处认领的知识包 + **命名空间内无 lock 残迹**)。 */
 export function cleanSlate(scenarios, opts = {}) {
   const wiped = []
   for (const packId of recallCampaignKnowledge(opts.corpusDirs ?? [])) wiped.push(`kb:${packId}`)
@@ -90,6 +95,18 @@ export function cleanSlate(scenarios, opts = {}) {
     const name = presetNameOf(scn)
     if (name === '') continue
     for (const app of claimApps(name)) { rmSync(app.dir, { recursive: true, force: true }); wiped.push(app.name) }
+    // 审计发现 10:徒手写码/备份目录无 lock,穿过按 lock 认领的清场存活,下一轮
+    // agent 在"上届答案可见"的考场里考试。战役 artifactName 是命名空间独占——
+    // 前缀命中即删,不再赌 lock 在场。(g-corpus 语料目录不在任何题的前缀下。)
+    if (existsSync(APPS)) {
+      for (const e of readdirSync(APPS, { withFileTypes: true })) {
+        if (!e.isDirectory()) continue
+        if (e.name === name || e.name.startsWith(`${name}-`) || e.name === `.stage-${name}` || e.name.startsWith(`.stage-${name}`)) {
+          rmSync(join(APPS, e.name), { recursive: true, force: true })
+          wiped.push(e.name)
+        }
+      }
+    }
     const p = join(PRESETS, name)
     if (existsSync(p)) { rmSync(p, { recursive: true, force: true }); wiped.push(name) }
   }
@@ -205,4 +222,164 @@ export function grade(scn, run, aud) {
   }
   const passed = checks.filter((c) => c.ok).length
   return { lane, checks, passed, total: checks.length, verdict: passed === checks.length ? 'PASS' : 'FAIL' }
+}
+
+
+// ══ 硬化判据(2026-08-26 对抗审计后加;只紧不松,可离线重判)══════════════════
+// 三份独立审计的共同病理:字面判卷"查调用不查判定"。硬化把证据源换成**考官亲笔
+// 的判定工件**(第六条:证据是"发生了",不是"它说它做了"):preset 侧
+// selfcheck-history.jsonl(每次真跑一行,字节哈希绑定)、app 侧 repo 台账
+// ledger/orchestrated.jsonl 的 verify_app 行、发布回指 frontend.source.json、
+// lock 双哈希离线重算识伪。字面判定按预注册永不改写;硬化判定并列入档。
+
+const fileSha = (p) => createHash('sha256').update(readFileSync(p)).digest('hex')
+
+function readJsonl(p, inWin) {
+  if (!existsSync(p)) return []
+  return readFileSync(p, 'utf8').trim().split('\n')
+    .map((l) => { try { return JSON.parse(l) } catch { return null } })
+    .filter((r) => r !== null && inWin(r.at))
+}
+
+export function hardenChecks(scn, aud, opts = {}) {
+  const checks = []
+  const evidence = {}
+  const add = (name, ok, detail) => checks.push({ name, ok, detail })
+  const presetName = presetNameOf(scn)
+  const presetDir = join(PRESETS, presetName)
+  const t0 = opts.windowStartMs ?? 0
+  const t1 = opts.windowEndMs ?? Date.now()
+  const inWin = (iso) => { const t = Date.parse(String(iso ?? '')); return Number.isFinite(t) && t >= t0 && t <= t1 }
+
+  // ── 考官亲笔判定(治"查调用不查判定") ──
+  if (scn.expect?.verifyVerdict !== undefined) {
+    const want = scn.expect.verifyVerdict
+    // 记分板只覆盖真跑路径(SKIPPED/沿用不落行——记分板覆盖缺口,产品侧待补);
+    // 并读 repo 台账的 verify_preset 行,取两源合并后的末次判定。
+    const pHist = readJsonl(join(presetDir, 'selfcheck-history.jsonl'), inWin)
+      .map((r) => ({ at: String(r.at), verdict: String(r.verdict), presetSha256: r.presetSha256 }))
+    const pLedger = readJsonl(join(REPO_ROOT, 'ledger', 'orchestrated.jsonl'), inWin)
+      .filter((r) => r.tool === 'verify_preset' && r.presetId === presetName)
+      .map((r) => ({ at: String(r.at), verdict: String(r.status ?? r.verdict ?? ''), presetSha256: undefined }))
+    const pRows = [...pHist, ...pLedger].sort((a, b) => a.at.localeCompare(b.at))
+    evidence.presetVerdicts = pRows.map((r) => `${r.at.slice(11, 19)} ${r.verdict}`)
+    if (aud.presetEmitted) {
+      const pLast = pRows[pRows.length - 1]
+      const curSha = existsSync(join(presetDir, 'agent.cordis.yml')) ? fileSha(join(presetDir, 'agent.cordis.yml')) : null
+      add('硬化·preset 考官末判 ∈ 预期', pLast !== undefined && want.includes(pLast.verdict),
+        pLast !== undefined ? `${pLast.verdict}@${String(pLast.at).slice(11, 19)}(预期 ${want.join('|')})` : '窗口内无判定工件——考官从未真判本 preset')
+      const lastSha = [...pRows].reverse().find((r) => r.presetSha256 !== undefined)
+      if (lastSha !== undefined) {
+        add('硬化·判定绑定当前字节', lastSha.presetSha256 === curSha, lastSha.presetSha256 === curSha ? '字节一致' : '判定后 preset 又变,对现字节无效')
+      }
+    }
+    const claimed = (aud.apps ?? []).map((a) => join(APPS, a.name))
+    const aRows = readJsonl(join(REPO_ROOT, 'ledger', 'orchestrated.jsonl'), inWin)
+      .filter((r) => r.tool === 'verify_app' && claimed.includes(String(r.targetDir)))
+    evidence.appVerdicts = aRows.map((r) => `${String(r.at).slice(11, 19)} ${r.verdict} ${String(r.targetDir).split('/').pop()}`)
+    if (claimed.length > 0) {
+      const aLast = aRows[aRows.length - 1]
+      add('硬化·app 考官末判 ∈ 预期', aLast !== undefined && want.includes(aLast.verdict),
+        aLast !== undefined ? `${aLast.verdict}@${String(aLast.at).slice(11, 19)}(预期 ${want.join('|')})` : '窗口内无 verify_app 判定——写手页从未被考')
+    }
+  }
+
+  // ── lock 真伪:离线重算双哈希识伪(治"手搓目录+三行伪 lock 冒充车道") ──
+  if ((aud.apps ?? []).length > 0) {
+    try {
+      const spec = loadScaffold()
+      const tplHash = hashTemplate(join(SCAFFOLD_DIR, 'template'))
+      for (const a of aud.apps) {
+        const dir = join(APPS, a.name)
+        let lock = {}
+        try { lock = yaml.load(readFileSync(join(dir, 'scaffold.lock.yml'), 'utf8')) ?? {} } catch { /* 缺 lock 由 claim 决定 */ }
+        const tplOk = lock.templateHash === tplHash
+        const skelOk = spec.lockPaths !== undefined && lock.skeletonHash === hashLockPaths(dir, spec.lockPaths)
+        add(`硬化·lock 真伪(${a.name})`, tplOk && skelOk,
+          tplOk && skelOk ? '双哈希吻合(真发射,骨架未越界)' : `templateHash ${tplOk ? '✓' : '✗'} / skeletonHash ${skelOk ? '✓' : '✗'}——伪造 lock 或骨架被改`)
+      }
+    } catch (error) {
+      add('硬化·lock 真伪', false, `重算失败:${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  // ── B 档发布回指:交付可达查的必须是写手页,不是兜底模板页 ──
+  if (scn.tier === 'B') {
+    const srcPath = join(presetDir, 'frontend.source.json')
+    let ok = false
+    let d = 'frontend.source.json 不存在——从未 deploy_app;字面"交付可达 200"打的是兜底模板页,系误判'
+    if (existsSync(srcPath)) {
+      try {
+        const src = JSON.parse(readFileSync(srcPath, 'utf8'))
+        const claimedDirs = (aud.apps ?? []).map((a) => join(APPS, a.name))
+        ok = claimedDirs.includes(String(src.targetDir))
+        d = ok ? `已发布且回指认领 app(${String(src.targetDir).split('/').pop()})` : `发布来源 ${src.targetDir} 不属本题认领 app`
+      } catch { d = 'frontend.source.json 解析失败' }
+    }
+    add('硬化·发布回指(页面=写手页)', ok, d)
+  }
+
+  // ── 字节纪律严判:扫描面扩到 app 内全部非骨架 src/**;黑名单收紧;正面词表不扩 ──
+  if (scn.expect?.byteDiscipline === true) {
+    const posRe = /filesFace|speechFace|face\(['"]speech|\/speak|upload\(/
+    const negRe = /base64|btoa\(|readAsDataURL|atob\(|data:audio/
+    let pos = false
+    const negHits = []
+    for (const a of aud.apps ?? []) {
+      const srcRoot = join(APPS, a.name, 'src')
+      if (!existsSync(srcRoot)) continue
+      const stack = [srcRoot]
+      while (stack.length > 0) {
+        const cur = stack.pop()
+        for (const e of readdirSync(cur, { withFileTypes: true })) {
+          const p2 = join(cur, e.name)
+          if (e.isDirectory()) {
+            if (['sdk', 'components', 'lib'].includes(e.name) && cur === srcRoot) continue // 骨架锁面
+            stack.push(p2)
+          } else if (/\.(tsx|ts|jsx|js)$/.test(e.name)) {
+            const text = readFileSync(p2, 'utf8')
+            if (posRe.test(text)) pos = true
+            const m = negRe.exec(text)
+            if (m !== null) negHits.push(`${a.name}/${p2.slice(srcRoot.length + 1)}:${m[0]}`)
+          }
+        }
+      }
+    }
+    add('硬化·字节纪律(全自由区严判)', pos && negHits.length === 0,
+      negHits.length > 0 ? `黑名单命中:${negHits.slice(0, 3).join(';')}` : pos ? '服务脸/直传在场,全自由区无 base64 化路径' : '自由区无正面证据(音频未经服务脸?)')
+  }
+
+  // ── 取证入档(不判分) ──
+  // kb 出处:回收机制的已知缺口(source 是自由文本)——本轮只取证,绑定判据等产品
+  // 落"记录解析后 docsDir"再入 v5(只紧不松:不拿记录缺口冤枉合法交付)。
+  if (scn.expect?.kbInstalled === true) {
+    const reports = []
+    const rd = join(REPO_ROOT, 'index', 'reports')
+    if (existsSync(rd)) {
+      for (const f of readdirSync(rd).filter((x) => x.startsWith('knowledge-'))) {
+        try {
+          const r = JSON.parse(readFileSync(join(rd, f), 'utf8'))
+          if (inWin(r.verifiedAt)) reports.push({ id: r.id, source: r.source })
+        } catch { /* skip */ }
+      }
+    }
+    evidence.kbReports = reports
+  }
+  const residue = []
+  if (existsSync(APPS)) {
+    for (const e of readdirSync(APPS, { withFileTypes: true })) {
+      if (!e.isDirectory()) continue
+      const dir = join(APPS, e.name)
+      if (existsSync(join(dir, 'scaffold.lock.yml'))) continue
+      const mt = statSync(dir).mtimeMs
+      if (mt >= t0 && mt <= t1) residue.push(e.name)
+    }
+  }
+  evidence.unclaimedResidue = residue
+  if (scn.tier === 'C' && existsSync(join(presetDir, 'gaps'))) {
+    evidence.gapsOrders = readdirSync(join(presetDir, 'gaps'))
+  }
+
+  const verdict = checks.every((c) => c.ok) ? 'PASS' : 'FAIL'
+  return { checks, evidence, verdict }
 }

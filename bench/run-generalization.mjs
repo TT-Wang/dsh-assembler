@@ -75,54 +75,81 @@ async function runOne(scn) {
   await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('ws failed')) })
 
   const questionTexts = []
+  const answersGiven = []
+  let answerRejected = false
   const answer = async (q) => {
-    // 检查点问题原文 = 缺口是否被暴露的证据(判卷要用)
-    questionTexts.push(JSON.stringify(q.questions ?? []).slice(0, 1500))
+    // 检查点问题原文 = 缺口是否被暴露的证据(判卷要用);**全文入档,不截断**
+    // (审计发现 13:截断咬掉过 C 档档案,重判证据劣于现场)。
+    questionTexts.push(JSON.stringify(q.questions ?? []))
     const INSIST = '这几项是核心需求,不能降级也不能砍。做得到就做;做不到请直说,并给出具体替代路线(直接写代码/造零件)。不要交一个其实做不到却当作做到的东西。'
+    const gapTerms = scn.expect?.coreGapTerms ?? []
     const answers = (q.questions ?? []).map((item) => {
-      if (scn.tier === 'C') return { id: String(item.id), selected: [], custom: INSIST }
+      const itemText = JSON.stringify(item)
+      // C 档 INSIST 只投缺口题;治理/命名类子问题走常规策略(审计发现 2:一刀切答非所问)。
+      if (scn.tier === 'C' && (gapTerms.length === 0 || gapTerms.some((t) => itemText.includes(t)))) {
+        return { id: String(item.id), selected: [], custom: INSIST }
+      }
       const labels = (item.options ?? []).map((o) => String(o.label ?? ''))
-      const pick = labels.find((l) => /推荐|Recommended|按此|确认|开始|继续|可以|是|好/.test(l)) ?? labels[0]
+      // 显式推荐标记 > 首选项;旧关键词正则会把「砍掉此需求(推荐)」当推荐、把「是/好」
+      // 当同意(审计发现 1:约等于带噪声的选第一项)——只认整词推荐标签。
+      const pick = labels.find((l) => /\(Recommended\)|(推荐)/.test(l)) ?? labels[0]
       return pick !== undefined ? { id: String(item.id), selected: [pick] } : { id: String(item.id), selected: [], custom: '按你的判断来,不用再问我。' }
     })
-    await fetch(`http://127.0.0.1:${PORT}/api/respond`, {
+    answersGiven.push(answers)
+    const resp = await fetch(`http://127.0.0.1:${PORT}/api/respond`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'client-response', rpcId: q.rpcId, result: { ok: true, value: { sessionId, answer: { answers } } } }),
       signal: AbortSignal.timeout(15_000),
     })
+    // 回执核验(审计发现 5:host 对无效应答**静默拒收**且 HTTP 200——驱动器故障
+    // 与 agent 失败必须分开记账,否则死锁被记成"agent 慢")。
+    try {
+      const receipt = await resp.json()
+      const acc = receipt?.result?.value?.accepted
+      if (acc === false) { answerRejected = true; console.log(`    !! ${scn.id} 检查点应答被拒收:${JSON.stringify(receipt.result.value).slice(0, 160)}`) }
+    } catch { /* 无回执体:留 answerRejected=false,endReason 兜底 */ }
   }
 
   const prompt = scn.prompt.replace('CORPUS_DIR', CORPUS)
   await rpc('session.prompt', { sessionId, mode: 'queue', content: [{ type: 'text', text: prompt }] })
 
   const budget = (scn.budgetMinutes ?? 25) * 60_000
-  let scanned = 0, lastActivity = Date.now(), answered = 0, finalText = ''
+  let scanned = 0, lastActivity = Date.now(), answered = 0, sawTurnEnd = false
+  const assistantTexts = []
   const tools = []
-  const usage = { input: 0, output: 0 }
+  const toolCalls = []
+  let endReason = 'budget'
+  // usage:host 无 token_usage/usage 会话事件(协议挖掘证实,旧采集是死代码,
+  // 13 题假零)。诚实记 null;真计量走 session/projection 的 tokenUsage(v5)。
   while (Date.now() - t0 < budget) {
     await new Promise((r) => setTimeout(r, 2000))
     while (scanned < frames.length) {
       const e = frames[scanned++]
       lastActivity = Date.now()
       if (e.type === '__question') { await answer(e); answered++; console.log(`    ↳ 代答检查点(${scn.id})`) }
-      else if (e.type === 'tool/call') { tools.push(String(e.data?.name ?? '')); console.log(`    · ${scn.id} 工具:${e.data?.name}(t+${Math.round((Date.now() - t0) / 1000)}s)`) }
-      else if (e.type === 'assistant/message') {
+      else if (e.type === 'tool/call') {
+        const name = String(e.data?.name ?? '')
+        tools.push(name)
+        toolCalls.push({ name, t: Math.round((Date.now() - t0) / 1000), args: String(e.data?.arguments ?? '').slice(0, 200) })
+        console.log(`    · ${scn.id} 工具:${name}(t+${Math.round((Date.now() - t0) / 1000)}s)`)
+      } else if (e.type === 'assistant/message') {
         const c = e.data?.message?.content
         const t = typeof c === 'string' ? c : Array.isArray(c) ? c.map((b) => (b?.type === 'text' ? b.text : '')).join('') : ''
-        if (t) finalText = t
-      } else if (e.type === 'token_usage' || e.type === 'usage') {
-        usage.input += Number(e.data?.request?.total ?? 0)
-        usage.output += Number(e.data?.request?.output ?? 0)
-      }
+        if (t) assistantTexts.push(t)
+      } else if (e.type === 'turn/end') { sawTurnEnd = true }
     }
     const pending = tools.length - frames.filter((e) => e.type === 'tool/result').length
-    const ended = frames.length > 0 && frames[frames.length - 1]?.type === 'turn/end' && pending <= 0
-    if (ended && Date.now() - lastActivity > 8000) break
-    if (Date.now() - lastActivity > 6 * 60_000 && pending <= 0) { console.log(`    !! ${scn.id} 停滞保释`); break }
+    // 结束判定不再依赖"最后一帧是 turn/end"(log-only 事件会垫尾,审计发现 4/协议挖掘)。
+    const ended = sawTurnEnd && pending <= 0
+    if (ended && Date.now() - lastActivity > 8000) { endReason = 'ended'; break }
+    // 保释与 pending 解耦:真停滞即保释(工具悬挂时旧逻辑把保释自己锁死,必烧满预算)。
+    if (Date.now() - lastActivity > 6 * 60_000) { endReason = pending > 0 ? 'stalled-pending' : 'stalled'; console.log(`    !! ${scn.id} 停滞保释(${endReason})`); break }
   }
   try { await rpc('session.cancel', { sessionId }) } catch { /* 已结束 */ }
   try { ws.close() } catch { /* ignore */ }
-  return { sessionId, tools, finalText, answered, questionTexts, elapsedSeconds: Math.round((Date.now() - t0) / 1000), usage }
+  // finalText = 全部 assistant 文本按序拼接,**全文,不截断**(审计发现 13:只留
+  // 末条 + 截 1200 已实际咬掉 C 档档案;边界声明常写在倒数第二条)。
+  return { sessionId, tools, toolCalls, finalText: assistantTexts.join('\n\n'), answered, answersGiven, answerRejected, questionTexts, endReason, elapsedSeconds: Math.round((Date.now() - t0) / 1000), usage: null, usageCollected: false }
 }
 
 
@@ -152,7 +179,7 @@ for (const scn of todo) {
   }
   console.log(`  → ${g.verdict} ${g.passed}/${g.total}(${run.elapsedSeconds}s)`)
   for (const c of g.checks) console.log(`     ${c.ok ? '✓' : '✗'} ${c.name}:${c.detail}`)
-  const row = { id: scn.id, tier: scn.tier, name: scn.name, ...g, elapsedSeconds: run.elapsedSeconds, tools: run.tools, usage: run.usage, audit: aud, sessionId: run.sessionId, questionTexts: run.questionTexts ?? [], finalText: run.finalText.slice(0, 1200) }
+  const row = { id: scn.id, tier: scn.tier, name: scn.name, ...g, elapsedSeconds: run.elapsedSeconds, tools: run.tools, toolCalls: run.toolCalls ?? [], usage: run.usage ?? null, usageCollected: run.usageCollected === true, endReason: run.endReason ?? null, answersGiven: run.answersGiven ?? [], answerRejected: run.answerRejected === true, audit: aud, sessionId: run.sessionId, questionTexts: run.questionTexts ?? [], finalText: run.finalText }
   results.push(row)
   writeFileSync(join(OUT_DIR, `${scn.id}.json`), JSON.stringify(row, null, 2))
 }
@@ -165,6 +192,6 @@ for (const [tier, list] of Object.entries(byTier)) {
 }
 const total = results.filter((r) => r.verdict === 'PASS').length
 console.log(`\n总计 ${total}/${results.length};Σ墙钟 ${results.reduce((n, r) => n + r.elapsedSeconds, 0)}s`)
-writeFileSync(join(OUT_DIR, 'summary.json'), JSON.stringify({ ranAt: new Date().toISOString(), results }, null, 2))
+writeFileSync(join(OUT_DIR, 'summary.json'), JSON.stringify({ ranAt: new Date().toISOString(), wiped, results }, null, 2))
 console.log(`结果落盘:${OUT_DIR.replace(REPO + '/', '')}`)
 process.exit(0)

@@ -1,0 +1,192 @@
+{
+  "id": "B3",
+  "tier": "B",
+  "name": "语音便签墙(录音→转写→筛选)",
+  "lane": "scaffold",
+  "checks": [
+    {
+      "name": "形态路由",
+      "ok": true,
+      "detail": "实得 scaffold,预期 scaffold"
+    },
+    {
+      "name": "写了页",
+      "ok": true,
+      "detail": "1 张页"
+    },
+    {
+      "name": "调了考官",
+      "ok": true,
+      "detail": "轨迹:verify_preset,verify_app"
+    },
+    {
+      "name": "交付可达",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "资产全通",
+      "ok": true,
+      "detail": "全通"
+    },
+    {
+      "name": "自述判定",
+      "ok": true,
+      "detail": "未在末段自述"
+    },
+    {
+      "name": "直连动作数达标",
+      "ok": true,
+      "detail": "face=4 需 ≥2(wire=2 ai-thin=0 local=0)"
+    },
+    {
+      "name": "用上预期零件",
+      "ok": true,
+      "detail": "BOM:speech-io,sqlite-query"
+    },
+    {
+      "name": "字节纪律(音频不过模型)",
+      "ok": true,
+      "detail": "走服务脸/直传"
+    }
+  ],
+  "passed": 9,
+  "total": 9,
+  "verdict": "PASS",
+  "elapsedSeconds": 680,
+  "tools": [
+    "skill",
+    "bash",
+    "bash",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "bash",
+    "bash",
+    "read_preset",
+    "read",
+    "search_catalog",
+    "bash",
+    "bash",
+    "read_preset",
+    "bash",
+    "read",
+    "bash",
+    "read",
+    "bash",
+    "match_catalog",
+    "match_catalog",
+    "bash",
+    "ask_user_question",
+    "todo_write",
+    "emit_preset",
+    "read_preset",
+    "emit_app",
+    "bash",
+    "bash",
+    "read",
+    "bash",
+    "write",
+    "read",
+    "write",
+    "write",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "read",
+    "read",
+    "edit",
+    "verify_preset",
+    "verify_app"
+  ],
+  "usage": {
+    "input": 0,
+    "output": 0
+  },
+  "audit": {
+    "presetName": "g-b3-voice",
+    "presetEmitted": true,
+    "apps": [
+      {
+        "name": "g-b3-voice-ui",
+        "scaffold": "scaffold-react"
+      }
+    ],
+    "appEmitted": true,
+    "scaffolds": [
+      "scaffold-react"
+    ],
+    "pagesWritten": 1,
+    "routes": {
+      "face": 4,
+      "wire": 2,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "speech-io",
+      "sqlite-query"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": true,
+    "stateEquipped": true,
+    "kbPacks": 0
+  },
+  "sessionId": "session-3d0e903f-c09c-4c2a-a9ae-293e412d9a1e",
+  "questionTexts": [
+    "[{\"id\":\"speech-key\",\"question\":\"服务端转写需要宿主环境有 SPEECH_API_KEY(OpenAI 兼容 /audio/transcriptions),当前没有。怎么处理?\",\"header\":\"转写密钥\",\"options\":[{\"label\":\"我提供 SPEECH_API_KEY(推荐)\",\"description\":\"录音和上传文件都能高质量转写;你把 key 加进 ~/.dsh/.env 后告诉我,我继续装配\"},{\"label\":\"先不提供 key,页面做混合兜底\",\"description\":\"有 key 走服务脸转写;没有时录音用浏览器 Web Speech API 实时转写(仅 Chrome/Edge),上传文件提示手动补文字;以后加 key 页面自动升级\"}]},{\"id\":\"approve\",\"question\":\"架构与方案(上表 + 两个缺口的处置)确认后我就开工:emit_preset g-b3-voice → verify_preset → emit_app ~/apps/g-b3-voice-ui → 写定制页 → verify_app → deploy_app。可以吗?\",\"header\":\"装配确认\",\"options\":[{\"label\":\"确认,开工\",\"description\":\"按此方案装配,页面我亲手写\"},{\"label\":\"先改方案\",\"description\":\"告诉我哪里要调整\"}]}]"
+  ],
+  "finalText": "5 门里 4 门过,唯一 FAIL 就是预判的那一个——wire 转写考题在密钥缺失时过不了,纯密钥门。**当前全部卡在一个动作上:把 `SPEECH_API_KEY` 加进宿主环境。**\n\n## 进展汇报\n\n| 步骤 | 状态 |\n|---|---|\n| preset `g-b3-voice` 发射(语音脸+转写+朗读+sqlite) | ✅ |\n| 契约钉死:读了 speech-io 零件源码,`POST /transcribe/<name>` 收原始字节回 `{text,…}`,音频落盘 `audio/`,`/speak` 回 mp3 且 TTS 免密钥——**页面实现与真实契约逐项吻合** | ✅ |\n| scaffold `~/apps/g-b3-voice-ui` + 考卷 `PAGE-SPEC.yml` + 定制页 `wall.tsx`(录音/上传/转写/标签筛选/原声回放/TTS朗读/两步删除/助手面板) | ✅ |\n| verify_app 五门 | ⚠️ build / skeleton-lock / pages-lint / static-reach **4 过**;behavior 差密钥门 |\n| verify_preset | ⛔ 考官拒绝在密钥未配时打假拳 |\n| deploy_app 上线 | ⏳ 等密钥 |\n\n**就差你这一步:**\n\n```bash\n# 追加到 /Users/tongtao/.dsh/.env(一行,600 权限已就位)\nSPEECH_API_KEY=sk-你的密钥\n```\n\n可选项(只有你的 key 不是 OpenAI 官方时才需要):\n- `SPEECH_API_BASE=` —— OpenAI 兼容端点的 base(默认 `https://api.openai.com/v1`)\n- `SPEECH_ASR_MODEL=` —— 转写模型(默认 `whisper-1`)\n\n加好后回我一句「加好了」,我立刻:重跑 verify_app 行为考(真实「speak→转写→入库」往返)→ verify_preset 独立验收 → deploy_app 发布,页面在 **http://127.0.0.1:3097/assembler/ui/g-b3-voice** 上线并给你开预览。",
+  "hardened": {
+    "at": "2026-08-26T13:37:31.816Z",
+    "checks": [
+      {
+        "name": "硬化·preset 考官末判 ∈ 预期",
+        "ok": true,
+        "detail": "SKIPPED@12:36:48(预期 PASS|SKIPPED)"
+      },
+      {
+        "name": "硬化·app 考官末判 ∈ 预期",
+        "ok": false,
+        "detail": "FAIL@12:37:30(预期 PASS|SKIPPED)"
+      },
+      {
+        "name": "硬化·lock 真伪(g-b3-voice-ui)",
+        "ok": true,
+        "detail": "双哈希吻合(真发射,骨架未越界)"
+      },
+      {
+        "name": "硬化·发布回指(页面=写手页)",
+        "ok": false,
+        "detail": "frontend.source.json 不存在——从未 deploy_app;字面\"交付可达 200\"打的是兜底模板页,系误判"
+      },
+      {
+        "name": "硬化·字节纪律(全自由区严判)",
+        "ok": true,
+        "detail": "服务脸/直传在场,全自由区无 base64 化路径"
+      }
+    ],
+    "evidence": {
+      "presetVerdicts": [
+        "12:36:48 SKIPPED"
+      ],
+      "appVerdicts": [
+        "12:37:30 FAIL g-b3-voice-ui"
+      ],
+      "unclaimedResidue": [
+        ".toolchain",
+        "g-a3-inspect-standalone",
+        "g-c1-board",
+        "g-c2-mobile",
+        "g-c3-risk"
+      ]
+    },
+    "verdict": "FAIL"
+  }
+}

@@ -1,0 +1,175 @@
+{
+  "id": "B2",
+  "tier": "B",
+  "name": "客服工单台 + SLA 倒计时",
+  "lane": "scaffold",
+  "checks": [
+    {
+      "name": "形态路由",
+      "ok": true,
+      "detail": "实得 scaffold,预期 scaffold"
+    },
+    {
+      "name": "写了页",
+      "ok": true,
+      "detail": "1 张页"
+    },
+    {
+      "name": "调了考官",
+      "ok": true,
+      "detail": "轨迹:verify_preset,verify_app"
+    },
+    {
+      "name": "交付可达",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "资产全通",
+      "ok": true,
+      "detail": "全通"
+    },
+    {
+      "name": "自述判定",
+      "ok": true,
+      "detail": "未在末段自述"
+    },
+    {
+      "name": "直连动作数达标",
+      "ok": false,
+      "detail": "face=2 需 ≥3(wire=3 ai-thin=0 local=0)"
+    },
+    {
+      "name": "会话动作不超标",
+      "ok": false,
+      "detail": "wire=3 需 ≤2"
+    }
+  ],
+  "passed": 6,
+  "total": 8,
+  "verdict": "FAIL",
+  "elapsedSeconds": 531,
+  "tools": [
+    "skill",
+    "bash",
+    "search_catalog",
+    "search_catalog",
+    "bash",
+    "read_preset",
+    "bash",
+    "read",
+    "bash",
+    "read",
+    "bash",
+    "match_catalog",
+    "search_catalog",
+    "search_catalog",
+    "ask_user_question",
+    "todo_write",
+    "emit_preset",
+    "verify_preset",
+    "todo_write",
+    "emit_app",
+    "read",
+    "bash",
+    "read",
+    "read",
+    "bash",
+    "bash",
+    "write",
+    "read",
+    "write",
+    "write",
+    "todo_write",
+    "verify_app",
+    "deploy_app",
+    "preview_register",
+    "bash",
+    "todo_write"
+  ],
+  "usage": {
+    "input": 0,
+    "output": 0
+  },
+  "audit": {
+    "presetName": "g-b2-ticket",
+    "presetEmitted": true,
+    "apps": [
+      {
+        "name": "g-b2-ticket-ui",
+        "scaffold": "scaffold-react"
+      }
+    ],
+    "appEmitted": true,
+    "scaffolds": [
+      "scaffold-react"
+    ],
+    "pagesWritten": 1,
+    "routes": {
+      "face": 2,
+      "wire": 3,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "sqlite-query"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null,
+    "stateEquipped": true,
+    "kbPacks": 0
+  },
+  "sessionId": "session-0ff8ebba-8b2a-4fb2-ac98-d9a21ff282cd",
+  "questionTexts": [
+    "[{\"id\":\"arch\",\"question\":\"客服工单台 g-b2-ticket 装配方案(与你确认后再发射):数据存 SQLite tickets 表(id/title/customer/priority/assignee/status/sla_hours/sla_deadline/created_at/updated_at/closed_at);建单时按优先级用服务器时间自动算 SLA 截止时间;看板页经服务面直读列表并本地实时倒计时剩余 SLA(超时标红);转派/关单为纯 UPDATE,页面直写,对话侧也支持一句话操作;agent 负责建单的 SLA 计算、优先级校验与数据纪律。选件:g-b1-stock 同款 sqlite 三件(已验收过),零缺口。前端走 scaffold 定制页(~/apps/g-b2-ticket-ui),不经 frontend 模板。确认开始装配?\",\"header\":\"架构确认\",\"options\":[{\"label\":\"确认,开始装配 (Recommended)\",\"description\":\"按上述方案 emit_preset → verify_preset → emit_app → 写定制页 → verify_app → deploy_app\"},{\"label\":\"调整架构\",\"description\":\"在回复里说明想改的点(如建单也走页面直写、加字段等)\"}]},{\"id\":\"sla\",\"question\":\"按优先级默认的 SLA 时长(建单时即锁定截止时间,可后续在部署参数改):P0 紧急、P1 高、P2 中、P3 低,各多少小时?\",\"header\":\"SLA 档位\",\"options\":[{\"label\":\"P0=2h / P1=8h / P2=24h / P3=72h (Recommended)\",\"description\":\"紧急 2 小时内响应,普通 1 天,低优先 3 天\"},{\"label\":\"P0=4h / P1=8h / P2=24h / P3=72h\",\"description\":\"紧急放宽到 4 小时\"},{\"label\":\"其他档位\",\"description\":\"在回复里给出四档小时数\"}]},{\"id\":\"roster\",\"question\":\"「转派给别人」的「别人」怎么定?看板页转派时要选人/填人。\",\"header\":\"转派对象\",\"options\":[{\"label\":\"自由填写 + 常用人建议 (Recommended)\",\"description\":\"输入框可填任意客服名,旁边给出常用名单(张三/李四/王五)一键点选,agent 侧不做名单限制\"},{\"label\":\"固定名单下拉\",\"description\":\"只能在固定客服名单里转派,名单作为部署参数\"},{\"label\":\"不预置名单\",\"description\":\"纯自由填写,页面不给建议\"}]}]"
+  ],
+  "finalText": "客服工单台已上线 ✅ 页面在右下角预览窗已打开,完整 URL:**http://127.0.0.1:3097/assembler/ui/g-b2-ticket**\n\n## 功能对照\n\n| 需求 | 实现 |\n|---|---|\n| 新建工单(标题/客户/优先级) | 顶部表单,标题/客户必填、优先级四档下拉;走 agent 按服务器时间锁定 SLA 截止(P0=2h / P1=8h / P2=24h / P3=72h)并回执单号与截止时间 |\n| 列表显示每单剩余 SLA | 表格每行**每秒本地倒计时**:正常绿条、过半转黄、≤25% 或超时标红,超时显示「已超时 Xh」;已关闭单显示关单时间 |\n| 转派给别人 | 每行「转派」弹窗,可自由输入任意客服名 + 张三/李四/王五快捷点选,零模型直写 |\n| 关单 | 每行「关单」按钮,记录 `closed_at`,已关闭单不可再转派/关单 |\n\n另有:进行中/已超时/P0 待办统计卡、全部/进行中/已关闭标签切换、「示例数据」一键种 5 张演示单。\n\n## 验收结论(独立考官,非自宣)\n\n- **preset g-b2-ticket**:`verify_preset` **PASS** — 场景考:建单(含 SLA)→ 转派李四 → 凭口令取回,标记[发票开具失败/上海远望科技/李四]全中\n- **前端 g-b2-ticket-ui**:`verify_app` **5 门全过** — 构建零错 / 骨架锁 / 页面 lint 干净 / 静态产物伺服 / 行为考(face 列出+统计 ✓,wire 新建·转派·关闭工单 3 道真考 ✓)\n\n## 交付物与改动入口\n\n- 源码:`~/apps/g-b2-ticket-ui`(页面 `src/pages/tickets.tsx`、考卷 `PAGE-SPEC.yml`)\n- Agent:preset `g-b2-ticket`(persona 数据纪律 / `tickets` 表 DDL / 参数 `sla_hours_p0..p3`、`roster`)\n- 改坏了可一键回滚:点「刷新」重新拉单即可;页面回退用 `deploy_app {\"presetId\":\"g-b2-ticket\",\"rollback\":true}`\n\n一点说明:建单走 agent 是为了 SLA 计算单点写(参数一处改全局生效),转派/关单是纯 UPDATE 所以页面直连数据库毫秒级完成,不浪费模型调用。",
+  "hardened": {
+    "at": "2026-08-26T13:37:31.796Z",
+    "checks": [
+      {
+        "name": "硬化·preset 考官末判 ∈ 预期",
+        "ok": true,
+        "detail": "PASS@12:22:21(预期 PASS)"
+      },
+      {
+        "name": "硬化·判定绑定当前字节",
+        "ok": true,
+        "detail": "字节一致"
+      },
+      {
+        "name": "硬化·app 考官末判 ∈ 预期",
+        "ok": true,
+        "detail": "PASS@12:26:04(预期 PASS)"
+      },
+      {
+        "name": "硬化·lock 真伪(g-b2-ticket-ui)",
+        "ok": true,
+        "detail": "双哈希吻合(真发射,骨架未越界)"
+      },
+      {
+        "name": "硬化·发布回指(页面=写手页)",
+        "ok": true,
+        "detail": "已发布且回指认领 app(g-b2-ticket-ui)"
+      }
+    ],
+    "evidence": {
+      "presetVerdicts": [
+        "12:22:21 PASS",
+        "12:22:21 PASS"
+      ],
+      "appVerdicts": [
+        "12:26:04 PASS g-b2-ticket-ui"
+      ],
+      "unclaimedResidue": [
+        ".toolchain",
+        "g-a3-inspect-standalone",
+        "g-c1-board",
+        "g-c2-mobile",
+        "g-c3-risk"
+      ]
+    },
+    "verdict": "FAIL"
+  }
+}

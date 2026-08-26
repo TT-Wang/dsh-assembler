@@ -1,0 +1,184 @@
+{
+  "id": "B1",
+  "tier": "B",
+  "name": "库存看板 + 批次过期标红",
+  "lane": "scaffold",
+  "checks": [
+    {
+      "name": "形态路由",
+      "ok": true,
+      "detail": "实得 scaffold,预期 scaffold"
+    },
+    {
+      "name": "写了页",
+      "ok": true,
+      "detail": "1 张页"
+    },
+    {
+      "name": "调了考官",
+      "ok": true,
+      "detail": "轨迹:verify_app,verify_preset,verify_app"
+    },
+    {
+      "name": "交付可达",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "资产全通",
+      "ok": true,
+      "detail": "全通"
+    },
+    {
+      "name": "自述判定",
+      "ok": true,
+      "detail": "未在末段自述"
+    },
+    {
+      "name": "直连动作数达标",
+      "ok": true,
+      "detail": "face=3 需 ≥3(wire=3 ai-thin=0 local=0)"
+    },
+    {
+      "name": "会话动作不超标",
+      "ok": false,
+      "detail": "wire=3 需 ≤2"
+    }
+  ],
+  "passed": 7,
+  "total": 8,
+  "verdict": "FAIL",
+  "elapsedSeconds": 673,
+  "tools": [
+    "skill",
+    "search_catalog",
+    "search_catalog",
+    "match_catalog",
+    "search_catalog",
+    "search_catalog",
+    "match_catalog",
+    "ask_user_question",
+    "todo_write",
+    "emit_preset",
+    "read_preset",
+    "bash",
+    "bash",
+    "bash",
+    "emit_app",
+    "bash",
+    "read",
+    "read",
+    "read",
+    "read",
+    "read",
+    "read",
+    "read",
+    "bash",
+    "read",
+    "read",
+    "bash",
+    "write",
+    "read",
+    "write",
+    "edit",
+    "edit",
+    "verify_app",
+    "todo_write",
+    "deploy_app",
+    "verify_preset",
+    "edit",
+    "edit",
+    "edit",
+    "edit",
+    "verify_app",
+    "deploy_app",
+    "preview_register",
+    "todo_write"
+  ],
+  "usage": {
+    "input": 0,
+    "output": 0
+  },
+  "audit": {
+    "presetName": "g-b1-stock",
+    "presetEmitted": true,
+    "apps": [
+      {
+        "name": "g-b1-stock-ui",
+        "scaffold": "scaffold-react"
+      }
+    ],
+    "appEmitted": true,
+    "scaffolds": [
+      "scaffold-react"
+    ],
+    "pagesWritten": 1,
+    "routes": {
+      "face": 3,
+      "wire": 3,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "sqlite-query"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null,
+    "stateEquipped": true,
+    "kbPacks": 0
+  },
+  "sessionId": "session-78291b17-f621-427e-85b1-81ea337a6df7",
+  "questionTexts": [
+    "[{\"id\":\"plan\",\"question\":\"装配方案是否批准?(3 个 SQLite 零件 + LLM 基线解析 + emit_app 定制看板页,无缺口)\",\"header\":\"方案确认\",\"options\":[{\"label\":\"批准,开始装配 (Recommended)\",\"description\":\"按上述方案发射 preset g-b1-stock,再生成定制前端并发布\"},{\"label\":\"要调整零件/数据模型\",\"description\":\"告诉我哪里要改,我调整后再确认\"}]},{\"id\":\"expiry_days\",\"question\":\"批次距到期日还有多少天算\\\"快过期\\\"(看板标红)?页面上会做成可调,这里定后端默认值。\",\"header\":\"快过期阈值\",\"options\":[{\"label\":\"30 天 (Recommended)\",\"description\":\"距到期 30 天内标红,常见食品/药品库存默认\"},{\"label\":\"60 天\",\"description\":\"更保守,提前预警\"},{\"label\":\"90 天\",\"description\":\"很保守,适合长保质期品类\"}]},{\"id\":\"understock\",\"question\":\"出库数量超过批次现有库存时怎么处理?\",\"header\":\"出库不足策略\",\"options\":[{\"label\":\"拒绝并提示可用量 (Recommended)\",\"description\":\"事务不落库,回执说明当前库存,防止负库存\"},{\"label\":\"允许负库存\",\"description\":\"记录为欠账,后续入库补平(适合预售/调拨场景)\"}]}]"
+  ],
+  "finalText": "交付完成 ✅ 右下角预览小窗已打开。\n\n## 交付物\n\n**前端页面**:http://127.0.0.1:3097/assembler/ui/g-b1-stock(已注册预览,可直接操作)\n\n| 需求 | 实现 |\n|---|---|\n| 按品类分区显示批次 | 看板按 `batches.category` 分区成卡片,含批数/合计角标,区内按到期日升序 |\n| 快过期标红 | 距到期 ≤ 阈值(默认 30 天,页面上 15/30/60/90 可调)→ 行红底 + 红字 + 「快过期 · 剩 N 天」徽章;已过期更深红「已过期 N 天」 |\n| 一句话入库/出库 | 顶部输入框 → 走 agent(wire)按 persona 纪律落库:入库同批写 batches+movements,同批次累加;出库不足**拒绝**并回执可用量 |\n| 查批次历史 | 每行「历史」按钮 → 对话框直读 movements 流水(入库+绿/出库-红/时间/备注/操作人) |\n\n**配套**:顶部统计卡(批次/总量/临期/过期)、wire 回执卡、每行快捷「出库」、右上「示例数据」一键种一批含临期/过期批次的演示数据(便于直接看到标红效果)。\n\n## 装配与验收(均为独立黑盒验收,非自评)\n\n- **preset `g-b1-stock`**:3 个 SQLite 零件(mcp-sqlite-query-execute/query/service-info),0 缺口;persona 含事务纪律(入库=批次+流水同写、出库先校验、数量为正、日期 YYYY-MM-DD);`verify_preset` 两轮场景 PASS(建档→取回 token 连续)\n- **前端 `g-b1-stock-ui`**:`verify_app` 五门 PASS ×2 —— 构建 / 骨架锁 / 页面纪律(无裸出网、无外链、无注入面)/ 静态可达 / **行为考 6 动作真跑**:列出批次、品类汇总、批次历史(face 直连)+ 一句话入库、出库扣减、出库不足拒绝(wire 真会话)\n\n## 文件\n\n- 考卷:`g-b1-stock-ui/PAGE-SPEC.yml`(6 个动作 + 验效方式,行为考种子)\n- 页面:`g-b1-stock-ui/src/pages/stock.tsx`(看板全部逻辑)\n- 发布源已记录在 preset,后续要改页面直接说,可回滚(`deploy_app rollback`)\n\n一个说明:页面首次打开若数据面未挂载,会自动做一次零写入的「握手」点亮 preset 再加载看板,所以首屏可能有 1–2 秒连接提示——这是装配生态的正常行为。",
+  "hardened": {
+    "at": "2026-08-26T13:37:31.774Z",
+    "checks": [
+      {
+        "name": "硬化·preset 考官末判 ∈ 预期",
+        "ok": true,
+        "detail": "PASS@12:15:41(预期 PASS)"
+      },
+      {
+        "name": "硬化·判定绑定当前字节",
+        "ok": true,
+        "detail": "字节一致"
+      },
+      {
+        "name": "硬化·app 考官末判 ∈ 预期",
+        "ok": true,
+        "detail": "PASS@12:17:11(预期 PASS)"
+      },
+      {
+        "name": "硬化·lock 真伪(g-b1-stock-ui)",
+        "ok": true,
+        "detail": "双哈希吻合(真发射,骨架未越界)"
+      },
+      {
+        "name": "硬化·发布回指(页面=写手页)",
+        "ok": true,
+        "detail": "已发布且回指认领 app(g-b1-stock-ui)"
+      }
+    ],
+    "evidence": {
+      "presetVerdicts": [
+        "12:15:41 PASS",
+        "12:15:41 PASS"
+      ],
+      "appVerdicts": [
+        "12:15:11 PASS g-b1-stock-ui",
+        "12:17:11 PASS g-b1-stock-ui"
+      ],
+      "unclaimedResidue": [
+        ".toolchain",
+        "g-a3-inspect-standalone",
+        "g-c1-board",
+        "g-c2-mobile",
+        "g-c3-risk"
+      ]
+    },
+    "verdict": "FAIL"
+  }
+}

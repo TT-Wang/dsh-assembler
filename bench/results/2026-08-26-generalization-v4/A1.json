@@ -1,0 +1,135 @@
+{
+  "id": "A1",
+  "tier": "A",
+  "name": "产品手册问答",
+  "lane": "preset-only",
+  "checks": [
+    {
+      "name": "形态路由",
+      "ok": true,
+      "detail": "实得 preset-only,预期 scaffold|preset-only"
+    },
+    {
+      "name": "调了考官",
+      "ok": true,
+      "detail": "轨迹:verify_preset,verify_preset"
+    },
+    {
+      "name": "交付可达",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "资产全通",
+      "ok": true,
+      "detail": "全通"
+    },
+    {
+      "name": "自述判定",
+      "ok": true,
+      "detail": "未在末段自述"
+    },
+    {
+      "name": "知识包随 preset 落地(kb/)",
+      "ok": true,
+      "detail": "kb 包数 1"
+    }
+  ],
+  "passed": 6,
+  "total": 6,
+  "verdict": "PASS",
+  "elapsedSeconds": 177,
+  "tools": [
+    "bash",
+    "skill",
+    "read",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "match_catalog",
+    "ask_user_question",
+    "todo_write",
+    "add_knowledge",
+    "emit_preset",
+    "verify_preset",
+    "verify_preset",
+    "preview_register",
+    "todo_write"
+  ],
+  "usage": {
+    "input": 0,
+    "output": 0
+  },
+  "audit": {
+    "presetName": "g-a1-manual",
+    "presetEmitted": true,
+    "apps": [],
+    "appEmitted": false,
+    "scaffolds": [],
+    "pagesWritten": 0,
+    "routes": {
+      "face": 0,
+      "wire": 0,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "kb-xinggui-x1-manual",
+      "content-search",
+      "frontend-chat-console"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null,
+    "stateEquipped": false,
+    "kbPacks": 1
+  },
+  "sessionId": "session-a63d709c-1ac9-4692-8eec-f733a4a870c2",
+  "questionTexts": [
+    "[{\"id\":\"arch-approve\",\"question\":\"同意按上面这个架构装配 g-a1-manual(知识包挂载手册 + content-search + 聊天页模板)吗?\",\"header\":\"架构确认\",\"options\":[{\"label\":\"同意,开始装配 (Recommended)\",\"description\":\"挂载手册 → 发射 preset → 独立验收 → 给出页面地址\"},{\"label\":\"调整架构\",\"description\":\"告诉我要改哪里,比如页面形态、能力取舍\"}]},{\"id\":\"gap-context\",\"question\":\"Catalog 里没有专门的\\\"跨轮对话上下文\\\"零件(匹配结果标注为缺口)。怎么处置?\",\"header\":\"缺口1:多轮追问记忆\",\"options\":[{\"label\":\"降级:靠会话运行时上下文 (Recommended)\",\"description\":\"agent 会话天然保留多轮上下文,聊天页自带新会话按钮,无需额外零件\"},{\"label\":\"现场造件\",\"description\":\"照工单造一个会话记忆零件入库再装配(多花时间)\"},{\"label\":\"砍掉\",\"description\":\"不做追问,只做单轮问答\"}]},{\"id\":\"gap-guardrail\",\"question\":\"Catalog 里没有\\\"越界拒答\\\"零件。怎么处置?\",\"header\":\"缺口2:手册外问题拒答\",\"options\":[{\"label\":\"降级:写进 persona 行为约束 (Recommended)\",\"description\":\"把\\\"手册未覆盖→明说未涉及、不编造\\\"写进人格约束,每个回答都要求标注出处\"},{\"label\":\"现场造件\",\"description\":\"照工单造一个覆盖范围守卫零件入库再装配\"},{\"label\":\"砍掉\",\"description\":\"不做拒答约束,手册外问题自由发挥\"}]}]"
+  ],
+  "finalText": "完成 ✅ 独立验收双 PASS,交付物已就绪。\n\n## 交付物 `g-a1-manual` — 星轨 X1 净水器手册问答\n\n**页面地址:http://127.0.0.1:3097/assembler/ui/g-a1-manual**(预览窗已在右下角打开,可直接试)\n\n**验收结论**(独立考官,非我自评):\n- 探针① 保修期/滤芯问题 → 回答含 `十八个月`、`滤芯`,且带 `出处` 标注 → **PASS**\n- 探针② 促销价问题(手册未覆盖)→ 明确答 `手册未涉及` → **PASS**\n- 两次均含**前端页面门 + 环路门 PASS**(页面真能与 agent 对话)\n\n**你的三点要求怎么落地的:**\n\n| 要求 | 实现 |\n|---|---|\n| 手册文档变成页面 | `g-corpus/产品手册.md` 已挂载为知识包 `xinggui-x1-manual`,检索门禁 4/4 命中(\"十八个月\"、\"每 3 个月更换\"、\"长按机身「冲洗」键 5 秒复位计数器\"、\"PP 棉堵塞\"),问答时经 content-search 检索手册原文作答 |\n| 能追问 | 会话运行时保留多轮上下文,聊天页自带新会话/追问;指代(\"它\"\"那个键\")以上一轮为准 |\n| 回答标出处 | persona 硬性纪律:每一条手册事实紧跟「出处:手册·保修/换芯周期/常见故障」,手册没写的不推断不编造,覆盖不到的直接说\"手册未涉及\" |\n\n**产出文件:**\n- preset 装配物:`/Users/tongtao/.dsh/.agent-presets/g-a1-manual/`(agent.cordis.yml + 拷贝进 preset 的 kb/ 知识包 + 2 份缺口工单 gaps/)\n- 知识包目录条目:`kb-xinggui-x1-manual`\n\n两处 catalog 缺口(跨轮记忆零件、越界拒答零件)按你批准的处置方式走降级:前者靠运行时会话,后者写进 persona 约束——已如实记入 gaps/ 工单,日后目录补货可升级。\n\n试用:打开页面问\"保修期多久?\"、追问\"那滤芯呢?\"、再问个手册外的\"能开票吗?\"看拒答效果。要调整语气、改出处格式或加 FAQ 引导语,随时说。",
+  "hardened": {
+    "at": "2026-08-26T13:37:31.692Z",
+    "checks": [
+      {
+        "name": "硬化·preset 考官末判 ∈ 预期",
+        "ok": true,
+        "detail": "PASS@11:50:27(预期 PASS|SKIPPED)"
+      },
+      {
+        "name": "硬化·判定绑定当前字节",
+        "ok": true,
+        "detail": "字节一致"
+      }
+    ],
+    "evidence": {
+      "presetVerdicts": [
+        "11:50:13 PASS",
+        "11:50:13 PASS",
+        "11:50:27 PASS",
+        "11:50:27 PASS"
+      ],
+      "appVerdicts": [],
+      "kbReports": [
+        {
+          "id": "xinggui-x1-manual",
+          "source": "用户提供的 /Users/tongtao/apps/g-corpus/产品手册.md"
+        }
+      ],
+      "unclaimedResidue": [
+        ".toolchain",
+        "g-a3-inspect-standalone",
+        "g-c1-board",
+        "g-c2-mobile",
+        "g-c3-risk"
+      ]
+    },
+    "verdict": "PASS"
+  }
+}

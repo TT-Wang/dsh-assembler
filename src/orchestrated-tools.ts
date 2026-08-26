@@ -44,7 +44,7 @@ import { checkArchProbe } from './arch-spec.js'
 import { rankCapabilities } from './capability-index.js'
 import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend } from './frontend.js'
 import { execFileSync, spawn as spawnPart } from 'node:child_process'
-import { loadScaffold, materializeApp, runAppSelftest } from './scaffold.js'
+import { hashLockPaths, loadScaffold, materializeApp, runAppSelftest } from './scaffold.js'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -927,13 +927,26 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
         const carry = a?.reverify === true
           ? { carry: false, why: 'reverify 强制重验' }
           : carryDecision(loadVerifyLedger(dir), sha, Date.now(), config.verifyCarryTtlMs ?? VERIFY_CARRY_TTL_MS)
+        // 记分板对**每种**判定出口都记一行(审计实证:SKIPPED 只进 repo 台账不进
+        // 记分板,硬化判卷差点把在预期内的 SKIPPED 冤判成"考官从未真判")。
+        const scoreboard = (verdict: string, note?: string): void => {
+          try {
+            appendFileSync(join(dir, 'selfcheck-history.jsonl'), `${JSON.stringify({
+              at: new Date().toISOString(), presetSha256: sha, verdict,
+              ...(note !== undefined ? { note: note.slice(0, 160) } : {}),
+              elapsedSeconds: Math.round((Date.now() - t0) / 1000),
+            })}\n`)
+          } catch { /* 台账是加速器不是必需品 */ }
+        }
         if (carry.carry) {
           phase(`验收沿用:${carry.why}`)
+          scoreboard('PASS', `沿用:${carry.why}`)
           settleAndLedger({ status: 'PASS', carried: true }, 'completed', 'PASS(沿用)')
           return `验收 PASS(沿用)——${carry.why}。同字节不重探;强制重验传 {"reverify": true}。${contractPass}`
         }
         const port = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
         if (port === undefined) {
+          scoreboard('SKIPPED', 'headless:无 webServer 端口')
           settleAndLedger({ status: 'SKIPPED', reason: 'headless' }, 'completed', 'SKIPPED')
           return `验收跳过:无 webServer 端口(headless?)——preset 已发射但未经验收,不可当作通过。${contractPass}`
         }
@@ -948,6 +961,7 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
         if (missingSecrets.length > 0) {
           const names = missingSecrets.map((sec) => sec.env).join(', ')
           phase(`验收跳过:待配置凭证 ${names}`)
+          scoreboard('SKIPPED', `待配置凭证:${names}`)
           settleAndLedger({ status: 'SKIPPED', reason: `待配置凭证:${names}` }, 'completed', 'SKIPPED(凭证)')
           return `验收跳过:待配置凭证 ${names}——装配正确但无法实调外部服务;把凭证配到 host 环境变量后重验即可。探针不对未配服务打假拳。${contractPass}`
         }
@@ -1469,6 +1483,20 @@ export function verifyAppToolDefinition(_ctx: Context, _config: Config): ToolDef
       const wirePort = typeof a.wirePort === 'number' ? a.wirePort : (_ctx.get?.('webServer') as { port?: number } | undefined)?.port
       const result = await runAppSelftest(targetDir, { ...(wirePort !== undefined ? { wirePort } : {}) })
       appendOrchLedger({ tool: VERIFY_APP_TOOL_NAME, targetDir, verdict: result.status, elapsedSeconds: Math.round((Date.now() - t0) / 1000) })
+      // app 侧判定工件(对抗审计后加):考官亲笔判定 + 被考字节的哈希绑定
+      // (src/pages/** + PAGE-SPEC.yml)。没有它,"先用最小真页过考、验后改页改声明"
+      // 离线不可判;有了它,判卷器重算哈希即知判定对的是不是盘上这份页面。
+      try {
+        writeFileSync(join(targetDir, 'last-verify.json'), JSON.stringify({
+          verdict: result.status,
+          at: new Date().toISOString(),
+          pagesHash: hashLockPaths(targetDir, ['src/pages', 'PAGE-SPEC.yml']),
+          checks: result.checks.map((c) => ({ check: c.check, status: c.status })),
+          elapsedSeconds: result.elapsedSeconds,
+        }, null, 2) + '\n')
+      } catch (error: unknown) {
+        console.error(`[assembler] app 判定工件写入失败(判定照常):${error instanceof Error ? error.message : String(error)}`)
+      }
       const lines = result.checks.map((c) => `- [${c.status}] ${c.check}:${c.evidence}`)
       const head = result.status === 'PASS'
         ? `app 验收 PASS(${String(result.elapsedSeconds)}s,黑盒真跑)`
@@ -1674,7 +1702,9 @@ export function addKnowledgeToolDefinition(_ctx: Context, config: Config): ToolD
       // 出处进**索引报告**而不只进包内 meta:包会被删,报告是留档的那一份。
       // 实录教训:四包战役语料混进目录,想按"哪来的"清理时,唯一记着 source 的
       // 文件恰恰在包里、跟着包一起没了,只能靠名字认——正是"按名字猜"的老病。
-      writeFileSync(join(repoRoot, 'index', 'reports', `knowledge-${id}.json`), JSON.stringify({ id, kind: 'knowledge', source: meta.source, verifiedAt: new Date().toISOString(), probes: results }, null, 2) + '\n')
+      // docsDir 是结构化出处(解析后的绝对路径):战役清场按它绑定回收——审计实证
+      // source 自由文本(「用户提供的 /path/x.md」)让 startsWith 匹配永不命中。
+      writeFileSync(join(repoRoot, 'index', 'reports', `knowledge-${id}.json`), JSON.stringify({ id, kind: 'knowledge', source: meta.source, docsDir: resolve(docsDir), verifiedAt: new Date().toISOString(), probes: results }, null, 2) + '\n')
 
       // 登记能力条目(幂等:同 id 不重复追加)
       const capsPath = config.catalogPath ?? join(repoRoot, 'capabilities.yml')

@@ -1,0 +1,158 @@
+{
+  "id": "A3",
+  "tier": "A",
+  "name": "设备巡检记录(字段完全不同)",
+  "lane": "scaffold",
+  "checks": [
+    {
+      "name": "形态路由",
+      "ok": true,
+      "detail": "实得 scaffold,预期 scaffold|preset-only"
+    },
+    {
+      "name": "调了考官",
+      "ok": true,
+      "detail": "轨迹:verify_preset,verify_app"
+    },
+    {
+      "name": "交付可达",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "资产全通",
+      "ok": true,
+      "detail": "全通"
+    },
+    {
+      "name": "自述判定",
+      "ok": true,
+      "detail": "未在末段自述"
+    },
+    {
+      "name": "状态装备就位(equipment/init.sql)",
+      "ok": true,
+      "detail": "预建 schema 在"
+    }
+  ],
+  "passed": 6,
+  "total": 6,
+  "verdict": "PASS",
+  "elapsedSeconds": 609,
+  "tools": [
+    "skill",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "read_preset",
+    "read_preset",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "search_catalog",
+    "bash",
+    "bash",
+    "todo_write",
+    "bash",
+    "emit_preset",
+    "verify_preset",
+    "emit_app",
+    "bash",
+    "bash",
+    "read",
+    "bash",
+    "bash",
+    "write",
+    "read",
+    "write",
+    "write",
+    "todo_write",
+    "verify_app",
+    "deploy_app",
+    "bash",
+    "preview_register",
+    "todo_write"
+  ],
+  "usage": {
+    "input": 0,
+    "output": 0
+  },
+  "audit": {
+    "presetName": "g-a3-inspect",
+    "presetEmitted": true,
+    "apps": [
+      {
+        "name": "g-a3-inspect",
+        "scaffold": "scaffold-react"
+      }
+    ],
+    "appEmitted": true,
+    "scaffolds": [
+      "scaffold-react"
+    ],
+    "pagesWritten": 1,
+    "routes": {
+      "face": 5,
+      "wire": 0,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "sqlite-query"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null,
+    "stateEquipped": true,
+    "kbPacks": 0
+  },
+  "sessionId": "session-e491bcf7-cfe6-462b-9f05-1c87a481471f",
+  "questionTexts": [],
+  "finalText": "交付完成 ✅\n\n## g-a3-inspect 设备巡检记录网页\n\n**页面地址:** http://127.0.0.1:3097/assembler/ui/g-a3-inspect(右下角预览小窗已打开)\n\n### 功能\n- **录入巡检记录** — 设备编号、巡检人、状态(正常/异常/待修下拉)、异常说明、巡检时间(datetime 选择,默认当前时刻);必填校验 + 回车快捷提交\n- **查看记录** — 巡检台账列表,按巡检时间倒序;顶部三张状态统计卡(正常/异常/待修各几条)\n- **按设备编号筛选** + 一键全部\n- **删除记录** — 二次确认后删除\n- 数据落在 preset 的 SQLite 库(`inspections` 表),页面直连服务脸(face 路由,零模型、毫秒级)\n\n### 交付物与验收\n| 环节 | 结果 |\n|---|---|\n| preset `g-a3-inspect`(persona + 装备 DDL + sqlite 零件) | 验收 **PASS** — 考官实测:录入 3 条 → 按设备号取回 → 统计状态,全过 |\n| 考卷 `PAGE-SPEC.yml`(5 个动作,全 face) | — |\n| 页面 `src/pages/inspect.tsx` | — |\n| verify_app 五门(构建/骨架锁/页面 lint/资产可达/**行为考**) | **PASS**(6s,5 个动作全过) |\n| deploy_app 上线 | HTTP 200 ✓ |\n\n**文件位置:** 主交付在 `g-a3-inspect/`(脚手架: `PAGE-SPEC.yml` + `src/pages/inspect.tsx`,构建产物已发布进 preset)。旧的独立版 `index.html` 已备份到 `g-a3-inspect-standalone/` 留档。\n\n后续要改页面:改 `g-a3-inspect/src/pages/` 与 PAGE-SPEC 后跑 verify_app → deploy_app 即可;改坏了可 `deploy_app {\"presetId\":\"g-a3-inspect\",\"rollback\":true}` 一键回滚。",
+  "hardened": {
+    "at": "2026-08-26T13:37:31.751Z",
+    "checks": [
+      {
+        "name": "硬化·preset 考官末判 ∈ 预期",
+        "ok": true,
+        "detail": "PASS@12:02:27(预期 PASS|SKIPPED)"
+      },
+      {
+        "name": "硬化·判定绑定当前字节",
+        "ok": true,
+        "detail": "字节一致"
+      },
+      {
+        "name": "硬化·app 考官末判 ∈ 预期",
+        "ok": true,
+        "detail": "PASS@12:03:56(预期 PASS|SKIPPED)"
+      },
+      {
+        "name": "硬化·lock 真伪(g-a3-inspect)",
+        "ok": true,
+        "detail": "双哈希吻合(真发射,骨架未越界)"
+      }
+    ],
+    "evidence": {
+      "presetVerdicts": [
+        "12:02:27 PASS",
+        "12:02:27 PASS"
+      ],
+      "appVerdicts": [
+        "12:03:56 PASS g-a3-inspect"
+      ],
+      "unclaimedResidue": [
+        ".toolchain",
+        "g-a3-inspect-standalone",
+        "g-c1-board",
+        "g-c2-mobile",
+        "g-c3-risk"
+      ]
+    },
+    "verdict": "PASS"
+  }
+}

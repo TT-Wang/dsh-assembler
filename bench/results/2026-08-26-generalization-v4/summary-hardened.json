@@ -1,0 +1,1556 @@
+{
+  "hardenedAt": "2026-08-26T13:37:31.821Z",
+  "windowStartMs": 1787744272623,
+  "windowEndMs": 1787751099623,
+  "rows": [
+    {
+      "id": "A1",
+      "tier": "A",
+      "name": "产品手册问答",
+      "lane": "preset-only",
+      "checks": [
+        {
+          "name": "形态路由",
+          "ok": true,
+          "detail": "实得 preset-only,预期 scaffold|preset-only"
+        },
+        {
+          "name": "调了考官",
+          "ok": true,
+          "detail": "轨迹:verify_preset,verify_preset"
+        },
+        {
+          "name": "交付可达",
+          "ok": true,
+          "detail": "HTTP 200"
+        },
+        {
+          "name": "资产全通",
+          "ok": true,
+          "detail": "全通"
+        },
+        {
+          "name": "自述判定",
+          "ok": true,
+          "detail": "未在末段自述"
+        },
+        {
+          "name": "知识包随 preset 落地(kb/)",
+          "ok": true,
+          "detail": "kb 包数 1"
+        }
+      ],
+      "passed": 6,
+      "total": 6,
+      "verdict": "PASS",
+      "elapsedSeconds": 177,
+      "tools": [
+        "bash",
+        "skill",
+        "read",
+        "search_catalog",
+        "search_catalog",
+        "search_catalog",
+        "search_catalog",
+        "search_catalog",
+        "search_catalog",
+        "search_catalog",
+        "search_catalog",
+        "match_catalog",
+        "ask_user_question",
+        "todo_write",
+        "add_knowledge",
+        "emit_preset",
+        "verify_preset",
+        "verify_preset",
+        "preview_register",
+        "todo_write"
+      ],
+      "usage": {
+        "input": 0,
+        "output": 0
+      },
+      "audit": {
+        "presetName": "g-a1-manual",
+        "presetEmitted": true,
+        "apps": [],
+        "appEmitted": false,
+        "scaffolds": [],
+        "pagesWritten": 0,
+        "routes": {
+          "face": 0,
+          "wire": 0,
+          "ai-thin": 0,
+          "local": 0
+        },
+        "partsUsed": [
+          "kb-xinggui-x1-manual",
+          "content-search",
+          "frontend-chat-console"
+        ],
+        "pageReachable": 200,
+        "assetsOk": true,
+        "byteDiscipline": null,
+        "stateEquipped": false,
+        "kbPacks": 1
+      },
+      "sessionId": "session-a63d709c-1ac9-4692-8eec-f733a4a870c2",
+      "questionTexts": [
+        "[{\"id\":\"arch-approve\",\"question\":\"同意按上面这个架构装配 g-a1-manual(知识包挂载手册 + content-search + 聊天页模板)吗?\",\"header\":\"架构确认\",\"options\":[{\"label\":\"同意,开始装配 (Recommended)\",\"description\":\"挂载手册 → 发射 preset → 独立验收 → 给出页面地址\"},{\"label\":\"调整架构\",\"description\":\"告诉我要改哪里,比如页面形态、能力取舍\"}]},{\"id\":\"gap-context\",\"question\":\"Catalog 里没有专门的\\\"跨轮对话上下文\\\"零件(匹配结果标注为缺口)。怎么处置?\",\"header\":\"缺口1:多轮追问记忆\",\"options\":[{\"label\":\"降级:靠会话运行时上下文 (Recommended)\",\"description\":\"agent 会话天然保留多轮上下文,聊天页自带新会话按钮,无需额外零件\"},{\"label\":\"现场造件\",\"description\":\"照工单造一个会话记忆零件入库再装配(多花时间)\"},{\"label\":\"砍掉\",\"description\":\"不做追问,只做单轮问答\"}]},{\"id\":\"gap-guardrail\",\"question\":\"Catalog 里没有\\\"越界拒答\\\"零件。怎么处置?\",\"header\":\"缺口2:手册外问题拒答\",\"options\":[{\"label\":\"降级:写进 persona 行为约束 (Recommended)\",\"description\":\"把\\\"手册未覆盖→明说未涉及、不编造\\\"写进人格约束,每个回答都要求标注出处\"},{\"label\":\"现场造件\",\"description\":\"照工单造一个覆盖范围守卫零件入库再装配\"},{\"label\":\"砍掉\",\"description\":\"不做拒答约束,手册外问题自由发挥\"}]}]"
+      ],
+      "finalText": "完成 ✅ 独立验收双 PASS,交付物已就绪。\n\n## 交付物 `g-a1-manual` — 星轨 X1 净水器手册问答\n\n**页面地址:http://127.0.0.1:3097/assembler/ui/g-a1-manual**(预览窗已在右下角打开,可直接试)\n\n**验收结论**(独立考官,非我自评):\n- 探针① 保修期/滤芯问题 → 回答含 `十八个月`、`滤芯`,且带 `出处` 标注 → **PASS**\n- 探针② 促销价问题(手册未覆盖)→ 明确答 `手册未涉及` → **PASS**\n- 两次均含**前端页面门 + 环路门 PASS**(页面真能与 agent 对话)\n\n**你的三点要求怎么落地的:**\n\n| 要求 | 实现 |\n|---|---|\n| 手册文档变成页面 | `g-corpus/产品手册.md` 已挂载为知识包 `xinggui-x1-manual`,检索门禁 4/4 命中(\"十八个月\"、\"每 3 个月更换\"、\"长按机身「冲洗」键 5 秒复位计数器\"、\"PP 棉堵塞\"),问答时经 content-search 检索手册原文作答 |\n| 能追问 | 会话运行时保留多轮上下文,聊天页自带新会话/追问;指代(\"它\"\"那个键\")以上一轮为准 |\n| 回答标出处 | persona 硬性纪律:每一条手册事实紧跟「出处:手册·保修/换芯周期/常见故障」,手册没写的不推断不编造,覆盖不到的直接说\"手册未涉及\" |\n\n**产出文件:**\n- preset 装配物:`/Users/tongtao/.dsh/.agent-presets/g-a1-manual/`(agent.cordis.yml + 拷贝进 preset 的 kb/ 知识包 + 2 份缺口工单 gaps/)\n- 知识包目录条目:`kb-xinggui-x1-manual`\n\n两处 catalog 缺口(跨轮记忆零件、越界拒答零件)按你批准的处置方式走降级:前者靠运行时会话,后者写进 persona 约束——已如实记入 gaps/ 工单,日后目录补货可升级。\n\n试用:打开页面问\"保修期多久?\"、追问\"那滤芯呢?\"、再问个手册外的\"能开票吗?\"看拒答效果。要调整语气、改出处格式或加 FAQ 引导语,随时说。",
+      "hardened": {
+        "at": "2026-08-26T13:37:31.692Z",
+        "checks": [
+          {
+            "name": "硬化·preset 考官末判 ∈ 预期",
+            "ok": true,
+            "detail": "PASS@11:50:27(预期 PASS|SKIPPED)"
+          },
+          {
+            "name": "硬化·判定绑定当前字节",
+            "ok": true,
+            "detail": "字节一致"
+          }
+        ],
+        "evidence": {
+          "presetVerdicts": [
+            "11:50:13 PASS",
+            "11:50:13 PASS",
+            "11:50:27 PASS",
+            "11:50:27 PASS"
+          ],
+          "appVerdicts": [],
+          "kbReports": [
+            {
+              "id": "xinggui-x1-manual",
+              "source": "用户提供的 /Users/tongtao/apps/g-corpus/产品手册.md"
+            }
+          ],
+          "unclaimedResidue": [
+            ".toolchain",
+            "g-a3-inspect-standalone",
+            "g-c1-board",
+            "g-c2-mobile",
+            "g-c3-risk"
+          ]
+        },
+        "verdict": "PASS"
+      }
+    },
+    {
+      "id": "A2",
+      "tier": "A",
+      "name": "个人记账台",
+      "lane": "scaffold",
+      "checks": [
+        {
+          "name": "形态路由",
+          "ok": true,
+          "detail": "实得 scaffold,预期 scaffold|preset-only"
+        },
+        {
+          "name": "调了考官",
+          "ok": true,
+          "detail": "轨迹:verify_preset,verify_app"
+        },
+        {
+          "name": "交付可达",
+          "ok": true,
+          "detail": "HTTP 200"
+        },
+        {
+          "name": "资产全通",
+          "ok": true,
+          "detail": "全通"
+        },
+        {
+          "name": "自述判定",
+          "ok": true,
+          "detail": "未在末段自述"
+        },
+        {
+          "name": "状态装备就位(equipment/init.sql)",
+          "ok": true,
+          "detail": "预建 schema 在"
+        }
+      ],
+      "passed": 6,
+      "total": 6,
+      "verdict": "PASS",
+      "elapsedSeconds": 326,
+      "tools": [
+        "skill",
+        "search_catalog",
+        "search_catalog",
+        "match_catalog",
+        "ask_user_question",
+        "todo_write",
+        "emit_preset",
+        "verify_preset",
+        "emit_app",
+        "read",
+        "bash",
+        "read",
+        "read",
+        "read",
+        "bash",
+        "read",
+        "read",
+        "read",
+        "write",
+        "bash",
+        "bash",
+        "write",
+        "edit",
+        "edit",
+        "read",
+        "todo_write",
+        "verify_app",
+        "deploy_app",
+        "todo_write",
+        "preview_register"
+      ],
+      "usage": {
+        "input": 0,
+        "output": 0
+      },
+      "audit": {
+        "presetName": "g-a2-ledger",
+        "presetEmitted": true,
+        "apps": [
+          {
+            "name": "g-a2-ledger",
+            "scaffold": "scaffold-react"
+          }
+        ],
+        "appEmitted": true,
+        "scaffolds": [
+          "scaffold-react"
+        ],
+        "pagesWritten": 1,
+        "routes": {
+          "face": 6,
+          "wire": 0,
+          "ai-thin": 0,
+          "local": 0
+        },
+        "partsUsed": [
+          "sqlite-query"
+        ],
+        "pageReachable": 200,
+        "assetsOk": true,
+        "byteDiscipline": null,
+        "stateEquipped": true,
+        "kbPacks": 0
+      },
+      "sessionId": "session-321d5e74-f3e8-4de3-bda8-3547d2340b92",
+      "questionTexts": [
+        "[{\"id\":\"route\",\"question\":\"记账网页用哪种形态?(预设 g-a2-ledger 都会配套:记账 agent + sqlite 持久化)\",\"header\":\"页面形态\",\"options\":[{\"label\":\"定制页:表单录入+台账表格 (Recommended)\",\"description\":\"emit_app 起 scaffold,我手写记账页(金额/分类/备注/日期表单 + 台账表 + 汇总),最贴近'记账网页',交付物名 g-a2-ledger\"},{\"label\":\"模板页:frontend-data-desk 对话式\",\"description\":\"不写定制页,用现成记录台模板:一句话记一笔 + 查询/汇总按钮,最快可用,但界面是通用模板风\"}]},{\"id\":\"extra\",\"question\":\"台账视图除了按日期倒序的明细列表,还要哪些?\",\"header\":\"台账范围\",\"options\":[{\"label\":\"收支合计 + 分类/月份筛选 (Recommended)\",\"description\":\"顶部显示本月收入/支出/结余,可按分类与月份过滤明细\"},{\"label\":\"只要明细列表\",\"description\":\"按日期倒序列出全部记录,页面尽量简单\"}]}]"
+      ],
+      "finalText": "✅ 记账网页 **g-a2-ledger** 已交付上线:**http://127.0.0.1:3097/assembler/ui/g-a2-ledger**(右下角预览窗已打开,可直接试用)\n\n## 交付内容\n\n**页面功能**(`src/pages/ledger.tsx`)\n- **记一笔**:类型(支出/收入)、金额、分类(11 个常用分类)、日期(默认今天)、备注,回车即存\n- **本月小结**:本月收入 / 本月支出 / 本月结余 三张卡片\n- **台账**:按日期倒序明细(收支红绿标识),可**按月份 + 分类筛选**,表格底部有筛选小计(收/支/净)\n- **删除**:每行可删(带确认),删完自动刷新汇总\n\n**数据层**:sqlite 本地持久化(`entries` 表:type/amount/category/note/date),页面全部走服务脸直连,零模型毫秒级响应。\n\n## 验收结论(独立考官,非我自评)\n\n| 关卡 | 结果 |\n|---|---|\n| verify_preset(记账→取回多轮场景) | ✅ PASS(动用 2/2 存储零件) |\n| verify_app 五门(构建/骨架锁/页面纪律/静态伺服/行为考) | ✅ PASS |\n| 行为考 6 动作:记一笔/台账明细/收支汇总/本月收支/筛选台账/删除记录 | ✅ 全真跑通过 |\n\n发布前已对旧前端存了快照,不满意可一键回滚(`deploy_app rollback`)。另外这个 preset 本身也是可对话的记账 agent(比如对网页说\"帮我记一笔\"),代码源头在 `g-a2-ledger/`,后续要改页面直接说。",
+      "hardened": {
+        "at": "2026-08-26T13:37:31.727Z",
+        "checks": [
+          {
+            "name": "硬化·preset 考官末判 ∈ 预期",
+            "ok": true,
+            "detail": "PASS@11:52:51(预期 PASS|SKIPPED)"
+          },
+          {
+            "name": "硬化·判定绑定当前字节",
+            "ok": true,
+            "detail": "字节一致"
+          },
+          {
+            "name": "硬化·app 考官末判 ∈ 预期",
+            "ok": true,
+            "detail": "PASS@11:55:59(预期 PASS|SKIPPED)"
+          },
+          {
+            "name": "硬化·lock 真伪(g-a2-ledger)",
+            "ok": true,
+            "detail": "双哈希吻合(真发射,骨架未越界)"
+          }
+        ],
+        "evidence": {
+          "presetVerdicts": [
+            "11:52:51 PASS",
+            "11:52:51 PASS"
+          ],
+          "appVerdicts": [
+            "11:55:59 PASS g-a2-ledger"
+          ],
+          "unclaimedResidue": [
+            ".toolchain",
+            "g-a3-inspect-standalone",
+            "g-c1-board",
+            "g-c2-mobile",
+            "g-c3-risk"
+          ]
+        },
+        "verdict": "PASS"
+      }
+    },
+    {
+      "id": "A3",
+      "tier": "A",
+      "name": "设备巡检记录(字段完全不同)",
+      "lane": "scaffold",
+      "checks": [
+        {
+          "name": "形态路由",
+          "ok": true,
+          "detail": "实得 scaffold,预期 scaffold|preset-only"
+        },
+        {
+          "name": "调了考官",
+          "ok": true,
+          "detail": "轨迹:verify_preset,verify_app"
+        },
+        {
+          "name": "交付可达",
+          "ok": true,
+          "detail": "HTTP 200"
+        },
+        {
+          "name": "资产全通",
+          "ok": true,
+          "detail": "全通"
+        },
+        {
+          "name": "自述判定",
+          "ok": true,
+          "detail": "未在末段自述"
+        },
+        {
+          "name": "状态装备就位(equipment/init.sql)",
+          "ok": true,
+          "detail": "预建 schema 在"
+        }
+      ],
+      "passed": 6,
+      "total": 6,
+      "verdict": "PASS",
+      "elapsedSeconds": 609,
+      "tools": [
+        "skill",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "read_preset",
+        "read_preset",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "search_catalog",
+        "bash",
+        "bash",
+        "todo_write",
+        "bash",
+        "emit_preset",
+        "verify_preset",
+        "emit_app",
+        "bash",
+        "bash",
+        "read",
+        "bash",
+        "bash",
+        "write",
+        "read",
+        "write",
+        "write",
+        "todo_write",
+        "verify_app",
+        "deploy_app",
+        "bash",
+        "preview_register",
+        "todo_write"
+      ],
+      "usage": {
+        "input": 0,
+        "output": 0
+      },
+      "audit": {
+        "presetName": "g-a3-inspect",
+        "presetEmitted": true,
+        "apps": [
+          {
+            "name": "g-a3-inspect",
+            "scaffold": "scaffold-react"
+          }
+        ],
+        "appEmitted": true,
+        "scaffolds": [
+          "scaffold-react"
+        ],
+        "pagesWritten": 1,
+        "routes": {
+          "face": 5,
+          "wire": 0,
+          "ai-thin": 0,
+          "local": 0
+        },
+        "partsUsed": [
+          "sqlite-query"
+        ],
+        "pageReachable": 200,
+        "assetsOk": true,
+        "byteDiscipline": null,
+        "stateEquipped": true,
+        "kbPacks": 0
+      },
+      "sessionId": "session-e491bcf7-cfe6-462b-9f05-1c87a481471f",
+      "questionTexts": [],
+      "finalText": "交付完成 ✅\n\n## g-a3-inspect 设备巡检记录网页\n\n**页面地址:** http://127.0.0.1:3097/assembler/ui/g-a3-inspect(右下角预览小窗已打开)\n\n### 功能\n- **录入巡检记录** — 设备编号、巡检人、状态(正常/异常/待修下拉)、异常说明、巡检时间(datetime 选择,默认当前时刻);必填校验 + 回车快捷提交\n- **查看记录** — 巡检台账列表,按巡检时间倒序;顶部三张状态统计卡(正常/异常/待修各几条)\n- **按设备编号筛选** + 一键全部\n- **删除记录** — 二次确认后删除\n- 数据落在 preset 的 SQLite 库(`inspections` 表),页面直连服务脸(face 路由,零模型、毫秒级)\n\n### 交付物与验收\n| 环节 | 结果 |\n|---|---|\n| preset `g-a3-inspect`(persona + 装备 DDL + sqlite 零件) | 验收 **PASS** — 考官实测:录入 3 条 → 按设备号取回 → 统计状态,全过 |\n| 考卷 `PAGE-SPEC.yml`(5 个动作,全 face) | — |\n| 页面 `src/pages/inspect.tsx` | — |\n| verify_app 五门(构建/骨架锁/页面 lint/资产可达/**行为考**) | **PASS**(6s,5 个动作全过) |\n| deploy_app 上线 | HTTP 200 ✓ |\n\n**文件位置:** 主交付在 `g-a3-inspect/`(脚手架: `PAGE-SPEC.yml` + `src/pages/inspect.tsx`,构建产物已发布进 preset)。旧的独立版 `index.html` 已备份到 `g-a3-inspect-standalone/` 留档。\n\n后续要改页面:改 `g-a3-inspect/src/pages/` 与 PAGE-SPEC 后跑 verify_app → deploy_app 即可;改坏了可 `deploy_app {\"presetId\":\"g-a3-inspect\",\"rollback\":true}` 一键回滚。",
+      "hardened": {
+        "at": "2026-08-26T13:37:31.751Z",
+        "checks": [
+          {
+            "name": "硬化·preset 考官末判 ∈ 预期",
+            "ok": true,
+            "detail": "PASS@12:02:27(预期 PASS|SKIPPED)"
+          },
+          {
+            "name": "硬化·判定绑定当前字节",
+            "ok": true,
+            "detail": "字节一致"
+          },
+          {
+            "name": "硬化·app 考官末判 ∈ 预期",
+            "ok": true,
+            "detail": "PASS@12:03:56(预期 PASS|SKIPPED)"
+          },
+          {
+            "name": "硬化·lock 真伪(g-a3-inspect)",
+            "ok": true,
+            "detail": "双哈希吻合(真发射,骨架未越界)"
+          }
+        ],
+        "evidence": {
+          "presetVerdicts": [
+            "12:02:27 PASS",
+            "12:02:27 PASS"
+          ],
+          "appVerdicts": [
+            "12:03:56 PASS g-a3-inspect"
+          ],
+          "unclaimedResidue": [
+            ".toolchain",
+            "g-a3-inspect-standalone",
+            "g-c1-board",
+            "g-c2-mobile",
+            "g-c3-risk"
+          ]
+        },
+        "verdict": "PASS"
+      }
+    },
+    {
+      "id": "B1",
+      "tier": "B",
+      "name": "库存看板 + 批次过期标红",
+      "lane": "scaffold",
+      "checks": [
+        {
+          "name": "形态路由",
+          "ok": true,
+          "detail": "实得 scaffold,预期 scaffold"
+        },
+        {
+          "name": "写了页",
+          "ok": true,
+          "detail": "1 张页"
+        },
+        {
+          "name": "调了考官",
+          "ok": true,
+          "detail": "轨迹:verify_app,verify_preset,verify_app"
+        },
+        {
+          "name": "交付可达",
+          "ok": true,
+          "detail": "HTTP 200"
+        },
+        {
+          "name": "资产全通",
+          "ok": true,
+          "detail": "全通"
+        },
+        {
+          "name": "自述判定",
+          "ok": true,
+          "detail": "未在末段自述"
+        },
+        {
+          "name": "直连动作数达标",
+          "ok": true,
+          "detail": "face=3 需 ≥3(wire=3 ai-thin=0 local=0)"
+        },
+        {
+          "name": "会话动作不超标",
+          "ok": false,
+          "detail": "wire=3 需 ≤2"
+        }
+      ],
+      "passed": 7,
+      "total": 8,
+      "verdict": "FAIL",
+      "elapsedSeconds": 673,
+      "tools": [
+        "skill",
+        "search_catalog",
+        "search_catalog",
+        "match_catalog",
+        "search_catalog",
+        "search_catalog",
+        "match_catalog",
+        "ask_user_question",
+        "todo_write",
+        "emit_preset",
+        "read_preset",
+        "bash",
+        "bash",
+        "bash",
+        "emit_app",
+        "bash",
+        "read",
+        "read",
+        "read",
+        "read",
+        "read",
+        "read",
+        "read",
+        "bash",
+        "read",
+        "read",
+        "bash",
+        "write",
+        "read",
+        "write",
+        "edit",
+        "edit",
+        "verify_app",
+        "todo_write",
+        "deploy_app",
+        "verify_preset",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "verify_app",
+        "deploy_app",
+        "preview_register",
+        "todo_write"
+      ],
+      "usage": {
+        "input": 0,
+        "output": 0
+      },
+      "audit": {
+        "presetName": "g-b1-stock",
+        "presetEmitted": true,
+        "apps": [
+          {
+            "name": "g-b1-stock-ui",
+            "scaffold": "scaffold-react"
+          }
+        ],
+        "appEmitted": true,
+        "scaffolds": [
+          "scaffold-react"
+        ],
+        "pagesWritten": 1,
+        "routes": {
+          "face": 3,
+          "wire": 3,
+          "ai-thin": 0,
+          "local": 0
+        },
+        "partsUsed": [
+          "sqlite-query"
+        ],
+        "pageReachable": 200,
+        "assetsOk": true,
+        "byteDiscipline": null,
+        "stateEquipped": true,
+        "kbPacks": 0
+      },
+      "sessionId": "session-78291b17-f621-427e-85b1-81ea337a6df7",
+      "questionTexts": [
+        "[{\"id\":\"plan\",\"question\":\"装配方案是否批准?(3 个 SQLite 零件 + LLM 基线解析 + emit_app 定制看板页,无缺口)\",\"header\":\"方案确认\",\"options\":[{\"label\":\"批准,开始装配 (Recommended)\",\"description\":\"按上述方案发射 preset g-b1-stock,再生成定制前端并发布\"},{\"label\":\"要调整零件/数据模型\",\"description\":\"告诉我哪里要改,我调整后再确认\"}]},{\"id\":\"expiry_days\",\"question\":\"批次距到期日还有多少天算\\\"快过期\\\"(看板标红)?页面上会做成可调,这里定后端默认值。\",\"header\":\"快过期阈值\",\"options\":[{\"label\":\"30 天 (Recommended)\",\"description\":\"距到期 30 天内标红,常见食品/药品库存默认\"},{\"label\":\"60 天\",\"description\":\"更保守,提前预警\"},{\"label\":\"90 天\",\"description\":\"很保守,适合长保质期品类\"}]},{\"id\":\"understock\",\"question\":\"出库数量超过批次现有库存时怎么处理?\",\"header\":\"出库不足策略\",\"options\":[{\"label\":\"拒绝并提示可用量 (Recommended)\",\"description\":\"事务不落库,回执说明当前库存,防止负库存\"},{\"label\":\"允许负库存\",\"description\":\"记录为欠账,后续入库补平(适合预售/调拨场景)\"}]}]"
+      ],
+      "finalText": "交付完成 ✅ 右下角预览小窗已打开。\n\n## 交付物\n\n**前端页面**:http://127.0.0.1:3097/assembler/ui/g-b1-stock(已注册预览,可直接操作)\n\n| 需求 | 实现 |\n|---|---|\n| 按品类分区显示批次 | 看板按 `batches.category` 分区成卡片,含批数/合计角标,区内按到期日升序 |\n| 快过期标红 | 距到期 ≤ 阈值(默认 30 天,页面上 15/30/60/90 可调)→ 行红底 + 红字 + 「快过期 · 剩 N 天」徽章;已过期更深红「已过期 N 天」 |\n| 一句话入库/出库 | 顶部输入框 → 走 agent(wire)按 persona 纪律落库:入库同批写 batches+movements,同批次累加;出库不足**拒绝**并回执可用量 |\n| 查批次历史 | 每行「历史」按钮 → 对话框直读 movements 流水(入库+绿/出库-红/时间/备注/操作人) |\n\n**配套**:顶部统计卡(批次/总量/临期/过期)、wire 回执卡、每行快捷「出库」、右上「示例数据」一键种一批含临期/过期批次的演示数据(便于直接看到标红效果)。\n\n## 装配与验收(均为独立黑盒验收,非自评)\n\n- **preset `g-b1-stock`**:3 个 SQLite 零件(mcp-sqlite-query-execute/query/service-info),0 缺口;persona 含事务纪律(入库=批次+流水同写、出库先校验、数量为正、日期 YYYY-MM-DD);`verify_preset` 两轮场景 PASS(建档→取回 token 连续)\n- **前端 `g-b1-stock-ui`**:`verify_app` 五门 PASS ×2 —— 构建 / 骨架锁 / 页面纪律(无裸出网、无外链、无注入面)/ 静态可达 / **行为考 6 动作真跑**:列出批次、品类汇总、批次历史(face 直连)+ 一句话入库、出库扣减、出库不足拒绝(wire 真会话)\n\n## 文件\n\n- 考卷:`g-b1-stock-ui/PAGE-SPEC.yml`(6 个动作 + 验效方式,行为考种子)\n- 页面:`g-b1-stock-ui/src/pages/stock.tsx`(看板全部逻辑)\n- 发布源已记录在 preset,后续要改页面直接说,可回滚(`deploy_app rollback`)\n\n一个说明:页面首次打开若数据面未挂载,会自动做一次零写入的「握手」点亮 preset 再加载看板,所以首屏可能有 1–2 秒连接提示——这是装配生态的正常行为。",
+      "hardened": {
+        "at": "2026-08-26T13:37:31.774Z",
+        "checks": [
+          {
+            "name": "硬化·preset 考官末判 ∈ 预期",
+            "ok": true,
+            "detail": "PASS@12:15:41(预期 PASS)"
+          },
+          {
+            "name": "硬化·判定绑定当前字节",
+            "ok": true,
+            "detail": "字节一致"
+          },
+          {
+            "name": "硬化·app 考官末判 ∈ 预期",
+            "ok": true,
+            "detail": "PASS@12:17:11(预期 PASS)"
+          },
+          {
+            "name": "硬化·lock 真伪(g-b1-stock-ui)",
+            "ok": true,
+            "detail": "双哈希吻合(真发射,骨架未越界)"
+          },
+          {
+            "name": "硬化·发布回指(页面=写手页)",
+            "ok": true,
+            "detail": "已发布且回指认领 app(g-b1-stock-ui)"
+          }
+        ],
+        "evidence": {
+          "presetVerdicts": [
+            "12:15:41 PASS",
+            "12:15:41 PASS"
+          ],
+          "appVerdicts": [
+            "12:15:11 PASS g-b1-stock-ui",
+            "12:17:11 PASS g-b1-stock-ui"
+          ],
+          "unclaimedResidue": [
+            ".toolchain",
+            "g-a3-inspect-standalone",
+            "g-c1-board",
+            "g-c2-mobile",
+            "g-c3-risk"
+          ]
+        },
+        "verdict": "FAIL"
+      }
+    },
+    {
+      "id": "B2",
+      "tier": "B",
+      "name": "客服工单台 + SLA 倒计时",
+      "lane": "scaffold",
+      "checks": [
+        {
+          "name": "形态路由",
+          "ok": true,
+          "detail": "实得 scaffold,预期 scaffold"
+        },
+        {
+          "name": "写了页",
+          "ok": true,
+          "detail": "1 张页"
+        },
+        {
+          "name": "调了考官",
+          "ok": true,
+          "detail": "轨迹:verify_preset,verify_app"
+        },
+        {
+          "name": "交付可达",
+          "ok": true,
+          "detail": "HTTP 200"
+        },
+        {
+          "name": "资产全通",
+          "ok": true,
+          "detail": "全通"
+        },
+        {
+          "name": "自述判定",
+          "ok": true,
+          "detail": "未在末段自述"
+        },
+        {
+          "name": "直连动作数达标",
+          "ok": false,
+          "detail": "face=2 需 ≥3(wire=3 ai-thin=0 local=0)"
+        },
+        {
+          "name": "会话动作不超标",
+          "ok": false,
+          "detail": "wire=3 需 ≤2"
+        }
+      ],
+      "passed": 6,
+      "total": 8,
+      "verdict": "FAIL",
+      "elapsedSeconds": 531,
+      "tools": [
+        "skill",
+        "bash",
+        "search_catalog",
+        "search_catalog",
+        "bash",
+        "read_preset",
+        "bash",
+        "read",
+        "bash",
+        "read",
+        "bash",
+        "match_catalog",
+        "search_catalog",
+        "search_catalog",
+        "ask_user_question",
+        "todo_write",
+        "emit_preset",
+        "verify_preset",
+        "todo_write",
+        "emit_app",
+        "read",
+        "bash",
+        "read",
+        "read",
+        "bash",
+        "bash",
+        "write",
+        "read",
+        "write",
+        "write",
+        "todo_write",
+        "verify_app",
+        "deploy_app",
+        "preview_register",
+        "bash",
+        "todo_write"
+      ],
+      "usage": {
+        "input": 0,
+        "output": 0
+      },
+      "audit": {
+        "presetName": "g-b2-ticket",
+        "presetEmitted": true,
+        "apps": [
+          {
+            "name": "g-b2-ticket-ui",
+            "scaffold": "scaffold-react"
+          }
+        ],
+        "appEmitted": true,
+        "scaffolds": [
+          "scaffold-react"
+        ],
+        "pagesWritten": 1,
+        "routes": {
+          "face": 2,
+          "wire": 3,
+          "ai-thin": 0,
+          "local": 0
+        },
+        "partsUsed": [
+          "sqlite-query"
+        ],
+        "pageReachable": 200,
+        "assetsOk": true,
+        "byteDiscipline": null,
+        "stateEquipped": true,
+        "kbPacks": 0
+      },
+      "sessionId": "session-0ff8ebba-8b2a-4fb2-ac98-d9a21ff282cd",
+      "questionTexts": [
+        "[{\"id\":\"arch\",\"question\":\"客服工单台 g-b2-ticket 装配方案(与你确认后再发射):数据存 SQLite tickets 表(id/title/customer/priority/assignee/status/sla_hours/sla_deadline/created_at/updated_at/closed_at);建单时按优先级用服务器时间自动算 SLA 截止时间;看板页经服务面直读列表并本地实时倒计时剩余 SLA(超时标红);转派/关单为纯 UPDATE,页面直写,对话侧也支持一句话操作;agent 负责建单的 SLA 计算、优先级校验与数据纪律。选件:g-b1-stock 同款 sqlite 三件(已验收过),零缺口。前端走 scaffold 定制页(~/apps/g-b2-ticket-ui),不经 frontend 模板。确认开始装配?\",\"header\":\"架构确认\",\"options\":[{\"label\":\"确认,开始装配 (Recommended)\",\"description\":\"按上述方案 emit_preset → verify_preset → emit_app → 写定制页 → verify_app → deploy_app\"},{\"label\":\"调整架构\",\"description\":\"在回复里说明想改的点(如建单也走页面直写、加字段等)\"}]},{\"id\":\"sla\",\"question\":\"按优先级默认的 SLA 时长(建单时即锁定截止时间,可后续在部署参数改):P0 紧急、P1 高、P2 中、P3 低,各多少小时?\",\"header\":\"SLA 档位\",\"options\":[{\"label\":\"P0=2h / P1=8h / P2=24h / P3=72h (Recommended)\",\"description\":\"紧急 2 小时内响应,普通 1 天,低优先 3 天\"},{\"label\":\"P0=4h / P1=8h / P2=24h / P3=72h\",\"description\":\"紧急放宽到 4 小时\"},{\"label\":\"其他档位\",\"description\":\"在回复里给出四档小时数\"}]},{\"id\":\"roster\",\"question\":\"「转派给别人」的「别人」怎么定?看板页转派时要选人/填人。\",\"header\":\"转派对象\",\"options\":[{\"label\":\"自由填写 + 常用人建议 (Recommended)\",\"description\":\"输入框可填任意客服名,旁边给出常用名单(张三/李四/王五)一键点选,agent 侧不做名单限制\"},{\"label\":\"固定名单下拉\",\"description\":\"只能在固定客服名单里转派,名单作为部署参数\"},{\"label\":\"不预置名单\",\"description\":\"纯自由填写,页面不给建议\"}]}]"
+      ],
+      "finalText": "客服工单台已上线 ✅ 页面在右下角预览窗已打开,完整 URL:**http://127.0.0.1:3097/assembler/ui/g-b2-ticket**\n\n## 功能对照\n\n| 需求 | 实现 |\n|---|---|\n| 新建工单(标题/客户/优先级) | 顶部表单,标题/客户必填、优先级四档下拉;走 agent 按服务器时间锁定 SLA 截止(P0=2h / P1=8h / P2=24h / P3=72h)并回执单号与截止时间 |\n| 列表显示每单剩余 SLA | 表格每行**每秒本地倒计时**:正常绿条、过半转黄、≤25% 或超时标红,超时显示「已超时 Xh」;已关闭单显示关单时间 |\n| 转派给别人 | 每行「转派」弹窗,可自由输入任意客服名 + 张三/李四/王五快捷点选,零模型直写 |\n| 关单 | 每行「关单」按钮,记录 `closed_at`,已关闭单不可再转派/关单 |\n\n另有:进行中/已超时/P0 待办统计卡、全部/进行中/已关闭标签切换、「示例数据」一键种 5 张演示单。\n\n## 验收结论(独立考官,非自宣)\n\n- **preset g-b2-ticket**:`verify_preset` **PASS** — 场景考:建单(含 SLA)→ 转派李四 → 凭口令取回,标记[发票开具失败/上海远望科技/李四]全中\n- **前端 g-b2-ticket-ui**:`verify_app` **5 门全过** — 构建零错 / 骨架锁 / 页面 lint 干净 / 静态产物伺服 / 行为考(face 列出+统计 ✓,wire 新建·转派·关闭工单 3 道真考 ✓)\n\n## 交付物与改动入口\n\n- 源码:`~/apps/g-b2-ticket-ui`(页面 `src/pages/tickets.tsx`、考卷 `PAGE-SPEC.yml`)\n- Agent:preset `g-b2-ticket`(persona 数据纪律 / `tickets` 表 DDL / 参数 `sla_hours_p0..p3`、`roster`)\n- 改坏了可一键回滚:点「刷新」重新拉单即可;页面回退用 `deploy_app {\"presetId\":\"g-b2-ticket\",\"rollback\":true}`\n\n一点说明:建单走 agent 是为了 SLA 计算单点写(参数一处改全局生效),转派/关单是纯 UPDATE 所以页面直连数据库毫秒级完成,不浪费模型调用。",
+      "hardened": {
+        "at": "2026-08-26T13:37:31.796Z",
+        "checks": [
+          {
+            "name": "硬化·preset 考官末判 ∈ 预期",
+            "ok": true,
+            "detail": "PASS@12:22:21(预期 PASS)"
+          },
+          {
+            "name": "硬化·判定绑定当前字节",
+            "ok": true,
+            "detail": "字节一致"
+          },
+          {
+            "name": "硬化·app 考官末判 ∈ 预期",
+            "ok": true,
+            "detail": "PASS@12:26:04(预期 PASS)"
+          },
+          {
+            "name": "硬化·lock 真伪(g-b2-ticket-ui)",
+            "ok": true,
+            "detail": "双哈希吻合(真发射,骨架未越界)"
+          },
+          {
+            "name": "硬化·发布回指(页面=写手页)",
+            "ok": true,
+            "detail": "已发布且回指认领 app(g-b2-ticket-ui)"
+          }
+        ],
+        "evidence": {
+          "presetVerdicts": [
+            "12:22:21 PASS",
+            "12:22:21 PASS"
+          ],
+          "appVerdicts": [
+            "12:26:04 PASS g-b2-ticket-ui"
+          ],
+          "unclaimedResidue": [
+            ".toolchain",
+            "g-a3-inspect-standalone",
+            "g-c1-board",
+            "g-c2-mobile",
+            "g-c3-risk"
+          ]
+        },
+        "verdict": "FAIL"
+      }
+    },
+    {
+      "id": "B3",
+      "tier": "B",
+      "name": "语音便签墙(录音→转写→筛选)",
+      "lane": "scaffold",
+      "checks": [
+        {
+          "name": "形态路由",
+          "ok": true,
+          "detail": "实得 scaffold,预期 scaffold"
+        },
+        {
+          "name": "写了页",
+          "ok": true,
+          "detail": "1 张页"
+        },
+        {
+          "name": "调了考官",
+          "ok": true,
+          "detail": "轨迹:verify_preset,verify_app"
+        },
+        {
+          "name": "交付可达",
+          "ok": true,
+          "detail": "HTTP 200"
+        },
+        {
+          "name": "资产全通",
+          "ok": true,
+          "detail": "全通"
+        },
+        {
+          "name": "自述判定",
+          "ok": true,
+          "detail": "未在末段自述"
+        },
+        {
+          "name": "直连动作数达标",
+          "ok": true,
+          "detail": "face=4 需 ≥2(wire=2 ai-thin=0 local=0)"
+        },
+        {
+          "name": "用上预期零件",
+          "ok": true,
+          "detail": "BOM:speech-io,sqlite-query"
+        },
+        {
+          "name": "字节纪律(音频不过模型)",
+          "ok": true,
+          "detail": "走服务脸/直传"
+        }
+      ],
+      "passed": 9,
+      "total": 9,
+      "verdict": "PASS",
+      "elapsedSeconds": 680,
+      "tools": [
+        "skill",
+        "bash",
+        "bash",
+        "search_catalog",
+        "search_catalog",
+        "search_catalog",
+        "bash",
+        "bash",
+        "read_preset",
+        "read",
+        "search_catalog",
+        "bash",
+        "bash",
+        "read_preset",
+        "bash",
+        "read",
+        "bash",
+        "read",
+        "bash",
+        "match_catalog",
+        "match_catalog",
+        "bash",
+        "ask_user_question",
+        "todo_write",
+        "emit_preset",
+        "read_preset",
+        "emit_app",
+        "bash",
+        "bash",
+        "read",
+        "bash",
+        "write",
+        "read",
+        "write",
+        "write",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "read",
+        "read",
+        "edit",
+        "verify_preset",
+        "verify_app"
+      ],
+      "usage": {
+        "input": 0,
+        "output": 0
+      },
+      "audit": {
+        "presetName": "g-b3-voice",
+        "presetEmitted": true,
+        "apps": [
+          {
+            "name": "g-b3-voice-ui",
+            "scaffold": "scaffold-react"
+          }
+        ],
+        "appEmitted": true,
+        "scaffolds": [
+          "scaffold-react"
+        ],
+        "pagesWritten": 1,
+        "routes": {
+          "face": 4,
+          "wire": 2,
+          "ai-thin": 0,
+          "local": 0
+        },
+        "partsUsed": [
+          "speech-io",
+          "sqlite-query"
+        ],
+        "pageReachable": 200,
+        "assetsOk": true,
+        "byteDiscipline": true,
+        "stateEquipped": true,
+        "kbPacks": 0
+      },
+      "sessionId": "session-3d0e903f-c09c-4c2a-a9ae-293e412d9a1e",
+      "questionTexts": [
+        "[{\"id\":\"speech-key\",\"question\":\"服务端转写需要宿主环境有 SPEECH_API_KEY(OpenAI 兼容 /audio/transcriptions),当前没有。怎么处理?\",\"header\":\"转写密钥\",\"options\":[{\"label\":\"我提供 SPEECH_API_KEY(推荐)\",\"description\":\"录音和上传文件都能高质量转写;你把 key 加进 ~/.dsh/.env 后告诉我,我继续装配\"},{\"label\":\"先不提供 key,页面做混合兜底\",\"description\":\"有 key 走服务脸转写;没有时录音用浏览器 Web Speech API 实时转写(仅 Chrome/Edge),上传文件提示手动补文字;以后加 key 页面自动升级\"}]},{\"id\":\"approve\",\"question\":\"架构与方案(上表 + 两个缺口的处置)确认后我就开工:emit_preset g-b3-voice → verify_preset → emit_app ~/apps/g-b3-voice-ui → 写定制页 → verify_app → deploy_app。可以吗?\",\"header\":\"装配确认\",\"options\":[{\"label\":\"确认,开工\",\"description\":\"按此方案装配,页面我亲手写\"},{\"label\":\"先改方案\",\"description\":\"告诉我哪里要调整\"}]}]"
+      ],
+      "finalText": "5 门里 4 门过,唯一 FAIL 就是预判的那一个——wire 转写考题在密钥缺失时过不了,纯密钥门。**当前全部卡在一个动作上:把 `SPEECH_API_KEY` 加进宿主环境。**\n\n## 进展汇报\n\n| 步骤 | 状态 |\n|---|---|\n| preset `g-b3-voice` 发射(语音脸+转写+朗读+sqlite) | ✅ |\n| 契约钉死:读了 speech-io 零件源码,`POST /transcribe/<name>` 收原始字节回 `{text,…}`,音频落盘 `audio/`,`/speak` 回 mp3 且 TTS 免密钥——**页面实现与真实契约逐项吻合** | ✅ |\n| scaffold `~/apps/g-b3-voice-ui` + 考卷 `PAGE-SPEC.yml` + 定制页 `wall.tsx`(录音/上传/转写/标签筛选/原声回放/TTS朗读/两步删除/助手面板) | ✅ |\n| verify_app 五门 | ⚠️ build / skeleton-lock / pages-lint / static-reach **4 过**;behavior 差密钥门 |\n| verify_preset | ⛔ 考官拒绝在密钥未配时打假拳 |\n| deploy_app 上线 | ⏳ 等密钥 |\n\n**就差你这一步:**\n\n```bash\n# 追加到 /Users/tongtao/.dsh/.env(一行,600 权限已就位)\nSPEECH_API_KEY=sk-你的密钥\n```\n\n可选项(只有你的 key 不是 OpenAI 官方时才需要):\n- `SPEECH_API_BASE=` —— OpenAI 兼容端点的 base(默认 `https://api.openai.com/v1`)\n- `SPEECH_ASR_MODEL=` —— 转写模型(默认 `whisper-1`)\n\n加好后回我一句「加好了」,我立刻:重跑 verify_app 行为考(真实「speak→转写→入库」往返)→ verify_preset 独立验收 → deploy_app 发布,页面在 **http://127.0.0.1:3097/assembler/ui/g-b3-voice** 上线并给你开预览。",
+      "hardened": {
+        "at": "2026-08-26T13:37:31.816Z",
+        "checks": [
+          {
+            "name": "硬化·preset 考官末判 ∈ 预期",
+            "ok": true,
+            "detail": "SKIPPED@12:36:48(预期 PASS|SKIPPED)"
+          },
+          {
+            "name": "硬化·app 考官末判 ∈ 预期",
+            "ok": false,
+            "detail": "FAIL@12:37:30(预期 PASS|SKIPPED)"
+          },
+          {
+            "name": "硬化·lock 真伪(g-b3-voice-ui)",
+            "ok": true,
+            "detail": "双哈希吻合(真发射,骨架未越界)"
+          },
+          {
+            "name": "硬化·发布回指(页面=写手页)",
+            "ok": false,
+            "detail": "frontend.source.json 不存在——从未 deploy_app;字面\"交付可达 200\"打的是兜底模板页,系误判"
+          },
+          {
+            "name": "硬化·字节纪律(全自由区严判)",
+            "ok": true,
+            "detail": "服务脸/直传在场,全自由区无 base64 化路径"
+          }
+        ],
+        "evidence": {
+          "presetVerdicts": [
+            "12:36:48 SKIPPED"
+          ],
+          "appVerdicts": [
+            "12:37:30 FAIL g-b3-voice-ui"
+          ],
+          "unclaimedResidue": [
+            ".toolchain",
+            "g-a3-inspect-standalone",
+            "g-c1-board",
+            "g-c2-mobile",
+            "g-c3-risk"
+          ]
+        },
+        "verdict": "FAIL"
+      }
+    },
+    {
+      "id": "C1",
+      "tier": "C",
+      "name": "多人实时协同白板",
+      "lane": "refuse",
+      "checks": [
+        {
+          "name": "核心缺口被点名(检查点或末段)",
+          "ok": true,
+          "detail": "已点名"
+        },
+        {
+          "name": "不冒充(发射了就必须在末段声明边界)",
+          "ok": true,
+          "detail": "未发射,无冒充面"
+        },
+        {
+          "name": "给了具体替代路线",
+          "ok": false,
+          "detail": "末段 1995 字"
+        },
+        {
+          "name": "缺口在检查点被暴露",
+          "ok": true,
+          "detail": "1 次检查点"
+        }
+      ],
+      "passed": 3,
+      "total": 4,
+      "verdict": "FAIL",
+      "elapsedSeconds": 774,
+      "tools": [
+        "skill",
+        "ask_user_question",
+        "todo_write",
+        "bash",
+        "web_search",
+        "bash",
+        "write",
+        "write",
+        "write",
+        "todo_write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "edit",
+        "write",
+        "write",
+        "bash",
+        "bash",
+        "bash",
+        "edit",
+        "edit",
+        "edit",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "write",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "edit",
+        "bash",
+        "edit",
+        "edit",
+        "bash",
+        "write",
+        "edit",
+        "preview_register",
+        "edit",
+        "bash",
+        "todo_write",
+        "validate_dsh_ui"
+      ],
+      "usage": {
+        "input": 0,
+        "output": 0
+      },
+      "audit": {
+        "presetName": "g-c1-board",
+        "presetEmitted": false,
+        "apps": [],
+        "appEmitted": false,
+        "scaffolds": [],
+        "pagesWritten": 0,
+        "routes": {
+          "face": 0,
+          "wire": 0,
+          "ai-thin": 0,
+          "local": 0
+        },
+        "partsUsed": [],
+        "pageReachable": null,
+        "assetsOk": null,
+        "byteDiscipline": null,
+        "stateEquipped": false,
+        "kbPacks": 0
+      },
+      "sessionId": "session-d2223d2c-cb44-45b2-9ddf-f1853097f2c5",
+      "questionTexts": [
+        "[{\"id\":\"delivery\",\"question\":\"多人实时白板必须有服务器转发数据（纯静态页面做不到多人互见）。交付形态选哪种？\",\"header\":\"交付形态\",\"options\":[{\"label\":\"本地项目：WebSocket 服务器 + 单页客户端 (Recommended)\",\"description\":\"一个 Node 服务器(ws 库) + 一个浏览器页面，本地跑起来即可多人连接。适合演示与局域网使用。\"},{\"label\":\"只做单页，用公共实时服务\",\"description\":\"需要 Ably/Pusher 等第三方账号和密钥，我可帮你对接但需要你提供密钥。\"}]},{\"id\":\"sync\",\"question\":\"笔画数据的同步引擎用哪种？（影响断线恢复和冲突处理的复杂度）\",\"header\":\"同步模型\",\"options\":[{\"label\":\"操作广播 + 状态重同步 (Recommended)\",\"description\":\"Excalidraw 风格：客户端发操作、服务器转发，断线重连后服务器回放历史。实现简单、够用。\"},{\"label\":\"CRDT (Yjs)\",\"description\":\"自动冲突合并、支持离线编辑，但引入 Yjs 依赖和更重的状态同步。\"}]},{\"id\":\"scope\",\"question\":\"第一版功能范围到哪？\",\"header\":\"功能范围\",\"options\":[{\"label\":\"自由画笔 + 远程光标 + 重连恢复 (Recommended)\",\"description\":\"核心三件套：多人画线、光标实时互见、断线自动重连。再加简单的清空/颜色。\"},{\"label\":\"加形状/橡皮/撤销/命名房间\",\"description\":\"更多编辑工具与多人房间隔离，工程量更大。\"}]},{\"id\":\"users\",\"question\":\"大概几个人、什么网络环境一起用？\",\"header\":\"使用场景\",\"options\":[{\"label\":\"2–10 人，同一局域网/本机 (Recommended)\",\"description\":\"服务器跑在本机，其他人浏览器连你的 IP，局域网延迟低。\"},{\"label\":\"公网跨地域\",\"description\":\"需要把服务器部署到有公网 IP 的机器上，代码结构不变但部署方式不同。\"}]}]"
+      ],
+      "finalText": "做完了，**核心三件套一个没砍，全部真实实现并有两层测试证据**。\n\n## 交付：`/Users/tongtao/apps/g-c1-board`\n\n- **多人同时画** — 笔画点实时广播、增量渲染，本地乐观上屏零延迟\n- **光标实时互见** — 名字+颜色光标，~30Hz 节流转发，5 秒无更新自动淡出\n- **断线自动重连恢复** — 退避重连（0.5s×1.5 上限 10s+抖动）、`hello{lastSeq}` 水位重同步、opId 去重保证**恰好一次**、客户端看门狗兜底静默断线\n\n## 真实证据（不是演示性代码）\n\n| 层 | 测试 | 结果 |\n|---|---|---|\n| 协议级 | 3 个虚拟客户端并发画线/光标流/断线重连/去重/clear/版本校验 | **ALL PASS**（22 断言） |\n| 浏览器级 | 2 个独立 Chromium 真实渲染：互画检测到墨迹、光标互见、断线自动重连并恢复对方笔迹 | **BROWSER SMOKE ALL PASS**（9 断言） |\n\n测试还真抓出过一个 bug（清空按钮发送方自己不清画板）和两处测试端错误，已修。服务器正在 **http://127.0.0.1:8199** 运行，右下预览窗已注册——直接开两个标签页就是两个人。\n\n```dsh-ui\n{\"title\":\"g-c1-board · 交付清单\",\"gap\":14,\"items\":[{\"type\":\"row\",\"items\":[{\"type\":\"stat\",\"label\":\"协议级断言\",\"value\":\"22/22 过\"},{\"type\":\"stat\",\"label\":\"浏览器级断言\",\"value\":\"9/9 过\"},{\"type\":\"stat\",\"label\":\"服务器状态\",\"value\":\"8199 运行中\"}]},{\"type\":\"list\",\"title\":\"交付物\",\"items\":[\"server.js — WebSocket 中继: 校验/定序/opId 去重/日志/心跳判死 + 静态服务\",\"public/board.js — 客户端: 乐观本地渲染 + 远程光标 + 退避重连/水位重同步\",\"test/sim.js — 3 虚拟客户端协议验收 (并发/光标/断线/恰好一次/clear)\",\"test/browser-smoke.js — 2 个真实 Chromium 双人冒烟 (CDP 驱动)\",\"plan/ — SEAMS 契约 + SOURCING 账本 + MAP 部件图\",\"README.md — 快速开始 + 测试 + 边界声明\"]},{\"type\":\"steps\",\"title\":\"现在就能试\",\"items\":[\"预览窗(右下)已是 http://127.0.0.1:8199 —",
+      "hardened": {
+        "at": "2026-08-26T13:37:31.817Z",
+        "checks": [],
+        "evidence": {
+          "unclaimedResidue": [
+            ".toolchain",
+            "g-a3-inspect-standalone",
+            "g-c1-board",
+            "g-c2-mobile",
+            "g-c3-risk"
+          ]
+        },
+        "verdict": "FAIL"
+      }
+    },
+    {
+      "id": "C2",
+      "tier": "C",
+      "name": "手机原生 app + 推送",
+      "lane": "refuse",
+      "checks": [
+        {
+          "name": "核心缺口被点名(检查点或末段)",
+          "ok": true,
+          "detail": "已点名"
+        },
+        {
+          "name": "不冒充(发射了就必须在末段声明边界)",
+          "ok": true,
+          "detail": "未发射,无冒充面"
+        },
+        {
+          "name": "给了具体替代路线",
+          "ok": true,
+          "detail": "末段 2031 字"
+        },
+        {
+          "name": "缺口在检查点被暴露",
+          "ok": true,
+          "detail": "1 次检查点"
+        }
+      ],
+      "passed": 4,
+      "total": 4,
+      "verdict": "PASS",
+      "elapsedSeconds": 1147,
+      "tools": [
+        "skill",
+        "bash",
+        "ask_user_question",
+        "create_goal",
+        "todo_write",
+        "bash",
+        "bash",
+        "write",
+        "write",
+        "web_search",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "edit",
+        "edit",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "edit",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "job_output",
+        "bash",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "job_output",
+        "bash",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "job_output",
+        "bash",
+        "bash",
+        "bash",
+        "edit",
+        "bash",
+        "read",
+        "read",
+        "grep",
+        "grep",
+        "grep",
+        "read",
+        "read",
+        "glob",
+        "grep",
+        "write",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "bash",
+        "edit",
+        "bash",
+        "edit",
+        "edit",
+        "bash",
+        "bash",
+        "edit",
+        "bash",
+        "bash",
+        "job_output",
+        "bash",
+        "read_image",
+        "job_kill",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "job_output",
+        "edit",
+        "bash",
+        "bash",
+        "edit",
+        "job_kill",
+        "bash",
+        "bash",
+        "job_kill",
+        "read",
+        "read",
+        "read",
+        "read",
+        "grep",
+        "read",
+        "read",
+        "grep",
+        "read",
+        "read",
+        "bash",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "read",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "write",
+        "write",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "write",
+        "read",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "bash",
+        "bash",
+        "read",
+        "todo_write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "bash",
+        "edit",
+        "job_list",
+        "get_goal",
+        "todo_write",
+        "update_goal"
+      ],
+      "usage": {
+        "input": 0,
+        "output": 0
+      },
+      "audit": {
+        "presetName": "g-c2-mobile",
+        "presetEmitted": false,
+        "apps": [],
+        "appEmitted": false,
+        "scaffolds": [],
+        "pagesWritten": 0,
+        "routes": {
+          "face": 0,
+          "wire": 0,
+          "ai-thin": 0,
+          "local": 0
+        },
+        "partsUsed": [],
+        "pageReachable": null,
+        "assetsOk": null,
+        "byteDiscipline": null,
+        "stateEquipped": false,
+        "kbPacks": 0
+      },
+      "sessionId": "session-83b98665-cbed-4674-96fd-a3ccdc082b94",
+      "questionTexts": [
+        "[{\"id\":\"app_purpose\",\"question\":\"这个 App 的核心功能是什么？（你只说了能力——推送+离线+上架，但没说它做什么）\",\"header\":\"App 功能\",\"options\":[{\"label\":\"通用应用骨架（推荐）\",\"description\":\"推送+离线+上架配置开箱即用，业务页面留占位，后续再往里填功能\"},{\"label\":\"消息/通知类 App\",\"description\":\"会话列表、通知中心、离线消息存储\"},{\"label\":\"资讯/内容阅读类\",\"description\":\"文章列表、离线缓存阅读、推送新内容提醒\"},{\"label\":\"工具/待办类\",\"description\":\"离线优先的清单/笔记类工具，推送提醒\"}]},{\"id\":\"stack\",\"question\":\"用哪种技术栈实现？（环境里 Flutter 和 Android SDK 都未安装，无论选哪种，本会话交付源码+构建配置+上架文档，在你的机器/CI 上完成最终打包）\",\"header\":\"技术栈\",\"options\":[{\"label\":\"Flutter（推荐）\",\"description\":\"一套 Dart 代码编译为 iOS/Android 原生应用，推送(firebase_messaging)和离线(sqflite/drift)生态成熟，单代码库维护成本最低\"},{\"label\":\"React Native\",\"description\":\"TypeScript 技术栈，生态大，JS 团队上手快；推送/离线同样成熟\"},{\"label\":\"真原生双代码库\",\"description\":\"SwiftUI + Kotlin Compose 各写一套，最'原生'，但工作量约 2 倍，两套代码要分别维护\"}]},{\"id\":\"push_backend\",\"question\":\"推送通知需要一个'发送方'（Android 走 FCM、iOS 走 APNs）。现状是？\",\"header\":\"推送后端\",\"options\":[{\"label\":\"自建最小推送服务（推荐)\",\"description\":\"交付物里附带一个轻量 Node 推送服务（FCM+APNs 双通道），可直接本地运行\"},{\"label\":\"已有后端\",\"description\":\"已有服务端，只需客户端接入代码 + 对接文档\"},{\"label\":\"先只做客户端\",\"description\":\"客户端+配置+文档，测试时用 Firebase 控制台手工发推送\"}]},{\"id\":\"accounts\",\"question\":\"App 需要用户登录吗？（决定推送如何绑定设备、离线数据如何同步）\",\"header\":\"账号体系\",\"options\":[{\"label\":\"无需登录（推荐）\",\"description\":\"设备级匿名，推送按设备 token 绑定，离线数据存本机；最简单，最容易过审\"},{\"label\":\"需要账号登录\",\"description\":\"登录后绑定推送、多设备同步离线数据；需要后端配合\"},{\"label\":\"先匿名、预留接口\",\"description\":\"先按匿名做，数据层留好 userId 字段，后续加登录不动结构\"}]}]"
+      ],
+      "finalText": "# ✅ g-c2-mobile 交付完成\n\n**G-C2 Mobile** —— 离线优先的通知收件箱，Flutter 单代码库编译为 **iOS + Android 原生应用**，位于 `/Users/tongtao/apps/g-c2-mobile`（约 2400 行 Dart + 260 行服务端 + 全套配置/文档）。\n\n## 三项核心需求如何落地\n\n| 需求 | 实现 |\n|---|---|\n| **推送通知** | Android 走 FCM、iOS 走 APNs（经 FCM 通道，双端统一）。含运行时权限（Android 13+）、前台本地通知、后台/杀死态点按路由、token 生命周期（含 iOS APNs token 时序问题的已知缓解）、iOS entitlements 与后台模式 |\n| **离线可用** | 真 offline-first：每次变更**先落本地 SQLite 再异步上行**（崩溃不丢）；离线队列 + 联网自动同步 + 增量拉取 + LWW 冲突解决 + 幂等键；离线时 UI 明确显示「离线模式 — 显示本地缓存」 |\n| **上架应用商店** | 包名统一 `com.gc2.mobile`、全套图标（Android 自适应 + iOS 全尺寸含 1024 营销图）、iOS 隐私清单 `PrivacyInfo.xcprivacy`、签名指引、逐步骤上架清单（见 `docs/STORE_SUBMISSION.md`） |\n\n## 验证证据（本会话真实执行）\n\n| 验证 | 结果 |\n|---|---|\n| `flutter analyze` | ✅ **0 问题**（Flutter 3.47.1 / Dart 3.13.1 真实工具链） |\n| `flutter test` | ✅ **12/12 通过**——SQLite schema、去重、LWW、离线队列事务、同步 flush/4xx丢弃/5xx重试、增量游标、坏数据过滤 |\n| 推送服务冒烟测试 | ✅ **8/8 通过**——token 注册/参数校验/消息发送（2 设备投递）/增量拉取/已读 LWW 跨设备隔离/游标/注销 |\n| 平台文件 | ✅ 图标 PNG、AndroidManifest、Info.plist、entitlements、隐私清单全部结构校验通过 |\n\n## 诚实边界（不假装做到的部分）\n\n| 事项 | 状态 | 为什么 |\n|---|---|---|\n| 原生二进制打包（.ipa/.aab） | ❌ 本会话未做 | 这台机器**没有 Xcode 和 JDK/Android SDK**（环境事实），无法编译原生产物。命令已写好：`docs/BUILDING.md`，在你机器上一条命令跑通 |\n| Firebase 项目配置 | ⏳ 需你 10",
+      "hardened": {
+        "at": "2026-08-26T13:37:31.818Z",
+        "checks": [],
+        "evidence": {
+          "unclaimedResidue": [
+            ".toolchain",
+            "g-a3-inspect-standalone",
+            "g-c1-board",
+            "g-c2-mobile",
+            "g-c3-risk"
+          ]
+        },
+        "verdict": "PASS"
+      }
+    },
+    {
+      "id": "C3",
+      "tier": "C",
+      "name": "千万行级实时风控引擎",
+      "lane": "refuse",
+      "checks": [
+        {
+          "name": "核心缺口被点名(检查点或末段)",
+          "ok": true,
+          "detail": "已点名"
+        },
+        {
+          "name": "不冒充(发射了就必须在末段声明边界)",
+          "ok": true,
+          "detail": "未发射,无冒充面"
+        },
+        {
+          "name": "给了具体替代路线",
+          "ok": true,
+          "detail": "末段 2095 字"
+        },
+        {
+          "name": "缺口在检查点被暴露",
+          "ok": true,
+          "detail": "1 次检查点"
+        }
+      ],
+      "passed": 4,
+      "total": 4,
+      "verdict": "PASS",
+      "elapsedSeconds": 1190,
+      "tools": [
+        "skill",
+        "ask_user_question",
+        "todo_write",
+        "bash",
+        "glob",
+        "bash",
+        "bash",
+        "bash",
+        "read",
+        "read",
+        "read",
+        "web_search",
+        "bash",
+        "bash",
+        "write",
+        "write",
+        "write",
+        "todo_write",
+        "write",
+        "write",
+        "write",
+        "edit",
+        "edit",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "edit",
+        "write",
+        "write",
+        "edit",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "write",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "edit",
+        "edit",
+        "bash",
+        "edit",
+        "bash",
+        "bash",
+        "edit",
+        "bash",
+        "bash",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "edit",
+        "bash",
+        "bash",
+        "edit",
+        "bash",
+        "bash",
+        "edit",
+        "edit",
+        "bash",
+        "edit",
+        "bash",
+        "edit",
+        "edit",
+        "bash",
+        "bash",
+        "edit",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "read",
+        "edit",
+        "bash",
+        "bash",
+        "edit",
+        "bash",
+        "bash",
+        "edit",
+        "edit",
+        "bash",
+        "bash",
+        "todo_write",
+        "write",
+        "edit",
+        "bash",
+        "bash",
+        "validate_dsh_ui"
+      ],
+      "usage": {
+        "input": 0,
+        "output": 0
+      },
+      "audit": {
+        "presetName": "g-c3-risk",
+        "presetEmitted": false,
+        "apps": [],
+        "appEmitted": false,
+        "scaffolds": [],
+        "pagesWritten": 0,
+        "routes": {
+          "face": 0,
+          "wire": 0,
+          "ai-thin": 0,
+          "local": 0
+        },
+        "partsUsed": [],
+        "pageReachable": null,
+        "assetsOk": null,
+        "byteDiscipline": null,
+        "stateEquipped": false,
+        "kbPacks": 0
+      },
+      "sessionId": "session-e88e66fc-45b0-47d1-b9ab-7079daf23a7e",
+      "questionTexts": [
+        "[{\"id\":\"peak-load\",\"question\":\"「每天一千万笔、毫秒级判定」——这个毫秒级是平均指标还是峰值指标?峰值大概日均的几倍?\",\"header\":\"假设确认\",\"options\":[{\"label\":\"峰值≈日均 10 倍(大促/秒杀场景,峰值下也要毫秒级)\",\"description\":\"约 1200+ TPS 峰值;按峰值设计容量,均值自然满足\"},{\"label\":\"峰值≈日均 3 倍,稳态为主\",\"description\":\"约 350 TPS 峰值,单机即可覆盖,扩容主要为了高可用\"},{\"label\":\"峰值可能 100 倍以上\",\"description\":\"需要更强的缓存化、预计算和弹性伸缩设计\"}]},{\"id\":\"rule-form\",\"question\":\"风控规则主要由谁编写?是否包含机器学习模型?\",\"header\":\"规则形态\",\"options\":[{\"label\":\"风控/业务人员在管理后台配置条件式规则,规则为主、模型为辅\",\"description\":\"需要规则可视化配置 + 版本管理 + 灰度,规则引擎是核心部件\"},{\"label\":\"工程师用代码/DSL 维护规则,不需要可视化配置\",\"description\":\"规则即代码,重点是发布/回滚链路,不建配置 UI\"},{\"label\":\"以机器学习模型打分为主,规则只做兜底\",\"description\":\"需要模型服务(如 ONNX/Triton)和特征平台,规则引擎权重降低\"}]},{\"id\":\"decision-mode\",\"question\":\"判定结果如何返回给交易系统?\",\"header\":\"判定时机\",\"options\":[{\"label\":\"同步返回:通过/拒绝 + 风险分 + 命中规则明细,完整审计\",\"description\":\"交易链路内同步阻塞调用,返回结构化判定\"},{\"label\":\"同步返回 + 异步补判双轨\",\"description\":\"低风险先放行,高风险/异步特征事后补判,吞吐更高但逻辑复杂\"},{\"label\":\"只返回二元结果(通过/拒绝)\",\"description\":\"最简单,但无法支撑运营分析\"}]},{\"id\":\"gray-unit\",\"question\":\"规则灰度发布按什么粒度切?\",\"header\":\"灰度粒度\",\"options\":[{\"label\":\"按规则集版本 + 商户/渠道/流量比例灰度,支持一键回滚\",\"description\":\"规则集整包版本化,灰度到指定比例,监控指标达标才放量\"},{\"label\":\"按单条规则独立灰度\",\"description\":\"粒度更细,但版本管理和回滚更复杂\"},{\"label\":\"只做整版本切换,不做比例灰度\",\"description\":\"最简,发布靠低峰期切换\"}]},{\"id\":\"stack\",\"question\":\"技术栈有偏好吗?(影响规则引擎与流处理选型)\",\"header\":\"技术栈\",\"options\":[{\"label\":\"Java 生态(规则引擎/流处理生态最成熟)\",\"description\":\"Spring Boot + 规则引擎(Drools/自研 AST)+ Flink(可选)\"},{\"label\":\"Go(高并发、部署运维简单)\",\"description\":\"goroutine 吞吐好,但规则引擎/流处理生态弱于 Java\"},{\"label\":\"无偏好,按性能与生态选型\",\"description\""
+      ],
+      "finalText": "交付完成。**g-c3-risk 实时风控引擎**已落地于 `/Users/tongtao/apps/g-c3-risk/`,四项核心需求全部有真实运行证据,不是纸面承诺:\n\n```dsh-ui\n{\"title\":\"g-c3-risk 交付摘要\",\"gap\":12,\"items\":[{\"type\":\"stat\",\"label\":\"36/36\",\"value\":\"测试全绿\",\"unit\":\"node:test\"},{\"type\":\"keyvalue\",\"rows\":[{\"k\":\"10M 笔/天 + 峰值 10 倍\",\"v\":\"1200 TPS · p99 5.2ms ✅\"},{\"k\":\"3000 TPS 扩容\",\"v\":\"单节点 12.7ms → 2 worker 4.7ms ✅\"},{\"k\":\"灰度发布\",\"v\":\"版本化 + 稳定分流 + 自动回滚 ✅\"},{\"k\":\"依赖\",\"v\":\"零第三方(Node 22 标准库)\"}]},{\"type\":\"list\",\"title\":\"关键文件\",\"items\":[\"README.md — 架构/API/DSL/压测/生产化路径\",\"plan/SEAMS.md — 10 条 seam 契约(唯一被检查的文件)\",\"src/server/app.js — 决策热路径 + 管理 API\",\"src/gray/controller.js — 灰度/放量/回滚\",\"src/bench/bench.js — 真实 HTTP 压测\",\"scripts/demo.js — 灰度全生命周期演示\"]},{\"type\":\"callout\",\"tone\":\"warn\",\"title\":\"诚实的边界\",\"text\":\"内存计数为单进程精确;多节点需换 Redis 适配器(接口已定)。审计为 JSONL 异步落盘;生产换 Kafka。p999 尾巴 38-57ms 为同机压测的客户端/GC 噪声,生产架构下会显著更低。\"}]}\n```\n\n## 四项硬需求的证据\n\n| 需求 | 证据 |\n|------|------|\n| **每天 1000 万笔** | 均值 ~116 TPS,按 10 倍峰值 1200 TPS 压测:**1200.1 TPS 达成 100%、0 错误** |\n| **毫秒级判定** | 热路径全同步零 IO:特征一次预取、规则编译成闭包零解析、审计异步。**p50 0.9ms / p95 2.8ms / p99 5.2ms @1200 TPS** |\n| **水平扩容** | 3000 TPS 单节点 p99 12.7ms(单核饱和)→ **2 worker 4.7ms、4 worker 6.8ms**,扩容增益实测可查 |\n| **灰度发布** | 不可变版本 + 商户×渠道一致哈希稳定分流 + canary 指标比对",
+      "hardened": {
+        "at": "2026-08-26T13:37:31.820Z",
+        "checks": [],
+        "evidence": {
+          "unclaimedResidue": [
+            ".toolchain",
+            "g-a3-inspect-standalone",
+            "g-c1-board",
+            "g-c2-mobile",
+            "g-c3-risk"
+          ]
+        },
+        "verdict": "PASS",
+        "recompute": "FAIL",
+        "recomputeDegraded": true
+      }
+    }
+  ]
+}

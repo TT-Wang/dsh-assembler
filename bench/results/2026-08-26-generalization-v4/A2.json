@@ -1,0 +1,154 @@
+{
+  "id": "A2",
+  "tier": "A",
+  "name": "个人记账台",
+  "lane": "scaffold",
+  "checks": [
+    {
+      "name": "形态路由",
+      "ok": true,
+      "detail": "实得 scaffold,预期 scaffold|preset-only"
+    },
+    {
+      "name": "调了考官",
+      "ok": true,
+      "detail": "轨迹:verify_preset,verify_app"
+    },
+    {
+      "name": "交付可达",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "资产全通",
+      "ok": true,
+      "detail": "全通"
+    },
+    {
+      "name": "自述判定",
+      "ok": true,
+      "detail": "未在末段自述"
+    },
+    {
+      "name": "状态装备就位(equipment/init.sql)",
+      "ok": true,
+      "detail": "预建 schema 在"
+    }
+  ],
+  "passed": 6,
+  "total": 6,
+  "verdict": "PASS",
+  "elapsedSeconds": 326,
+  "tools": [
+    "skill",
+    "search_catalog",
+    "search_catalog",
+    "match_catalog",
+    "ask_user_question",
+    "todo_write",
+    "emit_preset",
+    "verify_preset",
+    "emit_app",
+    "read",
+    "bash",
+    "read",
+    "read",
+    "read",
+    "bash",
+    "read",
+    "read",
+    "read",
+    "write",
+    "bash",
+    "bash",
+    "write",
+    "edit",
+    "edit",
+    "read",
+    "todo_write",
+    "verify_app",
+    "deploy_app",
+    "todo_write",
+    "preview_register"
+  ],
+  "usage": {
+    "input": 0,
+    "output": 0
+  },
+  "audit": {
+    "presetName": "g-a2-ledger",
+    "presetEmitted": true,
+    "apps": [
+      {
+        "name": "g-a2-ledger",
+        "scaffold": "scaffold-react"
+      }
+    ],
+    "appEmitted": true,
+    "scaffolds": [
+      "scaffold-react"
+    ],
+    "pagesWritten": 1,
+    "routes": {
+      "face": 6,
+      "wire": 0,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "sqlite-query"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null,
+    "stateEquipped": true,
+    "kbPacks": 0
+  },
+  "sessionId": "session-321d5e74-f3e8-4de3-bda8-3547d2340b92",
+  "questionTexts": [
+    "[{\"id\":\"route\",\"question\":\"记账网页用哪种形态?(预设 g-a2-ledger 都会配套:记账 agent + sqlite 持久化)\",\"header\":\"页面形态\",\"options\":[{\"label\":\"定制页:表单录入+台账表格 (Recommended)\",\"description\":\"emit_app 起 scaffold,我手写记账页(金额/分类/备注/日期表单 + 台账表 + 汇总),最贴近'记账网页',交付物名 g-a2-ledger\"},{\"label\":\"模板页:frontend-data-desk 对话式\",\"description\":\"不写定制页,用现成记录台模板:一句话记一笔 + 查询/汇总按钮,最快可用,但界面是通用模板风\"}]},{\"id\":\"extra\",\"question\":\"台账视图除了按日期倒序的明细列表,还要哪些?\",\"header\":\"台账范围\",\"options\":[{\"label\":\"收支合计 + 分类/月份筛选 (Recommended)\",\"description\":\"顶部显示本月收入/支出/结余,可按分类与月份过滤明细\"},{\"label\":\"只要明细列表\",\"description\":\"按日期倒序列出全部记录,页面尽量简单\"}]}]"
+  ],
+  "finalText": "✅ 记账网页 **g-a2-ledger** 已交付上线:**http://127.0.0.1:3097/assembler/ui/g-a2-ledger**(右下角预览窗已打开,可直接试用)\n\n## 交付内容\n\n**页面功能**(`src/pages/ledger.tsx`)\n- **记一笔**:类型(支出/收入)、金额、分类(11 个常用分类)、日期(默认今天)、备注,回车即存\n- **本月小结**:本月收入 / 本月支出 / 本月结余 三张卡片\n- **台账**:按日期倒序明细(收支红绿标识),可**按月份 + 分类筛选**,表格底部有筛选小计(收/支/净)\n- **删除**:每行可删(带确认),删完自动刷新汇总\n\n**数据层**:sqlite 本地持久化(`entries` 表:type/amount/category/note/date),页面全部走服务脸直连,零模型毫秒级响应。\n\n## 验收结论(独立考官,非我自评)\n\n| 关卡 | 结果 |\n|---|---|\n| verify_preset(记账→取回多轮场景) | ✅ PASS(动用 2/2 存储零件) |\n| verify_app 五门(构建/骨架锁/页面纪律/静态伺服/行为考) | ✅ PASS |\n| 行为考 6 动作:记一笔/台账明细/收支汇总/本月收支/筛选台账/删除记录 | ✅ 全真跑通过 |\n\n发布前已对旧前端存了快照,不满意可一键回滚(`deploy_app rollback`)。另外这个 preset 本身也是可对话的记账 agent(比如对网页说\"帮我记一笔\"),代码源头在 `g-a2-ledger/`,后续要改页面直接说。",
+  "hardened": {
+    "at": "2026-08-26T13:37:31.727Z",
+    "checks": [
+      {
+        "name": "硬化·preset 考官末判 ∈ 预期",
+        "ok": true,
+        "detail": "PASS@11:52:51(预期 PASS|SKIPPED)"
+      },
+      {
+        "name": "硬化·判定绑定当前字节",
+        "ok": true,
+        "detail": "字节一致"
+      },
+      {
+        "name": "硬化·app 考官末判 ∈ 预期",
+        "ok": true,
+        "detail": "PASS@11:55:59(预期 PASS|SKIPPED)"
+      },
+      {
+        "name": "硬化·lock 真伪(g-a2-ledger)",
+        "ok": true,
+        "detail": "双哈希吻合(真发射,骨架未越界)"
+      }
+    ],
+    "evidence": {
+      "presetVerdicts": [
+        "11:52:51 PASS",
+        "11:52:51 PASS"
+      ],
+      "appVerdicts": [
+        "11:55:59 PASS g-a2-ledger"
+      ],
+      "unclaimedResidue": [
+        ".toolchain",
+        "g-a3-inspect-standalone",
+        "g-c1-board",
+        "g-c2-mobile",
+        "g-c3-risk"
+      ]
+    },
+    "verdict": "PASS"
+  }
+}
