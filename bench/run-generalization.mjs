@@ -133,7 +133,7 @@ async function runOne(scn) {
 // 而离线重判是照盘上现状重算的——于是 B1/B2 被重判成"什么都没交",凭空多出两条
 // 假回归。清场的作用域必须跟着 ONLY 走)。
 const todo = SPEC.scenarios.filter((s) => ONLY.length === 0 || ONLY.includes(s.id))
-const wiped = cleanSlate(todo)
+const wiped = cleanSlate(todo, { corpusDirs: [CORPUS] })
 console.log(wiped.length > 0 ? `清场:删除 ${wiped.length} 个上轮残留(${wiped.slice(0, 4).join(', ')}${wiped.length > 4 ? ' …' : ''})` : '清场:无残留')
 
 // ── 主循环 ────────────────────────────────────────────────────────────────────

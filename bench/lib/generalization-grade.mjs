@@ -5,13 +5,52 @@
 // 并据此得出"A 档 0/3"的错误结论。同一漏洞对 C 档是反向危险:题面不给目录名,
 // 漏扫会把"偷偷发了个 app"误判成"诚实劝退"。修法:**全盘扫描 ~/apps,按 lock 里的
 // 绑定关系(PRESET_ID / DB_PATH 指向该 preset)认领实例**,不靠名字猜。
-import { existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import yaml from 'js-yaml'
 
 export const PRESETS = join(homedir(), '.dsh', '.agent-presets')
 export const APPS = join(homedir(), 'apps')
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
+
+/**
+ * 战役语料回收(P1.5 机制修复):add_knowledge 直接写共享 capabilities.yml,战役
+ * 语料包会长期躺在产品目录里当能力卖(实录:四包虚构"净水器手册"混入,2026-08-25
+ * 人工清理过一次但机制没修)。修法照 claimApps 的**按绑定认领**:入库时出处已写进
+ * index/reports/knowledge-<id>.json 的 source,清场按「source 在本战役语料目录下」
+ * 回收——删包、删报告、剥目录条目(剥完 parse 断言,不留半改),一律不靠名字猜。
+ */
+export function recallCampaignKnowledge(corpusDirs) {
+  const recalled = []
+  const reportsDir = join(REPO_ROOT, 'index', 'reports')
+  if (!existsSync(reportsDir) || corpusDirs.length === 0) return recalled
+  const owns = (src) => corpusDirs.some((d) => String(src ?? '').startsWith(resolve(d)))
+  for (const f of readdirSync(reportsDir).filter((x) => x.startsWith('knowledge-') && x.endsWith('.json'))) {
+    let rep
+    try { rep = JSON.parse(readFileSync(join(reportsDir, f), 'utf8')) } catch { continue }
+    if (!owns(rep.source)) continue
+    const packId = String(rep.id ?? f.replace(/^knowledge-|\.json$/g, ''))
+    rmSync(join(REPO_ROOT, 'knowledge', packId), { recursive: true, force: true })
+    rmSync(join(reportsDir, f), { force: true })
+    // 目录条目:kb-<id> 或裸 <id> 两种登记形态都认;剥块后必须 parse 通过。
+    const capsPath = join(REPO_ROOT, 'capabilities.yml')
+    let caps = readFileSync(capsPath, 'utf8')
+    for (const capId of [packId.startsWith('kb-') ? packId : `kb-${packId}`, packId]) {
+      const start = caps.indexOf(`  - id: ${capId}\n`)
+      if (start === -1) continue
+      const nxt = caps.indexOf('\n  - id: ', start + 1)
+      const end = nxt !== -1 ? nxt + 1 : caps.length
+      const candidate = caps.slice(0, start) + caps.slice(end)
+      const parsed = yaml.load(candidate)
+      if (parsed && Array.isArray(parsed.capabilities)) caps = candidate
+    }
+    writeFileSync(capsPath, caps)
+    recalled.push(packId)
+  }
+  return recalled
+}
 
 /**
  * 交付物名字:优先读 scenario 的 `artifactName` 字段,题面正则只作兜底。
@@ -43,9 +82,10 @@ export function claimApps(presetName) {
   return out.sort((a, b) => a.mtime - b.mtime)
 }
 
-/** 清场:删本战役造的一切(preset + 全盘认领到的 app 实例)。 */
-export function cleanSlate(scenarios) {
+/** 清场:删本战役造的一切(preset + 全盘认领到的 app 实例 + 按出处认领的知识包)。 */
+export function cleanSlate(scenarios, opts = {}) {
   const wiped = []
+  for (const packId of recallCampaignKnowledge(opts.corpusDirs ?? [])) wiped.push(`kb:${packId}`)
   for (const scn of scenarios) {
     const name = presetNameOf(scn)
     if (name === '') continue
