@@ -80,13 +80,10 @@ function prose(t: string): string {
  */
 export const CONTRACT_GENERATION = 'deepseek-v4'
 export const CONTRACT_TAGS: Record<string, string> = {
-  BASELINE_RULE: 'deepseek-v4',
-  MINIMAL_SET_RULE: 'deepseek-v4',
   FRONTEND_FACT: 'deepseek-v4',
   RECIPE_FACT: 'deepseek-v4',
   LANE_FORK_CRITERION: 'deepseek-v4',
   SCAFFOLD_BATON: 'deepseek-v4',
-  ARCHITECTURE_CONTRACT: 'deepseek-v4',
   PROBE_SKETCH_EXAMPLES: 'deepseek-v4',
 }
 
@@ -97,21 +94,7 @@ export const CONTRACT_TAGS: Record<string, string> = {
 // tool selection 文献 + 工具过多致准确率下滑的实测阈值 10-15 件)。
 
 /** 基线判据:零件的边界——LLM 自己能稳定做的不装。 */
-export const BASELINE_RULE =
-  'MOUNT-OR-NOT BASELINE: parts exist for real-world I/O (files, network, processes, persistence) and hard deterministic computation. '
-  + 'What the delivered agent\'s own LLM does reliably (date arithmetic, formatting, text transformation, simple parsing) needs NO part — '
-  + 'mounting one anyway is over-privilege, and research shows accuracy measurably degrades past ~10-15 mounted tools (tool-name confusion). '
-  + 'BUT: **能做 ≠ 该走会话**. If a judgment is BULK or HIGH-FREQUENCY — translating every paragraph of a chapter, classifying every row on '
-  + 'entry, summarising on each page load — routing it through conversation turns makes the product unusable (measured 2026-08-25: a '
-  + 'bilingual reader translated chapters through chat turns; the user\'s verdict was 完全不好用). Mount ai-call so the page can call the '
-  + 'AI service face directly (route ai-thin: one completion, no session), and let the page cache the result. The baseline rule is about '
-  + 'CAPABILITY, this one is about THROUGHPUT — both must hold.'
-
 /** 最小覆盖集:从 match prompt 移植出来的那条纪律,现在住在检索/发射契约里。 */
-export const MINIMAL_SET_RULE =
-  'Keep the mounted set MINIMAL (least privilege): the smallest covering set for the architecture — every mounted part is a real process '
-  + 'plus its tool manual in EVERY turn of the delivered agent\'s prompt, forever.'
-
 /** 前端物理事实:多装模板不是权衡,是死件。 */
 export const FRONTEND_FACT = '每 preset 仅首个 frontend 模板生效——选恰好一个交互形状。'
 
@@ -152,26 +135,6 @@ export const SCAFFOLD_BATON =
  *   无效是当日另一实证);② "design the architecture yourself"一句软话产出
  *   5 行一句话清单,骨架六维 + 深度线写死。
  */
-export const ARCHITECTURE_CONTRACT =
-  'WORKFLOW CONTRACT — (0) SHAPE ROUTING before anything: judge the requirement\'s shape and SAY it. 应用型 (interaction-dense, '
-  + 'deterministic UI/data flows; AI is a component) → FIRST search via:"recipe" entries (complete verified app blueprints: emit_app '
-  + 'materializes, verify_app examines). A recipe and a preset+frontend often BOTH fit (they overlap now that presets have service faces) — that fork is decided at two mechanical points, not here: the search result set flags it inline when both lanes hit, and emit_preset REFUSES to print a frontend-mounting preset without a one-line "lane" declaration. No recipe fits → assemble the service form: bytes/files flow through service parts (直传端点), '
-  + 'the model only where judgment lives — and when neither recipes nor parts cover the app shape, honestly recommend direct coding instead of assembling; '
-  + '个人即时型 (the user wants it done NOW, conversationally) → offer to just do it yourself in this session — minting an agent is NOT the '
-  + 'default for personal immediate needs; 无人值守/他人使用/交付型 → that is what minting is for. '
-  + '(1) ARCHITECTURE FIRST, to review depth: 用途 (purpose); capability list where EACH entry carries a why and is '
-  + 'concrete enough to search (storage/retrieval/export included; a capability the catalog may lack still gets designed and flagged); '
-  + 'data model (tables + key fields); workflow (how turns flow: who initiates, what gets reviewed, how state moves); interface shape; '
-  + 'boundary & delivery semantics (what the agent does vs what stays human). A list of five one-liners is a sketch, NOT an architecture. '
-  + '(2) PRESENT IT AND STOP: call ask_user_question (options like 按此装配/我要调整) and WAIT for approval — do NOT search, emit, or verify '
-  + 'before the user approves. The presentation MUST include every gap the catalog cannot cover, each with its disposition as a USER choice: '
-  + '现场造件 (a gap work order; you build it through the induction pipeline) / 降级方案 (state exactly what degrades) / 砍掉. '
-  + 'Silently downgrading a gap the user never saw is the failure this checkpoint exists to prevent. '
-  + '(3) Only then search per need. Gaps agreed at the checkpoint MUST be passed to emit_preset as missing/missingEntries — that is what turns '
-  + 'them into work orders. (4) ASSEMBLER RESOURCES ARE TOOL-SURFACE ONLY: the catalog, presets, recipes and knowledge live OUTSIDE your shell sandbox — read a preset with read_preset (persona/装备 DDL/BOM/faces), ingest docs with add_knowledge, submit a part you wrote with submit_part (it installs, runs YOUR smoke, probes listTools independently, and registers only on a clean pass). If a shell command is denied because a path is outside the workspace, that is the sandbox working as designed: **stop, do not retry with escalated permissions** — either use the tool for that job, or hand the user a work order saying exactly what is needed (measured 2026-08-25: two scenarios burned 30 minutes each on escalation retries and delivered nothing). Knowledge packs go through the add_knowledge TOOL (tool surface — works from any session). Never hand-edit capabilities.yml or index/catalog.yml — that bypasses the quality gate '
-  + '(live case: a bypassed gate hid a process-hang '
-  + 'defect and a copied-from-another-part smoke test).'
-
 /**
  * 探针草图范例(⑦出题辅助,范例优先于规则):先例 Anthropic Tool Use Examples
  * 实测复杂参数准确率 72%→90% 靠的是给 1-5 个真实示例而不是更多规则。定义移居
@@ -642,12 +605,7 @@ export function matchCatalogToolDefinition(ctx: Context, config: Config): ToolDe
     name: MATCH_TOOL_NAME,
     description:
       'EXPERT LLM mapping of a whole architecture spec onto the parts catalog. Input: your architecture spec. Output: per need, a capability id or a GAP.'
-      + prose(' The LAST-RESORT escalation, not the normal path. '
-        + 'When search_catalog is available, searching + your own judgment IS the selection path: do NOT call this for requirements you can '
-        + 'decide from search results (this is a 60-180s full-effort LLM call). Call it at most ONCE per assembly, and only when ≥2 '
-        + 'differently-phrased searches per still-uncovered need left you genuinely stuck or with conflicting candidates. '
-        + 'Design the spec FIRST, show the user. It does NOT write personas/schemas/names and does NOT assemble — after it returns, YOU decide and call emit_preset, then verify_preset. '
-        + 'Never invent capability ids yourself: ids come from search results or from this mapping.'),
+,
     parameters: {
       requirement: {
         type: 'string',
@@ -740,11 +698,7 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
     name: EMIT_TOOL_NAME,
     description:
       'The DUMB deterministic printer: prints your assembly decisions (name, capabilityIds, persona, stateSchema, params) into a mountable preset with every gate intact.'
-      + prose(' YOU already made the assembly decisions (capabilityIds from search/match — you may add/remove; persona YOU wrote; stateSchema YOU designed when state must persist; the preset name). '
-        + 'Gates: secret-shaped params refused, YAML parse gate, idempotent-DDL double-execution gate, persona lint, byte-deterministic serverNames, BOM (parts.lock.yml), gap work-orders. '
-        + 'It makes NO decisions and runs NO verification — after it returns you MUST call verify_preset. '
-        + 'NEVER hand-write or edit preset files yourself (the host pins mounted server names to file bytes; a hand edit collides its own generation) — '
-        + 'any change means calling emit_preset again with the same name.'),
+,
     parameters: {
       name: { type: 'string', description: 'kebab-case preset id YOU chose, e.g. "expense-tracker"', required: true },
       requirement: { type: 'string', description: 'what this agent is for (goes into the BOM and roster description)', required: true },
@@ -758,10 +712,7 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
         type: 'string',
         description:
           'the system persona YOU wrote for this agent.'
-          + prose(' SKELETON — cover each dimension that applies: ① 角色与辖区 (what it is and is NOT for); '
-            + '② 语气 and answer language; ③ 工具纪律 (which tool for which job); ④ 持久化约束 when state parts are mounted (跨轮事实必须写入账本/文件,不依赖记忆); '
-            + '⑤ 安全合规边界 — MANDATORY for medical/legal/finance/collections domains (what it must never do, e.g. 绝不诊断开药/绝不联系第三方); '
-            + '⑥ 拒答范围 (out-of-scope requests it declines). Judgeable constraints only — never numbered procedures.'),
+,
         required: true,
       },
       stateSchema: { type: 'string', description: 'optional idempotent SQLite DDL (only CREATE TABLE/INDEX IF NOT EXISTS) pre-building this agent\'s tables; required in practice whenever a SQLite part is selected — design it from your data model' },
@@ -925,16 +876,7 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
     name: VERIFY_TOOL_NAME,
     description:
       'The INDEPENDENT examiner: runs a black-box acceptance probe against an emitted preset in a real session and returns the verdict with evidence. Optional probe sketch accepted.'
-      + prose(' An agent that asks a human mid-probe FAILS (empty workspace, nobody attending). You may pass a probe sketch — '
-        + 'you know the user\'s intent best — but the verdict is the examiner\'s: you cannot grade your own assembly, and this tool NEVER retries. '
-        + 'On FAIL it returns the evidence (which turn, which missing mark, what the agent replied) and the surgical decision is YOURS: '
-        + 'swap parts and re-emit, build the missing part first, tighten the persona, or report honestly to the user. '
-        + 'Sketch by EXAMPLE (copy these shapes): ' + PROBE_SKETCH_EXAMPLES + ' '
-        + 'Rules the examples embody: invent ALL data inline (empty workspace, nobody attending); the retrieve turn asks BY the token without '
-        + 'restating stored values; marks are content-bearing — never invented dates as facts, never refusal wording, never UI/page words, '
-        + 'never formatted numbers, never long body text that goes to a file; size each turn under ~2 minutes. '
-        + 'A sketch that fails the mechanical gate falls back to the examiner\'s own derivation (slow, expensive). '
-        + 'A PASS on unchanged bytes within 7 days is carried from the ledger (honestly labeled); pass reverify=true to force a fresh probe.'),
+,
     parameters: {
       presetId: { type: 'string', description: 'the emitted preset id to verify', required: true },
       probe: {
@@ -1364,19 +1306,8 @@ export function searchCatalogToolDefinition(_ctx: Context, config: Config): Tool
     name: SEARCH_TOOL_NAME,
     description:
       'The parts-ecosystem SEARCH ENGINE (mechanical BM25-weighted lexical search: zero LLM, instant, deterministic). '
-      + 'Search once per capability need; repeat with different phrasings.'
-      + prose(' YOU are the selector — the assembler only supplies facts. '
-        + ARCHITECTURE_CONTRACT + ' '
-        + 'Per-need queries beat one big query; try synonyms — 持久存储/数据库/sqlite. Decide the ids yourself, then emit_preset and verify_preset. '
-        + BASELINE_RULE + ' ' + MINIMAL_SET_RULE + ' '
-        + 'Each result row carries the FACTS for that decision: a price tag (≈prompt-tokens its tool manual adds to EVERY turn of the '
-        + 'delivered agent, and whether it spawns a process), credential needs, and evidence. '
-        + 'Honesty rule: a need no search covers goes into emit_preset\'s missing/missingEntries as a GAP — never force an unrelated '
-        + 'part, never invent ids. Lexical search misses paraphrases: try 2-3 phrasings before declaring a gap. '
-        + 'THIS SEARCH IS THE SELECTION PATH — searching + your own judgment completes selection for ordinary requirements; results are '
-        + 'designed to be decided on directly. match_catalog is a LAST-RESORT escalation with a hard budget: at most ONE call per assembly, '
-        + 'and ONLY after ≥2 differently-phrased searches per still-uncovered need left you genuinely stuck (it costs a 60-180s full-effort '
-        + 'LLM call — calling it on a requirement you could decide from search results wastes the user\'s time).'),
+      + 'Search once per capability need; repeat with different phrasings. Each result row carries the facts for the decision: '
+      + 'price tag (prompt-tokens its manual costs the delivered agent EVERY turn, and whether it spawns a process), credentials, service face.',
     parameters: {
       query: { type: 'string', description: 'one search query — a capability need in natural language (Chinese or English); repeat the tool for each need', required: true },
       limit: { type: 'number', description: 'max results (default 10)' },
@@ -1607,10 +1538,7 @@ export function verifyTriggerToolDefinition(ctx: Context, config: Config): ToolD
       'INDEPENDENT examiner for the UNATTENDED form: fires one task at a preset the way cron-trigger would (real wire session + the '
       + 'unattended discipline header), then judges by EFFECT — polls the preset\'s sqlite service face until your assertion holds. '
       + 'The reply is never read: the verdict is whether the row actually landed.'
-      + prose(' Design YOUR exam: task = an explicit instruction carrying an invented token (the agent must WRITE it somewhere real); '
-        + 'effectSql = the SELECT that proves it landed; expect = the token. PASS = 触发→执行→落库 闭环成立. '
-        + 'Call after emitting a preset that mounts cron-trigger (or any preset meant to run unattended). '
-        + 'FAIL 带证据:没干活 / 表列名不对 / 面不可达——外科修复后重验,连续 3 次 FAIL 停手上报。'),
+,
     parameters: {
       presetId: { type: 'string', description: 'preset to wake up (must be emitted; needs a sqlite state part for the effect assertion)', required: true },
       task: { type: 'string', description: 'the unattended task instruction, carrying an invented token the agent must persist', required: true },
@@ -1710,12 +1638,7 @@ export function emitAppToolDefinition(_ctx: Context, _config: Config): ToolDefin
       'DUMB app materializer for via:"recipe" catalog entries (deterministic, zero LLM): copies the recipe\'s complete runnable template, '
       + 'injects params via app.config.json (template bytes stay pristine), copies the corpus into the app\'s corpus/ (self-contained '
       + 'deliverable), runs the recipe\'s deterministic ingest, and writes recipe.lock.yml (provenance + params + pending secrets).'
-      + prose(' Recipe APPS are standalone processes — they never mount into a preset and cost ZERO tokens in any agent\'s prompt. '
-        + 'YOU choose the recipe and author the params (that is selection intelligence); this tool only prints. '
-        + 'SELFTEST_QUESTION/SELFTEST_MARKER params are the acceptance exam: pick a factual question the corpus definitely answers and a '
-        + 'short fact-word from the corpus text (never a politeness word) — verify_app asks the REAL question black-box. '
-        + 'Secrets NEVER go into params or files (machine-gated): the app reads them from its launch environment; missing ones are listed '
-        + 'in the result as pending. After emitting, ALWAYS call verify_app — an unverified app is not a deliverable.'),
+,
     parameters: {
       recipeId: { type: 'string', description: 'recipe id from the catalog (via:"recipe" entry\'s config.recipe, e.g. rag-qa)', required: true },
       name: { type: 'string', description: 'kebab-case app name; default target is ~/apps/<name>', required: true },
@@ -1774,10 +1697,7 @@ export function verifyAppToolDefinition(_ctx: Context, _config: Config): ToolDef
       'INDEPENDENT examiner for recipe apps: boots the app itself from its directory (own process, free port), runs the recipe\'s '
       + 'declarative exam black-box over real HTTP (health + REAL question through the full retrieval+AI chain, source must resolve to a '
       + 'real corpus file AND a working link), then kills the process. Verdict PASS / FAIL / SKIPPED with per-check evidence.'
-      + prose(' No retry loops inside — a FAIL comes back with which check broke and what the app actually returned, so the fix is surgical '
-        + '(wrong corpus → re-emit with the right corpusDir; wrong marker → re-emit with a fact-word the corpus contains; app edited by hand '
-        + '→ inspect the diff). Missing credential ≠ failure: the AI half reports SKIPPED with the env name while the retrieval half must '
-        + 'still pass (interface-first credential contract). 同一 app 连续 3 次 FAIL 后停手上报,不要无脑重验。'),
+,
     parameters: {
       targetDir: { type: 'string', description: 'the app directory emit_app produced (holds recipe.lock.yml)', required: true },
       wirePort: { type: 'number', description: 'host port for behavior-exam wire actions (scaffold deliveries; omit → wire actions report SKIPPED)' },
@@ -1821,8 +1741,7 @@ export function deployAppToolDefinition(_ctx: Context, config: Config): ToolDefi
       + 'deploy_app {"presetId": "...", "rollback": true} restores the previous page (no targetDir needed). '
       + 'It also records where the page came from, so a LATER session can answer "edit this page" without hunting for the source '
       + '(read_preset reports it).'
-      + prose(' Call ONLY after verify_app PASS — publishing an unexamined page defeats the entire lane. '
-        + 'After deploying, report the URL and the exam verdict to the user honestly.'),
+,
     parameters: {
       targetDir: { type: 'string', description: 'the scaffold app directory (holds dist/ after verify_app\'s build gate); omit when rollback is true' },
       presetId: { type: 'string', description: 'the paired preset id to publish into', required: true },
@@ -1911,10 +1830,7 @@ export function addKnowledgeToolDefinition(_ctx: Context, config: Config): ToolD
       + 'the induction CLI, so it works from any session regardless of shell sandbox. Copies the docs into the catalog, runs the '
       + 'RETRIEVAL GATE (your probe questions must find their expected verbatim snippets — a pack whose facts cannot be retrieved is '
       + 'rejected), and registers the capability entry.'
-      + prose(' YOU write the probes: 2-4 real questions this document set answers, each with a verbatim snippet that MUST appear in '
-        + 'the docs (a fact word, not a polite phrase). Gate failure comes back naming which snippet was not found — fix the snippet or '
-        + 'the docs, do not weaken the probe. After it registers, search_catalog finds it and emit_preset can mount it (the pack is '
-        + 'copied into the preset\'s kb/ — deliverables stay self-contained).'),
+,
     parameters: {
       docsDir: { type: 'string', description: 'absolute path of the directory holding the documents (.md/.txt/.markdown)', required: true },
       id: { type: 'string', description: 'kebab-case pack id (e.g. acme-manual)', required: true },
@@ -2069,8 +1985,7 @@ export function readPresetToolDefinition(_ctx: Context, config: Config): ToolDef
     description:
       'Read an emitted preset\'s artifacts: persona, equipment DDL (the table schema its pages must copy column names from), parts BOM, '
       + 'selfcheck plan, mounted service faces, and frontend info. The preset lives outside your shell sandbox — this tool is how you see it.'
-      + prose(' Use before writing pages against a preset\'s database (column names come from the DDL, never invent), before re-emitting '
-        + '(read the current persona first), and when reporting a delivery (BOM + verdict are the evidence).'),
+,
     parameters: {
       presetId: { type: 'string', description: 'the preset id', required: true },
       include: { type: 'array', items: { type: 'string' }, description: 'optional subset: persona | ddl | bom | selfcheck | faces | frontend (default: all)' },
@@ -2141,9 +2056,7 @@ export function submitPartToolDefinition(_ctx: Context, config: Config): ToolDef
       'Submit a NEW PART you wrote (an MCP stdio server) into the catalog — the tool-surface twin of the induction CLI, because the '
       + 'catalog lives outside your shell sandbox. You supply the source; this tool writes it into the catalog, installs deps, runs YOUR '
       + 'smoke (exit 0 required), independently probes listTools, and registers it only if every gate passes. Nothing is registered on failure.'
-      + prose(' 分工不变:写代码是你的活(你有全套 coding harness),执行与质检门是装配器的活。'
-        + 'smoke 必须真调工具、断言真结果——照抄别的零件的 smoke 或只断言"没抛错"会让缺陷溜进目录(实录:一次被绕过的门藏了个进程悬挂缺陷)。'
-        + 'FAIL 带冒烟原文返回,修好再交;连续 3 次不过就停手上报,不要盲改。'),
+,
     parameters: {
       id: { type: 'string', description: 'kebab-case part id (becomes generated/<id>/)', required: true },
       indexJs: { type: 'string', description: 'the MCP stdio server source (index.js, ESM)', required: true },

@@ -211,19 +211,9 @@ else process.env.DSH_ASSEMBLER_MODE = saved
 check('模式矩阵:默认 search(身份裁定)、五形态显式可选、非法值回退 search', modeDefault && modeChecks && modeBogus)
 
 // ── 承重契约句(改契约掉了哪句立刻红——阶段1 的回归底线)────────────────────
-import('./lib/orchestrated-tools.js').then(() => {})
-const { BASELINE_RULE, MINIMAL_SET_RULE, FRONTEND_FACT, PROBE_SKETCH_EXAMPLES } = await import('./lib/orchestrated-tools.js')
-check('契约钉:基线判据在(能力面 + 10-15 阈值 + 吞吐面"能做≠该走会话")', BASELINE_RULE.includes('real-world I/O') && BASELINE_RULE.includes('10-15') && BASELINE_RULE.includes('能做 ≠ 该走会话') && BASELINE_RULE.includes('ai-thin'))
-check('契约钉:最小覆盖集 + least-privilege 在', MINIMAL_SET_RULE.includes('least privilege') && MINIMAL_SET_RULE.includes('MINIMAL'))
+const { FRONTEND_FACT, PROBE_SKETCH_EXAMPLES } = await import('./lib/orchestrated-tools.js')
 check('契约钉:前端物理事实在(仅首个模板生效)', FRONTEND_FACT.includes('首个') && FRONTEND_FACT.includes('生效'))
 check('契约钉:出题范例双形状在(scenario+single,token 两轮自足)', PROBE_SKETCH_EXAMPLES.includes('"kind":"scenario"') && PROBE_SKETCH_EXAMPLES.includes('"kind":"single"') && PROBE_SKETCH_EXAMPLES.includes('PO-4471'))
-const { ARCHITECTURE_CONTRACT } = await import('./lib/orchestrated-tools.js')
-check('契约钉:架构骨架六维在(数据模型/工作流/边界交付)', ARCHITECTURE_CONTRACT.includes('data model') && ARCHITECTURE_CONTRACT.includes('workflow') && ARCHITECTURE_CONTRACT.includes('boundary'))
-check('契约钉:确认检查点硬措辞在(点名 ask_user_question + STOP + 未批不许搜/发/验)', ARCHITECTURE_CONTRACT.includes('ask_user_question') && ARCHITECTURE_CONTRACT.includes('STOP') && ARCHITECTURE_CONTRACT.includes('do NOT search, emit, or verify'))
-check('契约钉:深度线在(五行清单不是架构)', ARCHITECTURE_CONTRACT.includes('NOT an architecture'))
-check('契约钉:缺口处置是用户选择(造件/降级/砍掉)+ 静默降级禁令', ARCHITECTURE_CONTRACT.includes('现场造件') && ARCHITECTURE_CONTRACT.includes('降级方案') && ARCHITECTURE_CONTRACT.includes('Silently downgrading'))
-check('契约钉:三岔口路由在(应用型/个人即时/铸造三分 + 铸造非默认)', ARCHITECTURE_CONTRACT.includes('SHAPE ROUTING') && ARCHITECTURE_CONTRACT.includes('应用型') && ARCHITECTURE_CONTRACT.includes('个人即时') && ARCHITECTURE_CONTRACT.includes('NOT the'))
-check('契约钉:造件必须过门(submit_part)且禁手改目录', ARCHITECTURE_CONTRACT.includes('submit_part') && ARCHITECTURE_CONTRACT.includes('Never hand-edit capabilities.yml'))
 check('契约钉:夹具模式在范例里(禁内嵌大载荷)', PROBE_SKETCH_EXAMPLES.includes('LARGE FIXTURES') && PROBE_SKETCH_EXAMPLES.includes('NEVER paste'))
 // §09 借法钉:缓存段序(动态段沉尾)+ 重试预算封顶
 const bpCache = buildMatchPrompt('req-X', { capabilities: [{ name: 'NEED-Y', why: '' }], dataModel: '', workflow: '', interfaces: '' }, catalog)
@@ -241,10 +231,7 @@ const matchBare = matchCatalogToolDefinition(fakeCtx, {}).description
 if (savedBare === undefined) delete process.env.DSH_ASSEMBLER_BARE
 else process.env.DSH_ASSEMBLER_BARE = savedBare
 check('BARE:默认关、=1 开', bareMode() === false)
-check('BARE:满装描述含契约散文(检查点/基线/硬预算)', descFull.includes('ask_user_question') && descFull.includes('real-world I/O') && descFull.includes('LAST-RESORT'))
-check('BARE:消融描述剥净散文、保留事实性一句话', !descBare.includes('ask_user_question') && !descBare.includes('real-world I/O') && descBare.includes('BM25') && descBare.length < descFull.length / 3)
-check('BARE:match 描述同样消融', !matchBare.includes('LAST-RESORT') && matchBare.includes('capability id or a GAP'))
-check('到期制:每条导出散文常量都登记了适用模型代', ['BASELINE_RULE', 'MINIMAL_SET_RULE', 'FRONTEND_FACT', 'RECIPE_FACT', 'LANE_FORK_CRITERION', 'ARCHITECTURE_CONTRACT', 'PROBE_SKETCH_EXAMPLES'].every((k) => typeof CONTRACT_TAGS[k] === 'string' && CONTRACT_TAGS[k] !== '') && CONTRACT_GENERATION === 'deepseek-v4')
+check('到期制:每条导出散文常量都登记了适用模型代', ['FRONTEND_FACT', 'RECIPE_FACT', 'LANE_FORK_CRITERION', 'SCAFFOLD_BATON', 'PROBE_SKETCH_EXAMPLES'].every((k) => typeof CONTRACT_TAGS[k] === 'string' && CONTRACT_TAGS[k] !== '') && CONTRACT_GENERATION === 'deepseek-v4')
 
 const planScn = { kind: 'scenario', scenario: { goal: 'g', turns: [{ prompt: '记 T-9 打车 30 元', mustInclude: ['T-9'] }, { prompt: '查 T-9 报分类', mustInclude: ['打车'] }] } }
 const sk = planToSketch(planScn)
@@ -396,8 +383,8 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   // 契约钉:两工具的承重句
   const emitDesc = emitAppToolDefinition(fakeCtx, {}).description
   const verifyDesc = verifyAppToolDefinition(fakeCtx, {}).description
-  check('契约钉:emit_app = 哑印刷 + 考题参数职责 + 密钥不落文件 + 接力棒', emitDesc.includes('DUMB app materializer') && emitDesc.includes('SELFTEST_QUESTION') && emitDesc.includes('Secrets NEVER') && emitDesc.includes('verify_app'))
-  check('契约钉:verify_app = 独立考官 + 外科修复 + 凭证≠失败 + 3 次停手', verifyDesc.includes('INDEPENDENT examiner') && verifyDesc.includes('surgical') && verifyDesc.includes('SKIPPED') && verifyDesc.includes('3 次 FAIL'))
+  check('事实钉:emit_app 描述说清它是哑印刷 + 出处锁', emitDesc.includes('DUMB app materializer') && emitDesc.includes('recipe.lock.yml'))
+  check('事实钉:verify_app 描述说清它自起进程黑盒考 + 三判定', verifyDesc.includes('INDEPENDENT examiner') && verifyDesc.includes('own process') && verifyDesc.includes('PASS / FAIL / SKIPPED'))
   process.env.DSH_ASSEMBLER_BARE = '1'
   const { emitAppToolDefinition: emitBareF } = await import('./lib/orchestrated-tools.js')
   const emitBare = emitBareF(fakeCtx, {}).description
@@ -442,7 +429,7 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   check('写手席:范例两张在模板内且被骨架锁覆盖', ex3(j3(RECIPES_DIR, 'scaffold-react', 'template', 'examples', 'board.tsx')) && ex3(j3(RECIPES_DIR, 'scaffold-react', 'template', 'examples', 'records.tsx')))
   check('契约钉:SCAFFOLD_BATON 承重句(读手册/先考卷后页面/自由区/列名照抄/3 次停手/deploy)', ['WRITE-ME.md', 'PAGE-SPEC.yml first', 'Free zone', 'never invent', '3 次 FAIL', 'deploy_app'].every((k) => SCAFFOLD_BATON.includes(k)) && tags2.SCAFFOLD_BATON === 'deepseek-v4')
   const dep = deployAppToolDefinition(fakeCtx, {}).description
-  check('契约钉:deploy_app = 确定性发布 + 先考后发', dep.includes('Deterministic copy') && dep.includes('verify_app PASS'))
+  check('事实钉:deploy_app 描述说清确定性拷贝 + 快照可回滚 + 源头回指针', dep.includes('Deterministic copy') && dep.includes('rollback') && dep.includes('where the page came from'))
   // 两道门各报各的(顺序:先解析 preset——回滚路径不带 targetDir,必须先有 preset)
   check('deploy_app:preset 不存在报可行动错误', await deployAppToolDefinition(fakeCtx, {}).execute({ targetDir: '/tmp/no-such-app-x', presetId: 'no-such-preset-x' }).then(() => false, (e) => e.message.includes('不存在')))
   {
@@ -540,15 +527,9 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
 
 // ── 契约:车道判据 + 管道可达(泛化战役发现的两处修补)──────────────────────
 {
-  const { ARCHITECTURE_CONTRACT: AC, addKnowledgeToolDefinition, ADD_KNOWLEDGE_TOOL_NAME } = await import('./lib/orchestrated-tools.js')
-  // 判据本身已搬离契约(散文版实测无承重,A 档 3/3 静默走 preset)。契约现在
-  // 只负责一件事:告诉 agent 这个分叉在**两个机械点**上判,别指望它读段落。
-  check('契约钉:车道分叉指向两个机械点(检索榜内联 + emit 拒印),不再靠段落说教',
-    AC.includes('BOTH fit') && AC.includes('search result set flags it inline') && AC.includes('REFUSES') && AC.includes('"lane"')
-    && !AC.includes('LANE TIE-BREAK'))
-  check('契约钉:装配器资源只经工具面(三件齐)+ 沙箱拒绝时停手', ['add_knowledge', 'read_preset', 'submit_part', 'TOOL-SURFACE ONLY', 'do not retry'].every((k) => ARCHITECTURE_CONTRACT.includes(k)))
+  const { addKnowledgeToolDefinition, ADD_KNOWLEDGE_TOOL_NAME } = await import('./lib/orchestrated-tools.js')
   const ak = addKnowledgeToolDefinition(fakeCtx, {}).description
-  check('契约钉:add_knowledge = 工具面孪生 + 检索门 + 自己写考题', ak.includes('tool-surface twin') && ak.includes('RETRIEVAL GATE') && ak.includes('YOU write the probes') && ADD_KNOWLEDGE_TOOL_NAME === 'add_knowledge')
+  check('事实钉:add_knowledge = 工具面孪生 + 检索门(检不出的知识包直接拒收)', ak.includes('tool-surface twin') && ak.includes('RETRIEVAL GATE') && ak.includes('cannot be retrieved is rejected') && ADD_KNOWLEDGE_TOOL_NAME === 'add_knowledge')
   const throwsK = async (args, needle) => addKnowledgeToolDefinition(fakeCtx, {}).execute(args).then(() => false, (e) => String(e.message).includes(needle))
   check('add_knowledge 闸:无考题拒', await throwsK({ docsDir: '/tmp', id: 'x', description: 'd', probes: [] }, '没有考题'))
   check('add_knowledge 闸:相对路径拒', await throwsK({ docsDir: 'rel/path', id: 'x', description: 'd', probes: [{ question: 'q', mustInclude: ['m'] }] }, '绝对路径'))
@@ -595,19 +576,13 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
 // ── 机械闸:契约要求的动作,逐条必须有够得着的工具面 ─────────────────────────
 {
   const M = await import('./lib/orchestrated-tools.js')
-  const { CONTRACT_ACTIONS, ARCHITECTURE_CONTRACT: AC2 } = M
+  const { CONTRACT_ACTIONS } = M
   const { readFileSync: rf5 } = await import('node:fs')
   const indexSrc = rf5('src/index.ts', 'utf8')
   check('闸:契约动作表非空且每条有 action/tool/why', CONTRACT_ACTIONS.length >= 10 && CONTRACT_ACTIONS.every((x) => x.action && x.tool && x.why))
   const unregistered = CONTRACT_ACTIONS.filter((x) => !indexSrc.includes(`assembler.tool.${x.tool}()`))
   check('闸:每个契约动作的工具都真被注册(忘配工具即红)', unregistered.length === 0, unregistered.map((x) => `${x.action}→${x.tool}`).join(', '))
-  // 碰装配器资源的三件必须在契约里被点名(否则 agent 不知道有这条路,还会去啃 shell)
-  const mustName = ['add_knowledge', 'read_preset', 'submit_part']
-  const unnamed = mustName.filter((t) => !AC2.includes(t))
-  check('闸:资源类工具在契约里被点名(不点名 = agent 仍会去撞沙箱)', unnamed.length === 0, unnamed.join(', '))
-  check('闸:契约禁止提权重试(沙箱拒绝时停手/报工单)', AC2.includes('do not retry') && AC2.includes('work order saying'))
   // 契约不得再把 agent 指向仓库脚本路径(那是沙箱够不着的死结)
-  check('闸:契约不再指向仓库脚本路径', !/scripts\/index-add\.mjs/.test(AC2), '契约里仍出现 scripts/index-add.mjs')
   const { readPresetToolDefinition, submitPartToolDefinition } = M
   const rpDesc = readPresetToolDefinition(fakeCtx, {}).description
   const spDesc = submitPartToolDefinition(fakeCtx, {}).description
