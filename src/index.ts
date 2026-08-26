@@ -273,7 +273,10 @@ export function reconcileCapabilityIdsDetailed(requested: readonly string[], cat
     console.error(`[assembler] unknown capability ids dropped: ${dropped.join(', ')}`)
   }
   if (resolved.length === 0 && requested.length > 0) {
-    throw new Error(`assemble: none of the selected capability ids exist: ${requested.join(', ')} — catalog changed?`)
+    // 过堂刀3:曾是英文陈名反问句,且近似候选就躺在 byNorm 里没伸手。
+    const toks = requested.flatMap((rid) => norm(rid).split('-')).filter((t) => t.length >= 4)
+    const near = [...new Set([...byNorm.values()].filter((cid) => toks.some((t) => cid.includes(t))))].slice(0, 6)
+    throw new Error(`emit_preset: capabilityIds 全部不在目录:${requested.join(', ')}。常见病:凭记忆写 id、丢了 mcp- 前缀。${near.length > 0 ? `近似候选:${near.join('、')}。` : ''}用 search_catalog 逐项检索确认真实 id 后重调`)
   }
   return { resolved: [...new Set(resolved)], repaired, dropped }
 }
@@ -315,12 +318,12 @@ export function assertEmittedPreset(text: string): string {
   } catch (error: unknown) {
     const first = String(error instanceof Error ? error.message : error).split('\n')[0]
     throw new Error(
-      `assemble: 发射的 preset 不是合法 YAML(${first})——通常是某条能力行的 name/id 或某个参数值含 YAML 特殊字符;`
+      `emit_preset: 发射的 preset 不是合法 YAML(${first})——通常是某条能力行的 name/id 或某个参数值含 YAML 特殊字符;`
       + '修好该行/该值再装配,绝不把装不上的 preset 当成功交付',
     )
   }
   if (!Array.isArray(doc) || doc.length === 0) {
-    throw new Error('assemble: 发射的 preset 未解析成非空的行序列——模板或能力行渲染坏了,拒绝写入')
+    throw new Error('emit_preset: 发射的 preset 未解析成非空的行序列——模板或能力行渲染坏了,拒绝写入')
   }
   return text
 }
@@ -585,13 +588,16 @@ export function installKnowledgePacks(
   selected: CapabilityEntry[],
   presetDir: string,
   catalogRoot: string,
-): InstalledPack[] {
+): { installed: InstalledPack[]; skipped: Array<{ id: string; packId: string; expectedDir: string }> } {
   const installed: InstalledPack[] = []
+  // 过堂刀2③:目录条目在、盘上包被移走时曾静默 continue——发射"成功"而 kb/ 空,
+  // 死知识闸只查"有没有手",没人查"有没有书"。缺书如实上报,拒不拒印由调用方裁。
+  const skipped: Array<{ id: string; packId: string; expectedDir: string }> = []
   for (const cap of selected.filter((c) => c.via === 'knowledge')) {
     const packId = (cap.config?.pack as string | undefined) ?? cap.id
     const packDir = join(catalogRoot, 'knowledge', packId)
     const docsDir = join(packDir, 'docs')
-    if (!existsSync(docsDir)) continue
+    if (!existsSync(docsDir)) { skipped.push({ id: cap.id, packId, expectedDir: docsDir }); continue }
     const targetDir = join(presetDir, 'kb', packId)
     mkdirSync(targetDir, { recursive: true })
     const files: string[] = []
@@ -613,7 +619,7 @@ export function installKnowledgePacks(
       ...(typeof meta.version === 'string' ? { version: meta.version } : {}),
     })
   }
-  return installed
+  return { installed, skipped }
 }
 
 // ── 装备槽:装配时预思考,运行时零设计 ───────────────────────────────────────
@@ -1083,7 +1089,7 @@ function fedWorkspaceStub(): string {
   return fedWorkspaceStubDir
 }
 
-export async function federateMcpTools(catalog: Catalog): Promise<Catalog> {
+export async function federateMcpTools(catalog: Catalog): Promise<Catalog & { fedExcluded?: Array<{ server: string; why: string }> }> {
   const servers = catalog['mcp-servers'] ?? {}
   const serverNames = Object.keys(servers)
   if (serverNames.length === 0) return catalog
@@ -1111,9 +1117,13 @@ export async function federateMcpTools(catalog: Catalog): Promise<Catalog> {
     return (process.env.PATH ?? '').split(':').some((p) => p !== '' && existsSync(join(p, cmd)))
   }
   const misses: string[] = []
+  // 过堂第七条:剔除只进 host console 时,search_catalog 零命中会被读成"真缺口"
+  // ——把剔除名单随目录带出去,由检索面出声。
+  const fedExcluded: Array<{ server: string; why: string }> = []
   for (const server of serverNames) {
     if (!commandResolvable(servers[server])) {
       console.error(`[assembler] federateMcpTools: server "${server}" 命令不可达(${String(servers[server].command ?? '')}),目录剔除其工具`)
+      fedExcluded.push({ server, why: `命令不可达(${String(servers[server].command ?? '')})` })
       continue
     }
     const hit = cache.servers[server]
@@ -1169,6 +1179,7 @@ export async function federateMcpTools(catalog: Catalog): Promise<Catalog> {
           // No negative caching: an unreachable part stays a live retry next
           // time, and any stale cache entry it has is already key-guarded.
           console.error(`[assembler] federateMcpTools: server "${server}" unreachable: ${error instanceof Error ? error.message : String(error)}`)
+          fedExcluded.push({ server, why: `拉起失败:${(error instanceof Error ? error.message : String(error)).slice(0, 120)}` })
         }
       }
     }
@@ -1184,8 +1195,8 @@ export async function federateMcpTools(catalog: Catalog): Promise<Catalog> {
       mcpEntries.push(entry)
     }
   }
-  if (mcpEntries.length === 0) return catalog
-  return { capabilities: [...catalog.capabilities, ...mcpEntries], 'mcp-servers': servers }
+  if (mcpEntries.length === 0) return fedExcluded.length > 0 ? { ...catalog, fedExcluded } : catalog
+  return { capabilities: [...catalog.capabilities, ...mcpEntries], 'mcp-servers': servers, ...(fedExcluded.length > 0 ? { fedExcluded } : {}) }
 }
 
 // ── Parts BOM (P2.2) ───────────────────────────────────────────────────────

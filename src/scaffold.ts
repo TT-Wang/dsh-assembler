@@ -184,7 +184,7 @@ export function materializeApp(input: MaterializeInput): MaterializeResult {
   const target = input.targetDir
   if (!target.startsWith('/')) throw new Error('emit_app: targetDir 必须是绝对路径(相对路径会解析进宿主进程 cwd)')
   const norm = resolve(target)
-  if (norm === homedir() || norm === '/' || norm === REPO) throw new Error(`emit_app: 拒绝把 app 实例化到 ${norm}`)
+  if (norm === homedir() || norm === '/' || norm === REPO) throw new Error(`emit_app: 拒绝把 app 实例化到 ${norm}——那是${norm === REPO ? '装配器仓库(底盘是库存,实例是交付物)' : '用户主目录/根目录(会淹没别人的文件)'}。交付物给自己开个目录,如 ~/apps/<name>`)
   if (norm.startsWith(REPO + '/')) throw new Error('emit_app: targetDir 不许落在装配器仓库内(底盘是库存,实例是交付物,两者不混)')
 
   // 参数闸:键形状 + 必填齐全。缺哪些、每个是干什么的,一次说清(可行动错误)。
@@ -212,7 +212,9 @@ export function materializeApp(input: MaterializeInput): MaterializeResult {
 
   if (input.pagesDir !== undefined && input.pagesDir !== '') {
     const pd = resolve(input.pagesDir)
-    if (!pd.startsWith('/') || !existsSync(pd) || !statSync(pd).isDirectory()) throw new Error(`emit_app: pagesDir 不存在:${pd}`)
+    if (!pd.startsWith('/')) throw new Error(`emit_app: pagesDir 必须是绝对路径(得到:${pd})`)
+    if (!existsSync(pd)) throw new Error(`emit_app: pagesDir 不存在:${pd}`)
+    if (!statSync(pd).isDirectory()) throw new Error(`emit_app: pagesDir 是个文件不是目录:${pd}——传放页面的目录(里面是 .tsx 页)`)
     cpSync(pd, join(norm, 'src', 'pages'), { recursive: true })
     // 约定:pagesDir 里的 PAGE-SPEC.yml 是这批页面的考卷,迁到 app 根(覆盖模板空卷)
     const movedSpec = join(norm, 'src', 'pages', 'PAGE-SPEC.yml')
@@ -313,7 +315,7 @@ export async function runAppSelftest(
   const lockPath = join(targetDir, 'scaffold.lock.yml')
   if (!existsSync(lockPath)) throw new Error(`verify_app: ${targetDir} 没有 scaffold.lock.yml——这不是 emit_app 实例化出来的 app(先 emit_app)`)
   const lock = (yaml.load(readFileSync(lockPath, 'utf8')) ?? {}) as { scaffold?: string; params?: Record<string, string> }
-  if (typeof lock.scaffold !== 'string') throw new Error('verify_app: scaffold.lock.yml 缺 scaffold 字段')
+  if (typeof lock.scaffold !== 'string') throw new Error('verify_app: scaffold.lock.yml 缺 scaffold 字段——lock 是 emit_app 写的,缺字段说明被手改或半写坏;emit_app 同 targetDir 传 fresh:true 重印即可修复(自由区 src/pages 会被清,先备份手写页)')
   const spec = loadScaffold(opts.scaffoldRoot)
   const params = lock.params ?? {}
   const port = await getFreePort()
@@ -411,7 +413,7 @@ export async function runAppSelftest(
               const rt = String(act.route ?? '')
               if (rt in declared) declared[rt as keyof typeof declared] += 1
             }
-            if (declared.face > 0 && !usesFace) offenses.push(`PAGE-SPEC 声明 ${String(declared.face)} 个 face 动作,页面却没有任何服务脸调用(sqliteFace/face()——声明与实现脱节`)
+            if (declared.face > 0 && !usesFace) offenses.push(`PAGE-SPEC 声明 ${String(declared.face)} 个 face 动作,页面却没有任何服务脸调用(sqliteFace/face())——声明与实现脱节`)
             if (declared.wire > 0 && !usesWire) offenses.push(`PAGE-SPEC 声明 ${String(declared.wire)} 个 wire 动作,页面却没有会话调用(createClient/.ask)`)
             if (declared['ai-thin'] > 0 && !usesAi) offenses.push(`PAGE-SPEC 声明 ${String(declared['ai-thin'])} 个 ai-thin 动作,页面却没有 aiFace 调用`)
             if (usesWire && declared.wire === 0) offenses.push('页面用了会话口(createClient/.ask)但 PAGE-SPEC 零 wire 声明——漏报路由')
@@ -476,6 +478,10 @@ export async function runAppSelftest(
           continue
         }
         const presetId = params.PRESET_ID ?? ''
+        if (presetId === '' && actions.some((a2) => ['face', 'wire', 'ai-thin'].includes(String(a2.route ?? '')))) {
+          checks.push({ check: 'behavior', status: 'FAIL', evidence: 'scaffold.lock.yml 的 params 里没有 PRESET_ID——face/wire/ai-thin 动作都要靠配套 preset 的服务脸与会话。emit_app 时把配套 preset 的 id 传进 params(fresh 重印)后再验' })
+          break
+        }
         const presetDir = join(opts.presetRoot ?? join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), '.agent-presets'), presetId)
         // 服务脸:优先读在场的 .service.json;零件不在场则考官自己拉起(自给自足)
         let facePart: ReturnType<typeof spawn> | null = null
@@ -533,7 +539,7 @@ export async function runAppSelftest(
             const route = String(a2.route ?? '')
             const name = String(a2.name ?? '?')
             if (route === 'face') {
-              if (!(await faceAlive(face)) || face === null) { behaviorFail = `face 动作「${name}」:服务脸不可达(preset ${presetId} 的 sqlite 零件拉不起来)`; break }
+              if (!(await faceAlive(face)) || face === null) { behaviorFail = `face 动作「${name}」:服务脸不可达——效果断言要读 preset「${presetId}」的 sqlite 面。用 read_preset {"presetId":"${presetId}","include":["bom"]} 核对 BOM 是否含 sqlite 零件;没有则把它加进 capabilityIds 同名重发;有则是零件拉不起来(考官已尝试自拉 generated/sqlite-query)`; break }
               const doSql = async (sql: string, sqlParams: unknown[]): Promise<Record<string, unknown>> => {
                 const r = await fetch(`${face.url}/sql`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-token': face.token }, body: JSON.stringify({ sql, params: sqlParams }), signal: AbortSignal.timeout(8000) })
                 const j = (await r.json()) as Record<string, unknown>
@@ -570,7 +576,7 @@ export async function runAppSelftest(
                 aiPart = spawn('node', [partJs], { env: { ...process.env as Record<string, string>, PART_WORKDIR: join(presetDir, 'workspace') }, stdio: ['pipe', 'pipe', 'pipe'] })
                 for (let i = 0; i < 20; i++) { await new Promise((r) => setTimeout(r, 250)); ai = readAi(); if (await aiAlive(ai)) break }
               }
-              if (!(await aiAlive(ai)) || ai === null) { behaviorFail = `ai-thin 动作「${name}」:ai 服务脸不可达(preset ${presetId} 挂了 ai-call 零件吗?)`; break }
+              if (!(await aiAlive(ai)) || ai === null) { behaviorFail = `ai-thin 动作「${name}」:ai 服务脸不可达——用 read_preset {"presetId":"${presetId}","include":["bom"]} 核对 BOM 是否含 ai-call 零件;没有则加进 capabilityIds 同名重发(考官已尝试自拉 generated/ai-call)`; break }
               const promptText = String(sub(a2.prompt ?? ''))
               const expect = String(sub(a2.expect ?? ''))
               if (promptText === '' || expect === '') { behaviorFail = `ai-thin 动作「${name}」:缺 prompt/expect 考题`; break }
@@ -593,7 +599,10 @@ export async function runAppSelftest(
             } else if (route === 'local') {
               results.push(`local「${name}」(纯本地 UI,无出网,免考)`)
             } else {
-              results.push(`「${name}」route=${route}(未知路由,标注留档)`)
+              // 过堂刀1:未知路由曾"标注留档"后照常计 PASS——route 拼错/编造的动作
+              // 不考不挂,"声明即得分"从 route 字段复辟。未知即 FAIL。
+              behaviorFail = `动作「${name}」route="${route}" 不是考官认识的路由——只有 face(服务脸 SQL+效果断言)/ wire(真会话探针)/ ai-thin(一次补全)/ local(纯本地 UI,免考)四种。拼写错误改对重验;真是新路由类型,那是底盘升级,回 scaffold.yml 提`
+              break
             }
           }
         } finally {

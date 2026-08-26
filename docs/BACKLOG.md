@@ -49,6 +49,14 @@
       进 v6 议程;序数断言 A≥B 揭示槽内红利按形态分层。语料包按 docsDir 回收
       闭环,残迹清场。**
 
+- [x] **0.5 报错逐闸过堂**(2026-08-27,ROADMAP 阶段 2 第一件,docs/research/
+      gate-error-audit-2026-08-27.md):独立审计 100 族闸(87% 全格)→ 三刀重伤 +
+      全部中轻伤一次执完:未知路由=行为考 FAIL(漏考封口)/emit 结果三失实治平
+      (快照三态·前端出声带模板候选·知识包缺书拒印)/「preset 不存在」族统一
+      presetNotFoundError(现有清单+近邻)/submit_part 死胡同幂等补登记/headless
+      族给活路/联邦剔除面随零命中出声(假缺口治理)/记分板·台账·lock 损坏出声/
+      trigger 缺参点名/npm view·listTools·推导失败补下一步。全链绿。
+
 ## 已完成基线(免得重复造)
 
 配方车道(rag-qa/record-desk/scaffold-react)· 双面化四件套(sqlite 服务脸/

@@ -275,8 +275,9 @@ function scaffoldCore(repoSlugArg, opts) {
   let meta
   try {
     meta = JSON.parse(execSync(`npm view ${pkg} version license description --json`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }))
-  } catch {
-    die(`npm view ${pkg} 失败——包名不对?用 --pkg 指定 npm 包名`)
+  } catch (error) {
+    // 过堂:曾吞掉 npm 的真实 stderr(404?网络?),只剩猜测句。
+    die(`npm view ${pkg} 失败:${String(error?.stderr ?? error?.message ?? error).trim().slice(-200)}——包名不对就用 --pkg 指定 npm 包名`)
   }
 
   const upstream = join(REPO, '.cache', 'upstream', id)
@@ -373,7 +374,7 @@ async function verifyCore(idArg, clientName) {
   await client.connect(new StdioClientTransport({ command: 'node', args: [join(dir, 'index.js')], env: partEnv() }))
   const tools = (await client.listTools()).tools.map((t) => ({ name: t.name, description: t.description ?? '' }))
   await client.close()
-  if (tools.length === 0) die('listTools 为空')
+  if (tools.length === 0) die('listTools 为空——server 起了但没注册任何工具:检查 index.js 是否真调了 registerTool/setRequestHandler,有无条件分支跳过了注册')
 
   mkdirSync(join(root, 'index', 'reports'), { recursive: true })
   writeFileSync(join(root, 'index', 'reports', `${id}.json`), JSON.stringify({

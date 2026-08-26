@@ -354,7 +354,7 @@ export function parseModelJson(raw: string): Record<string, unknown> {
   const start = unfenced.indexOf("{");
   const end = unfenced.lastIndexOf("}");
   if (start === -1 || end <= start) {
-    throw new Error(`模型未返回 JSON:${raw.slice(0, 160)}`);
+    throw new Error(`模型未返回 JSON:${raw.slice(0, 160)}——推导器打滑;重调 verify_preset 并附探针草图可绕过推导(出题范例见 emit_preset 结果)`);
   }
   try {
     return JSON.parse(unfenced.slice(start, end + 1)) as Record<string, unknown>;
@@ -392,7 +392,7 @@ export async function deriveProbe(
   }
   const marks = sanitizeMarks(parsed.mustInclude);
   if (marks.length === 0) {
-    throw new Error(`probe deriver 的验收标记全被消毒剔除(原标记:${parsed.mustInclude.map(String).join(", ").slice(0, 80)})`);
+    throw new Error(`probe deriver 的验收标记全被消毒剔除(原标记:${parsed.mustInclude.map(String).join(", ").slice(0, 80)})——重调 verify_preset 并附上你自己的探针草图可绕过整段推导(出题范例见 emit_preset 结果)`);
   }
   return { task: parsed.task, mustInclude: marks };
 }

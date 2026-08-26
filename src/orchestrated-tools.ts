@@ -42,7 +42,7 @@ import {
 } from './verify.js'
 import { checkArchProbe } from './arch-spec.js'
 import { rankCapabilities } from './capability-index.js'
-import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend } from './frontend.js'
+import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend, listFrontendTemplates } from './frontend.js'
 import { execFileSync, spawn as spawnPart } from 'node:child_process'
 import { SCAFFOLD_DIR as SCAFFOLD_ROOT_FOR_RESEMBLE, hashLockPaths, loadScaffold, materializeApp, runAppSelftest } from './scaffold.js'
 
@@ -688,6 +688,14 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
         catalogReaderIds: catalog.capabilities.filter((c) => c.config?.enabled !== false && canReadKb(c, mcpServers)).map((c) => c.id),
       })
       if (deadKbErr !== null) throw new Error(deadKbErr)
+      // 教材缺书闸(过堂刀2③,与死知识闸同性质:闸在任何落盘之前):条目在目录、
+      // 包不在盘上 = 物理缺件,拒印;旧行为是静默跳过,发射"成功"而 kb/ 空。
+      const missingDocs = selectedForGate.filter((c) => c.via === 'knowledge')
+        .map((c) => ({ id: c.id, expectedDir: join(dirname(catalogPath), 'knowledge', (c.config?.pack as string | undefined) ?? c.id, 'docs') }))
+        .filter((m) => !existsSync(m.expectedDir))
+      if (missingDocs.length > 0) {
+        throw new Error(`emit_preset: 知识包在目录里有条目,但文档目录不存在:${missingDocs.map((m) => `「${m.id}」(${m.expectedDir})`).join('、')}——包被移动或删除了。用 add_knowledge 重新入库,或从 capabilityIds 去掉该条目(条目与盘上包的绑定见 capabilities.yml 的 config.pack)`)
+      }
       const presetRoot = presetRootOf(config)
       const id = sanitizePresetName(input.name)
       const dir = join(presetRoot, id)
@@ -707,6 +715,7 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
       // verbatim 恢复旧字节必撞自己前代的挂载(代际物理);复原 = 按快照 lock 的
       // capabilityIds/persona 重发,不是拷回旧文件。workspace/kb 是数据不是工件,不动。
       const prevExists = existsSync(join(dir, 'agent.cordis.yml'))
+      let snapErr: string | null = null
       if (prevExists) {
         try {
           const snap = join(dir, 'preset.prev')
@@ -717,14 +726,22 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
           }
           if (existsSync(join(dir, 'equipment'))) cpSync(join(dir, 'equipment'), join(snap, 'equipment'), { recursive: true })
         } catch (error: unknown) {
-          console.error(`[assembler] 重发快照失败(发射照常):${error instanceof Error ? error.message : String(error)}`)
+          // 过堂刀2①:曾只进 host console,而结果行按快照前布尔宣称「已存快照」——
+          // 声与事实相反是最坏形态。存下来,结果行按真相三态打印。
+          snapErr = error instanceof Error ? error.message : String(error)
+          console.error(`[assembler] 重发快照失败(发射照常):${snapErr}`)
         }
       }
       mkdirSync(dir, { recursive: true })
       progressAppend(dir, `══ emit_preset ${id}(编排模式:发射归我,决策归编排者)══`)
       const byId = new Map(catalog.capabilities.map((c) => [c.id, c]))
       const selected = ids.map((cid) => byId.get(cid)).filter((c): c is CapabilityEntry => c !== undefined)
-      const knowledge = installKnowledgePacks(selected, dir, dirname(catalogPath))
+      const kbResult = installKnowledgePacks(selected, dir, dirname(catalogPath))
+      if (kbResult.skipped.length > 0) {
+        // 缺书闸已在落盘前拦过;这里是二道保险(未来新调用路径也别静默)。
+        throw new Error(`emit_preset: 知识包文档目录不存在:${kbResult.skipped.map((m) => `「${m.id}」(${m.expectedDir})`).join('、')}——用 add_knowledge 重新入库`)
+      }
+      const knowledge = kbResult.installed
       if (knowledge.length > 0) progressAppend(dir, `知识包已随 preset 安装:${knowledge.map((k) => k.id).join('、')}`)
       const { equipment, why: equipWhy } = installStateEquipment({
         ...(input.stateSchema !== undefined ? { stateSchema: input.stateSchema } : {}),
@@ -749,11 +766,12 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
       progressAppend(dir, `preset 已发射:${id}`)
       // 前端:选中 via:'frontend' 用其模板,否则兜底聊天台(每台 agent 都有脸)。
       let frontendInfo: { template: string; url?: string; path: string } | null = null
+      let feErr: string | null = null
+      mkdirSync(join(dir, 'workspace'), { recursive: true })
+      mkdirSync(join(dir, 'kb'), { recursive: true })
       try {
         const feCap = selected.find((c) => c.via === 'frontend')
         const fe = emitFrontend({ template: (feCap?.config?.template as string | undefined) ?? DEFAULT_FRONTEND_TEMPLATE, presetDir: dir, presetId: id, requirement: input.requirement, workdir: join(dir, 'workspace') })
-        mkdirSync(join(dir, 'workspace'), { recursive: true })
-        mkdirSync(join(dir, 'kb'), { recursive: true })
         const port = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
         frontendInfo = {
           template: fe.template,
@@ -762,7 +780,9 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
         }
         if (fe.changed) progressAppend(dir, `前端已就位:${fe.template}`)
       } catch (error: unknown) {
-        console.error(`[assembler] 前端发射失败(发射照常):${error instanceof Error ? error.message : String(error)}`)
+        // 过堂刀2②:曾只进 host console——agent 不知道自己交付了一台没脸的 preset。
+        feErr = error instanceof Error ? error.message : String(error)
+        console.error(`[assembler] 前端发射失败(发射照常):${feErr}`)
       }
       const gapOrders = writeGapWorkOrders({ presetDir: dir, presetId: id, requirement: input.requirement, missingEntries: input.missingEntries })
       if (gapOrders.length > 0) progressAppend(dir, `缺件工单已落盘:${String(gapOrders.length)} 份 → ${join(dir, 'gaps')}/`)
@@ -794,9 +814,9 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
         ? `\n所需凭证:${requiredSecrets.map((sec) => `${sec.env}${sec.configured ? '(已配置)' : sec.optional === true ? '(可选,未配则降级)' : '(待配置)'}`).join(';')}(凭证配到 host 环境变量,绝不进装配参数)`
         : ''
       return `preset「${id}」已发射:${ids.join(', ')}(${String(elapsed)}s)\n`
-        + (prevExists ? `上一代工件已存快照:${join(dir, 'preset.prev')}/(对照 diff / 按其 parts.lock 重发即复原)\n` : '')
+        + (prevExists ? (snapErr === null ? `上一代工件已存快照:${join(dir, 'preset.prev')}/(对照 diff / 按其 parts.lock 重发即复原)\n` : `⚠ 上一代工件快照失败(${snapErr})——本次重发没有回滚参照,覆盖前请自行确认\n`) : '')
         + `preset 文件:${join(dir, 'agent.cordis.yml')}\n`
-        + (frontendInfo !== null ? `前端页面:${frontendInfo.url ?? frontendInfo.path}(模板 ${frontendInfo.template})\n` : '')
+        + (frontendInfo !== null ? `前端页面:${frontendInfo.url ?? frontendInfo.path}(模板 ${frontendInfo.template})\n` : feErr !== null ? `⚠ 前端未发射:${feErr}——本 preset 暂无页面。模板名来自所选 frontend 零件的 config.template;可用模板:${listFrontendTemplates().join('、')}\n` : '')
         + (equipment !== null ? '装备:预建数据库 schema(equipment/init.sql,双次执行门 PASS)\n' : '')
         + (input.stateSchema !== undefined && equipment === null ? `⚠ stateSchema 未落装备:${equipWhy ?? '未知原因'}——修正后同名重发即可补上\n` : '')
         + (knowledge.length > 0 ? `知识包:${knowledge.map((k) => `${k.id}(${String(k.docs)} 篇)`).join(';')}\n` : '')
@@ -854,7 +874,7 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
       const dir = join(presetRoot, id)
       const presetPath = join(dir, 'agent.cordis.yml')
       if (!existsSync(presetPath)) {
-        throw new Error(`verify_preset: preset「${id}」不存在(${presetPath})——先用 emit_preset 发射`)
+        throw presetNotFoundError('verify_preset', presetRoot, id)
       }
       const t0 = Date.now()
       const job = startJob(ctx, 'verify-preset', `独立验收 ${id}`)
@@ -882,7 +902,11 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
           }))
           .filter((p) => p.capability !== '')
         lockIds = lockParts.map((p) => p.capability)
-      } catch { /* 无 lock:仍可验收(推导退化为按 preset 文本),但正常发射必有 lock */ }
+      } catch {
+        // 过堂第七条:lock 在盘上但读坏 ≠ 没有 lock——静默降级把"案卷损坏"演成
+        // "正常无案卷"。出声;真缺席(文件不存在)仍按正常退化走。
+        if (existsSync(join(dir, 'parts.lock.yml'))) phase('⚠ parts.lock.yml 读取失败(损坏?)——案卷缺席:动用率与需求文本退化;建议同名重发补 lock')
+      }
       // 动用率映射:一个工具零件"被动用" = 探针会话里出现了它的运行时工具名。
       // 自装 mcp 行的运行时名带代际后缀(mcp__<serverName>__<tool>),host 平面
       // 与 package 工具用目录名原样。语义边界:探针只走主流程,未动用≠无用。
@@ -936,7 +960,7 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
               ...(note !== undefined ? { note: note.slice(0, 160) } : {}),
               elapsedSeconds: Math.round((Date.now() - t0) / 1000),
             })}\n`)
-          } catch { /* 台账是加速器不是必需品 */ }
+          } catch (e2: unknown) { console.error(`[assembler] 记分板写入失败(判定不受影响,但审计侧会缺行):${e2 instanceof Error ? e2.message : String(e2)}`) }
         }
         if (carry.carry) {
           phase(`验收沿用:${carry.why}`)
@@ -948,7 +972,7 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
         if (port === undefined) {
           scoreboard('SKIPPED', 'headless:无 webServer 端口')
           settleAndLedger({ status: 'SKIPPED', reason: 'headless' }, 'completed', 'SKIPPED')
-          return `验收跳过:无 webServer 端口(headless?)——preset 已发射但未经验收,不可当作通过。${contractPass}`
+          return `验收跳过:无 webServer 端口(headless?)——preset 已发射但未经验收,不可当作通过。要真验:在带 webServer 的 host 里跑(先启动:dsh --profile web);该环境本就无法开会话,就把 SKIPPED 如实报给用户。${contractPass}`
         }
         const catalog = await federateMcpTools(loadCatalog(config.catalogPath ?? join(REPO, 'capabilities.yml')))
         const byId = new Map(catalog.capabilities.map((c) => [c.id, c]))
@@ -1033,7 +1057,7 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
             elapsedSeconds: Math.round((Date.now() - t0) / 1000),
             derive: { out: deriveUsage.outputTokens, reason: deriveUsage.reasoningTokens },
           })}\n`)
-        } catch { /* 台账是加速器不是必需品 */ }
+        } catch (e2: unknown) { console.error(`[assembler] 记分板写入失败(判定不受影响,但审计侧会缺行):${e2 instanceof Error ? e2.message : String(e2)}`) }
         let selfCheckLine = ''
         if (verification.status === 'PASS') {
           try {
@@ -1051,6 +1075,7 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
             selfCheckLine = '\n自检包:selfcheck.json 已随 preset 落盘(改 persona/升零件后可重跑同卷体检)'
           } catch (error: unknown) {
             console.error(`[assembler] verify ledger write failed: ${error instanceof Error ? error.message : String(error)}`)
+            selfCheckLine = '\n⚠ 验收台账/自检包未落盘(写入失败)——本判定有效,但同字节下次将重探(沿用失效)'
           }
         }
         const elapsed = Math.round((Date.now() - t0) / 1000)
@@ -1141,7 +1166,11 @@ export function searchCatalogToolDefinition(_ctx: Context, config: Config): Tool
       }
       appendOrchLedger({ tool: SEARCH_TOOL_NAME, query: query.slice(0, 120), hits: hits.length })
       if (hits.length === 0) {
-        return `「${query}」检索 0 命中。${prose(`换 2-3 种说法再试(同义词/英文词);仍无 → 这是真缺口,如实进 emit_preset 的 missing/missingEntries。\n${ASSEMBLY_BATON}`)}`
+        // 过堂第七条:联邦剔除不可达服务器只进 host console——agent 被教导"0 命中
+        // = 真缺口",而真相可能是零件在、此刻拉不起。剔除名单随零命中结果走。
+        const fedEx = (catalog as { fedExcluded?: Array<{ server: string; why: string }> }).fedExcluded ?? []
+        const exNote = fedEx.length > 0 ? `\n⚠ 另有 ${String(fedEx.length)} 台零件服务器因不可达被临时剔除(${fedEx.map((x) => `${x.server}:${x.why}`).join(';')})——其工具不在本次检索范围;先修可达性再下"真缺口"结论。` : ''
+        return `「${query}」检索 0 命中。${exNote}${prose(`换 2-3 种说法再试(同义词/英文词);仍无 → 这是真缺口,如实进 emit_preset 的 missing/missingEntries。\n${ASSEMBLY_BATON}`)}`
       }
       const rows = hits.map((h, i) => `${String(i + 1)}. ${h.entry.id} [${h.entry.via}](分 ${String(h.score)})— ${h.entry.description.slice(0, 110)}${priceOf(h.entry)}${serviceOf(h.entry)}${secretOf(h.entry)}`).join('\n')
       return `「${query}」top ${String(hits.length)}:\n${rows}`
@@ -1203,7 +1232,7 @@ export function verifySharedDataToolDefinition(ctx: Context, config: Config): To
       const presetRoot = presetRootOf(config)
       for (const id of [writerId, readerId].filter((x) => x !== '')) {
         if (!existsSync(join(presetRoot, id, 'agent.cordis.yml'))) {
-          throw new Error(`verify_shared_data: preset「${id}」不存在——先用 emit_preset(带同一 sharedDb 绝对路径)发射全部班子成员`)
+          throw presetNotFoundError('verify_shared_data', presetRoot, id, '(带同一 sharedDb 绝对路径,发射全部班子成员)')
         }
       }
       // 机械闸(每条都是共享探针战役的真坑):token/payload 自给自足;取回轮
@@ -1221,7 +1250,7 @@ export function verifySharedDataToolDefinition(ctx: Context, config: Config): To
       const port = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
       const agentInvolved = writerAppUrl === '' || readerAppUrl === ''
       if (agentInvolved && port === undefined) {
-        return '共享数据验收跳过:无 webServer 端口(headless?)——班子未经共享验收,不可当作打通。'
+        return '共享数据验收跳过:无 webServer 端口(headless?)——班子未经共享验收,不可当作打通。要真验:在带 webServer 的 host 里跑(先启动:dsh --profile web)。'
       }
 
       // ── 双面交付路径(③交接考扩展):app 侧由考官亲自经其 HTTP 面执行 SQL,
@@ -1271,7 +1300,7 @@ export function verifySharedDataToolDefinition(ctx: Context, config: Config): To
       }
 
       // 非 app 路径必有 agent 参与,上方守卫已保证 port 存在;此行只为类型收窄。
-      if (port === undefined) return '共享数据验收跳过:无 webServer 端口(headless?)。'
+      if (port === undefined) return '共享数据验收跳过:无 webServer 端口(headless?)。要真验:在带 webServer 的 host 里跑(先启动:dsh --profile web)。'
       const t0 = Date.now()
       const job = startJob(ctx, 'verify-shared-data', `共享数据验收 ${writerId}→${readerId}`)
       const phase = (line: string): void => {
@@ -1335,17 +1364,18 @@ export function verifyTriggerToolDefinition(ctx: Context, config: Config): ToolD
       const task = String(a?.task ?? '').trim()
       const effectSql = String(a?.effectSql ?? '').trim()
       const expect = String(a?.expect ?? '').trim()
-      if (presetId === '' || task === '' || effectSql === '' || expect === '') {
-        throw new Error('verify_trigger 需要 presetId / task / effectSql / expect(考卷归你设计:任务里带口令,断言查它落没落)')
+      const missParams = ([['presetId', presetId], ['task', task], ['effectSql', effectSql], ['expect', expect]] as const).filter(([, v]) => v === '').map(([k]) => k)
+      if (missParams.length > 0) {
+        throw new Error(`verify_trigger 缺参数:${missParams.join('、')}(考卷归你设计:任务里带口令 expect,effectSql 查它落没落)`)
       }
       if (expect.length < 4) throw new Error('verify_trigger: expect ≥4 字符(要够独特,别用 ok/done)')
       if (!task.includes(expect)) throw new Error('verify_trigger: task 必须包含 expect 口令(任务指令要自给自足)')
       if (!/^\s*(SELECT|WITH)\b/i.test(effectSql)) throw new Error('verify_trigger: effectSql 必须是只读查询(考官不改数据)')
       const presetRoot = presetRootOf(config)
       const presetDir = join(presetRoot, presetId)
-      if (!existsSync(join(presetDir, 'agent.cordis.yml'))) throw new Error(`verify_trigger: preset「${presetId}」不存在——先 emit_preset`)
+      if (!existsSync(join(presetDir, 'agent.cordis.yml'))) throw presetNotFoundError('verify_trigger', presetRoot, presetId)
       const port = (ctx.get?.('webServer') as { port?: number } | undefined)?.port
-      if (port === undefined) return '触发面验收跳过:无 webServer 端口(headless?)——无人值守形态未经验收,不可当作打通。'
+      if (port === undefined) return '触发面验收跳过:无 webServer 端口(headless?)——无人值守形态未经验收,不可当作打通。要真验:在带 webServer 的 host 里跑(先启动:dsh --profile web)。'
 
       // 服务脸自给自足(与行为考同款):不在场则考官自拉 sqlite 零件
       const readFace = (): { url: string; token: string } | null => {
@@ -1534,6 +1564,24 @@ export function verifyAppToolDefinition(_ctx: Context, _config: Config): ToolDef
   })
 }
 
+/**
+ * 「preset 不存在」族的统一报错(过堂刀3):现有 preset 清单与近邻提示都是
+ * readdirSync 一把就有的现成数据——此前五处只说"先 emit_preset",拼错名字的
+ * agent 按错路走会凭空多铸一台。
+ */
+function presetNotFoundError(tool: string, presetRoot: string, wrong: string, extra = ''): Error {
+  let ids: string[] = []
+  try {
+    ids = readdirSync(presetRoot, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && existsSync(join(presetRoot, e.name, 'agent.cordis.yml')))
+      .map((e) => e.name)
+  } catch { /* preset 根目录还没建 = 零台 */ }
+  const squash = (x: string): string => x.replace(/-/g, '')
+  const near = ids.filter((x) => x.includes(wrong) || wrong.includes(x) || squash(x) === squash(wrong)).slice(0, 4)
+  const roster = ids.length === 0 ? '当前没有任何已发射 preset' : `现有 preset(${String(ids.length)} 台):${ids.slice(0, 12).join('、')}${ids.length > 12 ? ' …' : ''}`
+  return new Error(`${tool}: preset「${wrong}」不存在。${roster}。${near.length > 0 ? `名字最像:${near.join('、')}——拼错就换对的重调;` : ''}还没发射就先 emit_preset${extra}`)
+}
+
 // ── deploy_app:构建产物发布进 preset(写手席交付流第 4 步)────────────────────
 // static-deploy 零件是给"交付出去的 agent 自建自发"用的(挂在 preset 里);
 // 主 agent 在装配现场没有它的工具面,发布这步由本 host 面工具承接,闸门同款:
@@ -1569,7 +1617,7 @@ export function deployAppToolDefinition(_ctx: Context, config: Config): ToolDefi
       const presetRoot = presetRootOf(config)
       const presetDir = join(presetRoot, presetId)
       if (!existsSync(join(presetDir, 'agent.cordis.yml'))) {
-        throw new Error(`deploy_app: preset「${presetId}」不存在——前端要发布进一个已发射的 preset`)
+        throw presetNotFoundError('deploy_app', presetRoot, presetId, '(前端要发布进已发射的 preset)')
       }
       const target = join(presetDir, 'frontend')
       const snap = join(presetDir, 'frontend.prev')
@@ -1810,7 +1858,7 @@ export function readPresetToolDefinition(_ctx: Context, config: Config): ToolDef
       const presetId = sanitizePresetName(String(a?.presetId ?? ''))
       if (presetId === '') throw new Error('read_preset 需要 presetId')
       const dir = join(presetRootOf(config), presetId)
-      if (!existsSync(join(dir, 'agent.cordis.yml'))) throw new Error(`read_preset: preset「${presetId}」不存在(先 emit_preset,或核对名字)`)
+      if (!existsSync(join(dir, 'agent.cordis.yml'))) throw presetNotFoundError('read_preset', presetRootOf(config), presetId)
       const want = Array.isArray(a?.include) && a.include.length > 0 ? new Set(a.include.map(String)) : null
       const on = (k: string): boolean => want === null || want.has(k)
       const out: string[] = [`preset ${presetId}(${dir})`]
@@ -1898,7 +1946,24 @@ export function submitPartToolDefinition(_ctx: Context, config: Config): ToolDef
       if (indexJs.trim() === '' || smokeMjs.trim() === '') throw new Error('submit_part 需要 indexJs 与 smokeMjs(没有冒烟的零件不许入库——验收永远归门,不归自述)')
       if (typeof meta.license !== 'string' || String(meta.license).trim() === '') throw new Error('submit_part 需要 meta.license(供应链出处:许可证必填)')
       const dir = join(REPO, 'generated', id)
-      if (existsSync(join(dir, '.index-meta.json'))) throw new Error(`submit_part: 零件 ${id} 已存在——换 id,或先与用户确认是否取代旧件(装配器不静默覆盖既有零件)`)
+      if (existsSync(join(dir, '.index-meta.json'))) {
+        // 过堂死胡同修复:上次已过全部门但登记 CLI 失败时,工件与验收报告都在盘上,
+        // 重调同 id 曾被本闸一刀拒掉——agent 无路可走。register 是幂等命令:报告
+        // 为 pass 的既有零件走补登记;真冲突(想换实现占同 id)仍拒。
+        let priorPass = false
+        try { priorPass = (JSON.parse(readFileSync(join(REPO, 'index', 'reports', `${id}.json`), 'utf8')) as { smoke?: string }).smoke === 'pass' } catch { /* 无验收报告则按占用拒 */ }
+        if (priorPass) {
+          try {
+            const outText = execFileSync('node', [join(REPO, 'scripts', 'index-add.mjs'), 'register', id], { cwd: REPO, encoding: 'utf8', timeout: 60_000 })
+            const j = JSON.parse(outText.trim().split('\n').pop() ?? '{}') as { ok?: boolean; registered?: string[] }
+            if (j.ok === true) {
+              appendOrchLedger({ tool: SUBMIT_PART_TOOL_NAME, id, reRegistered: true })
+              return `零件 ${id} 此前已过门(冒烟 PASS·独立实探 PASS),本次补登记:${(j.registered ?? []).join(', ') || '幂等无改动'}\n(本次提交的新字节未使用——要换实现请换 id,或与用户确认取代后先删 generated/${id})`
+            }
+          } catch { /* 补登记也失败 → 落到下面的诚实拒绝 */ }
+        }
+        throw new Error(`submit_part: 零件 ${id} 已存在(generated/${id})——换 id,或先与用户确认是否取代旧件(装配器不静默覆盖既有零件)`)
+      }
 
       mkdirSync(dir, { recursive: true })
       const deps = { '@modelcontextprotocol/sdk': '^1.0.0', ...(a?.dependencies !== null && typeof a?.dependencies === 'object' ? a.dependencies as Record<string, string> : {}) }
@@ -1955,7 +2020,9 @@ export function submitPartToolDefinition(_ctx: Context, config: Config): ToolDef
         const j = JSON.parse(outText.trim().split('\n').pop() ?? '{}') as { ok?: boolean; registered?: string[]; error?: string }
         registered = j.ok === true ? `已登记(${(j.registered ?? []).join(', ') || '幂等无改动'})` : `登记未完成:${String(j.error ?? '').slice(0, 160)}`
       } catch (error: unknown) {
-        registered = `已过门但登记未完成:${error instanceof Error ? error.message.slice(0, 160) : String(error)}(工件在 generated/${id},可手工 register)`
+        // 过堂:旧文案「可手工 register」指向沙箱够不着的 CLI——本工具存在的全部
+        // 理由就是提权撞墙。诚实分工 + 自愈路径(重调同 id 走上面的补登记分支)。
+        registered = `已过门但登记未完成:${error instanceof Error ? error.message.slice(0, 160) : String(error)}。工件与验收报告安全落在 generated/${id};重调一次 submit_part(同 id,内容随意)会自动补登记,或把本行报告用户由仓库侧执行:node scripts/index-add.mjs register ${id}`
       }
       appendOrchLedger({ tool: SUBMIT_PART_TOOL_NAME, id, tools: tools.length })
       return `零件 ${id} 已过门入库:${String(tools.length)} 个工具(${tools.map((t) => t.name).join(', ')})\n冒烟 PASS · 独立实探 PASS · ${registered}`

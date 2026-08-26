@@ -148,17 +148,20 @@ mkd(jn(kroot, 'knowledge', 'demo-pack', 'docs'), { recursive: true })
 wf(jn(kroot, 'knowledge', 'demo-pack', 'docs', 'policy.md'), '# 政策\n退货 15 日')
 wf(jn(kroot, 'knowledge', 'demo-pack', '.knowledge-meta.json'), JSON.stringify({ source: '客户导出', version: '2026-08' }))
 const pdir = mkt(jn(td(), 'preset-'))
-const inst = installKnowledgePacks(
+const instR = installKnowledgePacks(
   [{ id: 'kb-cap', via: 'knowledge', description: '', tags: [], config: { pack: 'demo-pack' } }],
   pdir, kroot,
 )
+const inst = instR.installed
 check('知识包被安装', inst.length === 1 && inst[0].id === 'demo-pack' && inst[0].docs === 1, JSON.stringify(inst))
+check('在场的包不报缺书', instR.skipped.length === 0)
 check('文档真的拷进 preset 的 kb/', ex(jn(pdir, 'kb', 'demo-pack', 'policy.md')) && rf(jn(pdir, 'kb', 'demo-pack', 'policy.md'), 'utf8').includes('退货 15 日'))
 check('出处与版本随行', inst[0].source === '客户导出' && inst[0].version === '2026-08')
 const none = installKnowledgePacks([{ id: 'x', via: 'mcp', description: '', tags: [], config: { server: 's' } }], pdir, kroot)
-check('非知识条目不触发安装', none.length === 0)
+check('非知识条目不触发安装', none.installed.length === 0 && none.skipped.length === 0)
+// 过堂刀2③:缺书曾被静默跳过(发射"成功"而 kb/ 空)——现在如实上报,emit 侧拒印。
 const missing = installKnowledgePacks([{ id: 'y', via: 'knowledge', description: '', tags: [], config: { pack: 'no-such-pack' } }], pdir, kroot)
-check('不存在的包安全跳过(不炸装配)', missing.length === 0)
+check('不存在的包如实上报缺书(不再静默)', missing.installed.length === 0 && missing.skipped.length === 1 && missing.skipped[0].id === 'y' && missing.skipped[0].expectedDir.includes('no-such-pack'))
 
 // N. sendTurn 三义务(bilingual-reader 悬挂取证,2026-08-21):
 //    问人即判负 + 工具动作流进直播台 + 正常轮取 assistant/message 文本。
