@@ -88,10 +88,14 @@ input · label · select · separator · table · tabs · textarea
 图标:`lucide-react`(任意图标名);图表:`recharts`(仪表盘用)。
 页面文件:默认导出组件 + `export const title = '导航名'`;多页自动出 hash 导航。
 
-## 范例(照猫画虎,质量地板在这)
+## 范例 = 起始页(照猫画虎,质量地板在这)
 
 - `examples/board.tsx` — 看板:face 直连列/增/拖 + wire 分析 + 错误出声,全套纪律的活体
 - `examples/records.tsx` — 记录台:schema 驱动表格 + 表单直录 + face 汇总
+
+需求落在这些形状里时,**整页拷进 `src/pages/` 当起点再改**(examples/ 本身在锁定面,
+只读;拷贝进自由区后随便改)。记录/台账/库存类需求直接从 records.tsx 起步,
+看板/任务类从 board.tsx 起步——别从零写一遍已经存在的形状。
 
 ## 交付流(你在第 2 步)
 

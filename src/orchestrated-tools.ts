@@ -43,7 +43,7 @@ import { validateArchProbe } from './arch-spec.js'
 import { rankCapabilities } from './capability-index.js'
 import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend } from './frontend.js'
 import { execFileSync, spawn as spawnPart } from 'node:child_process'
-import { loadRecipe, materializeApp, runAppSelftest } from './recipe.js'
+import { loadScaffold, materializeApp, runAppSelftest } from './scaffold.js'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -78,8 +78,6 @@ function prose(t: string): string {
 export const CONTRACT_GENERATION = 'deepseek-v4'
 export const CONTRACT_TAGS: Record<string, string> = {
   FRONTEND_FACT: 'deepseek-v4',
-  RECIPE_FACT: 'deepseek-v4',
-  LANE_FORK_CRITERION: 'deepseek-v4',
   SCAFFOLD_BATON: 'deepseek-v4',
   PROBE_SKETCH_EXAMPLES: 'deepseek-v4',
 }
@@ -95,23 +93,8 @@ export const CONTRACT_TAGS: Record<string, string> = {
 /** 前端物理事实:多装模板不是权衡,是死件。 */
 export const FRONTEND_FACT = '每 preset 仅首个 frontend 模板生效——选恰好一个交互形状。'
 
-/** 配方物理事实:app 图纸不进 preset,零对话 token 税——检索行价签用。 */
-export const RECIPE_FACT = '独立 app 图纸:emit_app 实例化成独立进程交付物(不占任何 agent 的对话 token),verify_app 独立验收。'
-
 /**
- * 车道判据(2026-08-25 从 ARCHITECTURE_CONTRACT 深处搬出来)。
- *
- * 搬家的理由是实测:同一条判据写在契约段落里,A 档 3/3 需求仍静默走 preset 且
- * 末段不给理由——"软措辞无效"定律第四次应验。修法照价签的成功先例:**把判据放
- * 到决策发生的地方**。现在它出现在两处,都不是散文段落:①检索榜同时命中配方与
- * 模板时的分叉行(算出来的,带两个真实 id)②emit_preset 装模板时的机械闸错误里。
- */
-export const LANE_FORK_CRITERION =
-  '判据:交出去的/纯页面型/要脱离 host 独立跑 → 配方(emit_app);要留对话口/多张脸共一本账/要挂 agent 能力'
-  + '(工具、无人值守)→ preset+模板(双面交付:页面直连服务脸 + wire 会话)。emit_preset 装模板时会机械索要一句 lane 声明,现在就想清楚。'
-
-/**
- * 写手席接力棒(scaffold 族配方专用):骨架落地后主 agent 就是写手——流程知识
+ * 写手席接力棒(emit_app 专用):骨架落地后主 agent 就是写手——流程知识
  * 靠结果接力棒传,不靠 agent 读 docs(接力棒断链实录:通用接力棒直奔 verify,
  * 得到"骨架态 SKIPPED",写手不知道中间该写页)。
  */
@@ -395,8 +378,6 @@ export interface EmitArgs {
   fresh: boolean
   /** 方案共享库(多 agent 班子):绝对路径;每台 agent 的 SQLite 默认库钉到同一份。 */
   sharedDb?: string
-  /** 车道声明:装了 frontend 模板时必填(见 laneGate),一句话说清"选 preset 不选配方"的理由。 */
-  lane?: string
 }
 
 /**
@@ -443,7 +424,6 @@ export function validateEmitArgs(raw: unknown): EmitArgs {
   if (sharedDb !== '' && !sharedDb.startsWith('/')) {
     throw new Error('emit_preset: "sharedDb" 必须是绝对路径(相对路径会解析进零件进程 cwd,五台 preset 的表混进同一个错文件——实测教训)')
   }
-  const lane = typeof a.lane === 'string' ? a.lane.trim() : ''
   return {
     name, requirement, capabilityIds, persona,
     ...(typeof a.stateSchema === 'string' && a.stateSchema.trim() !== '' ? { stateSchema: a.stateSchema } : {}),
@@ -452,7 +432,6 @@ export function validateEmitArgs(raw: unknown): EmitArgs {
     missingEntries,
     fresh: a.fresh === true,
     ...(sharedDb !== '' ? { sharedDb } : {}),
-    ...(lane !== '' ? { lane } : {}),
   }
 }
 
@@ -481,33 +460,6 @@ export function deadKnowledgeError(input: {
     + `知识会被拷进 <preset>/kb/,但交付出去的 agent 手上没有打开它的工具,一问就只能向用户求助(实录:探针当场判 FAIL)。`
     + `把读取面一起挂上,或去掉知识包。${shelf}`
     + prose('\n注意:在 persona 里写"你拥有读文件工具"不算修——那是散文,补不上物理缺件。')
-}
-
-/**
- * 车道闸(纯件,单测覆盖):装了 frontend 模板 = 交付 app 形态,而 app 形态有两条
- * 车道(配方 / preset+模板)。此刻是车道选择的落锤点,机械索要一句声明。
- *
- * 为什么是机械闸而不是一句契约:同一条判据以散文形式写在 ARCHITECTURE_CONTRACT 里
- * 跑了一整轮战役,A 档 3/3 仍静默走 preset 且末段不给理由("软措辞无效"第四次应验)。
- * 报错文本里点名库里**真实存在**的配方 id ——判据带着候选一起送到,和价签同一形状。
- *
- * @returns 没问题返回 null;该拦就返回错误文本。
- */
-export function laneGateError(input: { mountsFrontend: boolean; lane?: string; recipeIds: readonly string[] }): string | null {
-  if (!input.mountsFrontend) return null
-  const lane = (input.lane ?? '').trim()
-  const shelf = input.recipeIds.length > 0 ? `库里现成的配方:${input.recipeIds.join('、')}。` : '(本目录暂无配方条目。)'
-  if (lane === '') {
-    return `emit_preset: 这个 preset 装了 frontend 模板 —— 交付形态是 app,而 app 有两条车道,`
-      + `装配器不替你选。补一个 "lane" 字段(一句话:选了哪条 + 为什么)。${shelf}\n${LANE_FORK_CRITERION}`
-  }
-  if (!/recipe|配方|preset/i.test(lane)) {
-    return `emit_preset: "lane" 要说清选的是哪条车道(字面出现 配方/recipe 或 preset),现在这句没有指向任何车道:「${lane.slice(0, 60)}」。${shelf}`
-  }
-  if (lane.length < 12) {
-    return `emit_preset: "lane" 太短(${String(lane.length)} 字),要的是理由不是标签——为什么这个需求不走配方。${shelf}`
-  }
-  return null
 }
 
 // ── verify_preset:纯件(单测覆盖)────────────────────────────────────────────
@@ -684,7 +636,6 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
       missingEntries: { type: 'array', items: { type: 'object', additionalProperties: true }, description: 'optional: match_catalog\'s missingEntries verbatim — each becomes a gap work-order under the preset\'s gaps/' },
       fresh: { type: 'boolean', description: 'set true ONLY to overwrite an existing preset of the SAME NAME that carries a DIFFERENT concept (the tool refuses silently repurposing a name)' },
       sharedDb: { type: 'string', description: 'ADVANCED, multi-agent suites only: ABSOLUTE path of a shared SQLite database file; every suite member emitted with the same path reads/writes one ledger. Include the shared tables (idempotent DDL) in EACH member\'s stateSchema — they materialize on first open.' },
-      lane: { type: 'string', description: 'REQUIRED whenever capabilityIds include a via:frontend template (that makes this an APP delivery, and an app has two lanes): one line naming the lane you picked (配方/recipe or preset) and WHY this requirement is not a recipe. Goes into the BOM.' },
     },
     output: {
       schema: { type: 'string' as const },
@@ -705,16 +656,8 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
       if (feIds.length >= 2) {
         throw new Error(`emit_preset: 选了 ${String(feIds.length)} 个 frontend 模板(${feIds.join(', ')}),但${FRONTEND_FACT}挑一个交互形状最贴的重新调用。`)
       }
-      // 车道闸:装模板 = 交付 app 形态 → 必须说清为什么不走配方(判据带着库里真实
-      // 的配方 id 一起送到)。散文版本已实测无承重,这里改成拦得住的。
-      const laneErr = laneGateError({
-        mountsFrontend: feIds.length === 1,
-        ...(input.lane !== undefined ? { lane: input.lane } : {}),
-        recipeIds: catalog.capabilities.filter((c) => c.via === 'recipe' && c.config?.enabled !== false).map((c) => c.id),
-      })
-      if (laneErr !== null) throw new Error(laneErr)
       // 死知识闸:知识包会被拷进 kb/,但没有读取面 = 交付一个打不开自己教材的 agent。
-      // 与车道闸同址:两道都在任何落盘之前,拦下时目录里不留半成品。
+      // 闸在任何落盘之前:拦下时目录里不留半成品。
       const mcpServers = catalog['mcp-servers'] ?? {}
       const selectedForGate = ids.map((cid) => catalog.capabilities.find((c) => c.id === cid)).filter((c): c is CapabilityEntry => c !== undefined)
       const deadKbErr = deadKnowledgeError({
@@ -797,7 +740,6 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
         presetId: id, requirement: input.requirement, selected, presetText: preset, index,
         personaFindings, params: screened.accepted, requiredSecrets, knowledge,
         ...(equipment !== null ? { equipment: equipment.files } : {}),
-        ...(input.lane !== undefined ? { lane: input.lane } : {}),
         missing: input.missing, catalogIdsHash: catalogIdsHash(catalog),
       }))
       const elapsed = Math.round((Date.now() - t0) / 1000)
@@ -806,7 +748,6 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
         tool: EMIT_TOOL_NAME, presetId: id, requirement: input.requirement,
         capabilityIds: ids, missing: input.missing, elapsedSeconds: elapsed,
         personaLint: personaFindings.length, gaps: gapOrders.length,
-        ...(input.lane !== undefined ? { lane: input.lane.slice(0, 200) } : {}),
       })
       const secretLines = requiredSecrets.length > 0
         ? `\n所需凭证:${requiredSecrets.map((sec) => `${sec.env}${sec.configured ? '(已配置)' : sec.optional === true ? '(可选,未配则降级)' : '(待配置)'}`).join(';')}(凭证配到 host 环境变量,绝不进装配参数)`
@@ -1100,17 +1041,14 @@ export function searchCatalogToolDefinition(_ctx: Context, config: Config): Tool
       const hits = rankCapabilities(catalog.capabilities, query, limit)
       const servers = catalog['mcp-servers'] ?? {}
       const secretOf = (c: CapabilityEntry): string => {
-        // 配方不是 mcp server:凭证声明直挂条目(config.requiredSecrets)。
-        const decl = c.via === 'recipe'
-          ? c.config?.requiredSecrets
-          : (() => { const sv = c.config?.server as string | undefined; return sv !== undefined ? servers[sv]?.requiredSecrets : undefined })()
+        const sv = c.config?.server as string | undefined
+        const decl = sv !== undefined ? servers[sv]?.requiredSecrets : undefined
         if (!Array.isArray(decl) || decl.length === 0) return ''
         return `;凭证:${(decl as Array<{ env?: string; optional?: boolean }>).map((s) => `${s.env ?? '?'}${s.optional === true ? '(可选)' : ''}`).join(',')}`
       }
       // 价签:工具说明书字节 → 估算 token(≈bytes/4;标"约");mcp 且非 host 挂载
       // = 交付会话要拉一个零件进程(同服务器多件共享一个)。
       const priceOf = (c: CapabilityEntry): string => {
-        if (c.via === 'recipe') return `;${RECIPE_FACT}`
         if (c.via !== 'mcp') return c.via === 'frontend' ? `;${FRONTEND_FACT}` : ''
         const bytes = typeof c.config?.toolBytes === 'number' ? c.config.toolBytes : undefined
         const sv = c.config?.server as string | undefined
@@ -1129,18 +1067,7 @@ export function searchCatalogToolDefinition(_ctx: Context, config: Config): Tool
         return `「${query}」检索 0 命中。${prose('换 2-3 种说法再试(同义词/英文词);仍无 → 这是真缺口,如实进 emit_preset 的 missing/missingEntries。')}`
       }
       const rows = hits.map((h, i) => `${String(i + 1)}. ${h.entry.id} [${h.entry.via}](分 ${String(h.score)})— ${h.entry.description.slice(0, 110)}${priceOf(h.entry)}${serviceOf(h.entry)}${secretOf(h.entry)}`).join('\n')
-      // 车道分叉:一榜里同时出现配方与前端模板,这就不是一张普通候选表,而是一次
-      // 二选一。把它算出来写在榜尾——两个真实 id 与各自的物理交付形态是**事实**
-      // (常开,不过散文门),判据本身走散文门。取证:同分时二者曾并列(6.91),
-      // 旧字母序把模板顶上榜首,榜首本身就成了一次无声的错误推荐。
-      const recipeHit = hits.find((h) => h.entry.via === 'recipe')
-      const feHit = hits.find((h) => h.entry.via === 'frontend')
-      const laneFork = recipeHit !== undefined && feHit !== undefined
-        ? `\n⚑ 车道分叉:本榜同时命中配方「${recipeHit.entry.id}」(整套独立 app:emit_app 实例化、verify_app 验收、零对话 token 税)`
-          + `与前端模板「${feHit.entry.id}」(preset 内一张页,交付物 = agent + 页)。**二选一,不是叠加。**`
-          + prose(`\n   ${LANE_FORK_CRITERION}`)
-        : ''
-      return `「${query}」top ${String(hits.length)}:\n${rows}${laneFork}`
+      return `「${query}」top ${String(hits.length)}:\n${rows}`
         + prose(`\n(BM25 词法排名,分数只是线索——选不选、选哪个由你判断。基线:交付 agent 的 LLM 自己能稳定做的不装零件;价签是它每轮 prompt 的固定税。UI 需求恰好配一个 via:frontend 模板、持久状态配存储零件。)`)
     },
   })
@@ -1160,15 +1087,15 @@ export function verifySharedDataToolDefinition(ctx: Context, config: Config): To
       + 'Mechanical gates: writerTask must contain both token and payload; readerTask must contain the token but NEVER the payload '
       + '(otherwise the reader could parrot the instruction — the copy gate); the examiner judges the reader\'s reply for the payload. '
       + 'PASS = data truly flows across the suite. Call after emitting all suite members. '
-      + 'TWO-FACED deliveries (a recipe APP sharing the preset\'s db via DB_PATH): pass writerAppUrl or readerAppUrl instead of that side\'s '
+      + 'TWO-FACED deliveries (a scaffold APP sharing the preset\'s db through its service face): pass writerAppUrl or readerAppUrl instead of that side\'s '
       + 'preset id — the examiner then performs that side itself over the app\'s HTTP face, and the task for an app side is a single SQL '
       + 'statement (INSERT for writer / SELECT for reader; same token/payload gates apply). app↔agent handoff proven = the two faces truly '
       + 'share one ledger.',
     parameters: {
       writerId: { type: 'string', description: 'preset id of the WRITING agent (omit when writerAppUrl is given)' },
       readerId: { type: 'string', description: 'preset id of the READING agent (omit when readerAppUrl is given; must differ from writer side)' },
-      writerAppUrl: { type: 'string', description: 'recipe app base URL (http://127.0.0.1:port) to WRITE through — writerTask must then be one SQL INSERT carrying token and payload' },
-      readerAppUrl: { type: 'string', description: 'recipe app base URL to READ through — readerTask must then be one SQL SELECT keyed by token (payload must NOT appear)' },
+      writerAppUrl: { type: 'string', description: 'app-face base URL (http://127.0.0.1:port) to WRITE through — writerTask must then be one SQL INSERT carrying token and payload' },
+      readerAppUrl: { type: 'string', description: 'app-face base URL to READ through — readerTask must then be one SQL SELECT keyed by token (payload must NOT appear)' },
       token: { type: 'string', description: 'invented KEY token both tasks reference, e.g. ORD-7788', required: true },
       payload: { type: 'string', description: 'invented PAYLOAD string the writer stores and the reader must report verbatim, e.g. HANDOFF-4821-OK', required: true },
       writerTask: { type: 'string', description: 'explicit instruction for the writer: insert a row into a REAL shared table with <token> in the key column and <payload> in a text column, fill other NOT NULL columns with placeholders, then reply done', required: true },
@@ -1396,12 +1323,12 @@ export function verifyTriggerToolDefinition(ctx: Context, config: Config): ToolD
   })
 }
 
-// ── 配方车道:emit_app(哑实例化)+ verify_app(app 独立考官)──────────────────
-// 配方 = app 形态的 preset(via:'recipe',recipes/<id>/):完整可跑项目模板 +
-// 声明式参数槽 + 写死在清单里的自测考卷。分工与 preset 车道同构——实例化是
-// 确定性印刷(零 LLM),验收是独立考官自己拉起 app 黑盒考(不依赖 DSH host)。
-// 对照系(penguin-harness)把配方夹在 skill 散文里、builder 自测自报;我们的
-// 配方过入库门、进 BOM、被独立考官验——同一招式,装在供应链上。
+// ── app 车道:emit_app(哑实例化)+ verify_app(app 独立考官)──────────────────
+// scaffold 是 app 车道的唯一底盘(宪法第九条执行后,配方车道已并入,git 备查):
+// 完整前端骨架 + 锁死词汇/SDK + PAGE-SPEC 考卷格式。三件事分工与 preset 车道
+// 同构——实例化是确定性印刷(零 LLM),验收是独立考官自己拉起 app 黑盒考
+// (不依赖 DSH host)。成品形状(记录台/看板)以写手可抄的范例随骨架落地
+// (template/examples/),写手整页拷进 src/pages 起步。
 
 export const EMIT_APP_TOOL_NAME = 'emit_app'
 export const VERIFY_APP_TOOL_NAME = 'verify_app'
@@ -1410,17 +1337,15 @@ export function emitAppToolDefinition(_ctx: Context, _config: Config): ToolDefin
   return defineTool({
     name: EMIT_APP_TOOL_NAME,
     description:
-      'DUMB app materializer for via:"recipe" catalog entries (deterministic, zero LLM): copies the recipe\'s complete runnable template, '
-      + 'injects params via app.config.json (template bytes stay pristine), copies the corpus into the app\'s corpus/ (self-contained '
-      + 'deliverable), runs the recipe\'s deterministic ingest, and writes recipe.lock.yml (provenance + params + pending secrets).'
+      'DUMB scaffold materializer (deterministic, zero LLM): copies the app skeleton (Vite+React+shadcn vocabulary + locked SDK + '
+      + 'PAGE-SPEC exam format), injects params via app.config.json (template bytes stay pristine), runs npm install, and writes '
+      + 'scaffold.lock.yml (provenance + params). YOU then write src/pages/ (starter examples included), verify_app examines, deploy_app publishes.'
 ,
     parameters: {
-      recipeId: { type: 'string', description: 'recipe id from the catalog (via:"recipe" entry\'s config.recipe, e.g. rag-qa)', required: true },
       name: { type: 'string', description: 'kebab-case app name; default target is ~/apps/<name>', required: true },
       targetDir: { type: 'string', description: 'absolute target directory (optional; default ~/apps/<name>; refuses non-empty unless fresh)' },
-      params: { type: 'object', additionalProperties: true, description: 'recipe param slots as a flat string map (missing required ones come back as an actionable list); secret-shaped keys are refused by design', required: true },
-      corpusDir: { type: 'string', description: 'absolute path of the document set to copy into the app (recipes that take a corpus)' },
-      schemaFile: { type: 'string', description: 'absolute path of an idempotent DDL file copied in as schema.sql (record-shape recipes; the app-side twin of a preset\'s equipment DDL). For a two-faced delivery pass DB_PATH in params instead, pointing at the preset\'s workspace/data.db' },
+      params: { type: 'object', additionalProperties: true, description: 'scaffold param slots as a flat string map: APP_NAME, PRESET_ID (the paired preset), WORKDIR (its workspace abs path); missing required ones come back as an actionable list; secret-shaped keys are refused by design', required: true },
+      pagesDir: { type: 'string', description: 'absolute path of a pages directory to seed src/pages/ with (optional; its PAGE-SPEC.yml is promoted to the app root)' },
       fresh: { type: 'boolean', description: 'true = wipe a non-empty targetDir and re-materialize (同址重印)' },
     },
     output: {
@@ -1428,10 +1353,9 @@ export function emitAppToolDefinition(_ctx: Context, _config: Config): ToolDefin
       render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
     },
     execute: async (args: unknown): Promise<string> => {
-      const a = args as { recipeId?: unknown; name?: unknown; targetDir?: unknown; params?: unknown; corpusDir?: unknown; fresh?: unknown }
-      const recipeId = String(a.recipeId ?? '').trim()
+      const a = args as { name?: unknown; targetDir?: unknown; params?: unknown; pagesDir?: unknown; fresh?: unknown }
       const name = sanitizePresetName(String(a.name ?? ''))
-      if (recipeId === '' || name === '') throw new Error('emit_app 需要 recipeId 与 kebab-case 的 name')
+      if (name === '') throw new Error('emit_app 需要 kebab-case 的 name')
       const params: Record<string, string> = {}
       if (a.params !== null && typeof a.params === 'object') {
         for (const [k, v] of Object.entries(a.params as Record<string, unknown>)) {
@@ -1441,40 +1365,33 @@ export function emitAppToolDefinition(_ctx: Context, _config: Config): ToolDefin
       const targetDir = typeof a.targetDir === 'string' && a.targetDir.trim() !== '' ? a.targetDir.trim() : join(homedir(), 'apps', name)
       const t0 = Date.now()
       const result = materializeApp({
-        recipeId,
         targetDir,
         params,
-        ...(typeof a.corpusDir === 'string' && a.corpusDir.trim() !== '' ? { corpusDir: a.corpusDir.trim() } : {}),
-        ...(typeof (a as { schemaFile?: unknown }).schemaFile === 'string' && ((a as { schemaFile?: string }).schemaFile ?? '').trim() !== '' ? { schemaFile: ((a as { schemaFile?: string }).schemaFile ?? '').trim() } : {}),
+        ...(typeof a.pagesDir === 'string' && a.pagesDir.trim() !== '' ? { pagesDir: a.pagesDir.trim() } : {}),
         ...(a.fresh === true ? { fresh: true } : {}),
       })
-      appendOrchLedger({ tool: EMIT_APP_TOOL_NAME, recipe: recipeId, app: name, targetDir: result.targetDir, elapsedSeconds: Math.round((Date.now() - t0) / 1000) })
+      appendOrchLedger({ tool: EMIT_APP_TOOL_NAME, app: name, targetDir: result.targetDir, elapsedSeconds: Math.round((Date.now() - t0) / 1000) })
       const pending = result.pendingSecrets.filter((sm) => !sm.configured)
       return [
-        `app 已实例化:${result.targetDir}(配方 ${result.recipe}@v${String(result.version)},模板哈希 ${result.templateHash})`,
-        ...(result.corpus !== null ? [`语料:${String(result.corpus.files)} 个文件 / ${String(result.corpus.bytes)} 字节 → corpus/`] : []),
-        ...(result.chunks !== null ? [`索引:${String(result.chunks)} 块(ingest 已在装配时跑完,交付即就绪)`] : []),
+        `app 骨架已实例化:${result.targetDir}(scaffold ${result.scaffold}@v${String(result.version)},模板哈希 ${result.templateHash})`,
         ...(pending.length > 0
           ? [`待配凭证:${pending.map((sm) => `${sm.env}(${sm.purpose})`).join(';')} —— 值只进启动环境变量,不落文件`]
-          : ['凭证:所需环境变量当前均已配置']),
-        loadRecipe(recipeId).lockPaths !== undefined
-          ? prose(SCAFFOLD_BATON.replace(/<targetDir>/g, result.targetDir))
-          : prose(`【接力棒】立即 ${VERIFY_APP_TOOL_NAME} {"targetDir": "${result.targetDir}"} 独立验收——未验收的 app 不是交付物。启动方式:cd ${result.targetDir} && npm start`),
+          : []),
+        prose(SCAFFOLD_BATON.replace(/<targetDir>/g, result.targetDir)),
       ].filter((l) => l !== '').join('\n')
     },
   })
 }
-
 export function verifyAppToolDefinition(_ctx: Context, _config: Config): ToolDefinition {
   return defineTool({
     name: VERIFY_APP_TOOL_NAME,
     description:
-      'INDEPENDENT examiner for recipe apps: boots the app itself from its directory (own process, free port), runs the recipe\'s '
-      + 'declarative exam black-box over real HTTP (health + REAL question through the full retrieval+AI chain, source must resolve to a '
-      + 'real corpus file AND a working link), then kills the process. Verdict PASS / FAIL / SKIPPED with per-check evidence.'
+      'INDEPENDENT examiner for scaffold apps: boots the app itself from its directory (own process, free port) and runs the five gates '
+      + 'black-box — build / skeleton-lock / pages-lint / static-reach / behavior (PAGE-SPEC actions really executed: face SQL with '
+      + 'effect assertions, wire scenario probes, ai-thin completions) — then kills the process. Verdict PASS / FAIL / SKIPPED with per-check evidence.'
 ,
     parameters: {
-      targetDir: { type: 'string', description: 'the app directory emit_app produced (holds recipe.lock.yml)', required: true },
+      targetDir: { type: 'string', description: 'the app directory emit_app produced (holds scaffold.lock.yml)', required: true },
       wirePort: { type: 'number', description: 'host port for behavior-exam wire actions (scaffold deliveries; omit → wire actions report SKIPPED)' },
     },
     output: {
@@ -1493,7 +1410,7 @@ export function verifyAppToolDefinition(_ctx: Context, _config: Config): ToolDef
       const head = result.status === 'PASS'
         ? `app 验收 PASS(${String(result.elapsedSeconds)}s,黑盒真跑)`
         : result.status === 'SKIPPED'
-          ? `app 验收 SKIPPED(接口半边已核实,AI 半边待凭证;${String(result.elapsedSeconds)}s)`
+          ? `app 验收 SKIPPED(部分考项待条件——骨架态/缺 wirePort/缺凭证;${String(result.elapsedSeconds)}s)`
           : `app 验收 FAIL(${String(result.elapsedSeconds)}s)`
       return [head, ...lines].join('\n')
     },
@@ -1577,13 +1494,13 @@ export function deployAppToolDefinition(_ctx: Context, config: Config): ToolDefi
       cpSync(dist, target, { recursive: true })
       // 源头回指针:页面是构建产物,dist 里读不出"改哪儿"。没有这一条,下一次
       // 「把按钮改成橙色」要先满 ~/apps 找源码——每次迭代都白付一遍发现成本。
-      const lockPath = join(resolve(targetDir), 'recipe.lock.yml')
-      const recipeId = existsSync(lockPath)
-        ? ((yaml.load(readFileSync(lockPath, 'utf8')) ?? {}) as { recipe?: string }).recipe ?? null
+      const lockPath = join(resolve(targetDir), 'scaffold.lock.yml')
+      const scaffoldId = existsSync(lockPath)
+        ? ((yaml.load(readFileSync(lockPath, 'utf8')) ?? {}) as { scaffold?: string }).scaffold ?? null
         : null
-      writeFileSync(srcPath, JSON.stringify({ targetDir: resolve(targetDir), recipe: recipeId, deployedAt: new Date().toISOString(), hasSnapshot: hadPrev }, null, 2) + '\n')
+      writeFileSync(srcPath, JSON.stringify({ targetDir: resolve(targetDir), scaffold: scaffoldId, deployedAt: new Date().toISOString(), hasSnapshot: hadPrev }, null, 2) + '\n')
       appendOrchLedger({ tool: DEPLOY_APP_TOOL_NAME, presetId, targetDir, url, snapshot: hadPrev })
-      return `已发布:${dist} → ${target}\n页面:${url}\n源头已记录:${resolve(targetDir)}${recipeId !== null ? `(配方 ${recipeId})` : ''}`
+      return `已发布:${dist} → ${target}\n页面:${url}\n源头已记录:${resolve(targetDir)}${scaffoldId !== null ? `(scaffold ${scaffoldId})` : ''}`
         + (hadPrev ? `\n上一版已存快照——出问题就 deploy_app {"presetId":"${presetId}","rollback":true}` : '')
         + prose('\n【接力棒】向用户如实报告页面 URL 与验收结论;页面动作的行为考证据在 verify_app 的结果里。')
     },
@@ -1728,7 +1645,7 @@ export const SUBMIT_PART_TOOL_NAME = 'submit_part'
  *
  * 铁律:**契约要求 agent 做的每个动作,都必须有一张够得着的工具面**——契约住在
  * prompt 里,而 agent 的 shell 关在会话沙箱里;凡是要碰装配器资源(目录/preset/
- * 配方/知识包)的动作,只要没有工具面,agent 就只能撞墙提权重试。实测代价:两道
+ * scaffold/知识包)的动作,只要没有工具面,agent 就只能撞墙提权重试。实测代价:两道
  * 题各烧 30 分钟、颗粒无收(2026-08-25 泛化战役 B3/C3)。
  *
  * 加新动作进契约时,同时在这里登记它的工具;单测逐条断言工具真被注册、且契约
@@ -1738,7 +1655,7 @@ export const CONTRACT_ACTIONS: ReadonlyArray<{ action: string; tool: string; why
   { action: '选型(检索零件)', tool: SEARCH_TOOL_NAME, why: '目录在装配器进程里,不在会话文件系统里' },
   { action: '发射 preset', tool: EMIT_TOOL_NAME, why: 'preset 目录在 $DSH_HOME 下,沙箱之外' },
   { action: '独立验收 preset', tool: VERIFY_TOOL_NAME, why: '要开真会话,只有 host 能开' },
-  { action: '实例化 app(配方)', tool: EMIT_APP_TOOL_NAME, why: '配方模板在装配器仓库里' },
+  { action: '实例化 app(scaffold 骨架)', tool: EMIT_APP_TOOL_NAME, why: 'scaffold 底盘在装配器仓库里' },
   { action: '独立验收 app', tool: VERIFY_APP_TOOL_NAME, why: '要拉起进程并黑盒考' },
   { action: '发布前端进 preset', tool: DEPLOY_APP_TOOL_NAME, why: '目标目录在沙箱外' },
   { action: '验收多 agent 共享数据', tool: VERIFY_SHARED_TOOL_NAME, why: '跨 preset 会话,只有 host 能开' },
@@ -1749,7 +1666,7 @@ export const CONTRACT_ACTIONS: ReadonlyArray<{ action: string; tool: string; why
 ]
 
 // ── 装配器资源只经装配器工具面读写(泛化战役的通用结论)────────────────────────
-// 原则:装配器自己的资源(目录、preset、配方、知识包)住在会话沙箱之外,契约
+// 原则:装配器自己的资源(目录、preset、scaffold、知识包)住在会话沙箱之外,契约
 // **不得指向文件路径**,一律经工具面读写。实测代价:契约点名 scripts/index-add.mjs,
 // agent 照做 → 沙箱拒 → 86 次 bash 提权重试 → 整题颗粒无收(B3/C3 同病)。
 // 下面两个工具补齐"读 preset"与"造零件"两条路。
@@ -1809,8 +1726,8 @@ export function readPresetToolDefinition(_ctx: Context, config: Config): ToolDef
         const srcPath = join(dir, 'frontend.source.json')
         if (existsSync(srcPath)) {
           try {
-            const s = JSON.parse(readFileSync(srcPath, 'utf8')) as { targetDir?: string; recipe?: string | null; deployedAt?: string }
-            out.push(`源头:${String(s.targetDir)}${s.recipe != null ? `(配方 ${s.recipe})` : ''} · 发布于 ${String(s.deployedAt).slice(0, 19)}`)
+            const s = JSON.parse(readFileSync(srcPath, 'utf8')) as { targetDir?: string; scaffold?: string | null; deployedAt?: string }
+            out.push(`源头:${String(s.targetDir)}${s.scaffold != null ? `(scaffold ${s.scaffold})` : ''} · 发布于 ${String(s.deployedAt).slice(0, 19)}`)
             out.push(prose(`改页面 = 改 ${String(s.targetDir)}/src/pages/(与 PAGE-SPEC.yml),然后 verify_app → deploy_app;改坏了 deploy_app {"presetId":"${presetId}","rollback":true}`))
           } catch { out.push('源头:(frontend.source.json 解析失败)') }
         } else if (existsSync(fePath)) {

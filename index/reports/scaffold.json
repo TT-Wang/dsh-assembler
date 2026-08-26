@@ -1,9 +1,9 @@
 {
-  "id": "recipe-scaffold-react",
-  "kind": "recipe",
-  "recipe": "scaffold-react",
-  "version": 3,
-  "templateHash": "00a39ae789605d65",
+  "id": "scaffold",
+  "kind": "scaffold",
+  "scaffold": "scaffold-react",
+  "version": 4,
+  "templateHash": "47ade98eec86e02d",
   "selftest": "pass",
   "checks": [
     {
@@ -14,7 +14,7 @@
     {
       "check": "skeleton-lock",
       "status": "PASS",
-      "evidence": "骨架/SDK/词汇字节未被越界改动(9bd33326501bd6a5)"
+      "evidence": "骨架/SDK/词汇字节未被越界改动(9cc47d4aef5c072c)"
     },
     {
       "check": "pages-lint",
@@ -32,5 +32,5 @@
       "evidence": "local「本地添加条目」(纯本地 UI,无出网,免考);local「清单/表格切换」(纯本地 UI,无出网,免考)"
     }
   ],
-  "verifiedAt": "2026-08-24T09:04:35.545Z"
+  "verifiedAt": "2026-08-26T11:26:14.899Z"
 }

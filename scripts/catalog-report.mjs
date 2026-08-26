@@ -49,8 +49,7 @@ const DOMAINS = [
 const byId = new Map(catalog.map((x) => [x.id, x]))
 const service = catalog.filter((x) => x.kind === 'service')
 const firstParty = catalog.filter((x) => x.repo === 'first-party')
-const recipes = catalog.filter((x) => x.kind === 'recipe')
-const library = catalog.filter((x) => x.kind !== 'service' && x.kind !== 'recipe' && x.repo !== 'first-party')
+const library = catalog.filter((x) => x.kind !== 'service' && x.repo !== 'first-party')
 const toolCount = (x) => (x.tools ?? []).length
 const total = catalog.reduce((n, x) => n + toolCount(x), 0)
 

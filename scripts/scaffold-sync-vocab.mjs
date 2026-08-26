@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 // scaffold-sync-vocab — 把 vendor-registry/shadcn/* 的组件源码同步进 scaffold-react
-// 配方模板的 src/components/ui/(词汇表本体)。改写两类路径:
+// scaffold 模板的 src/components/ui/(词汇表本体)。改写两类路径:
 //   @/registry/new-york-v4/ui/<x> → @/components/ui/<x>(shadcn 仓内交叉导入)
-// 同步是显式动作:跑完模板字节变了 → recipe.yml 升 version → 重过入库门。
+// 同步是显式动作:跑完模板字节变了 → scaffold.yml 升 version → 重过入库门。
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { join, resolve, dirname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const SRC = join(REPO, 'vendor-registry', 'shadcn')
-const DST = join(REPO, 'recipes', 'scaffold-react', 'template', 'src', 'components', 'ui')
+const DST = join(REPO, 'scaffold', 'template', 'src', 'components', 'ui')
 
 if (!existsSync(SRC)) { console.error('vendor-registry/shadcn 不存在——先 registry-add 进货'); process.exit(1) }
 mkdirSync(DST, { recursive: true })

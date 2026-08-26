@@ -73,11 +73,10 @@ export interface CapabilityEntry {
    * 'frontend' 是第五种零件:人机交互面模板(frontends/<template>/),装配时
    * 填参发射进 preset 的 frontend/,由 /assembler/ui/<id> 同源伺服——性质上是
    * 装备(agent 不"调用"它,人用它操作 agent)。
-   * 'recipe' 是第六种零件:独立 app 的组装图纸(recipes/<id>/,完整可跑项目
-   * 模板+参数槽+自测考卷)。不进 preset:emit_app 实例化成独立进程的交付物,
-   * verify_app 独立验收——app 形态的 preset 对位物。
+   * (曾有第六种 via:'recipe'——独立 app 图纸;宪法第九条执行后配方并入
+   * scaffold 装备,不再是目录零件,git 备查。)
    */
-  via: 'package' | 'harness' | 'mcp' | 'knowledge' | 'frontend' | 'recipe'
+  via: 'package' | 'harness' | 'mcp' | 'knowledge' | 'frontend'
   tool?: string
   description: string
   tags: string[]
@@ -88,10 +87,6 @@ export interface CapabilityEntry {
     presetRows?: Array<{ id: string; name: string; config?: Record<string, unknown> }>
     /** via:'frontend':frontends/ 下的模板目录名(缺省用条目 id)。 */
     template?: string
-    /** via:'recipe':recipes/ 下的配方目录名。 */
-    recipe?: string
-    /** via:'recipe':凭证声明直挂条目(配方不是 mcp server,没有连接配置可挂)。 */
-    requiredSecrets?: Array<{ env: string; purpose: string }>
   }
 }
 
@@ -1216,12 +1211,10 @@ export function renderPartsLock(opts: {
   knowledge?: Array<{ id: string; docs: number; source?: string; version?: string }>
   /** Assembly-time pre-thought equipment shipped with the preset (e.g. equipment/init.sql). */
   equipment?: string[]
-  /** 选型报出的缺口(有工单在 gaps/ 与之对应);复用闸靠它判断"是否还欠着件"。 */
+  /** 选型报出的缺口(有工单在 gaps/ 与之对应);重装闸靠它判断"是否还欠着件"。 */
   missing?: string[]
-  /** 装配时目录的 id 集指纹;与 missing 联用:缺口在案 + 目录已生长 ⇒ 拒绝复用重选。 */
+  /** 装配时目录的 id 集指纹;与 missing 联用:缺口在案 + 目录已生长 ⇒ 重新选型。 */
   catalogIdsHash?: string
-  /** 车道声明(装了 frontend 模板时由 emit_preset 的车道闸强制):为什么走 preset 而不是配方。 */
-  lane?: string
 }): string {
   const byId = new Map(opts.index.map((r) => [r.id, r]))
   const serverNames = [...opts.presetText.matchAll(/serverName: "([^"]+)"/g)].map((m) => m[1])
@@ -1276,9 +1269,6 @@ export function renderPartsLock(opts: {
   // 发现"欠着件 + 目录已生长"就放弃复用重新选型,新入库的零件才有机会上桌。
   if (opts.missing !== undefined && opts.missing.length > 0) doc.missing = opts.missing
   if (opts.catalogIdsHash !== undefined) doc.catalogIdsHash = opts.catalogIdsHash
-  // 车道声明入档:交付形态的选择本身就是装配决策的一部分,要能被审计/复盘查到
-  // (战役判卷器此前只能靠猜目录名反推走的哪条车道)。
-  if (opts.lane !== undefined && opts.lane.trim() !== '') doc.lane = opts.lane.trim()
   // Parameters are part of the build record: the same preset id emitted with
   // different parameters is a different artifact, and the lock says which.
   if (opts.params !== undefined && Object.keys(opts.params).length > 0) doc.params = opts.params
@@ -1433,13 +1423,13 @@ export function apply(ctx: Context, config: Config = {}): void {
     ctx.effect(() => ctx.tools.register(verifyPresetToolDefinition(ctx, config)), 'assembler.tool.verify_preset()')
     // 共享数据考官:多 agent 班子(同一 sharedDb)的 FDE 闭环。
     ctx.effect(() => ctx.tools.register(verifySharedDataToolDefinition(ctx, config)), 'assembler.tool.verify_shared_data()')
-    // 配方车道(app 形态):哑实例化 + app 独立考官 + 发布(与 preset 车道同构)。
+    // app 车道(scaffold 唯一底盘):哑实例化 + app 独立考官 + 发布(与 preset 车道同构)。
     ctx.effect(() => ctx.tools.register(emitAppToolDefinition(ctx, config)), 'assembler.tool.emit_app()')
     ctx.effect(() => ctx.tools.register(verifyAppToolDefinition(ctx, config)), 'assembler.tool.verify_app()')
     ctx.effect(() => ctx.tools.register(deployAppToolDefinition(ctx, config)), 'assembler.tool.deploy_app()')
     // 触发面考官:无人值守形态的第四格——打一发,验后果。
     ctx.effect(() => ctx.tools.register(verifyTriggerToolDefinition(ctx, config)), 'assembler.tool.verify_trigger()')
-    // 装配器资源只经工具面读写(目录/preset/配方/知识包都在会话沙箱之外)。
+    // 装配器资源只经工具面读写(目录/preset/scaffold/知识包都在会话沙箱之外)。
     ctx.effect(() => ctx.tools.register(addKnowledgeToolDefinition(ctx, config)), 'assembler.tool.add_knowledge()')
     ctx.effect(() => ctx.tools.register(readPresetToolDefinition(ctx, config)), 'assembler.tool.read_preset()')
     ctx.effect(() => ctx.tools.register(submitPartToolDefinition(ctx, config)), 'assembler.tool.submit_part()')

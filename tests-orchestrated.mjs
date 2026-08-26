@@ -93,26 +93,6 @@ check('emit 校验:sharedDb 相对路径拒绝(零件 cwd 教训)', throwsWith({
 const e2 = validateEmitArgs({ name: 'a-bot', requirement: 'r', capabilityIds: ['x'], persona: 'p', sharedDb: '/tmp/suite/shared.db' })
 check('emit 校验:sharedDb 绝对路径通过', e2.sharedDb === '/tmp/suite/shared.db')
 
-// ── 车道闸(散文判据实测无承重后改成的机械闸)────────────────────────────────
-const { laneGateError, LANE_FORK_CRITERION } = await import('./lib/orchestrated-tools.js')
-const RECIPES = ['recipe-rag-qa', 'recipe-record-desk']
-check('车道闸:没装模板 = 不问车道(普通 agent preset 不受影响)',
-  laneGateError({ mountsFrontend: false, recipeIds: RECIPES }) === null)
-const laneMissing = laneGateError({ mountsFrontend: true, recipeIds: RECIPES })
-check('车道闸:装了模板却没声明 → 拦下,且把库里真实配方 id 一起送到',
-  laneMissing !== null && laneMissing.includes('recipe-record-desk') && laneMissing.includes(LANE_FORK_CRITERION),
-  String(laneMissing))
-check('车道闸:声明没指向任何车道(纯标签)→ 拦',
-  laneGateError({ mountsFrontend: true, lane: '已确认', recipeIds: RECIPES })?.includes('哪条车道') === true)
-check('车道闸:指了车道但短到只是个词 → 拦(要理由不要标签)',
-  laneGateError({ mountsFrontend: true, lane: 'preset', recipeIds: RECIPES })?.includes('太短') === true)
-check('车道闸:一句真理由放行',
-  laneGateError({ mountsFrontend: true, lane: 'preset:要留对话口且和巡检 agent 共一本账,配方跑不了无人值守', recipeIds: RECIPES }) === null)
-check('车道闸:目录里一条配方都没有时也拦,但如实说明货架为空',
-  laneGateError({ mountsFrontend: true, recipeIds: [] })?.includes('暂无配方') === true)
-check('emit 校验:lane 修剪后带出,空串视同未给', validateEmitArgs({ name: 'a', requirement: 'r', capabilityIds: ['x'], persona: 'p', lane: '  preset:要对话口  ' }).lane === 'preset:要对话口'
-  && validateEmitArgs({ name: 'a', requirement: 'r', capabilityIds: ['x'], persona: 'p', lane: '   ' }).lane === undefined)
-
 // ── 死知识闸(装了教材却没有打开它的手)──────────────────────────────────────
 const { deadKnowledgeError } = await import('./lib/orchestrated-tools.js')
 const { canReadKb, KBDIR_SLOT } = await import('./lib/index.js')
@@ -163,7 +143,7 @@ check('死知识闸:目录里一个读取面都没有时如实说明是缺件',
   const root = pj(tmp, 'presets'); const pdir = pj(root, 'p1')
   mkd(pdir, { recursive: true }); wfs(pj(pdir, 'agent.cordis.yml'), 'name: p1\n')
   const app = pj(tmp, 'app'); mkd(pj(app, 'dist'), { recursive: true })
-  wfs(pj(app, 'recipe.lock.yml'), 'recipe: scaffold-react\nversion: 3\n')
+  wfs(pj(app, 'scaffold.lock.yml'), 'scaffold: scaffold-react\nversion: 4\n')
   const putDist = (marker) => wfs(pj(app, 'dist', 'index.html'), `<div id=root>${marker}</div>`)
   const dep = deployAppToolDefinition({ get: () => undefined }, { presetRoot: root })
   const page = () => rfs(pj(pdir, 'frontend', 'index.html'), 'utf8')
@@ -171,7 +151,7 @@ check('死知识闸:目录里一个读取面都没有时如实说明是缺件',
   putDist('V1')
   const r1 = await dep.execute({ targetDir: app, presetId: 'p1' })
   check('页面迭代:首发无快照可留,但源头已记录', page().includes('V1') && r1.includes('源头已记录')
-    && !exs(pj(pdir, 'frontend.prev', 'index.html')) && JSON.parse(rfs(pj(pdir, 'frontend.source.json'), 'utf8')).recipe === 'scaffold-react')
+    && !exs(pj(pdir, 'frontend.prev', 'index.html')) && JSON.parse(rfs(pj(pdir, 'frontend.source.json'), 'utf8')).scaffold === 'scaffold-react')
   check('页面迭代:回滚无快照时报可行动错误(不静默)',
     await dep.execute({ presetId: 'p1', rollback: true }).then(() => false, (e) => String(e.message).includes('没有可回滚的上一版')))
 
@@ -233,7 +213,7 @@ const matchBare = matchCatalogToolDefinition(fakeCtx, {}).description
 if (savedBare === undefined) delete process.env.DSH_ASSEMBLER_BARE
 else process.env.DSH_ASSEMBLER_BARE = savedBare
 check('BARE:默认关、=1 开', bareMode() === false)
-check('到期制:每条导出散文常量都登记了适用模型代', ['FRONTEND_FACT', 'RECIPE_FACT', 'LANE_FORK_CRITERION', 'SCAFFOLD_BATON', 'PROBE_SKETCH_EXAMPLES'].every((k) => typeof CONTRACT_TAGS[k] === 'string' && CONTRACT_TAGS[k] !== '') && CONTRACT_GENERATION === 'deepseek-v4')
+check('到期制:每条导出散文常量都登记了适用模型代', ['FRONTEND_FACT', 'SCAFFOLD_BATON', 'PROBE_SKETCH_EXAMPLES'].every((k) => typeof CONTRACT_TAGS[k] === 'string' && CONTRACT_TAGS[k] !== '') && CONTRACT_GENERATION === 'deepseek-v4')
 
 const planScn = { kind: 'scenario', scenario: { goal: 'g', turns: [{ prompt: '记 T-9 打车 30 元', mustInclude: ['T-9'] }, { prompt: '查 T-9 报分类', mustInclude: ['打车'] }] } }
 const sk = planToSketch(planScn)
@@ -267,17 +247,6 @@ check('F 检索:停用件不出、空查询空结果、确定性(两跑同序)',
   && rankCapabilities(catalog.capabilities, '', 5).length === 0
   && JSON.stringify(rankCapabilities(catalog.capabilities, 'sqlite', 5)) === JSON.stringify(rankCapabilities(catalog.capabilities, 'sqlite', 5)))
 
-// 同分次序:字母序会把 preset 车道的模板顶上榜首(实测「记账」6.91 打平),
-// 榜首本身就是一次无声的车道推荐——同分时按交付完整度,配方在前。
-const tieCat = [
-  { id: 'zzz-recipe-record', via: 'recipe', description: '记录台配方', tags: ['记账'], config: {} },
-  { id: 'aaa-frontend-desk', via: 'frontend', description: '记录台模板', tags: ['记账'], config: {} },
-]
-const tieHits = rankCapabilities(tieCat, '记账', 5)
-check('F 检索:同分时配方排在前端模板之前(不再由字母序裁决车道)',
-  tieHits.length === 2 && tieHits[0].score === tieHits[1].score && tieHits[0].entry.via === 'recipe',
-  JSON.stringify(tieHits.map((h) => [h.entry.id, h.score])))
-
 // ── BM25 IDF:烂大街词降权,稀有词的命中赢过通用词命中 ──────────────────────
 const idfCat = {
   capabilities: [
@@ -306,56 +275,66 @@ const f5 = lintPersona('你是看板助手,帮团队管理任务流转,语气干
 check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => f.kind === 'missing-safety-boundary'))
 
 
-// ── 配方车道(via:'recipe':emit_app 哑实例化 + verify_app 独立考官)──────────
+// ── app 车道(scaffold 唯一底盘:emit_app 哑实例化 + verify_app 独立考官)─────
 {
-  const { loadRecipe, materializeApp, runAppSelftest, hashTemplate, RECIPES_DIR } = await import('./lib/recipe.js')
+  const { loadScaffold, materializeApp, runAppSelftest, hashTemplate, hashLockPaths, SCAFFOLD_DIR } = await import('./lib/scaffold.js')
   const { emitAppToolDefinition, verifyAppToolDefinition } = await import('./lib/orchestrated-tools.js')
-  const { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, mkdirSync } = await import('node:fs')
+  const { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync: readdirSync2 } = await import('node:fs')
   const { join } = await import('node:path')
   const { tmpdir } = await import('node:os')
 
-  // 清单校验
-  const spec = loadRecipe('rag-qa')
-  check('recipe:清单加载且考卷非空', spec.version >= 1 && spec.selftest.checks.length >= 2 && spec.run.start[0] === 'node')
-  let threw = ''
-  try { loadRecipe('no-such-recipe') } catch (e) { threw = e.message }
-  check('recipe:不存在的配方报可行动错误', threw.includes('no-such-recipe'))
+  // 真底盘清单:五考齐、锁定面覆盖骨架/SDK/词汇、词汇表规模、SDK 三纪律
+  const sc = loadScaffold()
+  check('scaffold:清单加载,五考齐(build/skeleton-lock/pages-lint/static-reach/behavior)', ['build','skeleton-lock','pages-lint','static-reach','behavior'].every((k) => sc.selftest.checks.some((c) => c.kind === k)))
+  check('scaffold:lockPaths 覆盖骨架/SDK/词汇', Array.isArray(sc.lockPaths) && ['src/sdk','src/components','src/App.tsx'].every((k) => sc.lockPaths.includes(k)))
+  check('scaffold:词汇表 ≥13 件(shadcn 联邦入库)', readdirSync2(join(SCAFFOLD_DIR,'template','src','components','ui')).filter((f) => f.endsWith('.tsx')).length >= 13)
+  check('scaffold:TS 版 SDK 三纪律在(围栏出声/IME 守卫/服务脸)', (() => { const t = readFileSync(join(SCAFFOLD_DIR,'template','src','sdk','assembler-sdk.ts'),'utf8'); return t.includes('extractFence') && t.includes('isComposing') && t.includes('/.service') })())
+  const hh = hashLockPaths(join(SCAFFOLD_DIR,'template'), sc.lockPaths)
+  check('scaffold:锁定面哈希确定性', hh === hashLockPaths(join(SCAFFOLD_DIR,'template'), sc.lockPaths) && /^[0-9a-f]{16}$/.test(hh))
+  check('scaffold:模板哈希确定性', hashTemplate(join(SCAFFOLD_DIR,'template')) === hashTemplate(join(SCAFFOLD_DIR,'template')))
 
-  // 实例化:缺参可行动、密钥形参拒、仓库内落地拒
-  const tmp = mkdtempSync(join(tmpdir(), 'recipe-test-'))
+  // 单车道钉(宪法第九条):目录里不再有任何 via:'recipe' 条目——app 形态不是零件,是装备
+  const catMerged = (await import('./lib/index.js')).loadCatalog('capabilities.yml')
+  check('单车道钉:目录零 recipe 条目(app 车道 = scaffold 装备,不进零件目录)', !catMerged.capabilities.some((c) => c.via === 'recipe' || String(c.id).startsWith('recipe-')))
+
+  // 实例化闸(轻量假底盘,不跑 npm install——真底盘的全链在出厂门 index-add.mjs scaffold)
+  const tmp = mkdtempSync(join(tmpdir(), 'scaffold-test-'))
   try {
+    const fixRoot = join(tmp, 'fix')
+    mkdirSync(join(fixRoot, 'template'), { recursive: true })
+    writeFileSync(join(fixRoot, 'template', 'index.html'), '<div id="root"></div>')
+    writeFileSync(join(fixRoot, 'scaffold.yml'), [
+      'id: t-scaffold', 'version: 1', 'description: 测试底盘', 'license: BSD-3-Clause',
+      'params:', '  - key: APP_NAME', '    description: 应用名', '    required: true', '    example: 台账',
+      '  - key: PRESET_ID', '    description: 配套 preset', '    required: true',
+      'requiredSecrets: []', 'lockPaths: [index.html]',
+      'run: { start: [node, x.mjs], readyPath: / }',
+      'selftest: { checks: [ { kind: build } ] }',
+      'sample: { params: { APP_NAME: x, PRESET_ID: p } }',
+    ].join('\n'))
     let missErr = ''
-    try { materializeApp({ recipeId: 'rag-qa', targetDir: join(tmp, 'a1'), params: { APP_NAME: 'x' } }) } catch (e) { missErr = e.message }
-    check('emit_app:缺必填参数 → 列名带说明(可行动错误)', missErr.includes('SELFTEST_QUESTION') && missErr.includes('ROLE_LINE') && missErr.includes(':'))
+    try { materializeApp({ targetDir: join(tmp, 'a1'), params: { APP_NAME: 'x' }, scaffoldRoot: fixRoot }) } catch (e) { missErr = e.message }
+    check('emit_app:缺必填参数 → 列名带说明(可行动错误)', missErr.includes('PRESET_ID') && missErr.includes('配套 preset'))
     let secErr = ''
-    try { materializeApp({ recipeId: 'rag-qa', targetDir: join(tmp, 'a2'), params: { ...spec.sample.params, API_KEY_HERE: 'v' } }) } catch (e) { secErr = e.message }
+    try { materializeApp({ targetDir: join(tmp, 'a2'), params: { APP_NAME: 'x', PRESET_ID: 'p', API_KEY_HERE: 'v' }, scaffoldRoot: fixRoot }) } catch (e) { secErr = e.message }
     check('emit_app:密钥形状的参数键机械拒绝', secErr.includes('API_KEY_HERE') && secErr.includes('环境变量'))
     let repoErr = ''
-    try { materializeApp({ recipeId: 'rag-qa', targetDir: join(RECIPES_DIR, '..', 'some-app'), params: spec.sample.params }) } catch (e) { repoErr = e.message }
+    try { materializeApp({ targetDir: join(SCAFFOLD_DIR, '..', 'some-app'), params: { APP_NAME: 'x', PRESET_ID: 'p' }, scaffoldRoot: fixRoot }) } catch (e) { repoErr = e.message }
     check('emit_app:拒绝落在装配器仓库内', repoErr.includes('仓库'))
 
-    // 正常实例化(带 sample 语料):config 注入、语料自包含、ingest 预跑、lock 落盘
+    // 正常实例化:config 注入(scaffold 键)、lock 落盘、骨架锁哈希、pages 迁入 + 考卷升根
+    const pagesDir = join(tmp, 'pages'); mkdirSync(pagesDir, { recursive: true })
+    writeFileSync(join(pagesDir, 'home.tsx'), 'export default function H(){return null}')
+    writeFileSync(join(pagesDir, 'PAGE-SPEC.yml'), 'pages: []')
     const appDir = join(tmp, 'app')
-    const r = materializeApp({ recipeId: 'rag-qa', targetDir: appDir, params: spec.sample.params, corpusDir: join(RECIPES_DIR, 'rag-qa', spec.sample.corpusDir) })
+    const r = materializeApp({ targetDir: appDir, params: { APP_NAME: '台账', PRESET_ID: 'p1' }, pagesDir, scaffoldRoot: fixRoot })
     const cfg = JSON.parse(readFileSync(join(appDir, 'app.config.json'), 'utf8'))
-    check('emit_app:参数经 app.config.json 注入(模板零替换)', cfg.APP_NAME === spec.sample.params.APP_NAME && cfg.recipe === 'rag-qa')
-    check('emit_app:语料拷入 corpus/ 且 ingest 预跑出块', r.corpus !== null && r.corpus.files === 2 && r.chunks > 0 && existsSync(join(appDir, 'data', 'index.json')))
-    check('emit_app:recipe.lock.yml 带出处与考题参数', readFileSync(r.lockPath, 'utf8').includes('templateHash') && readFileSync(r.lockPath, 'utf8').includes('SELFTEST_MARKER'))
-    check('emit_app:非空目录不带 fresh 拒绝', (() => { try { materializeApp({ recipeId: 'rag-qa', targetDir: appDir, params: spec.sample.params }); return false } catch (e) { return e.message.includes('fresh') } })())
-
-    // 独立考官(接口模式:确保无 key)
-    const savedKey = process.env.DEEPSEEK_API_KEY
-    delete process.env.DEEPSEEK_API_KEY
-    try {
-      const st = await runAppSelftest(appDir)
-      check('verify_app:无 key 接口模式 → SKIPPED 且检索半边过、AI 半边点名环境变量', st.status === 'SKIPPED' && st.checks.some((c) => c.check === 'healthz' && c.status === 'PASS') && st.checks.some((c) => c.check === 'ask' && c.status === 'SKIPPED' && c.evidence.includes('DEEPSEEK_API_KEY')))
-    } finally {
-      if (savedKey !== undefined) process.env.DEEPSEEK_API_KEY = savedKey
-    }
-    check('verify_app:非配方目录报可行动错误', await runAppSelftest(tmp).then(() => false, (e) => e.message.includes('recipe.lock.yml')))
-
-    // 模板哈希稳定性(同字节同哈希)
-    check('recipe:模板哈希确定性', hashTemplate(join(RECIPES_DIR, 'rag-qa', 'template')) === r.templateHash)
+    check('emit_app:参数经 app.config.json 注入(scaffold 键 + 模板零替换)', cfg.APP_NAME === '台账' && cfg.scaffold === 't-scaffold')
+    const lockText = readFileSync(r.lockPath, 'utf8')
+    check('emit_app:scaffold.lock.yml 带出处与骨架锁', r.lockPath.endsWith('scaffold.lock.yml') && lockText.includes('templateHash') && lockText.includes('skeletonHash'))
+    check('emit_app:pagesDir 迁入自由区且考卷升根', existsSync(join(appDir, 'src', 'pages', 'home.tsx')) && existsSync(join(appDir, 'PAGE-SPEC.yml')) && !existsSync(join(appDir, 'src', 'pages', 'PAGE-SPEC.yml')))
+    check('emit_app:非空目录不带 fresh 拒绝', (() => { try { materializeApp({ targetDir: appDir, params: { APP_NAME: 'x', PRESET_ID: 'p' }, scaffoldRoot: fixRoot }); return false } catch (e) { return e.message.includes('fresh') } })())
+    check('verify_app:非 app 目录报可行动错误', await runAppSelftest(tmp, { scaffoldRoot: fixRoot }).then(() => false, (e) => e.message.includes('scaffold.lock.yml')))
   } finally {
     rmSync(tmp, { recursive: true, force: true })
   }
@@ -363,50 +342,24 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   // 契约钉:两工具的承重句
   const emitDesc = emitAppToolDefinition(fakeCtx, {}).description
   const verifyDesc = verifyAppToolDefinition(fakeCtx, {}).description
-  check('事实钉:emit_app 描述说清它是哑印刷 + 出处锁', emitDesc.includes('DUMB app materializer') && emitDesc.includes('recipe.lock.yml'))
-  check('事实钉:verify_app 描述说清它自起进程黑盒考 + 三判定', verifyDesc.includes('INDEPENDENT examiner') && verifyDesc.includes('own process') && verifyDesc.includes('PASS / FAIL / SKIPPED'))
+  check('事实钉:emit_app 描述说清它是哑印刷 + 出处锁', emitDesc.includes('DUMB scaffold materializer') && emitDesc.includes('scaffold.lock.yml'))
+  check('事实钉:verify_app 描述说清它自起进程黑盒考五门 + 三判定', verifyDesc.includes('INDEPENDENT examiner') && verifyDesc.includes('own process') && verifyDesc.includes('PASS / FAIL / SKIPPED') && verifyDesc.includes('skeleton-lock'))
   process.env.DSH_ASSEMBLER_BARE = '1'
   const { emitAppToolDefinition: emitBareF } = await import('./lib/orchestrated-tools.js')
   const emitBare = emitBareF(fakeCtx, {}).description
   delete process.env.DSH_ASSEMBLER_BARE
-  check('BARE:emit_app 散文可剥、事实句保留', !emitBare.includes('接力棒') && emitBare.includes('recipe.lock.yml'))
-
-  // 检索行:via:'recipe' 价签与凭证(不起进程,直接考 rank + 目录条目)
-  const cat2 = (await import('./lib/index.js')).loadCatalog('capabilities.yml')
-  const entry = cat2.capabilities.find((c) => c.id === 'recipe-rag-qa')
-  check('目录:recipe-rag-qa 已登记且凭证声明直挂条目', entry !== undefined && entry.via === 'recipe' && Array.isArray(entry.config.requiredSecrets) && entry.config.requiredSecrets[0].env === 'DEEPSEEK_API_KEY')
-  const hits2 = rankCapabilities(cat2.capabilities, '把产品文档变成问答网页 app', 3)
-  check('检索:app 型问答需求 → 配方第一名', hits2[0]?.entry.id === 'recipe-rag-qa')
+  check('BARE:emit_app 散文可剥、事实句保留', !emitBare.includes('接力棒') && emitBare.includes('scaffold.lock.yml'))
 }
-
-
-// ── scaffold 车道(S1-S3:词汇/骨架/五考)────────────────────────────────────
-{
-  const { loadRecipe, hashLockPaths, RECIPES_DIR } = await import('./lib/recipe.js')
-  const { join } = await import('node:path')
-  const { existsSync, readdirSync, readFileSync: rf2 } = await import('node:fs')
-  const sc = loadRecipe('scaffold-react')
-  check('scaffold:配方加载,五考齐(build/skeleton-lock/pages-lint/static-reach/behavior)', ['build','skeleton-lock','pages-lint','static-reach','behavior'].every((k) => sc.selftest.checks.some((c) => c.kind === k)))
-  check('scaffold:lockPaths 覆盖骨架/SDK/词汇', Array.isArray(sc.lockPaths) && ['src/sdk','src/components','src/App.tsx'].every((k) => sc.lockPaths.includes(k)))
-  check('scaffold:词汇表 ≥13 件(shadcn 联邦入库)', readdirSync(join(RECIPES_DIR,'scaffold-react','template','src','components','ui')).filter((f) => f.endsWith('.tsx')).length >= 13)
-  check('scaffold:TS 版 SDK 三纪律在(围栏出声/IME 守卫/服务脸)', (() => { const t = rf2(join(RECIPES_DIR,'scaffold-react','template','src','sdk','assembler-sdk.ts'),'utf8'); return t.includes('extractFence') && t.includes('isComposing') && t.includes('/.service') })())
-  const h1 = hashLockPaths(join(RECIPES_DIR,'scaffold-react','template'), sc.lockPaths)
-  check('scaffold:锁定面哈希确定性', h1 === hashLockPaths(join(RECIPES_DIR,'scaffold-react','template'), sc.lockPaths) && /^[0-9a-f]{16}$/.test(h1))
-  const cat3 = (await import('./lib/index.js')).loadCatalog('capabilities.yml')
-  const hits3 = rankCapabilities(cat3.capabilities, '定制前端页面 react 界面', 3)
-  check('scaffold:目录已登记且可检得', cat3.capabilities.some((c) => c.id === 'recipe-scaffold-react') && hits3.some((h) => h.entry.id === 'recipe-scaffold-react'))
-}
-
 
 // ── 写手席(WRITE-ME/接力棒/deploy_app)──────────────────────────────────────
 {
   const { SCAFFOLD_BATON, CONTRACT_TAGS: tags2, deployAppToolDefinition } = await import('./lib/orchestrated-tools.js')
-  const { RECIPES_DIR } = await import('./lib/recipe.js')
+  const { SCAFFOLD_DIR: SD3 } = await import('./lib/scaffold.js')
   const { readFileSync: rf3, existsSync: ex3 } = await import('node:fs')
   const { join: j3 } = await import('node:path')
-  const wm = rf3(j3(RECIPES_DIR, 'scaffold-react', 'template', 'WRITE-ME.md'), 'utf8')
-  check('写手席:WRITE-ME 事实齐(自由区/词汇/SDK/考卷/交付流/范例)', ['自由区', 'PAGE-SPEC', 'sqliteFace', 'bindEnter', 'deploy_app', 'examples/board.tsx'].every((k) => wm.includes(k)))
-  check('写手席:范例两张在模板内且被骨架锁覆盖', ex3(j3(RECIPES_DIR, 'scaffold-react', 'template', 'examples', 'board.tsx')) && ex3(j3(RECIPES_DIR, 'scaffold-react', 'template', 'examples', 'records.tsx')))
+  const wm = rf3(j3(SD3, 'template', 'WRITE-ME.md'), 'utf8')
+  check('写手席:WRITE-ME 事实齐(自由区/词汇/SDK/考卷/交付流/范例=起始页)', ['自由区', 'PAGE-SPEC', 'sqliteFace', 'bindEnter', 'deploy_app', 'examples/board.tsx', '整页拷进'].every((k) => wm.includes(k)))
+  check('写手席:范例两张在模板内且被骨架锁覆盖', ex3(j3(SD3, 'template', 'examples', 'board.tsx')) && ex3(j3(SD3, 'template', 'examples', 'records.tsx')))
   check('契约钉:SCAFFOLD_BATON 承重句(读手册/先考卷后页面/自由区/列名照抄/3 次停手/deploy)', ['WRITE-ME.md', 'PAGE-SPEC.yml first', 'Free zone', 'never invent', '3 次 FAIL', 'deploy_app'].every((k) => SCAFFOLD_BATON.includes(k)) && tags2.SCAFFOLD_BATON === 'deepseek-v4')
   const dep = deployAppToolDefinition(fakeCtx, {}).description
   check('事实钉:deploy_app 描述说清确定性拷贝 + 快照可回滚 + 源头回指针', dep.includes('Deterministic copy') && dep.includes('rollback') && dep.includes('where the page came from'))
@@ -427,7 +380,7 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   const { verifyTriggerToolDefinition, VERIFY_TRIGGER_TOOL_NAME } = await import('./lib/orchestrated-tools.js')
   const { readFileSync: rf4 } = await import('node:fs')
   const { join: j4 } = await import('node:path')
-  const { RECIPES_DIR: RD } = await import('./lib/recipe.js')
+  const { SCAFFOLD_DIR: RD } = await import('./lib/scaffold.js')
 
   // ai-thin:双脸同源 + SDK 双版都有 aiFace + WRITE-ME 教了路由判据
   const aiPart = rf4('generated/ai-call/index.js', 'utf8')
@@ -454,16 +407,13 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
     check('全库纪律:声明凭证的零件都经 readSecret 取值(不直读 process.env)', offenders.length === 0, offenders.join(', '))
   }
   const sdkJs = rf4('frontends/_vendor/assembler-sdk.js', 'utf8')
-  const sdkTs = rf4(j4(RD, 'scaffold-react', 'template', 'src', 'sdk', 'assembler-sdk.ts'), 'utf8')
+  const sdkTs = rf4(j4(RD, 'template', 'src', 'sdk', 'assembler-sdk.ts'), 'utf8')
   check('SDK 双版:aiFace + filesFace 都在(模板与 scaffold 同能力)', ['aiFace', 'filesFace'].every((k) => sdkJs.includes(k) && sdkTs.includes(k)))
-  const wm2 = rf4(j4(RD, 'scaffold-react', 'template', 'WRITE-ME.md'), 'utf8')
+  const wm2 = rf4(j4(RD, 'template', 'WRITE-ME.md'), 'utf8')
   check('WRITE-ME:四档路由判据齐(face/ai-thin/wire/local)', ['route: face', 'route: ai-thin', 'route: wire', 'route: local'].every((k) => wm2.includes(k)) && wm2.includes('别为它开会话'))
 
-  // 判断器 app 镜像与零件纪律一致(双脸制度化的机械钉)
-  for (const rec of ['rag-qa', 'record-desk']) {
-    const mirror = rf4(j4(RD, rec, 'template', 'lib', 'ai.mjs'), 'utf8')
-    check(`双脸制度化:${rec} 的 app 镜像守同款纪律(env-only key + 256 地板)`, mirror.includes('process.env.DEEPSEEK_API_KEY') && mirror.includes('Math.max(256'))
-  }
+  // (曾有"判断器 app 镜像"双脸钉——配方并入 scaffold 后 app 侧 AI 一律走
+  //  ai-call 服务脸,不再内嵌镜像实现,钉随镜像消亡,git 备查。)
 
   // file-channel:登记 + 服务脸声明
   const cat4 = (await import('./lib/index.js')).loadCatalog('capabilities.yml')
@@ -514,44 +464,6 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   check('add_knowledge 闸:无考题拒', await throwsK({ docsDir: '/tmp', id: 'x', description: 'd', probes: [] }, '没有考题'))
   check('add_knowledge 闸:相对路径拒', await throwsK({ docsDir: 'rel/path', id: 'x', description: 'd', probes: [{ question: 'q', mustInclude: ['m'] }] }, '绝对路径'))
 }
-
-// ── 车道分叉行:一榜同时命中两条车道时,榜尾算出分叉(判据放在决策发生的地方)──
-{
-  const { writeFileSync: wf, mkdtempSync } = await import('node:fs')
-  const { join: pjoin } = await import('node:path')
-  const { tmpdir } = await import('node:os')
-  const { searchCatalogToolDefinition: sct } = await import('./lib/orchestrated-tools.js')
-  const dir = mkdtempSync(pjoin(tmpdir(), 'lane-fork-'))
-  const catPath = pjoin(dir, 'capabilities.yml')
-  const write = (caps) => wf(catPath, `capabilities:\n${caps}`)
-  const RECIPE_ROW = '  - id: recipe-record-desk\n    via: recipe\n    description: 记录台配方\n    tags: ["记账", "台账"]\n    config: { recipe: record-desk }\n'
-  const FE_ROW = '  - id: frontend-data-desk\n    via: frontend\n    description: 记录台模板\n    tags: ["记账", "台账"]\n    config: { template: data-desk }\n'
-  const MCP_ROW = '  - id: sqlite-store\n    via: mcp\n    description: 持久存取\n    tags: ["记账"]\n    config: {}\n'
-
-  write(RECIPE_ROW + FE_ROW + MCP_ROW)
-  const both = await sct(fakeCtx, { catalogPath: catPath }).execute({ query: '记账' })
-  check('车道分叉:两条车道同榜 → 榜尾算出分叉行,点名两个真实 id 且说明各自交付形态',
-    both.includes('⚑ 车道分叉') && both.includes('recipe-record-desk') && both.includes('frontend-data-desk')
-    && both.includes('二选一') && both.includes('零对话 token 税'), both.slice(-300))
-
-  write(RECIPE_ROW + MCP_ROW)
-  const onlyRecipe = await sct(fakeCtx, { catalogPath: catPath }).execute({ query: '记账' })
-  write(FE_ROW + MCP_ROW)
-  const onlyFe = await sct(fakeCtx, { catalogPath: catPath }).execute({ query: '记账' })
-  check('车道分叉:只命中一条车道时不打扰(分叉行是算出来的,不是常驻文案)',
-    !onlyRecipe.includes('车道分叉') && !onlyFe.includes('车道分叉'))
-
-  // BARE 消融:两个真实 id 与各自的物理交付形态是事实(常开),判据是散文(关)。
-  const savedB = process.env.DSH_ASSEMBLER_BARE
-  process.env.DSH_ASSEMBLER_BARE = '1'
-  write(RECIPE_ROW + FE_ROW + MCP_ROW)
-  const bareFork = await sct(fakeCtx, { catalogPath: catPath }).execute({ query: '记账' })
-  if (savedB === undefined) delete process.env.DSH_ASSEMBLER_BARE
-  else process.env.DSH_ASSEMBLER_BARE = savedB
-  check('车道分叉:BARE 下事实照出、判据散文剥净(消融不作弊)',
-    bareFork.includes('⚑ 车道分叉') && bareFork.includes('recipe-record-desk') && !bareFork.includes('判据:'))
-}
-
 
 // ── 机械闸:契约要求的动作,逐条必须有够得着的工具面 ─────────────────────────
 {

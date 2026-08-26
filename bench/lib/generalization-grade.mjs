@@ -32,13 +32,13 @@ export function claimApps(presetName) {
   for (const e of readdirSync(APPS, { withFileTypes: true })) {
     if (!e.isDirectory()) continue
     const dir = join(APPS, e.name)
-    const lockPath = join(dir, 'recipe.lock.yml')
+    const lockPath = join(dir, 'scaffold.lock.yml')
     if (!existsSync(lockPath)) continue
     let lock
     try { lock = yaml.load(readFileSync(lockPath, 'utf8')) ?? {} } catch { continue }
     const blob = JSON.stringify(lock.params ?? {})
     const claimed = presetName !== '' && (blob.includes(presetName) || e.name.startsWith(presetName))
-    if (claimed) out.push({ dir, name: e.name, recipe: lock.recipe ?? null, params: lock.params ?? {}, mtime: statSync(lockPath).mtimeMs })
+    if (claimed) out.push({ dir, name: e.name, scaffold: lock.scaffold ?? null, params: lock.params ?? {}, mtime: statSync(lockPath).mtimeMs })
   }
   return out.sort((a, b) => a.mtime - b.mtime)
 }
@@ -64,11 +64,11 @@ export async function audit(scn, port) {
   const a = {
     presetName,
     presetEmitted: existsSync(join(presetDir, 'agent.cordis.yml')),
-    apps: apps.map((x) => ({ name: x.name, recipe: x.recipe })),
+    apps: apps.map((x) => ({ name: x.name, scaffold: x.scaffold })),
     appEmitted: apps.length > 0,
-    recipes: [...new Set(apps.map((x) => x.recipe).filter(Boolean))],
+    scaffolds: [...new Set(apps.map((x) => x.scaffold).filter(Boolean))],
     pagesWritten: 0, routes: { face: 0, wire: 0, 'ai-thin': 0, local: 0 },
-    partsUsed: [], pageReachable: null, assetsOk: null, byteDiscipline: null, laneDeclared: null,
+    partsUsed: [], pageReachable: null, assetsOk: null, byteDiscipline: null,
   }
   for (const app of apps) {
     const pagesDir = join(app.dir, 'src', 'pages')
@@ -95,7 +95,6 @@ export async function audit(scn, port) {
     // 车道声明(emit_preset 的车道闸强制写入):**声明**归声明,和下面推出来的
     // **实得**车道是两回事——两者不一致才是最值得抓的那种失败(嘴上走配方、
     // 手上发 preset)。此前判卷器只能靠目录名猜,猜错过一次并被我报给用户。
-    a.laneDeclared = typeof bom.lane === 'string' ? bom.lane : null
   }
   if (a.presetEmitted) {
     try {
@@ -121,17 +120,12 @@ export function grade(scn, run, aud) {
   const e = scn.expect
   const checks = []
   const add = (name, ok, detail) => checks.push({ name, ok, detail })
-  // 车道:写了页 = scaffold;只有配方实例 = recipe;只有 preset = preset-only;都没有 = refuse
-  const lane = aud.pagesWritten > 0 ? 'scaffold' : aud.appEmitted ? 'recipe' : aud.presetEmitted ? 'preset-only' : 'refuse'
-  add('形态路由', lane === e.lane, `实得 ${lane}${aud.recipes.length ? `(${aud.recipes.join('+')})` : ''},预期 ${e.lane}`)
-  // 车道声明:走 preset 车道时必有(机械闸),内容要能自圆——只记不判分的部分
-  // 交给人读;能机器判的只有一条:声明说的车道和实际建成的东西对不对得上。
-  if (lane === 'preset-only' || lane === 'scaffold') {
-    const declared = aud.laneDeclared ?? ''
-    add('车道声明与实得一致', declared !== '' && !/^\s*(配方|recipe)/i.test(declared),
-      declared === '' ? '无声明(车道闸应已强制,缺=闸没生效)' : `声明「${declared.slice(0, 50)}」`)
-  }
-  if (e.recipe !== undefined) add('用对配方', aud.recipes.includes(e.recipe), `实得 ${aud.recipes.join('+') || 'null'},预期 ${e.recipe}`)
+  // 形态(宪法第九条后单车道):写了页 = scaffold;只出骨架没写页 = scaffold-skeleton;
+  // 只有 preset = preset-only;都没有 = refuse。(旧 'recipe' 车道值属考卷 v2,git 备查。)
+  const lane = aud.pagesWritten > 0 ? 'scaffold' : aud.appEmitted ? 'scaffold-skeleton' : aud.presetEmitted ? 'preset-only' : 'refuse'
+  add('形态路由', lane === e.lane, `实得 ${lane},预期 ${e.lane}`)
+  // (曾有"车道声明与实得一致"判项——随车道闸与双车道一起删除,git 备查;
+  //  考卷 v3 按单车道现实重新定项。)
   if (e.pagesWritten === false) add('未写页(应零写码)', aud.pagesWritten === 0, `写了 ${aud.pagesWritten} 张页`)
   if (e.pagesWritten === true) add('写了页', aud.pagesWritten > 0, `${aud.pagesWritten} 张页`)
   if (e.emitted === false) add('诚实劝退:未发射', !aud.presetEmitted && !aud.appEmitted, aud.presetEmitted || aud.appEmitted ? `却发射了${aud.presetEmitted ? ' preset' : ''}${aud.appEmitted ? ` app(${aud.apps.map((x) => x.name).join(',')})` : ''}` : '未发射')

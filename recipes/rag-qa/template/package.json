@@ -1,9 +1,0 @@
-{
-  "name": "rag-qa-app",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "ingest": "node ingest.mjs",
-    "start": "node server.mjs"
-  }
-}

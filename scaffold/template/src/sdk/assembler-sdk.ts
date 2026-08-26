@@ -7,7 +7,7 @@
 //   ai-thin 薄判断:aiFace().complete(...) —— 一次补全,不开会话
 import cfg from '../../app.config.json'
 
-export const APP = cfg as { recipe: string; APP_NAME: string; PRESET_ID: string; WORKDIR: string }
+export const APP = cfg as { scaffold: string; APP_NAME: string; PRESET_ID: string; WORKDIR: string }
 
 // ── wire(会话面)────────────────────────────────────────────────────────────
 export interface AskResult {

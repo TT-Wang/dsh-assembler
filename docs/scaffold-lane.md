@@ -132,3 +132,7 @@ pages:
 不做可视化画布(生成的是代码,可 diff 可毕业);不手工包裹框架(shadcn 走
 registry 协议进货);不为当代模型写永久散文(PAGE-SPEC 是数据不是散文;写手
 提示词按契约到期制管理)。
+
+> **状态(2026-08-26)**:宪法第九条执行——配方车道并入本车道,scaffold 成为 app 交付唯一底盘
+> (recipes/ → scaffold/,成品配方降级为 examples/ 范例页,出厂门 `index-add.mjs scaffold-gate`)。
+> 本稿"与既有车道的分工线"一节从此为历史记录。
