@@ -167,6 +167,92 @@ export function hashLockPaths(appDir: string, lockPaths: readonly string[]): str
   return h.digest('hex').slice(0, 16)
 }
 
+// ── 考官共享件(行为考与 DOM 考同一份实现:@@TOKEN@@ 替换/服务脸 SQL/效果断言/
+// 服务脸获取)。抽取自 behavior 分支(刀2,纯重构行为不变);DOM 门(刀3)复用。 ──
+
+/** @@TOKEN@@ 替换器:字符串与数组深替换(原 behavior 分支的 sub,逐字搬出)。 */
+export const makeSub = (token: string): ((v: unknown) => unknown) => {
+  const sub = (v: unknown): unknown => typeof v === 'string' ? v.replace(/@@TOKEN@@/g, token) : Array.isArray(v) ? v.map(sub) : v
+  return sub
+}
+
+export interface ServiceFace { url: string; token: string }
+
+/** 打服务脸 /sql(原 behavior 分支的 doSql,逐字搬出)。 */
+export async function faceSql(face: ServiceFace, sql: string, sqlParams: unknown[], timeoutMs = 8000): Promise<Record<string, unknown>> {
+  const r = await fetch(`${face.url}/sql`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-token': face.token }, body: JSON.stringify({ sql, params: sqlParams }), signal: AbortSignal.timeout(timeoutMs) })
+  const j = (await r.json()) as Record<string, unknown>
+  if (typeof j.error === 'string') throw new Error(j.error)
+  return j
+}
+
+/**
+ * 效果断言(一份实现):打 eff.sql,rows JSON 含 sub(eff.expect) 即 ok。
+ * behavior 传 budgetMs=0(单发,语义与抽取前逐字一致);DOM 考传轮询预算——
+ * 点击的效果要异步穿过页面才落库,单发会抢在落库之前。
+ */
+export async function assertEffect(
+  face: ServiceFace,
+  eff: { sql?: string; sampleParams?: unknown[]; expect?: string },
+  sub: (v: unknown) => unknown,
+  opts: { pollMs?: number; budgetMs?: number } = {},
+): Promise<{ ok: boolean; hay: string }> {
+  const budget = opts.budgetMs ?? 0
+  const poll = opts.pollMs ?? 500
+  const t0 = Date.now()
+  let hay = ''
+  for (;;) {
+    const out = await faceSql(face, String(sub(eff.sql)), (sub(eff.sampleParams) as unknown[] | undefined) ?? [])
+    hay = JSON.stringify(out.rows ?? [])
+    if (eff.expect === undefined || hay.includes(String(sub(eff.expect)))) return { ok: true, hay }
+    if (Date.now() - t0 >= budget) return { ok: false, hay }
+    await new Promise((r) => setTimeout(r, poll))
+  }
+}
+
+/** sqlite 服务脸探活(schema 端点 1.5s)。 */
+export async function sqliteFaceAlive(f: ServiceFace | null): Promise<boolean> {
+  if (f === null) return false
+  try { return (await fetch(`${f.url}/schema`, { headers: { 'x-service-token': f.token }, signal: AbortSignal.timeout(1500) })).ok } catch { return false }
+}
+
+/**
+ * sqlite 服务脸获取(自给自足,原 behavior 分支逻辑逐字搬出):在场即用;不在场
+ * 考官自拉 sqlite 零件(装备 DDL 一并带上)。调用方 finally 调 kill()。
+ */
+export async function acquireSqliteFace(
+  presetDir: string,
+  phase: (line: string) => void,
+): Promise<{ face: ServiceFace | null; kill: () => void }> {
+  const readFace = (): ServiceFace | null => {
+    const svcPath = join(presetDir, 'workspace', '.service.json')
+    if (!existsSync(svcPath)) return null
+    try {
+      const svc = (JSON.parse(readFileSync(svcPath, 'utf8')) as { sqlite?: ServiceFace }).sqlite
+      return svc ?? null
+    } catch { return null }
+  }
+  let facePart: ReturnType<typeof spawn> | null = null
+  let face = readFace()
+  if (!(await sqliteFaceAlive(face))) {
+    const partJs = join(REPO, 'generated', 'sqlite-query', 'index.js')
+    const env: Record<string, string> = {
+      ...process.env as Record<string, string>,
+      PART_WORKDIR: join(presetDir, 'workspace'),
+      SQLITE_DEFAULT_DB: join(presetDir, 'workspace', 'data.db'),
+    }
+    if (existsSync(join(presetDir, 'equipment', 'init.sql'))) env.SQLITE_INIT_DDL_FILE = join(presetDir, 'equipment', 'init.sql')
+    phase('服务脸不在场——考官自行拉起 sqlite 零件')
+    facePart = spawn('node', [partJs], { env, stdio: ['pipe', 'pipe', 'pipe'] })
+    for (let i = 0; i < 20; i++) {
+      await new Promise((r) => setTimeout(r, 250))
+      face = readFace()
+      if (await sqliteFaceAlive(face)) break
+    }
+  }
+  return { face, kill: () => { facePart?.kill('SIGTERM') } }
+}
+
 /** 模板全体字节的稳定哈希(文件相对路径排序后逐个喂)——进 lock,底盘代际可核。 */
 export function hashTemplate(templateDir: string): string {
   const h = createHash('sha256')
@@ -483,37 +569,9 @@ export async function runAppSelftest(
           break
         }
         const presetDir = join(opts.presetRoot ?? join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), '.agent-presets'), presetId)
-        // 服务脸:优先读在场的 .service.json;零件不在场则考官自己拉起(自给自足)
-        let facePart: ReturnType<typeof spawn> | null = null
-        const readFace = (): { url: string; token: string } | null => {
-          const svcPath = join(presetDir, 'workspace', '.service.json')
-          if (!existsSync(svcPath)) return null
-          try {
-            const svc = (JSON.parse(readFileSync(svcPath, 'utf8')) as { sqlite?: { url: string; token: string } }).sqlite
-            return svc ?? null
-          } catch { return null }
-        }
-        const faceAlive = async (f: { url: string; token: string } | null): Promise<boolean> => {
-          if (f === null) return false
-          try { return (await fetch(`${f.url}/schema`, { headers: { 'x-service-token': f.token }, signal: AbortSignal.timeout(1500) })).ok } catch { return false }
-        }
-        let face = readFace()
-        if (!(await faceAlive(face))) {
-          const partJs = join(REPO, 'generated', 'sqlite-query', 'index.js')
-          const env: Record<string, string> = {
-            ...process.env as Record<string, string>,
-            PART_WORKDIR: join(presetDir, 'workspace'),
-            SQLITE_DEFAULT_DB: join(presetDir, 'workspace', 'data.db'),
-          }
-          if (existsSync(join(presetDir, 'equipment', 'init.sql'))) env.SQLITE_INIT_DDL_FILE = join(presetDir, 'equipment', 'init.sql')
-          phase('服务脸不在场——考官自行拉起 sqlite 零件')
-          facePart = spawn('node', [partJs], { env, stdio: ['pipe', 'pipe', 'pipe'] })
-          for (let i = 0; i < 20; i++) {
-            await new Promise((r) => setTimeout(r, 250))
-            face = readFace()
-            if (await faceAlive(face)) break
-          }
-        }
+        // 服务脸获取/探活/SQL/效果断言 → 共享件(与 DOM 门一份实现,刀2 抽取)。
+        const acquired = await acquireSqliteFace(presetDir, phase)
+        const face = acquired.face
         // ai 服务脸(ai-thin 路由):同款自给自足——不在场则考官自拉 ai-call 零件
         let aiPart: ReturnType<typeof spawn> | null = null
         const readAi = (): { url: string; token: string } | null => {
@@ -534,25 +592,18 @@ export async function runAppSelftest(
         let behaviorFail = ''
         try {
           const token = `BHV-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
-          const sub = (v: unknown): unknown => typeof v === 'string' ? v.replace(/@@TOKEN@@/g, token) : Array.isArray(v) ? v.map(sub) : v
+          const sub = makeSub(token)
           for (const a2 of actions) {
             const route = String(a2.route ?? '')
             const name = String(a2.name ?? '?')
             if (route === 'face') {
-              if (!(await faceAlive(face)) || face === null) { behaviorFail = `face 动作「${name}」:服务脸不可达——效果断言要读 preset「${presetId}」的 sqlite 面。用 read_preset {"presetId":"${presetId}","include":["bom"]} 核对 BOM 是否含 sqlite 零件;没有则把它加进 capabilityIds 同名重发;有则是零件拉不起来(考官已尝试自拉 generated/sqlite-query)`; break }
-              const doSql = async (sql: string, sqlParams: unknown[]): Promise<Record<string, unknown>> => {
-                const r = await fetch(`${face.url}/sql`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-token': face.token }, body: JSON.stringify({ sql, params: sqlParams }), signal: AbortSignal.timeout(8000) })
-                const j = (await r.json()) as Record<string, unknown>
-                if (typeof j.error === 'string') throw new Error(j.error)
-                return j
-              }
+              if (!(await sqliteFaceAlive(face)) || face === null) { behaviorFail = `face 动作「${name}」:服务脸不可达——效果断言要读 preset「${presetId}」的 sqlite 面。用 read_preset {"presetId":"${presetId}","include":["bom"]} 核对 BOM 是否含 sqlite 零件;没有则把它加进 capabilityIds 同名重发;有则是零件拉不起来(考官已尝试自拉 generated/sqlite-query)`; break }
               try {
-                await doSql(String(sub(a2.sql)), (sub(a2.sampleParams) as unknown[] | undefined) ?? [])
+                await faceSql(face, String(sub(a2.sql)), (sub(a2.sampleParams) as unknown[] | undefined) ?? [])
                 const eff = a2.effect as { sql?: string; sampleParams?: unknown[]; expect?: string } | undefined
                 if (eff?.sql !== undefined) {
-                  const out = await doSql(String(sub(eff.sql)), (sub(eff.sampleParams) as unknown[] | undefined) ?? [])
-                  const hay = JSON.stringify(out.rows ?? [])
-                  if (eff.expect !== undefined && !hay.includes(String(sub(eff.expect)))) { behaviorFail = `face 动作「${name}」:效果断言失败(期望含「${String(eff.expect)}」,实得 ${hay.slice(0, 120)})`; break }
+                  const res = await assertEffect(face, eff, sub, {}) // budgetMs 缺省 0:单发,语义与抽取前一致
+                  if (!res.ok) { behaviorFail = `face 动作「${name}」:效果断言失败(期望含「${String(eff.expect)}」,实得 ${res.hay.slice(0, 120)})`; break }
                 }
                 results.push(`face「${name}」✓`)
               } catch (error) {
@@ -606,7 +657,7 @@ export async function runAppSelftest(
             }
           }
         } finally {
-          facePart?.kill('SIGTERM')
+          acquired.kill()
           aiPart?.kill('SIGTERM')
         }
         checks.push({
