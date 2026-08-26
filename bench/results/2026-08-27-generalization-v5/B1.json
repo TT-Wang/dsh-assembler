@@ -1,0 +1,459 @@
+{
+  "id": "B1",
+  "tier": "B",
+  "name": "库存看板 + 批次过期标红",
+  "lane": "scaffold",
+  "checks": [
+    {
+      "name": "硬化·preset 考官末判 ∈ 预期",
+      "ok": true,
+      "detail": "PASS@15:16:03(预期 PASS)"
+    },
+    {
+      "name": "硬化·判定绑定当前字节",
+      "ok": true,
+      "detail": "字节一致"
+    },
+    {
+      "name": "硬化·app 考官末判 ∈ 预期",
+      "ok": true,
+      "detail": "PASS@15:19:48(预期 PASS)"
+    },
+    {
+      "name": "硬化·app 判定绑定当前页面字节",
+      "ok": true,
+      "detail": "页面字节与末判一致"
+    },
+    {
+      "name": "硬化·lock 真伪(g-b1-stock-ui)",
+      "ok": true,
+      "detail": "双哈希吻合(真发射,骨架未越界)"
+    },
+    {
+      "name": "硬化·发布回指(页面=写手页)",
+      "ok": true,
+      "detail": "已发布且回指认领 app(g-b1-stock-ui)"
+    },
+    {
+      "name": "硬化·发布字节对账(frontend≡dist)",
+      "ok": true,
+      "detail": "发布物与构建物逐字节一致"
+    },
+    {
+      "name": "形态路由",
+      "ok": true,
+      "detail": "实得 scaffold,预期 scaffold"
+    },
+    {
+      "name": "写了页",
+      "ok": true,
+      "detail": "1 张页"
+    },
+    {
+      "name": "交付可达",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "资产全通",
+      "ok": true,
+      "detail": "全通"
+    },
+    {
+      "name": "直连动作数达标",
+      "ok": true,
+      "detail": "face=4 需 ≥3(wire=2 ai-thin=0 local=0)"
+    },
+    {
+      "name": "会话动作不超标",
+      "ok": true,
+      "detail": "wire=2 需 ≤2"
+    }
+  ],
+  "passed": 13,
+  "total": 13,
+  "verdict": "PASS",
+  "hardEvidence": {
+    "presetVerdicts": [
+      "15:16:03 PASS",
+      "15:16:03 PASS"
+    ],
+    "appVerdicts": [
+      "15:19:48 PASS g-b1-stock-ui"
+    ],
+    "unclaimedResidue": [
+      "g-b1-stock-pages"
+    ],
+    "bomMissing": [
+      "一句话入库/出库解析由 agent 自带 LLM 承担,不装 mcp-ai-call-ai-complete(降级省 token 税)",
+      "临期天数计算由前端页面 JS 与 agent LLM 承担,不装 mcp-date-format-date-diff(降级省 token 税)",
+      "页面不挂通用 frontend-data-desk 模板,改用 emit_app 定制看板页(g-b1-stock-ui)"
+    ]
+  },
+  "elapsedSeconds": 475,
+  "tools": [
+    "skill",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "match_catalog",
+    "ask_user_question",
+    "emit_preset",
+    "bash",
+    "verify_preset",
+    "bash",
+    "read",
+    "read",
+    "read",
+    "read",
+    "read",
+    "read",
+    "read",
+    "read",
+    "read",
+    "bash",
+    "write",
+    "write",
+    "emit_app",
+    "bash",
+    "verify_app",
+    "deploy_app",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "preview_register"
+  ],
+  "toolCalls": [
+    {
+      "name": "skill",
+      "t": 10,
+      "args": "{\"name\": \"scaffold\"}"
+    },
+    {
+      "name": "search_catalog",
+      "t": 10,
+      "args": "{\"query\": \"persist inventory batches and stock records across sessions in sqlite\"}"
+    },
+    {
+      "name": "search_catalog",
+      "t": 10,
+      "args": "{\"query\": \"parse natural language sentence into structured database operation\"}"
+    },
+    {
+      "name": "search_catalog",
+      "t": 10,
+      "args": "{\"query\": \"expiration date tracking and near-expiry alert\"}"
+    },
+    {
+      "name": "search_catalog",
+      "t": 26,
+      "args": "{\"query\": \"sqlite database storage part\"}"
+    },
+    {
+      "name": "search_catalog",
+      "t": 26,
+      "args": "{\"query\": \"库存 批次 出入库 台账\"}"
+    },
+    {
+      "name": "search_catalog",
+      "t": 26,
+      "args": "{\"query\": \"natural language 一句话 记账 记录 agent frontend template\"}"
+    },
+    {
+      "name": "match_catalog",
+      "t": 42,
+      "args": "{\"requirement\": \"做一个库存看板:按品类分区显示库存批次,快过期批次标红,支持一句话入库/出库,可查某个批次的历史。交付 agent 名 g-b1-stock,配套定制网页前端 g-b1-stock-ui。\", \"spec\": {\"capabilities\": [{\"name\": \"persist inventory batches and movement ledger in a"
+    },
+    {
+      "name": "ask_user_question",
+      "t": 148,
+      "args": "{\"questions\": [{\"id\": \"approve_arch\", \"header\": \"架构确认\", \"question\": \"以上架构(agent + SQLite + 定制看板页)是否可以开工?确认后我立即发射 preset 并验收。\", \"options\": [{\"label\": \"同意,开工 (Recommended)\", \"description\": \"按方案 emit_pre"
+    },
+    {
+      "name": "emit_preset",
+      "t": 172,
+      "args": "{\"name\": \"g-b1-stock\", \"requirement\": \"库存看板 agent:按品类分区显示库存批次,快过期(≤30 天)批次标红,支持一句话入库/出库,可查某个批次的历史流水。\", \"capabilityIds\": [\"mcp-sqlite-query-execute\", \"mcp-sqlite-query-query\", \"mcp-sqlite-query-service"
+    },
+    {
+      "name": "bash",
+      "t": 174,
+      "args": "{\"command\": \"ls ~/apps/ && echo --- && ls ~/.dsh/ 2>/dev/null | head\", \"description\": \"List apps directory and dsh dir\"}"
+    },
+    {
+      "name": "verify_preset",
+      "t": 180,
+      "args": "{\"presetId\": \"g-b1-stock\", \"probe\": {\"kind\": \"scenario\", \"createTask\": \"入库:HONEY-7781 特调蜂蜜 30 瓶,生产日期 2026-08-01,到期 2026-12-31,品类归到「蜂蜜」,备注秋日上新。\", \"retrieveTask\": \"查 HONEY-7781 这个品名的库存批次与它全部的历史流水,报出当前剩余"
+    },
+    {
+      "name": "bash",
+      "t": 198,
+      "args": "{\"command\": \"ls -la ~/apps/g-a3-inspect-ui/ 2>/dev/null && echo === && ls -la ~/apps/note-wall-ui/ 2>/dev/null && echo === && find ~/apps/g-a3-inspect-ui/src -type f 2>/dev/null | head -30\", \"descript"
+    },
+    {
+      "name": "read",
+      "t": 202,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-a3-inspect-ui/PAGE-SPEC.yml\"}"
+    },
+    {
+      "name": "read",
+      "t": 202,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-a3-inspect-ui/WRITE-ME.md\"}"
+    },
+    {
+      "name": "read",
+      "t": 202,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-a3-inspect-ui/app.config.json\"}"
+    },
+    {
+      "name": "read",
+      "t": 204,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-a3-inspect-ui/examples/records.tsx\"}"
+    },
+    {
+      "name": "read",
+      "t": 204,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-a3-inspect-ui/examples/board.tsx\"}"
+    },
+    {
+      "name": "read",
+      "t": 204,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-a3-inspect-ui/src/sdk/assembler-sdk.ts\"}"
+    },
+    {
+      "name": "read",
+      "t": 242,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-a3-inspect-ui/src/components/ui/dialog.tsx\"}"
+    },
+    {
+      "name": "read",
+      "t": 242,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-a3-inspect-ui/src/pages/inspect.tsx\"}"
+    },
+    {
+      "name": "read",
+      "t": 242,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-a3-inspect-ui/src/components/ui/badge.tsx\"}"
+    },
+    {
+      "name": "bash",
+      "t": 275,
+      "args": "{\"command\": \"ls -la /Users/tongtao/.dsh/.agent-presets/g-b1-stock/ 2>/dev/null && echo === && ls /Users/tongtao/.dsh/.agent-presets/g-b1-stock/workspace 2>/dev/null && echo === && cat /Users/tongtao/a"
+    },
+    {
+      "name": "write",
+      "t": 339,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-b1-stock-pages/PAGE-SPEC.yml\", \"content\": \"# PAGE-SPEC — 库存看板(g-b1-stock):按品类分区展示批次、临期(≤30 天)标红、\\n# 一句话入库/出库(agent 解析落库)、点批次查历史流水;看板渲染全走 face 直连,零模型。\\n# 表结构以配套 pre"
+    },
+    {
+      "name": "write",
+      "t": 367,
+      "args": "{\"content\": \"// 库存看板页(g-b1-stock):按品类分区展示批次,临期(≤30 天)标红、已过期深红;\\n// 一句话入库/出库走 wire(agent 解析并落库),看板渲染与批次历史走 face 直连,零模型。\\n// 表结构以配套 preset 装备 DDL 为准:\\n//   batches(id, batch_no, category, name, qty, uni"
+    },
+    {
+      "name": "emit_app",
+      "t": 369,
+      "args": "{\"name\": \"g-b1-stock-ui\", \"params\": {\"APP_NAME\": \"库存看板\", \"PRESET_ID\": \"g-b1-stock\", \"WORKDIR\": \"/Users/tongtao/.dsh/.agent-presets/g-b1-stock/workspace\"}, \"pagesDir\": \"/Users/tongtao/apps/g-b1-stock-p"
+    },
+    {
+      "name": "bash",
+      "t": 395,
+      "args": "{\"command\": \"ls /Users/tongtao/apps/g-b1-stock-ui/ && echo === && ls /Users/tongtao/apps/g-b1-stock-ui/src/pages/ && echo === && head -5 /Users/tongtao/apps/g-b1-stock-ui/PAGE-SPEC.yml\", \"description\""
+    },
+    {
+      "name": "verify_app",
+      "t": 397,
+      "args": "{\"targetDir\": \"/Users/tongtao/apps/g-b1-stock-ui\", \"wirePort\": 3097}"
+    },
+    {
+      "name": "deploy_app",
+      "t": 425,
+      "args": "{\"presetId\": \"g-b1-stock\", \"targetDir\": \"/Users/tongtao/apps/g-b1-stock-ui\"}"
+    },
+    {
+      "name": "bash",
+      "t": 435,
+      "args": "{\"command\": \"curl -s http://127.0.0.1:3097/assembler/ui/g-b1-stock/.service\", \"description\": \"Discover sqlite service face endpoint\"}"
+    },
+    {
+      "name": "bash",
+      "t": 447,
+      "args": "{\"command\": \"URL=\\\"http://127.0.0.1:62189\\\"; TOK=\\\"0e1a0c703ed99791deebbeeb6a8ac23b\\\"\\npost() { curl -s -X POST \\\"$URL/sql\\\" -H \\\"Content-Type: application/json\\\" -H \\\"X-Service-Token: $TOK\\\" -d \\\"$1\\"
+    },
+    {
+      "name": "bash",
+      "t": 453,
+      "args": "{\"command\": \"URL=\\\"http://127.0.0.1:62189\\\"; TOK=\\\"0e1a0c703ed99791deebbeeb6a8ac23b\\\"\\npost() { curl -s -X POST \\\"$URL/sql\\\" -H \\\"Content-Type: application/json\\\" -H \\\"X-Service-Token: $TOK\\\" -d \\\"$1\\"
+    },
+    {
+      "name": "bash",
+      "t": 459,
+      "args": "{\"command\": \"curl -s -X POST \\\"http://127.0.0.1:62189/sql\\\" -H \\\"Content-Type: application/json\\\" -H \\\"X-Service-Token: 0e1a0c703ed99791deebbeeb6a8ac23b\\\" -d '{\\\"sql\\\":\\\"UPDATE batches SET qty = 42 WH"
+    },
+    {
+      "name": "preview_register",
+      "t": 459,
+      "args": "{\"target\": \"http://127.0.0.1:3097/assembler/ui/g-b1-stock\"}"
+    }
+  ],
+  "usage": {
+    "uncachedInputTokens": 32483,
+    "outputTokens": 40798,
+    "cacheReadTokens": 1300608,
+    "cacheWriteTokens": 0
+  },
+  "usageCollected": true,
+  "endReason": "ended",
+  "answersGiven": [
+    [
+      {
+        "id": "approve_arch",
+        "selected": [
+          "同意,开工 (Recommended)"
+        ]
+      },
+      {
+        "id": "expiry_threshold",
+        "selected": [
+          "30 天内标红 (Recommended)"
+        ]
+      },
+      {
+        "id": "seed_data",
+        "selected": [
+          "要,预置演示数据 (Recommended)"
+        ]
+      }
+    ]
+  ],
+  "answerRejected": false,
+  "otherFrameCounts": {
+    "session/subscribed": 1,
+    "session/queue": 2,
+    "session/projection": 316,
+    "question/resolved": 1
+  },
+  "approvalFrames": [],
+  "cwdSnapshot": [
+    ".patch-scaffold-react-run.mjs",
+    ".patch-scaffold-react.mjs",
+    ".stage-g3-voice",
+    ".toolchain",
+    "dsh-docs-qa",
+    "g-a3-inspect-ui",
+    "kb-pages",
+    "kb-sdk-ui",
+    "m30-ledger-desk",
+    "note-wall-ui",
+    "schema.inspections.sql",
+    "schema.sql",
+    "vc-daozhen",
+    "vc-kanban",
+    "vc-ledger",
+    "vc-taizhang"
+  ],
+  "audit": {
+    "presetName": "g-b1-stock",
+    "presetEmitted": true,
+    "apps": [
+      {
+        "name": "g-b1-stock-ui",
+        "scaffold": "scaffold-react"
+      }
+    ],
+    "appEmitted": true,
+    "scaffolds": [
+      "scaffold-react"
+    ],
+    "pagesWritten": 1,
+    "routes": {
+      "face": 4,
+      "wire": 2,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "sqlite-query"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null,
+    "handwrittenDirs": [
+      "g-b1-stock-pages"
+    ],
+    "stateEquipped": true,
+    "kbPacks": 0
+  },
+  "sessionId": "session-86baff97-b089-422b-b4d2-3b2d6d4d3d12",
+  "questionTexts": [
+    "[{\"id\":\"approve_arch\",\"question\":\"以上架构(agent + SQLite + 定制看板页)是否可以开工?确认后我立即发射 preset 并验收。\",\"header\":\"架构确认\",\"options\":[{\"label\":\"同意,开工 (Recommended)\",\"description\":\"按方案 emit_preset → verify_preset → emit_app → 写页面 → verify_app → deploy_app\"},{\"label\":\"先调整方案\",\"description\":\"告诉我哪里要改,改完再发射\"}]},{\"id\":\"expiry_threshold\",\"question\":\"离到期还有多少天算「快过期」,需要标红?(前端 JS 和 agent 都按这个口径)\",\"header\":\"临期阈值\",\"options\":[{\"label\":\"30 天内标红 (Recommended)\",\"description\":\"剩 30 天以内标红,适合一般食品/日用品库存;已过期单独深红标记\"},{\"label\":\"15 天内标红\",\"description\":\"更宽松,只盯最后两周\"},{\"label\":\"7 天内标红\",\"description\":\"最严格,仅剩一周才提醒\"}]},{\"id\":\"seed_data\",\"question\":\"要不要预置一批演示批次(果蔬/乳品/日化等),让看板打开就有内容、马上能看到标红效果?\",\"header\":\"演示数据\",\"options\":[{\"label\":\"要,预置演示数据 (Recommended)\",\"description\":\"验证看板渲染与标红逻辑时立刻有东西可看;数据都在库里,随时可删\"},{\"label\":\"不用,空库开始\",\"description\":\"从零开始,所有批次都靠一句话入库录入\"}]}]"
+  ],
+  "finalText": "The scaffold skill is loaded — and this is exactly the assembly flow: an agent (g-b1-stock) that owns the inventory data + a custom scaffold page (g-b1-stock-ui). Let me finish catalog discovery before presenting the architecture.\n\nCatalog discovery is done. Now the upgrade valve — mapping my architecture spec onto the catalog to surface any gaps.\n\nArchitecture is designed and catalog mapping is done — **0 gaps**. Before emitting anything, here's the plan for your approval.\n\n## 架构方案 · 库存看板 g-b1-stock\n\n**一句话定位**:给仓库/门店用的库存看板 agent —— 网页按品类分区展示库存批次,快过期自动标红,一句话就能入库/出库,点批次查历史。\n\n**数据模型**(SQLite 固定库,跨会话留存):\n\n| 表 | 字段 |\n|---|---|\n| `batches` | id, batch_no(唯一), category, name, qty, unit, production_date, expiry_date, created_at |\n| `movements` | id, batch_no, type(in/out), qty, note, created_at ← 批次历史 |\n\n**零件选型**(目录检索 + match_catalog 映射,0 缺口):\n\n- `mcp-sqlite-query-execute` — 入库/出库写库(INSERT/UPDATE)\n- `mcp-sqlite-query-query` — 看板查询、批次历史(SELECT,支持批量)\n- `mcp-sqlite-query-service-info` — 给网页一个直连 HTTP 读库端点,看板秒开、不每帧过模型\n\n**刻意降级的两项**(省 token 税):match 建议的 `mcp-ai-call-ai-complete`(解析一句话)和 `mcp-date-format-date-diff`(算临期天数)—— 这两件 agent 自带 LLM 能稳定做到,不装零件;临期标红由前端页面用 JS 算,零成本。\n\n**前端**:不用通用模板,`emit_app` 起 scaffold 定制页 → `~/apps/g-b1-stock-ui`(品类分区卡片、临期红标、一句话输入框、批次历史抽屉)→ 构建后 `deploy_app` 发布到 preset 的 frontend。\n\n**工作流**:页面加载 → 按品类分组查批次 → JS 算临期标红 → 用户一句话\"入库 苹果 50kg 9月30到期\" → agent 解析写库并记流水 → 页面刷新 → 点批次查历史。\n\n开工。先发射 preset(agent 本体),同时看一下现有 scaffold 示例以准备定制页面。\n\nPreset 已发射。现在并行:① 独立验收 preset(带探针草图),② 研究现有 scaffold 应用结构以便定制页面。\n\n验收 **PASS**(2 轮场景全过,标记 30 / 2026-12-31 都对上)。现在研究 scaffold 结构,准备定制看板页。\n\nNow let me study the examples and SDK to write the custom page correctly.\n\nThe scaffold contract is clear. Let me check the dialog component and an existing custom page for UI patterns before writing the stock page.\n\nAll patterns are clear. Let me verify the preset workspace path and scaffold package, then write the custom page.\n\nThe scaffold contract is fully clear. Now I'll write the custom stock page (PAGE-SPEC + page source), then materialize the app.\n\nNow the page source — the core deliverable:\n\nNow materialize the scaffold app with this pages directory:\n\nApp skeleton materialized. Verify the seeded layout, then run the independent examiner:\n\nStructure is correct. Now run the independent examiner on the app:\n\nApp 验收 **PASS** —— 五门全过,六项行为考(4 face + 2 wire)全绿。现在发布进 preset 同源上线:\n\nThe sqlite service face is live. Now seed demo data (user approved) — batches across categories with a mix of normal / near-expiry / expired, plus movement history:\n\n6 个演示批次已入库。再补上出入库流水,让「批次历史」打开就有内容:\n\n数据就位。顺手把苹果批次的余量修成与流水一致(50 − 8 = 42),然后注册页面预览:\n\n数据全部就位。注册页面预览,让用户直接看到看板:\n\n全部完成,预览窗已在右下角打开。交付总结:\n\n```dsh-ui\n{\"title\":\"库存看板 g-b1-stock · 交付完成\",\"gap\":14,\"items\":[{\"type\":\"steps\",\"title\":\"交付链路\",\"items\":[{\"title\":\"preset g-b1-stock 发射 + 独立验收 PASS\",\"detail\":\"两轮场景(入库 HONEY-7781 → 查回余量 30 / 到期 2026-12-31)全过\"},{\"title\":\"定制页面 g-b1-stock-ui 五门验收 PASS\",\"detail\":\"构建 / 骨架锁 / 页面纪律 / 静态可达 / 行为考(4 face + 2 wire)全绿\"},{\"title\":\"deploy_app 发布上线\",\"detail\":\"dist → preset frontend,同源 http://127.0.0.1:3097/assembler/ui/g-b1-stock\"},{\"title\":\"演示数据预置\",\"detail\":\"6 个品类批次 + 出入库流水,含已过期 1 个、临期 3 个,打开即见标红\"}]},{\"type\":\"keyvalue\",\"title\":\"按需核对\",\"items\":[{\"k\":\"按品类分区\",\"v\":\"蔬果 / 乳品 / 日化 / 粮油 分区卡片,每批一行:批次号·品名·数量·生产/到期日\"},{\"k\":\"临期标红\",\"v\":\"≤30 天红色徽标「⚠ 临期剩 N 天」,已过期深红「已过期」,阈值与 agent 口径一致\"},{\"k\":\"一句话入库/出库\",\"v\":\"顶部输入框,如「入库 苹果 50kg 9月30到期」「出库 苹果 20kg」,回车即执行\"},{\"k\":\"批次历史\",\"v\":\"点批次「历史」弹窗,列出该批次全部出入库流水(+/−、备注、时间)\"}]},{\"type\":\"badge\",\"title\":\"回滚保险\",\"items\":[{\"label\":\"deploy_app {presetId:g-b1-stock, rollback:true} 一键还原上一版\",\"variant\":\"outline\"}]}]}\n```\n\n**交付物**\n- Agent:`g-b1-stock`(SQLite 持久化,固定库 `batches` + `movements` 表,persona 内置一句话解析、FIFO 出库、临期口径)\n- 前端:`g-b1-stock-ui`(`~/apps/g-b1-stock-ui`,源码在 `g-b1-stock-pages/`),已发布到 [http://127.0.0.1:3097/assembler/ui/g-b1-stock](http://127.0.0.1:3097/assembler/ui/g-b1-stock)\n- 零件选择:`mcp-sqlite-query-execute / query / service-info` 三件套;刻意砍掉 `ai-complete` 与 `date-diff`(LLM 自己解析/算临期,省 token 税),记录在 preset 的 BOM 缺口里\n\n**说明**:验收探针(`HONEY-7781` 蜂蜜批次)也留在了库里,加上预置的苹果/鲜牛奶/酸奶/番茄/洗衣液/大米,一共 7 个品类 9 个批次,足够看效果。想清空演示数据,一句话「把所有批次清掉」即可,agent 会按规则处理。",
+  "finalTextComplete": true,
+  "hardened": {
+    "at": "2026-08-26T16:30:11.098Z",
+    "checks": [
+      {
+        "name": "硬化·preset 考官末判 ∈ 预期",
+        "ok": true,
+        "detail": "PASS@15:16:03(预期 PASS)"
+      },
+      {
+        "name": "硬化·判定绑定当前字节",
+        "ok": true,
+        "detail": "字节一致"
+      },
+      {
+        "name": "硬化·app 考官末判 ∈ 预期",
+        "ok": true,
+        "detail": "PASS@15:19:48(预期 PASS)"
+      },
+      {
+        "name": "硬化·app 判定绑定当前页面字节",
+        "ok": true,
+        "detail": "页面字节与末判一致"
+      },
+      {
+        "name": "硬化·lock 真伪(g-b1-stock-ui)",
+        "ok": true,
+        "detail": "双哈希吻合(真发射,骨架未越界)"
+      },
+      {
+        "name": "硬化·发布回指(页面=写手页)",
+        "ok": true,
+        "detail": "已发布且回指认领 app(g-b1-stock-ui)"
+      },
+      {
+        "name": "硬化·发布字节对账(frontend≡dist)",
+        "ok": true,
+        "detail": "发布物与构建物逐字节一致"
+      }
+    ],
+    "evidence": {
+      "presetVerdicts": [
+        "15:16:03 PASS",
+        "15:16:03 PASS"
+      ],
+      "appVerdicts": [
+        "15:19:48 PASS g-b1-stock-ui"
+      ],
+      "unclaimedResidue": [
+        ".npm-cache",
+        ".stage-board-relay",
+        ".toolchain",
+        "g-b1-stock-pages",
+        "g-c2-mobile",
+        "g-c3-risk"
+      ],
+      "bomMissing": [
+        "一句话入库/出库解析由 agent 自带 LLM 承担,不装 mcp-ai-call-ai-complete(降级省 token 税)",
+        "临期天数计算由前端页面 JS 与 agent LLM 承担,不装 mcp-date-format-date-diff(降级省 token 税)",
+        "页面不挂通用 frontend-data-desk 模板,改用 emit_app 定制看板页(g-b1-stock-ui)"
+      ]
+    },
+    "verdict": "PASS"
+  }
+}

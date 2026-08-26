@@ -1,0 +1,421 @@
+{
+  "id": "A3",
+  "tier": "A",
+  "name": "设备巡检记录(字段完全不同)",
+  "lane": "scaffold",
+  "checks": [
+    {
+      "name": "硬化·preset 考官末判 ∈ 预期",
+      "ok": true,
+      "detail": "PASS@15:10:41(预期 PASS|SKIPPED)"
+    },
+    {
+      "name": "硬化·判定绑定当前字节",
+      "ok": true,
+      "detail": "字节一致"
+    },
+    {
+      "name": "硬化·app 考官末判 ∈ 预期",
+      "ok": true,
+      "detail": "PASS@15:12:24(预期 PASS|SKIPPED)"
+    },
+    {
+      "name": "硬化·app 判定绑定当前页面字节",
+      "ok": true,
+      "detail": "页面字节与末判一致"
+    },
+    {
+      "name": "硬化·lock 真伪(g-a3-inspect-ui)",
+      "ok": true,
+      "detail": "双哈希吻合(真发射,骨架未越界)"
+    },
+    {
+      "name": "形态路由",
+      "ok": true,
+      "detail": "实得 scaffold,预期 scaffold|preset-only"
+    },
+    {
+      "name": "交付可达",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "资产全通",
+      "ok": true,
+      "detail": "全通"
+    },
+    {
+      "name": "状态装备就位(equipment/init.sql)",
+      "ok": true,
+      "detail": "预建 schema 在"
+    }
+  ],
+  "passed": 9,
+  "total": 9,
+  "verdict": "PASS",
+  "hardEvidence": {
+    "presetVerdicts": [
+      "15:10:41 PASS",
+      "15:10:41 PASS"
+    ],
+    "appVerdicts": [
+      "15:12:24 PASS g-a3-inspect-ui"
+    ],
+    "unclaimedResidue": []
+  },
+  "elapsedSeconds": 219,
+  "tools": [
+    "skill",
+    "bash",
+    "search_catalog",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "read_preset",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "ask_user_question",
+    "todo_write",
+    "emit_preset",
+    "verify_preset",
+    "emit_app",
+    "bash",
+    "read",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "write",
+    "read",
+    "write",
+    "bash",
+    "write",
+    "edit",
+    "edit",
+    "todo_write",
+    "verify_app",
+    "deploy_app",
+    "bash",
+    "preview_register",
+    "todo_write"
+  ],
+  "toolCalls": [
+    {
+      "name": "skill",
+      "t": 4,
+      "args": "{\"name\": \"scaffold\"}"
+    },
+    {
+      "name": "bash",
+      "t": 12,
+      "args": "{\"command\": \"pwd && echo \\\"---\\\" && ls -la /Users/tongtao/apps 2>/dev/null | head -40\", \"description\": \"Show working directory and apps listing\"}"
+    },
+    {
+      "name": "search_catalog",
+      "t": 12,
+      "args": "{\"query\": \"persist records across sessions sqlite state\"}"
+    },
+    {
+      "name": "bash",
+      "t": 18,
+      "args": "{\"command\": \"ls -la /Users/tongtao/apps/note-wall-ui /Users/tongtao/apps/kb-sdk-ui 2>/dev/null && echo \\\"=== schema.inspections ===\\\" && cat /Users/tongtao/apps/schema.inspections.sql 2>/dev/null && e"
+    },
+    {
+      "name": "bash",
+      "t": 18,
+      "args": "{\"command\": \"ls /Users/tongtao/.dsh 2>/dev/null; echo \\\"---\\\"; ls /Users/tongtao/.dsh/presets 2>/dev/null | head -50; echo \\\"---catalog---\\\"; ls /Users/tongtao/.dsh/catalog 2>/dev/null | head -30\", \"d"
+    },
+    {
+      "name": "bash",
+      "t": 20,
+      "args": "{\"command\": \"cat /Users/tongtao/apps/note-wall-ui/PAGE-SPEC.yml /Users/tongtao/apps/note-wall-ui/WRITE-ME.md /Users/tongtao/apps/note-wall-ui/app.config.json\", \"description\": \"Read note-wall-ui specs "
+    },
+    {
+      "name": "bash",
+      "t": 20,
+      "args": "{\"command\": \"grep -rl \\\"preset\\\" /Users/tongtao/.dsh/settings.yaml 2>/dev/null; echo \\\"---\\\"; ls /Users/tongtao/.dsh/source 2>/dev/null | head; echo \\\"---storages---\\\"; ls /Users/tongtao/.dsh/storages"
+    },
+    {
+      "name": "bash",
+      "t": 24,
+      "args": "{\"command\": \"ls /Users/tongtao/.dsh/.agent-presets/ 2>/dev/null; echo \\\"---g-a3?---\\\"; ls /Users/tongtao/.dsh/.agent-presets/ | grep -i \\\"g-a3\\\\|inspect\\\" ; echo \\\"---workspace of note-wall---\\\"; ls /"
+    },
+    {
+      "name": "read_preset",
+      "t": 28,
+      "args": "{\"presetId\": \"g-a2-ledger\"}"
+    },
+    {
+      "name": "bash",
+      "t": 28,
+      "args": "{\"command\": \"echo \\\"=== g-a1 preset.yml ===\\\" && cat /Users/tongtao/.dsh/.agent-presets/g-a1-manual/preset.yml 2>/dev/null; echo; echo \\\"=== g-a2 preset.yml ===\\\" && cat /Users/tongtao/.dsh/.agent-pre"
+    },
+    {
+      "name": "bash",
+      "t": 36,
+      "args": "{\"command\": \"echo \\\"=== g-a1 frontend ===\\\"; ls /Users/tongtao/.dsh/.agent-presets/g-a1-manual/frontend/ 2>/dev/null; ls /Users/tongtao/.dsh/.agent-presets/g-a1-manual/frontend.prev 2>/dev/null; echo "
+    },
+    {
+      "name": "bash",
+      "t": 36,
+      "args": "{\"command\": \"ls /Users/tongtao/apps/note-wall-ui/examples/ 2>/dev/null && echo \\\"---\\\" && ls /Users/tongtao/apps/note-wall-ui/src/pages/ 2>/dev/null && echo \\\"=== app.config ===\\\" && cat /Users/tongta"
+    },
+    {
+      "name": "bash",
+      "t": 40,
+      "args": "{\"command\": \"grep -A4 \\\"capability:\\\" /Users/tongtao/.dsh/.agent-presets/note-wall/preset.yml 2>/dev/null | head -40; echo \\\"=== parts.lock ===\\\"; grep -i \\\"frontend\\\\|sqlite\\\" /Users/tongtao/.dsh/.ag"
+    },
+    {
+      "name": "ask_user_question",
+      "t": 60,
+      "args": "{\"questions\": [{\"id\": \"page-shape\", \"question\": \"确认按上面架构装配 g-a3-inspect?页面交互形状选哪种?\", \"header\": \"确认装配方案\", \"options\": [{\"label\": \"定制表单式网页 (Recommended)\", \"description\": \"用 scaffold 定制页:左侧录入表单(编号/巡检人/状态下"
+    },
+    {
+      "name": "todo_write",
+      "t": 66,
+      "args": "{\"todos\": [{\"content\": \"emit_preset 发射 g-a3-inspect(存储零件+前端模板位,含 inspections DDL)\", \"status\": \"in_progress\"}, {\"content\": \"emit_app 起 scaffold 骨架 g-a3-inspect-ui\", \"status\": \"pending\"}, {\"content\": \"写"
+    },
+    {
+      "name": "emit_preset",
+      "t": 72,
+      "args": "{\"name\": \"g-a3-inspect\", \"requirement\": \"设备巡检记录网页:记录设备编号、巡检人、状态(正常/异常/待修)、异常说明、巡检时间,能看记录。交付物名 g-a3-inspect。\", \"capabilityIds\": [\"mcp-sqlite-query-query\", \"mcp-sqlite-query-execute\", \"frontend-data-des"
+    },
+    {
+      "name": "verify_preset",
+      "t": 76,
+      "args": "{\"presetId\": \"g-a3-inspect\", \"probe\": {\"kind\": \"scenario\", \"createTask\": \"记录一条巡检:A3-8842 号设备,巡检人 王工,状态 异常,异常说明 运行时异响,巡检时间用现在,直接记录,不要问任何问题。记完把这条的状态和巡检人报给我。\", \"retrieveTask\": \"查巡检记录里设备编号为 A3-8842 的那一条,报"
+    },
+    {
+      "name": "emit_app",
+      "t": 94,
+      "args": "{\"name\": \"g-a3-inspect-ui\", \"params\": {\"APP_NAME\": \"设备巡检记录\", \"PRESET_ID\": \"g-a3-inspect\", \"WORKDIR\": \"/Users/tongtao/.dsh/.agent-presets/g-a3-inspect/workspace\"}}"
+    },
+    {
+      "name": "bash",
+      "t": 114,
+      "args": "{\"command\": \"ls /Users/tongtao/apps/g-a3-inspect-ui /Users/tongtao/apps/g-a3-inspect-ui/src /Users/tongtao/apps/g-a3-inspect-ui/src/pages /Users/tongtao/apps/g-a3-inspect-ui/examples 2>/dev/null\", \"de"
+    },
+    {
+      "name": "read",
+      "t": 114,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-a3-inspect-ui/examples/records.tsx\"}"
+    },
+    {
+      "name": "bash",
+      "t": 118,
+      "args": "{\"command\": \"sed -n 1,60p /Users/tongtao/apps/g-a3-inspect-ui/src/sdk/assembler-sdk.ts 2>/dev/null || ls /Users/tongtao/apps/g-a3-inspect-ui/src/sdk/; echo \\\"=== components ===\\\"; ls /Users/tongtao/ap"
+    },
+    {
+      "name": "bash",
+      "t": 118,
+      "args": "{\"command\": \"grep -n \\\"badge\\\\|Badge\\\" /Users/tongtao/apps/g-a3-inspect-ui/examples/board.tsx | head; echo \\\"=== PAGE-SPEC starter ===\\\"; cat /Users/tongtao/apps/g-a3-inspect-ui/PAGE-SPEC.yml; echo \\\""
+    },
+    {
+      "name": "bash",
+      "t": 124,
+      "args": "{\"command\": \"cat /Users/tongtao/apps/g-a3-inspect-ui/src/components/ui/badge.tsx; echo \\\"=== select.tsx head ===\\\"; sed -n 1,30p /Users/tongtao/apps/g-a3-inspect-ui/src/components/ui/select.tsx\", \"des"
+    },
+    {
+      "name": "bash",
+      "t": 136,
+      "args": "{\"command\": \"cat /Users/tongtao/apps/g-a3-inspect-ui/src/App.tsx; echo \\\"=== app.config ===\\\"; cat /Users/tongtao/apps/g-a3-inspect-ui/app.config.json\", \"description\": \"Read App.tsx page registration "
+    },
+    {
+      "name": "write",
+      "t": 160,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-a3-inspect-ui/PAGE-SPEC.yml\", \"content\": \"# PAGE-SPEC — 设备巡检记录(g-a3-inspect):表单录入巡检(设备编号/巡检人/状态/异常说明/巡检时间)、\\n# 记录列表 + 状态筛选/设备编号搜索、状态汇总;全部确定性直连服务脸,零模型。\\n# 表结构以配套 pr"
+    },
+    {
+      "name": "read",
+      "t": 160,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-a3-inspect-ui/PAGE-SPEC.yml\"}"
+    },
+    {
+      "name": "write",
+      "t": 164,
+      "args": "{\"content\": \"# PAGE-SPEC — 设备巡检记录(g-a3-inspect):表单录入巡检(设备编号/巡检人/状态/异常说明/巡检时间)、\\n# 记录列表 + 状态筛选/设备编号搜索、状态汇总;全部确定性直连服务脸,零模型。\\n# 表结构以配套 preset 的装备 DDL 为准:inspections(id, device_no, inspector, status CHECK"
+    },
+    {
+      "name": "bash",
+      "t": 166,
+      "args": "{\"command\": \"grep -n \\\"export function bindEnter\\\\|export function sqliteFace\\\\|export async function sqliteFace\\\" -A 12 /Users/tongtao/apps/g-a3-inspect-ui/src/sdk/assembler-sdk.ts | head -50\", \"desc"
+    },
+    {
+      "name": "write",
+      "t": 183,
+      "args": "{\"content\": \"// 设备巡检记录页:表单直录 + 记录列表 + 状态/设备筛选 + 状态汇总,全走 face 确定性直连,零模型。\\n// 表结构以配套 preset 装备 DDL 为准:inspections(id, device_no, inspector, status, note, inspect_time)。\\nimport { useEffect, useRef, useS"
+    },
+    {
+      "name": "edit",
+      "t": 187,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-a3-inspect-ui/src/pages/inspect.tsx\", \"old_string\": \"      } catch (e) { setErr('读取失败:' + String((e as Error).message)) }\\n    })\\n    return () => { if (searchRef"
+    },
+    {
+      "name": "edit",
+      "t": 189,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-a3-inspect-ui/src/pages/inspect.tsx\", \"new_string\": \"    // eslint-disable-next-line react-hooks/exhaustive-deps\\n  }, [face])\\n\\n  async function doSearch() {\", \""
+    },
+    {
+      "name": "todo_write",
+      "t": 191,
+      "args": "{\"todos\": [{\"content\": \"emit_preset 发射 g-a3-inspect(存储零件+前端模板位,含 inspections DDL)\", \"status\": \"completed\"}, {\"content\": \"emit_app 起 scaffold 骨架 g-a3-inspect-ui\", \"status\": \"completed\"}, {\"content\": \"写"
+    },
+    {
+      "name": "verify_app",
+      "t": 193,
+      "args": "{\"targetDir\": \"/Users/tongtao/apps/g-a3-inspect-ui\"}"
+    },
+    {
+      "name": "deploy_app",
+      "t": 201,
+      "args": "{\"presetId\": \"g-a3-inspect\", \"targetDir\": \"/Users/tongtao/apps/g-a3-inspect-ui\"}"
+    },
+    {
+      "name": "bash",
+      "t": 203,
+      "args": "{\"command\": \"curl -s -o /dev/null -w \\\"HTTP %{http_code}, %{size_download} bytes\\\\n\\\" http://127.0.0.1:3097/assembler/ui/g-a3-inspect && curl -s http://127.0.0.1:3097/assembler/ui/g-a3-inspect | grep "
+    },
+    {
+      "name": "preview_register",
+      "t": 205,
+      "args": "{\"target\": \"http://127.0.0.1:3097/assembler/ui/g-a3-inspect\"}"
+    },
+    {
+      "name": "todo_write",
+      "t": 207,
+      "args": "{\"todos\": [{\"content\": \"emit_preset 发射 g-a3-inspect(存储零件+前端模板位,含 inspections DDL)\", \"status\": \"completed\"}, {\"content\": \"emit_app 起 scaffold 骨架 g-a3-inspect-ui\", \"status\": \"completed\"}, {\"content\": \"写"
+    }
+  ],
+  "usage": {
+    "uncachedInputTokens": 23299,
+    "outputTokens": 21842,
+    "cacheReadTokens": 1210624,
+    "cacheWriteTokens": 0
+  },
+  "usageCollected": true,
+  "endReason": "ended",
+  "answersGiven": [
+    [
+      {
+        "id": "page-shape",
+        "selected": [
+          "定制表单式网页 (Recommended)"
+        ]
+      }
+    ]
+  ],
+  "answerRejected": false,
+  "otherFrameCounts": {
+    "session/subscribed": 1,
+    "session/queue": 2,
+    "session/projection": 383,
+    "question/resolved": 1
+  },
+  "approvalFrames": [],
+  "cwdSnapshot": [
+    ".patch-scaffold-react-run.mjs",
+    ".patch-scaffold-react.mjs",
+    ".stage-g3-voice",
+    ".toolchain",
+    "dsh-docs-qa",
+    "kb-pages",
+    "kb-sdk-ui",
+    "m30-ledger-desk",
+    "note-wall-ui",
+    "schema.inspections.sql",
+    "schema.sql",
+    "vc-daozhen",
+    "vc-kanban",
+    "vc-ledger",
+    "vc-taizhang"
+  ],
+  "audit": {
+    "presetName": "g-a3-inspect",
+    "presetEmitted": true,
+    "apps": [
+      {
+        "name": "g-a3-inspect-ui",
+        "scaffold": "scaffold-react"
+      }
+    ],
+    "appEmitted": true,
+    "scaffolds": [
+      "scaffold-react"
+    ],
+    "pagesWritten": 1,
+    "routes": {
+      "face": 6,
+      "wire": 0,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "sqlite-query",
+      "frontend-data-desk"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null,
+    "handwrittenDirs": [],
+    "stateEquipped": true,
+    "kbPacks": 0
+  },
+  "sessionId": "session-34aabf0f-4a73-4502-a94d-3c58fe47289d",
+  "questionTexts": [
+    "[{\"id\":\"page-shape\",\"question\":\"确认按上面架构装配 g-a3-inspect?页面交互形状选哪种?\",\"header\":\"确认装配方案\",\"options\":[{\"label\":\"定制表单式网页 (Recommended)\",\"description\":\"用 scaffold 定制页:左侧录入表单(编号/巡检人/状态下拉/异常说明/时间),右侧记录表格+筛选,交互最贴合「记录+查看」\"},{\"label\":\"记录台模板页\",\"description\":\"用 frontend-data-desk 模板:一句话记一笔+查询/汇总按钮,更轻量,但交互是对话式输入框\"}]}]"
+  ],
+  "finalText": "我先了解一下当前环境和工作目录里已有的项目结构,再规划这个交付物。\n\n环境里有现成的 scaffold 项目和工具链。我先看看已有交付物的结构约定,以及装配器里的 preset 命名。\n\n已有 g-a1-manual、g-a2-ledger 两个同类交付物,g-a3-inspect 是系列第三个。我看看前两个的构造约定。\n\n环境信息已摸清:这是 g 系列交付物(g-a1-manual、g-a2-ledger 之后),装配流和脚手架约定都已就位,且工作区里已有为本次任务准备好的巡检表 DDL 草案。按装配流契约,先给你过一遍架构,确认后再动手。\n\n**架构草案(设备巡检记录 g-a3-inspect)**\n\n| 项 | 设计 |\n|---|---|\n| 用途 | 巡检记录网页:表单录入「设备编号 / 巡检人 / 状态(正常·异常·待修)/ 异常说明 / 巡检时间」,记录落 SQLite 持久,页面可查看记录列表 |\n| 能力 | ① SQLite 持久化(经 sqlite-query 零件,execute/query)→ 写入与查询,跨会话不丢;② 前端模板位(scaffold 定制页)→ 表单式录入+表格查看,全部确定性直连服务脸,零模型 |\n| 数据模型 | `inspections(id, device_no, inspector, status CHECK('正常','异常','待修'), note, inspect_time)`,带设备编号与时间索引 |\n| 工作流 | 填表 → INSERT → 列表刷新;列表按时间倒序,可按状态/设备编号筛选 |\n| 边界 | 前端只经 SDK 的 sqliteFace 出网;纯记录工具,无对话式 agent 会话 |\n\n缺口:无(存储零件、前端模板均已在目录,无需现场造件)。\n\n方案已确认。开始装配,先建任务清单。\n\nPreset 已发射。并行推进:独立验收 preset 的存储工作流 + 起 scaffold 骨架。\n\n骨架结构清楚了。看一下 App.tsx 如何注册页面,然后开始写 PAGE-SPEC 和页面。\n\n信息齐了,开始写 PAGE-SPEC(考卷)和页面。\n\n确认一下 SDK 里 bindEnter 的签名,然后写页面。\n\n修一下页面里一个多余的 cleanup 逻辑(移除从未添加的监听器没有意义)。\n\n页面写完,更新任务状态并领考。\n\n五门全过。发布上线。\n\n上线成功,注册一个实时预览窗口方便你直接看。\n\n交付完成 ✅ 设备巡检记录网页 **g-a3-inspect** 已上线。\n\n**页面地址:** http://127.0.0.1:3097/assembler/ui/g-a3-inspect (右下角预览窗已打开,可直接操作)\n\n**页面功能**\n- **录入表单**:设备编号、巡检人、状态下拉(正常/异常/待修)、异常说明、巡检时间(默认当前时间)\n- **记录列表**:按巡检时间倒序,状态彩色徽章,支持单条删除(有确认)\n- **筛选与搜索**:按状态筛选、按设备编号回车搜索、一键刷新\n- **状态汇总**:总计 / 正常 / 异常 / 待修 四格计数\n- 全部操作确定性直连 SQLite 服务脸,零模型延迟;数据落库持久,跨会话不丢\n\n**验收结论(独立考官黑盒真跑,全部 PASS)**\n- preset 多轮场景验收 PASS:建档(记一条巡检 A3-8842)→ 按编号取回,状态与巡检人逐项对上\n- app 五门全过:构建 / 骨架锁 / 页面纪律 / 静态伺服 / 行为考——考卷里的 6 个 face 动作(列出、汇总、按状态筛选、按编号搜索、添加、删除)全部真实执行通过\n\n**产出文件**\n- 源码: `g-a3-inspect-ui/src/pages/inspect.tsx`、`g-a3-inspect-ui/PAGE-SPEC.yml`(位于 /Users/tongtao/apps/)\n- 装配: preset `g-a3-inspect`(含 `inspections` 表 DDL),发布产物在 preset 的 frontend 目录;上一版已留快照,如需回退随时可 rollback。",
+  "finalTextComplete": true,
+  "hardened": {
+    "at": "2026-08-26T16:30:11.078Z",
+    "checks": [
+      {
+        "name": "硬化·preset 考官末判 ∈ 预期",
+        "ok": true,
+        "detail": "PASS@15:10:41(预期 PASS|SKIPPED)"
+      },
+      {
+        "name": "硬化·判定绑定当前字节",
+        "ok": true,
+        "detail": "字节一致"
+      },
+      {
+        "name": "硬化·app 考官末判 ∈ 预期",
+        "ok": true,
+        "detail": "PASS@15:12:24(预期 PASS|SKIPPED)"
+      },
+      {
+        "name": "硬化·app 判定绑定当前页面字节",
+        "ok": true,
+        "detail": "页面字节与末判一致"
+      },
+      {
+        "name": "硬化·lock 真伪(g-a3-inspect-ui)",
+        "ok": true,
+        "detail": "双哈希吻合(真发射,骨架未越界)"
+      }
+    ],
+    "evidence": {
+      "presetVerdicts": [
+        "15:10:41 PASS",
+        "15:10:41 PASS"
+      ],
+      "appVerdicts": [
+        "15:12:24 PASS g-a3-inspect-ui"
+      ],
+      "unclaimedResidue": [
+        ".npm-cache",
+        ".stage-board-relay",
+        ".toolchain",
+        "g-b1-stock-pages",
+        "g-c2-mobile",
+        "g-c3-risk"
+      ]
+    },
+    "verdict": "PASS"
+  }
+}

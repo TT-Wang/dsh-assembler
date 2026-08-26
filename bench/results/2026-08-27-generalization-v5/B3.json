@@ -1,0 +1,446 @@
+{
+  "id": "B3",
+  "tier": "B",
+  "name": "语音便签墙(录音→转写→筛选)",
+  "lane": "scaffold",
+  "checks": [
+    {
+      "name": "硬化·preset 考官末判 ∈ 预期",
+      "ok": true,
+      "detail": "SKIPPED@15:33:08(预期 PASS|SKIPPED)"
+    },
+    {
+      "name": "硬化·判定绑定当前字节",
+      "ok": true,
+      "detail": "字节一致"
+    },
+    {
+      "name": "硬化·app 考官末判 ∈ 预期",
+      "ok": true,
+      "detail": "PASS@15:37:41(预期 PASS|SKIPPED)"
+    },
+    {
+      "name": "硬化·app 判定绑定当前页面字节",
+      "ok": true,
+      "detail": "页面字节与末判一致"
+    },
+    {
+      "name": "硬化·lock 真伪(g-b3-voice-ui)",
+      "ok": true,
+      "detail": "双哈希吻合(真发射,骨架未越界)"
+    },
+    {
+      "name": "硬化·发布回指(页面=写手页)",
+      "ok": true,
+      "detail": "已发布且回指认领 app(g-b3-voice-ui)"
+    },
+    {
+      "name": "硬化·发布字节对账(frontend≡dist)",
+      "ok": true,
+      "detail": "发布物与构建物逐字节一致"
+    },
+    {
+      "name": "硬化·字节纪律(全自由区严判)",
+      "ok": true,
+      "detail": "服务脸/直传在场,全自由区无 base64 化路径"
+    },
+    {
+      "name": "形态路由",
+      "ok": true,
+      "detail": "实得 scaffold,预期 scaffold"
+    },
+    {
+      "name": "写了页",
+      "ok": true,
+      "detail": "1 张页"
+    },
+    {
+      "name": "交付可达",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "资产全通",
+      "ok": true,
+      "detail": "全通"
+    },
+    {
+      "name": "直连动作数达标",
+      "ok": true,
+      "detail": "face=4 需 ≥2(wire=1 ai-thin=0 local=4)"
+    },
+    {
+      "name": "用上预期零件",
+      "ok": true,
+      "detail": "BOM:speech-io,sqlite-query"
+    },
+    {
+      "name": "字节纪律(音频不过模型)",
+      "ok": true,
+      "detail": "走服务脸/直传"
+    }
+  ],
+  "passed": 15,
+  "total": 15,
+  "verdict": "PASS",
+  "hardEvidence": {
+    "presetVerdicts": [
+      "15:33:08 SKIPPED",
+      "15:33:08 SKIPPED"
+    ],
+    "appVerdicts": [
+      "15:37:41 PASS g-b3-voice-ui"
+    ],
+    "unclaimedResidue": [],
+    "bomMissing": [
+      "浏览器端语音便签前端模板(录音/上传/卡片墙/标签筛选/朗读)目录中没有现成 frontend 模板,由 emit_app 写手席定制实现,不入库为零件"
+    ]
+  },
+  "elapsedSeconds": 553,
+  "tools": [
+    "skill",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "match_catalog",
+    "grep",
+    "glob",
+    "emit_preset",
+    "verify_preset",
+    "emit_app",
+    "read",
+    "read_preset",
+    "read",
+    "read",
+    "glob",
+    "read",
+    "glob",
+    "glob",
+    "glob",
+    "read",
+    "read",
+    "read",
+    "read",
+    "todo_write",
+    "write",
+    "write",
+    "edit",
+    "edit",
+    "edit",
+    "todo_write",
+    "verify_app",
+    "deploy_app",
+    "preview_register",
+    "todo_write"
+  ],
+  "toolCalls": [
+    {
+      "name": "skill",
+      "t": 6,
+      "args": "{\"name\": \"scaffold\"}"
+    },
+    {
+      "name": "search_catalog",
+      "t": 14,
+      "args": "{\"query\": \"语音转写 音频转文字 speech-to-text transcription\"}"
+    },
+    {
+      "name": "search_catalog",
+      "t": 14,
+      "args": "{\"query\": \"SQLite 持久化存储 便签 记录 notes persistence\"}"
+    },
+    {
+      "name": "search_catalog",
+      "t": 14,
+      "args": "{\"query\": \"音频处理 语音识别 ASR audio processing\"}"
+    },
+    {
+      "name": "match_catalog",
+      "t": 44,
+      "args": "{\"requirement\": \"做一个语音便签墙网页:可以录音或上传音频当便签,自动转写成文字,便签按标签筛选,还能把便签朗读出来。交付物:preset g-b3-voice + 前端 ~/apps/g-b3-voice-ui。\", \"spec\": {\"capabilities\": [{\"name\": \"浏览器内录音采集(MediaRecorder)\", \"why\": \"用户对着麦克风说话即可生"
+    },
+    {
+      "name": "grep",
+      "t": 229,
+      "args": "{\"pattern\": \"speech-io|transcribe\", \"path\": \"/Users/tongtao/code/deepseek-harness-rc8\", \"include\": \"*.js\"}"
+    },
+    {
+      "name": "glob",
+      "t": 229,
+      "args": "{\"pattern\": \"**/scaffold/**\", \"path\": \"/Users/tongtao/code/deepseek-harness-rc8\"}"
+    },
+    {
+      "name": "emit_preset",
+      "t": 249,
+      "args": "{\"name\": \"g-b3-voice\", \"requirement\": \"语音便签墙:录音或上传音频当便签,自动转写文字,按标签筛选,朗读便签。前端 ~/apps/g-b3-voice-ui,页面直连语音服务面与 SQLite 服务面。\", \"capabilityIds\": [\"mcp-speech-io-speech-info\", \"mcp-speech-io-transcribe\", \"m"
+    },
+    {
+      "name": "verify_preset",
+      "t": 259,
+      "args": "{\"presetId\": \"g-b3-voice\", \"probe\": {\"kind\": \"scenario\", \"createTask\": \"在 notes 表新建一条便签:text 存『今天语音墙验收通过。』,tags 存 work,audio_name 留空。完成后报出这条便签的 id。\", \"retrieveTask\": \"查我上次建的那条便签(text 含『验收通过』),报出它的 tag"
+    },
+    {
+      "name": "emit_app",
+      "t": 259,
+      "args": "{\"name\": \"g-b3-voice-ui\", \"targetDir\": \"/Users/tongtao/apps/g-b3-voice-ui\", \"params\": {\"APP_NAME\": \"g-b3-voice-ui\", \"PRESET_ID\": \"g-b3-voice\", \"WORKDIR\": \"/Users/tongtao/.dsh/.agent-presets/g-b3-voice"
+    },
+    {
+      "name": "read",
+      "t": 357,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-b3-voice-ui/WRITE-ME.md\"}"
+    },
+    {
+      "name": "read_preset",
+      "t": 357,
+      "args": "{\"presetId\": \"g-b3-voice\"}"
+    },
+    {
+      "name": "read",
+      "t": 361,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-b3-voice-ui/examples/board.tsx\"}"
+    },
+    {
+      "name": "read",
+      "t": 361,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-b3-voice-ui/examples/records.tsx\"}"
+    },
+    {
+      "name": "glob",
+      "t": 361,
+      "args": "{\"path\": \"/Users/tongtao/apps/g-b3-voice-ui/src/sdk\", \"pattern\": \"*\"}"
+    },
+    {
+      "name": "read",
+      "t": 363,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-b3-voice-ui/src/sdk/assembler-sdk.ts\"}"
+    },
+    {
+      "name": "glob",
+      "t": 399,
+      "args": "{\"path\": \"/Users/tongtao/apps/g-b3-voice-ui\", \"pattern\": \"**/PAGE-SPEC*\"}"
+    },
+    {
+      "name": "glob",
+      "t": 399,
+      "args": "{\"path\": \"/Users/tongtao/apps/g-b3-voice-ui\", \"pattern\": \"**/*.yml\"}"
+    },
+    {
+      "name": "glob",
+      "t": 399,
+      "args": "{\"path\": \"/Users/tongtao/apps/g-b3-voice-ui/src\", \"pattern\": \"**/*\"}"
+    },
+    {
+      "name": "read",
+      "t": 401,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-b3-voice-ui/PAGE-SPEC.yml\"}"
+    },
+    {
+      "name": "read",
+      "t": 401,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-b3-voice-ui/src/App.tsx\"}"
+    },
+    {
+      "name": "read",
+      "t": 419,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-b3-voice-ui/src/components/ui/dialog.tsx\"}"
+    },
+    {
+      "name": "read",
+      "t": 419,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-b3-voice-ui/src/components/ui/button.tsx\"}"
+    },
+    {
+      "name": "todo_write",
+      "t": 473,
+      "args": "{\"todos\": [{\"content\": \"架构设计与零件选型(match_catalog)\", \"status\": \"completed\"}, {\"content\": \"发射 preset g-b3-voice\", \"status\": \"completed\"}, {\"content\": \"emit_app 起 scaffold g-b3-voice-ui\", \"status\": \"compl"
+    },
+    {
+      "name": "write",
+      "t": 477,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-b3-voice-ui/PAGE-SPEC.yml\", \"content\": \"# PAGE-SPEC — 语音便签墙(页面动作路由标注;同时是行为考考卷种子)。\\n#   route: face    确定性流(SQL 直连服务脸)—— 必须给 sql;可给 effect(考官验效查询)\\n#   route: wire "
+    },
+    {
+      "name": "write",
+      "t": 501,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-b3-voice-ui/src/pages/wall.tsx\", \"content\": \"// 语音便签墙 — 录音/上传音频自动转写为便签,按标签筛选,浏览器 TTS 朗读。\\n// 路由纪律:读墙/增/改/删 = face(SQL 直连,零模型);录音/上传/筛选/朗读 = local(纯前端);\\n// \\\"便签助手\\"
+    },
+    {
+      "name": "edit",
+      "t": 513,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-b3-voice-ui/src/pages/wall.tsx\", \"old_string\": \"import { useEffect, useRef, useState } from 'react'\", \"new_string\": \"import { useEffect, useRef, useState, type Cha"
+    },
+    {
+      "name": "edit",
+      "t": 513,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-b3-voice-ui/src/pages/wall.tsx\", \"old_string\": \"  function onFile(e: React.ChangeEvent<HTMLInputElement>) {\", \"new_string\": \"  function onFile(e: ChangeEvent<HTMLI"
+    },
+    {
+      "name": "edit",
+      "t": 517,
+      "args": "{\"file_path\": \"/Users/tongtao/apps/g-b3-voice-ui/src/pages/wall.tsx\", \"new_string\": \"  // ── 回车提交(IME 守卫由 bindEnter 内置)────────────────────────────────\\n  useEffect(() => {\\n    const el = document.ge"
+    },
+    {
+      "name": "todo_write",
+      "t": 521,
+      "args": "{\"todos\": [{\"content\": \"架构设计与零件选型(match_catalog)\", \"status\": \"completed\"}, {\"content\": \"发射 preset g-b3-voice\", \"status\": \"completed\"}, {\"content\": \"emit_app 起 scaffold g-b3-voice-ui\", \"status\": \"compl"
+    },
+    {
+      "name": "verify_app",
+      "t": 521,
+      "args": "{\"targetDir\": \"/Users/tongtao/apps/g-b3-voice-ui\"}"
+    },
+    {
+      "name": "deploy_app",
+      "t": 533,
+      "args": "{\"presetId\": \"g-b3-voice\", \"targetDir\": \"/Users/tongtao/apps/g-b3-voice-ui\"}"
+    },
+    {
+      "name": "preview_register",
+      "t": 535,
+      "args": "{\"target\": \"http://127.0.0.1:3097/assembler/ui/g-b3-voice\"}"
+    },
+    {
+      "name": "todo_write",
+      "t": 539,
+      "args": "{\"todos\": [{\"content\": \"架构设计与零件选型(match_catalog)\", \"status\": \"completed\"}, {\"content\": \"发射 preset g-b3-voice\", \"status\": \"completed\"}, {\"content\": \"emit_app 起 scaffold g-b3-voice-ui\", \"status\": \"compl"
+    }
+  ],
+  "usage": {
+    "uncachedInputTokens": 39914,
+    "outputTokens": 32358,
+    "cacheReadTokens": 1005824,
+    "cacheWriteTokens": 0
+  },
+  "usageCollected": true,
+  "endReason": "ended",
+  "answersGiven": [],
+  "answerRejected": false,
+  "otherFrameCounts": {
+    "session/subscribed": 1,
+    "session/queue": 2,
+    "session/projection": 310
+  },
+  "approvalFrames": [],
+  "cwdSnapshot": [
+    ".patch-scaffold-react-run.mjs",
+    ".patch-scaffold-react.mjs",
+    ".stage-g3-voice",
+    ".toolchain",
+    "dsh-docs-qa",
+    "g-a3-inspect-ui",
+    "g-b1-stock-pages",
+    "g-b1-stock-ui",
+    "g-b2-ticket-ui",
+    "kb-pages",
+    "kb-sdk-ui",
+    "m30-ledger-desk",
+    "note-wall-ui",
+    "schema.inspections.sql",
+    "schema.sql",
+    "vc-daozhen",
+    "vc-kanban",
+    "vc-ledger",
+    "vc-taizhang"
+  ],
+  "audit": {
+    "presetName": "g-b3-voice",
+    "presetEmitted": true,
+    "apps": [
+      {
+        "name": "g-b3-voice-ui",
+        "scaffold": "scaffold-react"
+      }
+    ],
+    "appEmitted": true,
+    "scaffolds": [
+      "scaffold-react"
+    ],
+    "pagesWritten": 1,
+    "routes": {
+      "face": 4,
+      "wire": 1,
+      "ai-thin": 0,
+      "local": 4
+    },
+    "partsUsed": [
+      "speech-io",
+      "sqlite-query"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": true,
+    "handwrittenDirs": [],
+    "stateEquipped": true,
+    "kbPacks": 0
+  },
+  "sessionId": "session-5138a9da-0272-4438-81bc-76596f425ea0",
+  "questionTexts": [],
+  "finalText": "我来先按 scaffold 流程梳理一下这个「语音便签墙」的架构，然后查零件目录。\n\n**架构要点（seams 快照）：**\n- 录音/上传 → 浏览器端产出音频 blob（客户端本地，无网络）\n- 转写 → blob 必须跨到 agent 能力（真正的 seam，要确认目录里有没有 ASR/转写零件）\n- 便签持久化 + 标签筛选 → SQLite 状态零件\n- 朗读 → 浏览器 `speechSynthesis` 客户端本地即可，不跨 seam\n- 交付物：preset `g-b3-voice` + 前端 `~/apps/g-b3-voice-ui`\n\n先并行查目录：\n\n零件目录里有现成的语音家族（`mcp-speech-io-*`：转写/直连端点/TTS）和 SQLite 查询零件。我先跑架构映射，同时去 checkout 里看 speech-io 零件的服务面契约和 scaffold 示例结构：\n\n匹配完成：6 个零件覆盖（speech-io 家族 + sqlite 查询家族），缺的是前端模板——正好由我们 `emit_app` 写手席来做，不用造新件。现在发射 preset `g-b3-voice`：\n\nPreset 已发射。现在并行做两件事：独立验收 preset（探针绕开 ASR，测 SQLite 便签读写主流程——`SPEECH_API_KEY` 待配置，转写链路稍后单独验证），同时起 scaffold 前端：\n\n验收结论要如实转述：`SPEECH_API_KEY` 待配置，verify_preset 跳过了实调（装配本身正确）。现在进入写手席，先读模板契约和 preset 的 DDL：\n\nDDL 和 SDK 契约都清楚了。读一下两个 golden example 和 SDK 源码，照猫画虎：\n\n读一下 SDK 源码，确认 speech 服务面的确切 API：\n\nSDK 契约完全清楚了。查一下骨架里 PAGE-SPEC 的格式要求和现有 pages 目录状态：\n\n格式确认。看一下骨架 UI 组件的确切 API（dialog 最可能有出入）：\n\n契约齐了。现在写考卷和页面。先建任务清单，然后写 `PAGE-SPEC.yml`：\n\n考卷写好。现在写便签墙页面（核心交付物）：\n\n页面写好了，但有两个隐患要修：`bindEnter` 导入了没用（TS noUnusedLocals 会挂 build 门），以及 `React.ChangeEvent` 用了没导入的 React 命名空间。修掉：\n\n现在加上 `bindEnter` 的实际用途（回车保存草稿/编辑）：\n\n修好了。现在跑 `verify_app` 五门验收：\n\n五门全过，行为考也全 ✓。发布上线：\n\n搞定，交付已上线。右下角预览窗已打开（http://127.0.0.1:3097/assembler/ui/g-b3-voice）。\n\n```dsh-ui\n{\"title\":\"语音便签墙 · 交付单\",\"gap\":12,\"items\":[{\"type\":\"keyvalue\",\"rows\":[{\"k\":\"页面 URL\",\"v\":\"/assembler/ui/g-b3-voice(同源,已上线)\"},{\"k\":\"前端源码\",\"v\":\"~/apps/g-b3-voice-ui/src/pages/wall.tsx\"},{\"k\":\"agent preset\",\"v\":\"g-b3-voice(speech-io + sqlite-query 家族)\"},{\"k\":\"转写链路\",\"v\":\"浏览器直传语音服务面,大字节不走模型\"},{\"k\":\"朗读\",\"v\":\"浏览器 speechSynthesis(本地零往返)\"}]},{\"type\":\"steps\",\"title\":\"功能怎么实现的\",\"items\":[{\"title\":\"录音/上传 → 转写\",\"detail\":\"MediaRecorder 或文件上传产出 blob,直传 POST /transcribe/<name>;失败自动降级为手填文字\"},{\"title\":\"便签持久化\",\"detail\":\"SQLite notes 表(id/text/audio_name/tags/created_at),增删改查全走 face 零模型\"},{\"title\":\"标签筛选\",\"detail\":\"标签 chip 一行,点击即按标签过滤,免考 local 路由\"},{\"title\":\"朗读/回听\",\"detail\":\"每张卡有播放条回听原始录音,🔊 按钮用中文语音朗读文字,再点停止\"}]},{\"type\":\"callout\",\"tone\":\"warn\",\"title\":\"一处待办:SPEECH_API_KEY 未配置\",\"detail\":\"verify_preset 因凭证缺失跳过实调(装配正确,非失败)。配到 host 环境变量后重验即可;在此之前页面自动降级为手动输入文字,其余功能不受影响。\"}]}\n```\n\n**验收结论（如实）**\n- `verify_app` 五门全 PASS：构建零错误、骨架锁未越界、页面纪律干净、静态资产真伺服、行为考真跑（face 增/改/删便签 ✓、wire「便签助手」✓，local 录音/上传/筛选/朗读免考留档）。\n- `verify_preset` **SKIPPED**：唯一凭证 `SPEECH_API_KEY` 待配置——装进 host 环境变量后重验即可（已入台账，7 天内同字节重验自动沿用），之前页面自动走手动输入降级路径。\n\n**架构要点**（scaffold 纪律）：增删改查/渲染全走 `face`（SQL 直连零模型，毫秒级）；录音/上传/筛选/朗读纯前端 `local`；「便签助手」按钮走 `wire`（真 agent 会话，可兜底转写、按标签归类小结）；没有为一次性解析开会话，也没有把大音频字节塞给模型——转写直传语音服务面。回滚随时可用：`deploy_app {\"presetId\":\"g-b3-voice\",\"rollback\":true}`。",
+  "finalTextComplete": true,
+  "hardened": {
+    "at": "2026-08-26T16:30:11.136Z",
+    "checks": [
+      {
+        "name": "硬化·preset 考官末判 ∈ 预期",
+        "ok": true,
+        "detail": "SKIPPED@15:33:08(预期 PASS|SKIPPED)"
+      },
+      {
+        "name": "硬化·判定绑定当前字节",
+        "ok": true,
+        "detail": "字节一致"
+      },
+      {
+        "name": "硬化·app 考官末判 ∈ 预期",
+        "ok": true,
+        "detail": "PASS@15:37:41(预期 PASS|SKIPPED)"
+      },
+      {
+        "name": "硬化·app 判定绑定当前页面字节",
+        "ok": true,
+        "detail": "页面字节与末判一致"
+      },
+      {
+        "name": "硬化·lock 真伪(g-b3-voice-ui)",
+        "ok": true,
+        "detail": "双哈希吻合(真发射,骨架未越界)"
+      },
+      {
+        "name": "硬化·发布回指(页面=写手页)",
+        "ok": true,
+        "detail": "已发布且回指认领 app(g-b3-voice-ui)"
+      },
+      {
+        "name": "硬化·发布字节对账(frontend≡dist)",
+        "ok": true,
+        "detail": "发布物与构建物逐字节一致"
+      },
+      {
+        "name": "硬化·字节纪律(全自由区严判)",
+        "ok": true,
+        "detail": "服务脸/直传在场,全自由区无 base64 化路径"
+      }
+    ],
+    "evidence": {
+      "presetVerdicts": [
+        "15:33:08 SKIPPED",
+        "15:33:08 SKIPPED"
+      ],
+      "appVerdicts": [
+        "15:37:41 PASS g-b3-voice-ui"
+      ],
+      "unclaimedResidue": [
+        ".npm-cache",
+        ".stage-board-relay",
+        ".toolchain",
+        "g-b1-stock-pages",
+        "g-c2-mobile",
+        "g-c3-risk"
+      ],
+      "bomMissing": [
+        "浏览器端语音便签前端模板(录音/上传/卡片墙/标签筛选/朗读)目录中没有现成 frontend 模板,由 emit_app 写手席定制实现,不入库为零件"
+      ]
+    },
+    "verdict": "PASS"
+  }
+}
