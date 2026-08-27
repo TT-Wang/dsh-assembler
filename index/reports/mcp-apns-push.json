@@ -1,0 +1,17 @@
+{
+  "id": "mcp-apns-push",
+  "verifiedAt": "2026-08-27T00:28:38.059Z",
+  "node": "v22.22.3",
+  "smoke": "pass",
+  "submittedByAgent": true,
+  "tools": [
+    {
+      "name": "push-send",
+      "description": "Send an iPhone push notification. channel=apns sends directly to Apple Push Notification service (HTTP/2 + ES256 JWT; re"
+    },
+    {
+      "name": "push-config-status",
+      "description": "Report whether the APNs / Bark push channels are configured. Lists ONLY the names of missing environment variables (neve"
+    }
+  ]
+}

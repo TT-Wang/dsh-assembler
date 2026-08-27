@@ -1,0 +1,30 @@
+{
+  "probes": [
+    {
+      "question": "澄音 A1 的保修期是多久?",
+      "mustInclude": [
+        "十二个月"
+      ]
+    },
+    {
+      "question": "降噪有哪几档?",
+      "mustInclude": [
+        "通勤",
+        "通透"
+      ]
+    },
+    {
+      "question": "怎么切换降噪档位?",
+      "mustInclude": [
+        "长按左耳 2 秒"
+      ]
+    },
+    {
+      "question": "快充多久能听多久?",
+      "mustInclude": [
+        "10 分钟",
+        "2 小时"
+      ]
+    }
+  ]
+}

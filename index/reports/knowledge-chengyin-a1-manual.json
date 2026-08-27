@@ -1,0 +1,63 @@
+{
+  "id": "chengyin-a1-manual",
+  "kind": "knowledge",
+  "source": "用户提供的 A 产品手册(bench/.pg-corpus/a/A-产品手册.md)",
+  "docsDir": "/Users/tongtao/code/dsh-assembler/bench/.pg-corpus/a",
+  "verifiedAt": "2026-08-27T01:03:59.343Z",
+  "probes": [
+    {
+      "question": "澄音 A1 的保修期是多久?",
+      "hits": [
+        {
+          "mark": "十二个月",
+          "found": true,
+          "in": "A-产品手册.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "降噪有哪几档?",
+      "hits": [
+        {
+          "mark": "通勤",
+          "found": true,
+          "in": "A-产品手册.md"
+        },
+        {
+          "mark": "通透",
+          "found": true,
+          "in": "A-产品手册.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "怎么切换降噪档位?",
+      "hits": [
+        {
+          "mark": "长按左耳 2 秒",
+          "found": true,
+          "in": "A-产品手册.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "快充多久能听多久?",
+      "hits": [
+        {
+          "mark": "10 分钟",
+          "found": true,
+          "in": "A-产品手册.md"
+        },
+        {
+          "mark": "2 小时",
+          "found": true,
+          "in": "A-产品手册.md"
+        }
+      ],
+      "pass": true
+    }
+  ]
+}

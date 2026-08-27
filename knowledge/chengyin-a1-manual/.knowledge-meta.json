@@ -1,0 +1,11 @@
+{
+  "id": "chengyin-a1-manual",
+  "kind": "knowledge",
+  "client": null,
+  "source": "用户提供的 A 产品手册(bench/.pg-corpus/a/A-产品手册.md)",
+  "version": "2026-08-27",
+  "license": "(客户资料:以合同为准)",
+  "docCount": 1,
+  "totalBytes": 289,
+  "scaffoldedAt": "2026-08-27T01:03:59.342Z"
+}

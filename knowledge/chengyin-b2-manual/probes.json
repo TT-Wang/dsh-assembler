@@ -1,0 +1,31 @@
+{
+  "probes": [
+    {
+      "question": "B2 的保修期是多久?",
+      "mustInclude": [
+        "二十四个月"
+      ]
+    },
+    {
+      "question": "B2 防水等级如何?能否游泳?",
+      "mustInclude": [
+        "IP67",
+        "游泳不可用"
+      ]
+    },
+    {
+      "question": "B2 续航多久?怎么充电?",
+      "mustInclude": [
+        "9 小时",
+        "磁吸充电"
+      ]
+    },
+    {
+      "question": "B2 的佩戴方式是怎样的?",
+      "mustInclude": [
+        "不入耳",
+        "颞骨传导"
+      ]
+    }
+  ]
+}

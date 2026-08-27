@@ -1,0 +1,45 @@
+{
+  "id": "mcp-apns-push",
+  "pkg": null,
+  "version": "0.0.1",
+  "repo": "local",
+  "license": "MIT",
+  "kind": "service",
+  "service": "Apple Push Notification service (api.push.apple.com via HTTP/2) and Bark relay (api.day.app or self-hosted)",
+  "provider": "",
+  "terms": "",
+  "rateLimit": "",
+  "network": true,
+  "requiredSecrets": [
+    {
+      "env": "APNS_TEAM_ID",
+      "purpose": "Apple Developer Team ID (JWT iss claim)"
+    },
+    {
+      "env": "APNS_KEY_ID",
+      "purpose": "APNs auth key id (JWT kid claim)"
+    },
+    {
+      "env": "APNS_AUTH_KEY",
+      "purpose": "APNs .p8 private key PEM content (ES256 signing)"
+    },
+    {
+      "env": "APNS_BUNDLE_ID",
+      "purpose": "App bundle id registered for push (apns-topic header)"
+    },
+    {
+      "env": "APNS_DEVICE_TOKEN",
+      "purpose": "Device token of the installed push-enabled iOS app"
+    },
+    {
+      "env": "BARK_KEY",
+      "purpose": "Bark iOS app device key (relay channel)"
+    },
+    {
+      "env": "BARK_SERVER",
+      "purpose": "Optional custom Bark server base URL (default https://api.day.app)"
+    }
+  ],
+  "submittedByAgent": true,
+  "scaffoldedAt": "2026-08-27T00:28:28.140Z"
+}

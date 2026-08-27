@@ -1,0 +1,454 @@
+{
+  "id": "P2",
+  "tier": "ensemble",
+  "name": "知识重装(kb 增量+代际链)",
+  "lane": "preset-only",
+  "checks": [
+    {
+      "name": "硬化·preset 考官末判 ∈ 预期",
+      "ok": true,
+      "detail": "PASS@01:06:37(预期 PASS|SKIPPED)"
+    },
+    {
+      "name": "硬化·判定绑定当前字节",
+      "ok": true,
+      "detail": "字节一致"
+    },
+    {
+      "name": "硬化·kb 出处绑定考卷语料",
+      "ok": true,
+      "detail": "入库包 docsDir = 本题语料目录"
+    },
+    {
+      "name": "形态路由",
+      "ok": true,
+      "detail": "实得 preset-only,预期 scaffold|preset-only"
+    },
+    {
+      "name": "合奏·双知识包落地且各绑语料",
+      "ok": true,
+      "detail": "kb 包数 2;绑定语料目录 2/2"
+    },
+    {
+      "name": "合奏·增量重发代际链(记分板≥2·末判绑定新字节·prev 快照)",
+      "ok": true,
+      "detail": "判定 2 次;末判 PASS;字节绑定 ✓;preset.prev 在"
+    }
+  ],
+  "passed": 6,
+  "total": 6,
+  "verdict": "PASS",
+  "evidence": {
+    "presetVerdicts": [
+      "01:04:53 PASS",
+      "01:04:53 PASS",
+      "01:06:37 PASS",
+      "01:06:37 PASS"
+    ],
+    "appVerdicts": [],
+    "kbReports": [
+      {
+        "id": "chengyin-a1-manual",
+        "source": "用户提供的 A 产品手册(bench/.pg-corpus/a/A-产品手册.md)",
+        "docsDir": "/Users/tongtao/code/dsh-assembler/bench/.pg-corpus/a"
+      },
+      {
+        "id": "chengyin-b2-manual",
+        "source": "用户提供的 B 产品手册(bench/.pg-corpus/b/B-产品手册.md)",
+        "docsDir": "/Users/tongtao/code/dsh-assembler/bench/.pg-corpus/b"
+      }
+    ],
+    "unclaimedResidue": []
+  },
+  "elapsedSeconds": 295,
+  "segments": [
+    {
+      "i": 1,
+      "elapsedSeconds": 193,
+      "endReason": "ended"
+    },
+    {
+      "i": 2,
+      "elapsedSeconds": 103,
+      "endReason": "ended"
+    }
+  ],
+  "tools": [
+    "bash",
+    "search_catalog",
+    "read",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "grep",
+    "grep",
+    "grep",
+    "bash",
+    "bash",
+    "grep",
+    "read",
+    "grep",
+    "search_catalog",
+    "read",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "bash",
+    "read",
+    "ask_user_question",
+    "todo_write",
+    "add_knowledge",
+    "emit_preset",
+    "read_preset",
+    "verify_preset",
+    "todo_write",
+    "preview_register",
+    "read",
+    "grep",
+    "read",
+    "todo_write",
+    "add_knowledge",
+    "emit_preset",
+    "read_preset",
+    "verify_preset",
+    "todo_write",
+    "preview_refresh"
+  ],
+  "toolCalls": [
+    {
+      "name": "bash",
+      "seg": 1,
+      "t": 10,
+      "args": "{\"command\": \"ls -la /Users/tongtao/code/dsh-assembler/bench/.pg-corpus/a && echo \\\"---\\\" && find /Users/tongtao/code/dsh-assembler/bench/.pg-corpus/a -type f | head -50\", \"description\": \"List manual c"
+    },
+    {
+      "name": "search_catalog",
+      "seg": 1,
+      "t": 10,
+      "args": "{\"query\": \"answer questions from uploaded documents with citations (RAG knowledge retrieval)\"}"
+    },
+    {
+      "name": "read",
+      "seg": 1,
+      "t": 12,
+      "args": "{\"file_path\": \"/Users/tongtao/code/dsh-assembler/bench/.pg-corpus/a/A-产品手册.md\"}"
+    },
+    {
+      "name": "search_catalog",
+      "seg": 1,
+      "t": 12,
+      "args": "{\"query\": \"knowledge pack retrieval answer from manual with source citation\"}"
+    },
+    {
+      "name": "search_catalog",
+      "seg": 1,
+      "t": 16,
+      "args": "{\"query\": \"retrieval augmented generation answer with cited sources from knowledge base\"}"
+    },
+    {
+      "name": "search_catalog",
+      "seg": 1,
+      "t": 18,
+      "args": "{\"query\": \"知识库 检索增强 回答问题时引用出处\"}"
+    },
+    {
+      "name": "search_catalog",
+      "seg": 1,
+      "t": 20,
+      "args": "{\"query\": \"knowledge\", \"limit\": 10}"
+    },
+    {
+      "name": "search_catalog",
+      "seg": 1,
+      "t": 20,
+      "args": "{\"query\": \"sqlite persistence store customer conversation records sessions\", \"limit\": 8}"
+    },
+    {
+      "name": "grep",
+      "seg": 1,
+      "t": 26,
+      "args": "{\"pattern\": \"knowledge\", \"path\": \"/Users/tongtao/code/deepseek-harness-rc8\", \"include\": \"*.md\"}"
+    },
+    {
+      "name": "grep",
+      "seg": 1,
+      "t": 26,
+      "args": "{\"pattern\": \"capabilityId|capability_ids|knowledgePack|packId\", \"path\": \"/Users/tongtao/code/deepseek-harness-rc8\", \"include\": \"*.{ts,js,mjs}\"}"
+    },
+    {
+      "name": "grep",
+      "seg": 1,
+      "t": 28,
+      "args": "{\"pattern\": \"add_knowledge|knowledge-pack|knowledgePack|knowledge pack\", \"path\": \"/Users/tongtao/code/deepseek-harness-rc8\"}"
+    },
+    {
+      "name": "bash",
+      "seg": 1,
+      "t": 30,
+      "args": "{\"command\": \"ls /Users/tongtao/code/dsh-assembler/ && echo \\\"---\\\" && find /Users/tongtao/code/dsh-assembler -maxdepth 2 -iname \\\"*.md\\\" | head -40\", \"description\": \"Inspect dsh-assembler repo layout\""
+    },
+    {
+      "name": "bash",
+      "seg": 1,
+      "t": 34,
+      "args": "{\"command\": \"ls -la /Users/tongtao/code/dsh-assembler/knowledge/ 2>/dev/null; echo \\\"---\\\"; grep -rn \\\"knowledge\\\" /Users/tongtao/code/dsh-assembler/docs/ROADMAP.md /Users/tongtao/code/dsh-assembler/d"
+    },
+    {
+      "name": "grep",
+      "seg": 1,
+      "t": 34,
+      "args": "{\"path\": \"/Users/tongtao/code/dsh-assembler/src\", \"pattern\": \"knowledge\"}"
+    },
+    {
+      "name": "read",
+      "seg": 1,
+      "t": 38,
+      "args": "{\"file_path\": \"/Users/tongtao/code/dsh-assembler/src/orchestrated-tools.ts\", \"offset\": 1823, \"limit\": 140}"
+    },
+    {
+      "name": "grep",
+      "seg": 1,
+      "t": 46,
+      "args": "{\"path\": \"/Users/tongtao/code/dsh-assembler/src\", \"pattern\": \"死知识|kb/|canRead|readGate|kbGate\"}"
+    },
+    {
+      "name": "search_catalog",
+      "seg": 1,
+      "t": 48,
+      "args": "{\"limit\": 8, \"query\": \"frontend chat widget customer support ask question\"}"
+    },
+    {
+      "name": "read",
+      "seg": 1,
+      "t": 50,
+      "args": "{\"file_path\": \"/Users/tongtao/code/dsh-assembler/src/index.ts\", \"limit\": 80, \"offset\": 320}"
+    },
+    {
+      "name": "bash",
+      "seg": 1,
+      "t": 52,
+      "args": "{\"command\": \"grep -n -A 12 \\\"^  - id: \\\\(content-search\\\\|cs-persona\\\\|frontend-chat-console\\\\|fs\\\\|filesystem\\\\|mcp-filesystem\\\\|kb-\\\\)\\\" /Users/tongtao/code/dsh-assembler/capabilities.yml | head -12"
+    },
+    {
+      "name": "bash",
+      "seg": 1,
+      "t": 61,
+      "args": "{\"command\": \"grep -n -B2 -A8 \\\"crm_query\\\\|ticket_create\\\\|human_handoff\\\\|dsh-cs-tools\\\" /Users/tongtao/code/dsh-assembler/capabilities.yml | head -80\", \"description\": \"Check cs baseline tools in cat"
+    },
+    {
+      "name": "bash",
+      "seg": 1,
+      "t": 61,
+      "args": "{\"command\": \"ls /Users/tongtao/code/dsh-assembler/vendor-registry/ 2>/dev/null | head; echo \\\"---\\\"; find /Users/tongtao/code/dsh-assembler -maxdepth 3 -name \\\"dsh-cs-tools*\\\" 2>/dev/null | head\", \"de"
+    },
+    {
+      "name": "bash",
+      "seg": 1,
+      "t": 69,
+      "args": "{\"command\": \"ls /Users/tongtao/code/dsh-assembler/node_modules/@dsh-external/ 2>/dev/null; echo \\\"---npm---\\\"; npm ls @dsh-external/dsh-cs-tools --prefix /Users/tongtao/code/dsh-assembler 2>&1 | head "
+    },
+    {
+      "name": "bash",
+      "seg": 1,
+      "t": 71,
+      "args": "{\"command\": \"ls /Users/tongtao/code/dsh-assembler/presets/ 2>/dev/null; echo \\\"---\\\"; cat /Users/tongtao/code/dsh-assembler/presets/agent-template.yml 2>/dev/null | head -60\", \"description\": \"Inspect "
+    },
+    {
+      "name": "read",
+      "seg": 1,
+      "t": 99,
+      "args": "{\"file_path\": \"/Users/tongtao/code/dsh-assembler/src/orchestrated-tools.ts\", \"limit\": 120, \"offset\": 758}"
+    },
+    {
+      "name": "ask_user_question",
+      "seg": 1,
+      "t": 109,
+      "args": "{\"questions\": [{\"id\": \"scope\", \"header\": \"确认装配范围\", \"question\": \"以上是 p2-support 的完整架构,无缺口。确认按此发射,还是加装可选件?(选完即发射并独立验收)\", \"options\": [{\"label\": \"最小架构直接发射 (Recommended)\", \"description\": \"kb 手册 + content-s"
+    },
+    {
+      "name": "todo_write",
+      "seg": 1,
+      "t": 119,
+      "args": "{\"todos\": [{\"content\": \"add_knowledge 入库 A 产品手册(kb-chengyin-a1-manual)\", \"status\": \"in_progress\"}, {\"content\": \"emit_preset 发射 p2-support(手册+检索+persona+聊天页)\", \"status\": \"pending\"}, {\"content\": \"read_p"
+    },
+    {
+      "name": "add_knowledge",
+      "seg": 1,
+      "t": 123,
+      "args": "{\"docsDir\": \"/Users/tongtao/code/dsh-assembler/bench/.pg-corpus/a\", \"id\": \"chengyin-a1-manual\", \"description\": \"澄音 A1 降噪耳机产品手册(保修/降噪档位/充电)——产品客服问答的唯一事实来源,按手册作答并标注出处\", \"source\": \"用户提供的 A 产品手册(bench/.pg"
+    },
+    {
+      "name": "emit_preset",
+      "seg": 1,
+      "t": 127,
+      "args": "{\"name\": \"p2-support\", \"requirement\": \"产品客服问答 agent:装载 A 产品手册(澄音 A1 降噪耳机),按手册回答用户问题并标注出处(章节/原文片段),手册未覆盖时如实说明。\", \"capabilityIds\": [\"kb-chengyin-a1-manual\", \"content-search\", \"frontend-chat-console\"], \""
+    },
+    {
+      "name": "read_preset",
+      "seg": 1,
+      "t": 137,
+      "args": "{\"presetId\": \"p2-support\"}"
+    },
+    {
+      "name": "verify_preset",
+      "seg": 1,
+      "t": 143,
+      "args": "{\"presetId\": \"p2-support\", \"probe\": {\"kind\": \"single\", \"task\": \"澄音 A1 耳机的保修期是多久?耳套保不保?快充多久能听多久?\", \"marks\": [\"十二个月\", \"耗材\", \"10 分钟\"]}, \"probes\": [{\"kind\": \"single\", \"task\": \"澄音 A1 的降噪有哪几档?怎么切换?\", \"marks"
+    },
+    {
+      "name": "todo_write",
+      "seg": 1,
+      "t": 181,
+      "args": "{\"todos\": [{\"content\": \"add_knowledge 入库 A 产品手册(kb-chengyin-a1-manual)\", \"status\": \"completed\"}, {\"content\": \"emit_preset 发射 p2-support(手册+检索+persona+聊天页)\", \"status\": \"completed\"}, {\"content\": \"read_p"
+    },
+    {
+      "name": "preview_register",
+      "seg": 1,
+      "t": 181,
+      "args": "{\"target\": \"http://127.0.0.1:3097/assembler/ui/p2-support\"}"
+    },
+    {
+      "name": "read",
+      "seg": 2,
+      "t": 199,
+      "args": "{\"file_path\": \"/Users/tongtao/code/dsh-assembler/bench/.pg-corpus/b/B-产品手册.md\"}"
+    },
+    {
+      "name": "grep",
+      "seg": 2,
+      "t": 199,
+      "args": "{\"path\": \"/Users/tongtao/code/dsh-assembler/src\", \"pattern\": \"function sameConceptOnDisk|sameConceptOnDisk\"}"
+    },
+    {
+      "name": "read",
+      "seg": 2,
+      "t": 203,
+      "args": "{\"file_path\": \"/Users/tongtao/code/dsh-assembler/src/index.ts\", \"limit\": 75, \"offset\": 938}"
+    },
+    {
+      "name": "todo_write",
+      "seg": 2,
+      "t": 233,
+      "args": "{\"todos\": [{\"content\": \"add_knowledge 入库 B 产品手册(kb-chengyin-b2-manual)\", \"status\": \"in_progress\"}, {\"content\": \"emit_preset 同名重发 p2-support(fresh,双手册+更新 persona)\", \"status\": \"pending\"}, {\"content\": \"r"
+    },
+    {
+      "name": "add_knowledge",
+      "seg": 2,
+      "t": 233,
+      "args": "{\"description\": \"澄音 B2 骨传导耳机产品手册(保修/佩戴/续航)——与 A1 手册同库,产品客服问答的事实来源\", \"docsDir\": \"/Users/tongtao/code/dsh-assembler/bench/.pg-corpus/b\", \"id\": \"chengyin-b2-manual\", \"probes\": [{\"mustInclude\": [\"二十四个月\"],"
+    },
+    {
+      "name": "emit_preset",
+      "seg": 2,
+      "t": 239,
+      "args": "{\"capabilityIds\": [\"kb-chengyin-a1-manual\", \"kb-chengyin-b2-manual\", \"content-search\", \"frontend-chat-console\"], \"fresh\": true, \"name\": \"p2-support\", \"persona\": \"你是「澄音」产品客服问答助手,负责依据产品手册(A、B 两本)解答用户关于澄"
+    },
+    {
+      "name": "read_preset",
+      "seg": 2,
+      "t": 241,
+      "args": "{\"presetId\": \"p2-support\", \"include\": [\"persona\", \"bom\", \"frontend\"]}"
+    },
+    {
+      "name": "verify_preset",
+      "seg": 2,
+      "t": 243,
+      "args": "{\"presetId\": \"p2-support\", \"probe\": {\"kind\": \"single\", \"marks\": [\"十二个月\", \"耗材\", \"长按左耳 2 秒\"], \"task\": \"澄音 A1 耳机的保修期是多久?耳套保不保?降噪怎么切档?\"}, \"probes\": [{\"kind\": \"single\", \"marks\": [\"二十四个月\", \"IP67\", \"9 小时\"], "
+    },
+    {
+      "name": "todo_write",
+      "seg": 2,
+      "t": 283,
+      "args": "{\"todos\": [{\"content\": \"add_knowledge 入库 B 产品手册(kb-chengyin-b2-manual)\", \"status\": \"completed\"}, {\"content\": \"emit_preset 同名重发 p2-support(fresh,双手册+更新 persona)\", \"status\": \"completed\"}, {\"content\": \"r"
+    },
+    {
+      "name": "preview_refresh",
+      "seg": 2,
+      "t": 283,
+      "args": "{}"
+    }
+  ],
+  "usage": {
+    "uncachedInputTokens": 41346,
+    "outputTokens": 19774,
+    "cacheReadTokens": 1429504,
+    "cacheWriteTokens": 0
+  },
+  "usageCollected": true,
+  "answersGiven": [
+    [
+      {
+        "id": "scope",
+        "selected": [
+          "最小架构直接发射 (Recommended)"
+        ]
+      }
+    ]
+  ],
+  "answerRejected": false,
+  "otherFrameCounts": {
+    "session/subscribed": 1,
+    "session/queue": 4,
+    "session/projection": 419,
+    "question/resolved": 1
+  },
+  "approvalFrames": [],
+  "cwdSnapshot": [
+    ".npm-cache",
+    ".patch-scaffold-react-run.mjs",
+    ".patch-scaffold-react.mjs",
+    ".quarantine-pg",
+    ".toolchain",
+    "cron-check-stocktake.sh",
+    "dsh-docs-qa",
+    "kb-pages",
+    "kb-sdk-ui",
+    "m30-ledger-desk",
+    "note-wall-ui",
+    "p3-roster",
+    "p6-expense",
+    "schema.inspections.sql",
+    "schema.sql",
+    "store-dashboard",
+    "store-delivery.mjs",
+    "vc-daozhen",
+    "vc-kanban",
+    "vc-ledger",
+    "vc-taizhang"
+  ],
+  "audit": {
+    "presetName": "p2-support",
+    "presetEmitted": true,
+    "apps": [],
+    "appEmitted": false,
+    "scaffolds": [],
+    "pagesWritten": 0,
+    "routes": {
+      "face": 0,
+      "wire": 0,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "kb-chengyin-a1-manual",
+      "kb-chengyin-b2-manual",
+      "content-search",
+      "frontend-chat-console"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null,
+    "handwrittenDirs": [],
+    "stateEquipped": false,
+    "kbPacks": 2
+  },
+  "sessionId": "session-7f4fa6c0-da5e-49c5-bcfd-39fbfb0172f7",
+  "questionTexts": [
+    "[{\"id\":\"scope\",\"question\":\"以上是 p2-support 的完整架构,无缺口。确认按此发射,还是加装可选件?(选完即发射并独立验收)\",\"header\":\"确认装配范围\",\"options\":[{\"label\":\"最小架构直接发射 (Recommended)\",\"description\":\"kb 手册 + content-search 检索引用 + 自写客服 persona + 聊天页,零外部依赖,最快验收\"},{\"label\":\"加装问答历史持久化\",\"description\":\"SQLite 记录每次问答(便于复盘),多挂 sqlite-query 零件,稍增复杂度\"},{\"label\":\"加装转人工工单工具\",\"description\":\"ticket_create 需 @dsh-external/dsh-cs-tools 包,当前环境未安装,有解析风险,不推荐\"}]}]"
+  ],
+  "finalText": "The catalog is small and has no dedicated RAG part — the knowledge-pack mechanism lives in the harness itself. Let me check how presets mount knowledge packs in the DSH checkout.\n\nThe mechanism is now clear. Let me verify the remaining flow details (how frontend templates and the kb locator get mounted) before presenting the architecture.\n\n我已经把装配链路摸清了。这是架构与选型结果,按装配契约先请你确认:\n\n**p2-support:产品客服问答 agent(澄音 A1 降噪耳机)**\n\n**能力清单(每条带 why)**\n1. **知识装载 A 产品手册** — `add_knowledge` 把手册入库为知识包(`kb-*`),发射时随 preset 拷进 `kb/`,交付物自包含;手册是唯一事实来源\n2. **教材检索 + 出处引用** — `content-search`(harness 内置,`readsKb: true`,死知识闸判据):按关键词搜 `kb/`,返回**文件 + 行号**,直接充当回答的出处引用\n3. **客服 persona(我手写)** — 礼貌简洁、只用手册作答、绝不编造、**每个答案必标出处**(章节/原文片段);手册未覆盖 → 如实说明并引导人工(手册内的客服工号)\n4. **聊天页面** — `frontend-chat-console` 独立对话网页(也兜底默认)\n\n**数据模型**:无持久状态(纯手册问答,只读);**工作流**:提问 → 检索 kb/ → 按命中作答+标出处,无命中 → 明说手册未覆盖;**接口**:独立聊天页;**边界**:任务型表面,只挂 kb 检索 + 问用户,不挂 shell/文件系统/Web 零件\n\n**缺口:无** — 手册为单文件 289 字节,`content-search` 检索即够用,不需要 embedding/模糊检索零件。\n\n批准最小架构。开始执行:先把手册入库为知识包。\n\n手册入库成功,检索门 4/4 命中。现在发射 p2-support。\n\n发射成功,页面已就位。核对工件后独立验收。\n\n工件核对无误:手册已进 `kb/chengyin-a1-manual/`、检索零件已挂、聊天页已发射、无多余状态件。现在独立验收。\n\n验收全绿。登记预览窗口方便你直接试用页面。\n\n**p2-support 产品客服问答 agent 已交付并通过独立验收 ✅**\n\n**做了什么**\n1. **手册入库** — `add_knowledge` 把 `/Users/tongtao/code/dsh-assembler/bench/.pg-corpus/a/A-产品手册.md`(澄音 A1 降噪耳机:保修/降噪档位/充电)收入知识包 `chengyin-a1-manual`,检索门 4/4 考题命中\n2. **发射 preset** — `p2-support` 装配:知识包(拷入 `kb/`,交付物自包含)+ `content-search`(harness 内置检索,命中带文件+行号,充当出处)+ 自写客服 persona + `frontend-chat-console` 聊天页;按最小架构零外部依赖\n3. **独立验收 PASS(33s,2 路径)**\n   - 路径 1:保修/耳套/快充问答 → 命中「十二个月」「耗材」「10 分钟」\n   - 路径 2:降噪档位/切档 → 命中「通勤」「通透」「长按左耳 2 秒」\n   - 前端页面门 + 环路门 PASS\n\n**行为约定(persona 内置)**:每个答案必须标注出处(手册章节 + 原文片段);手册未覆盖的问题如实说「手册中没有相关信息」并引导人工(手册内客服工号 CY-2210),绝不编造。\n\n**交付物**\n- Preset:`p2-support`(位于 `~/.dsh/.agent-presets/p2-support/`)\n- 知识包:`kb-chengyin-a1-manual`(1 篇 / 289 字节)\n- 聊天页面:**http://127.0.0.1:3097/assembler/ui/p2-support**(右下角预览窗已打开,可直接试问)\n\n要不要我把「问答历史持久化(SQLite)」或「转人工工单」作为后续加装项?改选型直接同名重发即可。\n\nB 手册补进同一个 agent。先看 B 手册内容,并确认同名重发(加装第二本手册)的同概念判定逻辑。\n\nB 手册内容清晰(B2 骨传导耳机:保修 24 个月含运动臂带、IP67 不入耳佩戴、续航 9 小时)。关键点:`sameConceptOnDisk` 按需求文本机械比对,加装 B 后需求描述会变 → 同名重发需 `fresh: true`(用户指令明确是扩展同一 agent,且发射端自动归档旧代快照、不动 kb/ 数据)。开始补装。\n\nB 手册入库成功(4/4 命中)。同名重发 p2-support,双手册 + 更新 persona。\n\n重发成功,旧代已快照。核对双手册落位后重验。\n\n双手册同库、A 手册原样未动。重验:A 回归(换一道题,确保真实重跑)+ B 全覆盖。\n\n**B 手册已补进 p2-support,重验通过 ✅ — A 问答回归无损**\n\n**做了什么**\n1. **B 手册入库** — `add_knowledge` 把 `bench/.pg-corpus/b/B-产品手册.md`(澄音 B2 骨传导耳机:保修 24 个月含运动臂带、IP67 不入耳佩戴、续航 9 小时)收入新知识包 `chengyin-b2-manual`,检索门 4/4 命中\n2. **同名重发 p2-support** — 需求描述更新为双手册、capabilityIds 挂上 `kb-chengyin-a1-manual` + `kb-chengyin-b2-manual`(因需求文本变化,按闸用 `fresh: true` 原地覆盖;旧代已归档 `preset.prev/`,可一键复原;**kb/ 是数据不动,A 手册原样保留**)\n3. **persona 升级** — 明确双产品分工:A1 与 B2 参数不同(保修期/佩戴/充电)**严禁串用**,答案须标注**哪本手册的哪个章节**;人工引导改为\"对应产品手册标注的客服工号\"(A→CY-2210,B→CY-3345)\n\n**重验结果(36s,2 路径全 PASS)**\n- 路径 1(A 回归,换题重跑):保修/耳套/切档 → 命中「十二个月」「耗材」「长按左耳 2 秒」✓ A 问答未坏\n- 路径 2(B 新覆盖):保修/佩戴防水/续航 → 命中「二十四个月」「IP67」「9 小时」✓\n- 前端页面门 + 环路门 PASS\n\n**交付物现状**\n- Preset:`p2-support` — kb/ 含 `chengyin-a1-manual/`(A-产品手册.md)+ `chengyin-b2-manual/`(B-产品手册.md),BOM 已更新\n- 聊天页面:**http://127.0.0.1:3097/assembler/ui/p2-support**(预览已刷新,可试问 A/B 各一道题)",
+  "finalTextComplete": true
+}

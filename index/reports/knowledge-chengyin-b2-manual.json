@@ -1,0 +1,68 @@
+{
+  "id": "chengyin-b2-manual",
+  "kind": "knowledge",
+  "source": "用户提供的 B 产品手册(bench/.pg-corpus/b/B-产品手册.md)",
+  "docsDir": "/Users/tongtao/code/dsh-assembler/bench/.pg-corpus/b",
+  "verifiedAt": "2026-08-27T01:05:49.809Z",
+  "probes": [
+    {
+      "question": "B2 的保修期是多久?",
+      "hits": [
+        {
+          "mark": "二十四个月",
+          "found": true,
+          "in": "B-产品手册.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "B2 防水等级如何?能否游泳?",
+      "hits": [
+        {
+          "mark": "IP67",
+          "found": true,
+          "in": "B-产品手册.md"
+        },
+        {
+          "mark": "游泳不可用",
+          "found": true,
+          "in": "B-产品手册.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "B2 续航多久?怎么充电?",
+      "hits": [
+        {
+          "mark": "9 小时",
+          "found": true,
+          "in": "B-产品手册.md"
+        },
+        {
+          "mark": "磁吸充电",
+          "found": true,
+          "in": "B-产品手册.md"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "question": "B2 的佩戴方式是怎样的?",
+      "hits": [
+        {
+          "mark": "不入耳",
+          "found": true,
+          "in": "B-产品手册.md"
+        },
+        {
+          "mark": "颞骨传导",
+          "found": true,
+          "in": "B-产品手册.md"
+        }
+      ],
+      "pass": true
+    }
+  ]
+}

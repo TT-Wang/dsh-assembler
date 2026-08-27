@@ -1083,3 +1083,23 @@
   tools:
     - { name: "query-express", description: "查快递轨迹(快递鸟即时查询,2700+ 承运商)。需 carrier(承运商编码,如 SF/YTO/ZTO/STO/YD/JTSD/EMS/JD)+ track" }
     - { name: "detect-carrier", description: "按运单号识别承运商(快递鸟单号识别)。返回候选承运商编码列表,供 query-express 的 carrier 用。注:识别接口是否在免费套餐内以真凭证实测为" }
+
+- id: mcp-apns-push
+  kind: service
+  service: "Apple Push Notification service (api.push.apple.com via HTTP/2) and Bark relay (api.day.app or self-hosted)"
+  provider: ""
+  license: "MIT"
+  terms: ""
+  rateLimit: ""
+  network: true
+  requiredSecrets:
+    - { env: "APNS_TEAM_ID", purpose: "Apple Developer Team ID (JWT iss claim)" }
+    - { env: "APNS_KEY_ID", purpose: "APNs auth key id (JWT kid claim)" }
+    - { env: "APNS_AUTH_KEY", purpose: "APNs .p8 private key PEM content (ES256 signing)" }
+    - { env: "APNS_BUNDLE_ID", purpose: "App bundle id registered for push (apns-topic header)" }
+    - { env: "APNS_DEVICE_TOKEN", purpose: "Device token of the installed push-enabled iOS app" }
+    - { env: "BARK_KEY", purpose: "Bark iOS app device key (relay channel)" }
+    - { env: "BARK_SERVER", purpose: "Optional custom Bark server base URL (default https://api.day.app)" }
+  tools:
+    - { name: "push-send", description: "Send an iPhone push notification. channel=apns sends directly to Apple Push Noti" }
+    - { name: "push-config-status", description: "Report whether the APNs / Bark push channels are configured. Lists ONLY the name" }

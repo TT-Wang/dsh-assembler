@@ -584,6 +584,19 @@ mcp-servers:
       - { env: "KDNIAO_EBUSINESS_ID", purpose: "快递鸟商户 ID(注册后获取)" }
       - { env: "KDNIAO_API_KEY", purpose: "快递鸟 ApiKey(签名用,注册后获取)" }
 
+  mcp-apns-push:
+    transport: stdio
+    command: node
+    args: ["/Users/tongtao/code/dsh-assembler/generated/mcp-apns-push/index.js"]
+    requiredSecrets:
+      - { env: "APNS_TEAM_ID", purpose: "Apple Developer Team ID (JWT iss claim)" }
+      - { env: "APNS_KEY_ID", purpose: "APNs auth key id (JWT kid claim)" }
+      - { env: "APNS_AUTH_KEY", purpose: "APNs .p8 private key PEM content (ES256 signing)" }
+      - { env: "APNS_BUNDLE_ID", purpose: "App bundle id registered for push (apns-topic header)" }
+      - { env: "APNS_DEVICE_TOKEN", purpose: "Device token of the installed push-enabled iOS app" }
+      - { env: "BARK_KEY", purpose: "Bark iOS app device key (relay channel)" }
+      - { env: "BARK_SERVER", purpose: "Optional custom Bark server base URL (default https://api.day.app)" }
+
 capabilities:
   # ── frontend templates(交互面零件:选形状,功能由其余零件供给)────────────
   # 装配时填参发射进 preset 的 frontend/,由 /assembler/ui/<preset> 同源伺服;
@@ -761,3 +774,15 @@ capabilities:
     via: mcp
     description: "Parse MOBI/AZW3 (KF8) ebook files into plain text, metadata (title/author/language/publisher), chapter structure (spine + TOC), and per-chapter text — the MOBI counterpart of the existing PDF/DOCX extractors. Pure local parsing, no network."
     tags: [mobi, azw3, kf8, ebook, parser, reading, document, kindle, 电子书, 解析, 阅读]
+  - id: kb-chengyin-a1-manual
+    via: knowledge
+    description: "澄音 A1 降噪耳机产品手册(保修/降噪档位/充电)——产品客服问答的唯一事实来源,按手册作答并标注出处"
+    tags: ["手册", "产品手册", "降噪耳机", "保修", "降噪", "充电", "客服", "问答", "manual", "earbuds", "noise-cancelling", "warranty", "support"]
+    config:
+      pack: "chengyin-a1-manual"
+  - id: kb-chengyin-b2-manual
+    via: knowledge
+    description: "澄音 B2 骨传导耳机产品手册(保修/佩戴/续航)——与 A1 手册同库,产品客服问答的事实来源"
+    tags: ["手册", "产品手册", "骨传导耳机", "保修", "佩戴", "防水", "续航", "充电", "客服", "问答", "manual", "bone-conduction", "waterproof", "support"]
+    config:
+      pack: "chengyin-b2-manual"

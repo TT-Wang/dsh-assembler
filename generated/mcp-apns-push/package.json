@@ -1,0 +1,10 @@
+{
+  "name": "@dsh-index/mcp-apns-push",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "description": "MCP stdio server: mcp-apns-push",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}

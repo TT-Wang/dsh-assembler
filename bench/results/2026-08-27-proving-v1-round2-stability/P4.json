@@ -1,0 +1,237 @@
+{
+  "id": "P4",
+  "tier": "ensemble",
+  "name": "采件即战力(本周新收 stock-sdk 进装配)",
+  "lane": "preset-only",
+  "checks": [
+    {
+      "name": "硬化·preset 考官末判 ∈ 预期",
+      "ok": true,
+      "detail": "PASS@01:12:56(预期 PASS)"
+    },
+    {
+      "name": "硬化·判定绑定当前字节",
+      "ok": true,
+      "detail": "字节一致"
+    },
+    {
+      "name": "形态路由",
+      "ok": true,
+      "detail": "实得 preset-only,预期 scaffold|preset-only"
+    },
+    {
+      "name": "状态装备就位",
+      "ok": true,
+      "detail": "装备 DDL 在"
+    },
+    {
+      "name": "合奏·BOM 含 stock-sdk",
+      "ok": true,
+      "detail": "BOM 在案"
+    },
+    {
+      "name": "合奏·stock-sdk 工具被探针真动用(覆盖工件)",
+      "ok": true,
+      "detail": "动用轨迹在台账"
+    }
+  ],
+  "passed": 6,
+  "total": 6,
+  "verdict": "PASS",
+  "evidence": {
+    "presetVerdicts": [
+      "01:12:56 PASS",
+      "01:12:56 PASS"
+    ],
+    "appVerdicts": [],
+    "unclaimedResidue": [],
+    "upstream:https://qt.gtimg.cn/q=sh600519": "HTTP 200(v_sh600519=\"1~����ę́~600519~1302.80~1302.80~0.00~0~0~0~0.00~)"
+  },
+  "elapsedSeconds": 381,
+  "segments": [
+    {
+      "i": 1,
+      "elapsedSeconds": 381,
+      "endReason": "ended"
+    }
+  ],
+  "tools": [
+    "skill",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "search_catalog",
+    "ask_user_question",
+    "match_catalog",
+    "emit_preset",
+    "verify_preset"
+  ],
+  "toolCalls": [
+    {
+      "name": "skill",
+      "seg": 1,
+      "t": 8,
+      "args": "{\"name\": \"scaffold\"}"
+    },
+    {
+      "name": "search_catalog",
+      "seg": 1,
+      "t": 14,
+      "args": "{\"query\": \"A股股票实时行情 当前价 涨跌幅\"}"
+    },
+    {
+      "name": "search_catalog",
+      "seg": 1,
+      "t": 14,
+      "args": "{\"query\": \"股票实时报价 API\"}"
+    },
+    {
+      "name": "search_catalog",
+      "seg": 1,
+      "t": 14,
+      "args": "{\"query\": \"SQLite 持久化存储记录\"}"
+    },
+    {
+      "name": "search_catalog",
+      "seg": 1,
+      "t": 20,
+      "args": "{\"query\": \"watchlist 列表 前端模板 表格\"}"
+    },
+    {
+      "name": "search_catalog",
+      "seg": 1,
+      "t": 20,
+      "args": "{\"query\": \"键值存储 状态 记忆 长期记忆\"}"
+    },
+    {
+      "name": "search_catalog",
+      "seg": 1,
+      "t": 24,
+      "args": "{\"query\": \"自选股 watchlist 观察笔记\"}"
+    },
+    {
+      "name": "search_catalog",
+      "seg": 1,
+      "t": 24,
+      "args": "{\"query\": \"腾讯行情 新浪 股票代码查询 涨跌 名称\"}"
+    },
+    {
+      "name": "ask_user_question",
+      "seg": 1,
+      "t": 44,
+      "args": "{\"questions\": [{\"id\": \"scope\", \"header\": \"市场范围\", \"question\": \"只支持 A 股,还是要顺带支持港股/美股(目录里有 hk/us quotes 部件)?\", \"options\": [{\"label\": \"仅 A 股(Recommended)\", \"description\": \"匹配你的例子(600519),最简单可靠;以后要加再说\"}, {"
+    },
+    {
+      "name": "match_catalog",
+      "seg": 1,
+      "t": 58,
+      "args": "{\"requirement\": \"对话式自选股观察助手:用户说「把 600519 加进自选」就记下来,说「看看自选股」就报每只的当前价和涨跌幅(真实行情),还能记观察笔记、移除自选。仅 A 股,纯对话,无独立页面。\", \"spec\": {\"capabilities\": [{\"name\": \"把股票代码/名称/拼音解析成正式代码与名称\", \"why\": \"用户可能给代码(600519)或名称(贵州茅"
+    },
+    {
+      "name": "emit_preset",
+      "seg": 1,
+      "t": 145,
+      "args": "{\"name\": \"p4-watch\", \"requirement\": \"对话式自选股观察助手:用户说「把 600519 加进自选」就记下来,「看看自选股」报每只当前价和涨跌幅(真实行情),能记观察笔记、移除自选。仅 A 股,纯对话。\", \"capabilityIds\": [\"mcp-stock-sdk-search\", \"mcp-stock-sdk-get-a-share-quotes\", \"m"
+    },
+    {
+      "name": "verify_preset",
+      "seg": 1,
+      "t": 159,
+      "args": "{\"presetId\": \"p4-watch\", \"probe\": {\"kind\": \"scenario\", \"createTask\": \"把 贵州茅台 加进自选,然后记一条观察笔记:关注 1800 整数关口\", \"retrieveTask\": \"看看自选股,并把 600519 的观察笔记念给我听\", \"token\": \"600519\", \"marks\": [\"贵州茅台\", \"1800\"]}, \""
+    }
+  ],
+  "usage": {
+    "uncachedInputTokens": 17373,
+    "outputTokens": 8937,
+    "cacheReadTokens": 233856,
+    "cacheWriteTokens": 0
+  },
+  "usageCollected": true,
+  "answersGiven": [
+    [
+      {
+        "id": "scope",
+        "selected": [
+          "仅 A 股(Recommended)"
+        ]
+      },
+      {
+        "id": "frontend",
+        "selected": [
+          "纯对话(Recommended)"
+        ]
+      },
+      {
+        "id": "remove",
+        "selected": [
+          "要(Recommended)"
+        ]
+      }
+    ]
+  ],
+  "answerRejected": false,
+  "otherFrameCounts": {
+    "session/subscribed": 1,
+    "session/queue": 2,
+    "session/projection": 131,
+    "question/resolved": 1
+  },
+  "approvalFrames": [],
+  "cwdSnapshot": [
+    ".npm-cache",
+    ".patch-scaffold-react-run.mjs",
+    ".patch-scaffold-react.mjs",
+    ".quarantine-pg",
+    ".toolchain",
+    "cron-check-stocktake.sh",
+    "dsh-docs-qa",
+    "kb-pages",
+    "kb-sdk-ui",
+    "m30-ledger-desk",
+    "note-wall-ui",
+    "p3-roster",
+    "p6-expense",
+    "schema.inspections.sql",
+    "schema.sql",
+    "store-dashboard",
+    "store-delivery.mjs",
+    "vc-daozhen",
+    "vc-kanban",
+    "vc-ledger",
+    "vc-taizhang"
+  ],
+  "audit": {
+    "presetName": "p4-watch",
+    "presetEmitted": true,
+    "apps": [],
+    "appEmitted": false,
+    "scaffolds": [],
+    "pagesWritten": 0,
+    "routes": {
+      "face": 0,
+      "wire": 0,
+      "ai-thin": 0,
+      "local": 0
+    },
+    "partsUsed": [
+      "stock-sdk",
+      "sqlite-query",
+      "frontend-chat-console"
+    ],
+    "pageReachable": 200,
+    "assetsOk": true,
+    "byteDiscipline": null,
+    "handwrittenDirs": [],
+    "stateEquipped": true,
+    "kbPacks": 0
+  },
+  "sessionId": "session-18d67560-056a-4d5c-b863-82f60f34f7d7",
+  "questionTexts": [
+    "[{\"id\":\"scope\",\"question\":\"只支持 A 股,还是要顺带支持港股/美股(目录里有 hk/us quotes 部件)?\",\"header\":\"市场范围\",\"options\":[{\"label\":\"仅 A 股(Recommended)\",\"description\":\"匹配你的例子(600519),最简单可靠;以后要加再说\"},{\"label\":\"A股 + 港股 + 美股\",\"description\":\"多装两个行情部件,每轮价签略增,能加 00700/AAPL 这类\"}]},{\"id\":\"frontend\",\"question\":\"要不要一个专门的网页面板(自选股表格+快速操作),还是纯对话?\",\"header\":\"页面形状\",\"options\":[{\"label\":\"纯对话(Recommended)\",\"description\":\"你说什么它做什么,默认聊天页即够用,最贴合「我说…它就…」\"},{\"label\":\"加记录台页面(frontend-data-desk)\",\"description\":\"页面可一句话记一笔+查询,回复表格自动渲染,偏工单台风格\"},{\"label\":\"定制自选股面板页\",\"description\":\"emit_app 起 scaffold 写定制页,自选列表+行情表+加仓入口,工作量大些\"}]},{\"id\":\"remove\",\"question\":\"要不要顺带支持「把 XX 移出自选」?\",\"header\":\"移除自选\",\"options\":[{\"label\":\"要(Recommended)\",\"description\":\"列表可管理,一行 SQL 的事,不增加部件\"},{\"label\":\"不要\",\"description\":\"先只做加/看/笔记,保持最简\"}]}]"
+  ],
+  "finalText": "这是一个明确的\"装配 agent\"任务(自选股观察助手,p4-watch)。我先搜目录里可用的部件,再设计架构、装配 preset 并验证。\n\n好,目录里有几个关键候选。再补两轮检索确认存储与页面形状,然后给你完整架构。\n\n再确认行情部件的细节和是否有现成的自选股部件:\n\n检索完成,选件已基本清晰。这是装配流:我先给你架构,确认后再发射 preset。\n\n**p4-watch · 自选股观察助手架构**\n\n```dsh-ui\n{\"title\":\"p4-watch 装配方案\",\"items\":[{\"type\":\"text\",\"content\":\"用途:对话式自选股观察助手 —— 说「把 600519 加进自选」记下来,「看看自选股」报实时价+涨跌幅,还能记/查观察笔记。\"},{\"type\":\"table\",\"columns\":[\"能力\",\"选件\",\"说明\"],\"rows\":[[\"自选股登记/列表\",\"mcp-stock-sdk-search + SQLite\",\"代码/名称/拼音解析成正式代码,写入自选表,幂等去重\"],[\"实时行情\",\"mcp-stock-sdk-get-a-share-quotes\",\"腾讯源,真实数据:最新价、涨跌幅,一次拉全量\"],[\"观察笔记\",\"SQLite 默认库\",\"按代码追加笔记,可随时查看某只的笔记\"],[\"持久化\",\"mcp-sqlite-query 系列\",\"自选列表+笔记跨会话保存(装配时预建表)\"]]},{\"type\":\"keyvalue\",\"rows\":[[\"数据模型\",\"watchlist(code, name, added_at) + notes(id, code, note, created_at)\"],[\"工作流\",\"加自选→解析+入库;看自选→列表+拉行情逐只报价;笔记→追加/查询\"],[\"接口\",\"对话为主(默认聊天页),行情/存储均为无凭证部件\"]]}]}\n```\n\n**缺口清单:** 行情、代码解析、持久化三类部件目录里都有,**无硬缺口**。剩下两个可选增强需要你拍板:\n\n三个决定都收到:**仅 A 股 + 纯对话 + 支持移除**。走最后升级阀 match_catalog 确认选件映射,然后发射。\n\n0 缺口,5 个零件。现在写 stateSchema(幂等建表)和 persona,发射 preset。\n\nPreset 已发射。现在独立验收 —— 我设计主工作流探针(加自选→记笔记→看自选报价→回读笔记),外加一路\"移除自选\"覆盖:\n\n验收通过 ✅ 交付完成。\n\n**p4-watch · 自选股观察助手** 已装配并独立验收:\n\n```dsh-ui\n{\"title\":\"p4-watch 交付报告\",\"items\":[{\"type\":\"stat\",\"value\":\"PASS\",\"label\":\"独立验收(verify_preset)\"},{\"type\":\"keyvalue\",\"rows\":[[\"零件\",\"search(代码解析) + 腾讯实时行情 + SQLite 持久化 + 聊天页\"],[\"主场景验证\",\"加自选 600519 → 记笔记「关注 1700 支撑位」→ 看自选(代码/现价/涨跌幅)→ 按笔记内容移除,全部跨轮次通过\"],[\"覆盖\",\"4/4 工具零件均被探针动用,前端页面门+环路门 PASS\"],[\"前端地址\",\"http://127.0.0.1:3097/assembler/ui/p4-watch\"]]}]}\n```\n\n**怎么用**(对话即命令):\n- 「把 600519 加进自选」/「把贵州茅台加进自选」—— 名称、代码、拼音都能解析,重复添加会提示已在自选中\n- 「看看自选股」—— 逐只报【代码 现价 涨跌幅】,行情来自腾讯,真实数据\n- 「给 600519 记一笔:关注 1800 关口」—— 观察笔记,之后问「600519 的笔记」回看\n- 「把 600036 移出自选」—— 移除确认\n\n**一点如实说明**:我提交的探针草图的 token 没同时出现在两轮指令里,没通过机械闸,考官于是自行推导了完整场景(并且顺带把移除能力也验了);结果一样是 PASS。另外行情在非交易时段返回的是最新收盘价,属正常。\n\n一个小建议:验收台账已记录,同字节 7 天内重验会自动沿用结果,改动 persona 或零件后可重跑。要不要我把它做成一个网页面板(自选表格+一键刷新),还是现在这个纯对话形态就够用?",
+  "finalTextComplete": true
+}
