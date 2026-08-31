@@ -75,6 +75,14 @@
       「发射完成≠可用」从散文承诺升格为机械闸;拒发 vs 大声记账按第七条与
       "不替用户砍"权衡后定。
 
+- [ ] **0.9 wire 迁移(DSH alpha.2,底册 docs/research/dsh-alpha2-migration.md)**:
+      上游 rc.8→0.1.2-alpha.2 已同步(host 3097 在跑,插件全链绿),wire 整体重铸
+      (斜杠端点/args.request 双包裹/requestId/cookie 鉴权/remote.mux 流/$events
+      代答,协议已实弹破译)。待迁:src/verify.ts 真会话探针(**alpha.2 上
+      verify_preset 的 wire 探针不可用直到迁完**)、frontend.ts 模板页会话调用、
+      bench 三驱动器、index-add auto 路——建一份共享 wire 客户端四处复用,业务
+      判定逻辑零改动。白捡顺手:seq 锚计数、approval waterfall 进考卷面。
+
 ## 已完成基线(免得重复造)
 
 配方车道(rag-qa/record-desk/scaffold-react)· 双面化四件套(sqlite 服务脸/
