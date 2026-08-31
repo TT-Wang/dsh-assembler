@@ -73,12 +73,18 @@
 4. 浏览器开一次启动行的 `?token=` URL(30 天 cookie)
 5. 注意:verify_preset 的 wire 探针待 0.9 迁移;其余装配功能可用
 
-## 实测发现的 alpha.2 UI bug(2026-08-31,浏览器 DOM 验尸)
+## 空表格之谜(2026-08-31,已破案——**先前"alpha.2 UI bug"归因错误,推翻**)
 
-新 web UI 的 markdown **表格渲染成空壳**:agent 回复含表格时,DOM 里 `<table>`
-存在但 1 行 0 单元格、高度 0(V1MMBW_tableWrap 内),页面呈现为大段空白——
-渲染器对某种表格语法变体静默吞掉且不降级为文本。复现:任意让 agent 用 markdown
-表格作答。规避:提示词里叫 agent 用列表不用表格。值得报上游。
+现象:会话消息里出现大段空白,DOM 中 `<table>` 为 1 行 0 单元格、高度 0。
+验尸链:①上游 DSH 渲染器**无罪**——用其真实 parse 管线(fromMarkdown+gfm+
+cjkFriendlyStrong)对 7 种表格语法变体本地复现,全部正确产出 rows/cells;
+②肇事类名 `V1MMBW_tableWrap` 全上游树零匹配,真身在 **profile 第三方插件
+@omdsh-dev/dsh-genui**(github 装,v0.8.7)——那不是 markdown 表,是 genui 的
+**数据表控件**(带排序表头),吃结构化 spec `{columns,rows}`;空表 = 控件收到/
+抽出了空 spec(thead 恒渲染故 1 行,columns=[] 故 0 格)。
+待定分叉:spec 在模型侧就是空,还是 genui 抽取时丢弃——需该消息原始 payload
+(Session log 可导)。规避:换 standard 视图/禁 genui/提示词避表格。
+教训:第三方 UI 插件接管消息渲染时,"新版 bug"的第一嫌疑人未必是新版。
 
 ## 六、白捡新能力 Top5(后续吸收议程)
 
