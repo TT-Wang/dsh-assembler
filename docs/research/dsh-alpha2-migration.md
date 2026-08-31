@@ -82,9 +82,13 @@ cjkFriendlyStrong)对 7 种表格语法变体本地复现,全部正确产出 row
 @omdsh-dev/dsh-genui**(github 装,v0.8.7)——那不是 markdown 表,是 genui 的
 **数据表控件**(带排序表头),吃结构化 spec `{columns,rows}`;空表 = 控件收到/
 抽出了空 spec(thead 恒渲染故 1 行,columns=[] 故 0 格)。
-待定分叉:spec 在模型侧就是空,还是 genui 抽取时丢弃——需该消息原始 payload
-(Session log 可导)。规避:换 standard 视图/禁 genui/提示词避表格。
-教训:第三方 UI 插件接管消息渲染时,"新版 bug"的第一嫌疑人未必是新版。
+**终局(升级重测,2026-08-31)**:genui 0.8.7 → 0.9.6(github HEAD 6298f8ca,
+包已改姓 @changfenhuang/dsh-genui;pnpm 新安全闸需 pnpm-workspace.yaml 的
+allowBuilds 放行构建脚本)后,**同一条旧消息当场满血**——表 1 从「1 行 0 格
+高 0」变 17 行 51 格 624px,表 2 变 6 行 18 格。分叉就此裁定:payload 里 spec
+一直是满的,是 **genui 0.8.7 抽取/渲染丢数据,上游 HEAD 已自修**。免报 issue。
+教训两条:①第三方 UI 插件接管消息渲染时,"新版 bug"的第一嫌疑人未必是新版;
+②客户端渲染的病,升级后拿旧消息原地复验是最便宜的判据(同 payload 对照)。
 
 ## 六、白捡新能力 Top5(后续吸收议程)
 
