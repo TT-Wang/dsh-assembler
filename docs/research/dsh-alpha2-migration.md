@@ -73,6 +73,13 @@
 4. 浏览器开一次启动行的 `?token=` URL(30 天 cookie)
 5. 注意:verify_preset 的 wire 探针待 0.9 迁移;其余装配功能可用
 
+## 实测发现的 alpha.2 UI bug(2026-08-31,浏览器 DOM 验尸)
+
+新 web UI 的 markdown **表格渲染成空壳**:agent 回复含表格时,DOM 里 `<table>`
+存在但 1 行 0 单元格、高度 0(V1MMBW_tableWrap 内),页面呈现为大段空白——
+渲染器对某种表格语法变体静默吞掉且不降级为文本。复现:任意让 agent 用 markdown
+表格作答。规避:提示词里叫 agent 用列表不用表格。值得报上游。
+
 ## 六、白捡新能力 Top5(后续吸收议程)
 
 seq 化事件流(探针台账记 seq 区间)· approval waterfall(需审批零件进考卷)·
