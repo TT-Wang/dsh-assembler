@@ -2,6 +2,16 @@
 
 > 独立审计官按宪法第二条(报错即界面)+ 第七条(不许静默)对全仓闸报错逐个过堂。
 > src 五文件 + scripts 八文件全读,catch 点位 70+ 逐一过目。只审未改;执刀见后续提交。
+>
+> **执刀核对记(2026-09-01,rustc 对标复查)**:三刀与大部分中轻伤已由后续提交执毕,
+> 术后标记在码内可 grep(`过堂刀`):刀1=scaffold.ts:660(未知路由判 FAIL+四路由枚举);
+> 刀2①②③=orchestrated-tools.ts:806/860/768 + index.ts:593(快照失实/无脸无声/缺书拒印
+> 全部改诚实出声);刀3=index.ts:276 + orchestrated-tools.ts:1716(「不存在」族带现有
+> 清单+近邻候选)。中轻伤抽查同绿:submit_part 文案(2172)、headless SKIPPED 给
+> `dsh --profile web` 活路(1037/1401/1451)、federate 剔除名单随目录出声(index.ts:1124)、
+> listTools 报真错(2159)、npm view 带 stderr+改法(index-add:281)、verify_trigger 缺参
+> 逐个点名(1517)。**新增入账**:0.9 共享 wire 客户端(src/wire.ts)的报错按同一标准
+> 成文——鉴权拿不到给两条实名命令、401 给缓存删除路径、开流超时给自查三问。
 
 ## 统计
 

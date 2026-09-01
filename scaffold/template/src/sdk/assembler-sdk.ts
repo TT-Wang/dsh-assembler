@@ -21,6 +21,98 @@ export interface ClientHooks {
   onError?: (message: string) => void
 }
 
+// ── wire 双代核(BACKLOG 0.9)────────────────────────────────────────────────
+// 0.1.2-alpha.1 起 wire 重铸:斜杠端点 + payload 双包裹(包裹键=控制器 TS 参数名)
+// + prompt 自铸 requestId + 事件走 remote.mux 逻辑流。宿主可能原地升级未重启
+// (幽灵宿主),页面按应答探代际:斜杠 session/list 404 = 旧代(点号端点),
+// 200/401 = 新代。同源 cookie 浏览器自动带(30 天内开过一次 ?token= URL 即可)。
+type WireCohort = 'new' | 'legacy'
+let wireCohortP: Promise<WireCohort> | null = null
+
+function wireCohort(): Promise<WireCohort> {
+  wireCohortP ??= fetch('/api/session/list', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'client-request', rpcId: 'fe-cohort-probe', method: 'session/list', payload: { args: { _request: {} } } }),
+  }).then((r) => (r.status === 404 ? 'legacy' as const : 'new' as const)).catch(() => 'new' as const)
+  return wireCohortP
+}
+
+function unwrapRpc(label: string): (j: any) => any {
+  return (j: any) => {
+    if (!j.result || !j.result.ok) throw new Error(label + ' 失败:' + JSON.stringify(j.result?.error ?? j).slice(0, 200))
+    return j.result.value
+  }
+}
+
+/** wire 一元调用:旧点号规范名进,按宿主代际翻译;新代包裹键读网关报错自适应(不抄表)。 */
+export async function wireRpc(method: string, payload: unknown): Promise<any> {
+  const c = await wireCohort()
+  const rpcId = 'fe-' + Date.now() + '-' + Math.random().toString(36).slice(2)
+  if (c === 'legacy') {
+    const res = await fetch('/api/' + method, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'client-request', rpcId, method, payload }),
+    })
+    return unwrapRpc(method)(await res.json())
+  }
+  const endpoint = method.replace('.', '/')
+  let req: any = payload ?? {}
+  if (endpoint === 'session/prompt' && req.requestId === undefined) req = { requestId: rpcId, ...req }
+  const send = async (key: 'request' | '_request'): Promise<any> => {
+    const res = await fetch('/api/' + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'client-request', rpcId, method: endpoint, payload: { args: { [key]: req } } }),
+    })
+    if (res.status === 401) throw new Error(endpoint + ' 失败:HTTP 401 未鉴权——先在本浏览器打开一次 host 启动打印的 ?token= 链接(30 天有效)')
+    return res.json()
+  }
+  let j = await send('request')
+  const err = j.result && !j.result.ok ? j.result.error : null
+  if (err && /_request/.test(String(err.message ?? ''))) j = await send('_request')
+  return unwrapRpc(endpoint)(j)
+}
+
+/** 订本会话事件流,断线自重连;onReady 在订阅真正建立后回调一次(事件形状两代一致)。 */
+export function wireStream(getSessionId: () => string | null, onEvent: (e: any) => void, opts: { onReady?: () => void } = {}): { close: () => void } {
+  let stopped = false
+  let readyFired = false
+  const fireReady = (): void => { if (!readyFired) { readyFired = true; opts.onReady?.() } }
+  const connect = (c: WireCohort): void => {
+    const sid = getSessionId()
+    if (stopped || sid === null || sid === '') return
+    const reconnect = (): void => { if (!stopped && getSessionId()) setTimeout(() => { connect(c) }, 1500) }
+    if (c === 'legacy') {
+      const ws = new WebSocket(location.origin.replace(/^http/, 'ws') + '/api/events.mux')
+      ws.onopen = fireReady
+      ws.onmessage = (m) => {
+        let f: any
+        try { f = JSON.parse(String(m.data)) } catch { return }
+        const p = f.payload
+        if (p && p.type === 'session/event' && p.sessionId === getSessionId()) onEvent(p.event)
+      }
+      ws.onclose = reconnect
+      return
+    }
+    const streamId = 'fe-' + Date.now() + '-' + Math.random().toString(36).slice(2)
+    const ws = new WebSocket(location.origin.replace(/^http/, 'ws') + '/api/remote.mux')
+    ws.onopen = () => { ws.send(JSON.stringify({ type: 'open', streamId, endpoint: 'session/follow', payload: { args: { request: { address: { kind: 'session', sessionId: sid } } } } })) }
+    ws.onmessage = (m) => {
+      let f: any
+      try { f = JSON.parse(String(m.data)) } catch { return }
+      if (f.streamId !== streamId || f.type !== 'item') return
+      const v = f.value
+      if (v?.type === 'snapshot') fireReady() // follow 首帧 = snapshot,订阅已立
+      else if (v?.type === 'event' && v.event) onEvent(v.event)
+    }
+    ws.onclose = reconnect
+  }
+  void wireCohort().then(connect)
+  return { close: () => { stopped = true } }
+}
+
 export function extractFence(text: string): AskResult['fence'] {
   const fences = [...String(text ?? '').matchAll(/```json\s*([\s\S]*?)```/g)]
   if (fences.length === 0) return { ok: false, reason: '回复末尾没有 ```json 围栏(agent 未按页面契约输出)' }
@@ -33,21 +125,12 @@ export function extractFence(text: string): AskResult['fence'] {
 
 export function createClient(hooks: ClientHooks = {}) {
   let sessionId: string | null = null
-  let ws: WebSocket | null = null
+  let ws: { close: () => void } | null = null
   let busy = false
   let replyBuf = ''
   let waiters: Array<(r: AskResult) => void> = []
 
-  async function rpc(method: string, payload: unknown): Promise<any> {
-    const res = await fetch('/api/' + method, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'client-request', rpcId: 'fe-' + Date.now() + '-' + Math.random().toString(36).slice(2), method, payload }),
-    })
-    const j = await res.json()
-    if (!j.result || !j.result.ok) throw new Error(method + ' 失败:' + JSON.stringify(j.result?.error ?? j).slice(0, 200))
-    return j.result.value
-  }
+  const rpc = wireRpc // 双代翻译在 wire 核里,调用面保持旧点号规范名
 
   function textOf(e: any): string {
     const c = e?.data?.message?.content
@@ -70,25 +153,14 @@ export function createClient(hooks: ClientHooks = {}) {
     }
   }
 
-  function openWs(): void {
-    ws = new WebSocket(location.origin.replace(/^http/, 'ws') + '/api/events.mux')
-    ws.onmessage = (m) => {
-      let f: any
-      try { f = JSON.parse(String(m.data)) } catch { return }
-      const p = f.payload
-      if (!p || p.type !== 'session/event' || p.sessionId !== sessionId) return
-      handle(p.event)
-    }
-    ws.onclose = () => { if (sessionId) setTimeout(openWs, 1500) }
-  }
-
   async function ensureSession(): Promise<void> {
     if (sessionId) return
     const v = await rpc('session.create', { cwd: APP.WORKDIR, agentPreset: APP.PRESET_ID })
     sessionId = v.sessionId
-    openWs()
+    // 等订阅真正建立再放行发问(legacy=ws.open,new=follow 首帧 snapshot)——
+    // create 与订阅之间的早到帧不能丢。
     await new Promise<void>((r) => {
-      const t = setInterval(() => { if (ws && ws.readyState === 1) { clearInterval(t); r() } }, 50)
+      ws = wireStream(() => sessionId, handle, { onReady: r })
     })
   }
 

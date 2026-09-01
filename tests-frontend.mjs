@@ -28,7 +28,8 @@ const sdkSrc = readFileSync(join('frontends', '_vendor', 'assembler-sdk.js'), 'u
 check('SDK:wire 三件套 + 服务脸 + 围栏出声 + IME 守卫齐备', ['session.create', 'session.prompt', 'events.mux', 'turn/end', '/.service', 'extractFence', 'isComposing'].every((k) => sdkSrc.includes(k)))
 for (const t of templates) {
   const html = readFileSync(join('frontends', t, 'index.html'), 'utf8')
-  const viaSdk = html.includes('_vendor/assembler-sdk.js') && html.includes('AssemblerSDK.createClient')
+  // 双代 wire 核收编后(BACKLOG 0.9),页面经 SDK 的两种合法形态:createClient 全托管,或 wire.rpc/wire.stream 薄转发
+  const viaSdk = html.includes('_vendor/assembler-sdk.js') && (html.includes('AssemblerSDK.createClient') || html.includes('AssemblerSDK.wire.'))
   const inline = html.includes('session.create') && html.includes('session.prompt') && html.includes('events.mux') && html.includes('turn/end')
   const wired = (viaSdk || inline) && html.includes('{{presetId}}') && html.includes('{{workdir}}')
   check(`模板 ${t}:通信层就位(SDK 或内联)+ 槽位齐全`, wired)

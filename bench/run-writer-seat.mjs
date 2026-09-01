@@ -7,37 +7,16 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { existsSync, readFileSync } from 'node:fs'
+import { openWireSession } from '../lib/wire.js'
 
 const PORT = Number(process.argv[2] ?? 3097)
 const NAME = process.argv[3] ?? 'note-wall'
 const APPDIR = join(homedir(), 'apps', `${NAME}-ui`)
 
-const rpc = async (method, payload) => {
-  const r = await fetch(`http://127.0.0.1:${PORT}/api/${method}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'client-request', rpcId: `ws-${Date.now()}-${Math.random().toString(36).slice(2)}`, method, payload }),
-    signal: AbortSignal.timeout(30_000),
-  })
-  const j = await r.json()
-  if (!j.result?.ok) throw new Error(`${method}: ${JSON.stringify(j.result?.error ?? j).slice(0, 300)}`)
-  return j.result.value
-}
-
-const { sessionId } = await rpc('session.create', { cwd: join(homedir(), 'apps') })
+// 传输层走 lib/wire.js 共享客户端(BACKLOG 0.9:探协议定代际,两代同形)
+const w = await openWireSession(PORT, { cwd: join(homedir(), 'apps'), questions: true })
+const { sessionId, frames } = w
 console.log('session:', sessionId, `(侧栏可旁观,host ${PORT})`)
-
-const frames = []
-const ws = new WebSocket(`ws://127.0.0.1:${PORT}/api/events.mux`)
-ws.onmessage = (m) => {
-  try {
-    const f = JSON.parse(String(m.data))
-    if (f.payload?.type === 'session/event' && f.payload.sessionId === sessionId) frames.push(f.payload.event)
-    else if (f.payload?.type === 'question/requested' && f.payload.sessionId === sessionId) {
-      frames.push({ type: '__question', rpcId: f.rpcId, questions: f.payload.questions })
-    }
-  } catch { /* 非 JSON 帧 */ }
-}
-await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('ws failed')) })
 
 const answerQuestion = async (q) => {
   const answers = (q.questions ?? []).map((item) => {
@@ -47,16 +26,12 @@ const answerQuestion = async (q) => {
       ? { id: String(item.id), selected: [pick] }
       : { id: String(item.id), selected: [], custom: '按此装配,不用再问我。' }
   })
-  await fetch(`http://127.0.0.1:${PORT}/api/respond`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'client-response', rpcId: q.rpcId, result: { ok: true, value: { sessionId, answer: { answers } } } }),
-    signal: AbortSignal.timeout(15_000),
-  })
-  console.log('  ↳ 已代答检查点(按此装配)')
+  const receipt = await w.answer(q, answers)
+  console.log(receipt.accepted ? '  ↳ 已代答检查点(按此装配)' : `  !! 检查点应答被拒收:${receipt.detail ?? ''}`)
 }
 
 const PROMPT = `帮我装一个便签墙应用:随手贴便签(内容 + 颜色标签 红/黄/绿),能按标签筛选,便签要落库持久;要一张定制网页(便签墙形状,不是聊天框)。preset 名用 ${NAME},前端 scaffold 落在 ~/apps/${NAME}-ui。`
-await rpc('session.prompt', { sessionId, mode: 'queue', content: [{ type: 'text', text: PROMPT }] })
+await w.prompt(PROMPT)
 console.log('prompt 已入队;预算 30 分钟(写手要写真代码)')
 
 const t0 = Date.now()
@@ -113,5 +88,5 @@ console.log('\n═══ 独立复核 ═══')
 console.log('页面:', page?.status ?? 'DOWN', '| 资产', refs.length, '个', assetsOk ? '全通' : '有断链')
 console.log('PAGE-SPEC:', existsSync(join(APPDIR, 'PAGE-SPEC.yml')) ? readFileSync(join(APPDIR, 'PAGE-SPEC.yml'), 'utf8').split('\n').filter((l) => l.includes('route:')).length + ' 个动作标注' : '缺')
 console.log('selfcheck 台账:', existsSync(join(homedir(), '.dsh', '.agent-presets', NAME, 'parts.lock.yml')) ? 'preset 在' : 'preset 缺')
-try { await rpc('session.cancel', { sessionId }) } catch { /* 已结束 */ }
+try { w.close() } catch { /* 已结束 */ }
 process.exit(seen.deployApp && assetsOk ? 0 : 1)

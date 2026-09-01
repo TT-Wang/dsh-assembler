@@ -4,10 +4,12 @@
  * judge the reply. "Vibe assembly" promises find → assemble → verify; this
  * module is the verify leg.
  *
- * The probe run drives the host's own public wire contract (HTTP RPC +
- * events.mux WebSocket) rather than internal services: the wire is the
- * stable, versioned surface, and a probe that passes here passes exactly the
- * way a user's session would.
+ * The probe run drives the host's own public wire contract rather than
+ * internal services: the wire is the surface a user's session actually rides,
+ * and a probe that passes here passes exactly the way a user's session would.
+ * 传输层在 src/wire.ts(共享客户端,BACKLOG 0.9):探协议定代际,旧 wire 走
+ * 点号端点+events.mux,新 wire(0.1.2-alpha.1 起)走 cookie+斜杠端点+
+ * session/follow 流;帧形状两代归一,本文件判定逻辑零改动。
  */
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -16,6 +18,7 @@ import type { Context } from "@deepseek-ai/cordis";
 import { BlockAssembler, type GenerateOptions } from "@deepseek-ai/dsh-llm";
 import { createUserMessage } from "@deepseek-ai/dsh-llm/message";
 import type { CapabilityEntry } from "./index.js";
+import { openWireSession } from "./wire.js";
 
 /** A probe task plus its machine-checkable acceptance marks. */
 export interface ProbeSpec {
@@ -601,59 +604,24 @@ function frameText(e: any): string {
 interface ProbeSession {
   sessionId: string;
   frames: any[];
-  rpc: (method: string, payload: unknown) => Promise<any>;
+  prompt: (text: string) => Promise<void>;
   close: () => void;
 }
 
-/** Open a session bound to the preset and subscribe to its event stream. */
+/**
+ * Open a session bound to the preset and subscribe to its event stream.
+ *
+ * 传输层走共享 wire 客户端:RPC 超时把 socket 本身也钉死(enqueue-and-ack 无应答
+ * 会挂在 sendTurn 的轮预算开始计时之前,见 PROBE_RPC_TIMEOUT_MS)。探针退出必须
+ * 掐掉会话:判超时弃考后,被考的 agent 那一轮还在服务器上跑——白烧 token,侧栏
+ * 的探针会话还永远显示"深思中",旁观者会误以为装配没完(实测:用户盯着遗孤轮问
+ * "为什么还在 deep diving")。cancel 由 close() 承接、尽力而为:探针的判定在弃考
+ * 那一刻已经成立,掐不掐得掉都不改变结论。
+ */
 async function openProbeSession(port: number, presetId: string, cwd?: string): Promise<ProbeSession> {
-  const base = `http://127.0.0.1:${port}`;
-  const rpc = async (method: string, payload: unknown): Promise<any> => {
-    let res: Response;
-    try {
-      res = await fetch(`${base}/api/${method}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "client-request", rpcId: `probe-${Date.now()}-${Math.round(performance.now())}`, method, payload }),
-        // Deadline the socket itself, not just the turn that follows it: an
-        // unanswered enqueue-and-ack would otherwise hang before sendTurn's
-        // turn budget ever starts counting (see PROBE_RPC_TIMEOUT_MS).
-        signal: AbortSignal.timeout(PROBE_RPC_TIMEOUT_MS),
-      });
-    } catch (error) {
-      const why = error instanceof Error && error.name === "TimeoutError"
-        ? `${Math.round(PROBE_RPC_TIMEOUT_MS / 1000)}s 内无响应`
-        : (error instanceof Error ? error.message : String(error));
-      throw new Error(`${method}: wire RPC 失败(${why})`);
-    }
-    const j = (await res.json()) as any;
-    if (!j.result?.ok) throw new Error(`${method}: ${JSON.stringify(j.result?.error ?? j).slice(0, 800)}`);
-    return j.result.value;
-  };
-
   const workdir = cwd ?? mkdtempSync(join(tmpdir(), "assembler-probe-"));
-  const { sessionId } = await rpc("session.create", { cwd: workdir, agentPreset: presetId });
-  // 探针退出必须掐掉会话:判超时弃考后,被考的 agent 那一轮还在服务器上跑——
-  // 白烧 token,侧栏的探针会话还永远显示"深思中",旁观者会误以为装配没完
-  // (实测:用户盯着遗孤轮问"为什么还在 deep diving")。cancel 尽力而为:
-  // 探针的判定在弃考那一刻已经成立,掐不掐得掉都不改变结论。
-  const cancel = (): void => {
-    void rpc("session.cancel", { sessionId }).catch(() => { /* 会话可能已自然结束 */ });
-  };
-
-  const frames: any[] = [];
-  const ws = new WebSocket(`ws://127.0.0.1:${port}/api/events.mux`);
-  ws.onmessage = (m: MessageEvent) => {
-    try {
-      const f = JSON.parse(String(m.data));
-      if (f.payload?.type === "session/event" && f.payload.sessionId === sessionId) frames.push(f.payload.event);
-    } catch { /* non-JSON frame */ }
-  };
-  await new Promise<void>((res, rej) => {
-    ws.onopen = () => res();
-    ws.onerror = () => rej(new Error("events.mux websocket failed"));
-  });
-  return { sessionId, frames, rpc, close: () => { cancel(); ws.close(); } };
+  const w = await openWireSession(port, { agentPreset: presetId, cwd: workdir, rpcTimeoutMs: PROBE_RPC_TIMEOUT_MS });
+  return { sessionId: w.sessionId, frames: w.frames, prompt: w.prompt, close: w.close };
 }
 
 /**
@@ -682,11 +650,7 @@ export interface TurnOutcome { reply?: string; askedUser?: string }
 export async function sendTurn(session: ProbeSession, prompt: string, timeoutMs: number, onPhase?: (line: string) => void): Promise<TurnOutcome> {
   const endsBefore = session.frames.filter((e) => e.type === "turn/end").length;
   const startIndex = session.frames.length;
-  await session.rpc("session.prompt", {
-    sessionId: session.sessionId,
-    mode: "queue",
-    content: [{ type: "text", text: prompt }],
-  });
+  await session.prompt(prompt);
   const t0 = Date.now();
   let scanned = startIndex;
   let framesSeen = session.frames.length;
@@ -968,26 +932,18 @@ export async function runTriggerProbe(
 ): Promise<{ pass: boolean; reason: string; sessionId?: string; elapsedSeconds: number }> {
   const t0 = Date.now();
   const budget = opts.timeoutMs ?? 240_000;
-  const rpc = async (method: string, payload: unknown): Promise<any> => {
-    const res = await fetch(`http://127.0.0.1:${String(port)}/api/${method}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "client-request", rpcId: `trig-${Date.now()}`, method, payload }),
-      signal: AbortSignal.timeout(PROBE_RPC_TIMEOUT_MS),
-    });
-    const j = (await res.json()) as any;
-    if (!j.result?.ok) throw new Error(`${method}: ${JSON.stringify(j.result?.error ?? j).slice(0, 300)}`);
-    return j.result.value;
-  };
   let sessionId: string;
   try {
-    ({ sessionId } = await rpc("session.create", { cwd: join(opts.presetDir, "workspace"), agentPreset: opts.presetId }));
-    // 与 cron-trigger 实际注入的纪律头同款:无人在场、别提问、做完为止
-    await rpc("session.prompt", {
-      sessionId,
-      mode: "queue",
-      content: [{ type: "text", text: `[定时任务自动触发,无人在场——独立完成,不要向任何人提问;做完为止,不要因为一次尝试失败就停]\n${opts.task}` }],
+    // events:false——打一发就走,不订流也不掐会话(被触发的工作要跑完,效果凭库说话)
+    const w = await openWireSession(port, {
+      agentPreset: opts.presetId,
+      cwd: join(opts.presetDir, "workspace"),
+      events: false,
+      rpcTimeoutMs: PROBE_RPC_TIMEOUT_MS,
     });
+    sessionId = w.sessionId;
+    // 与 cron-trigger 实际注入的纪律头同款:无人在场、别提问、做完为止
+    await w.prompt(`[定时任务自动触发,无人在场——独立完成,不要向任何人提问;做完为止,不要因为一次尝试失败就停]\n${opts.task}`);
   } catch (error) {
     return { pass: false, reason: `触发失败(wire 开会话):${error instanceof Error ? error.message : String(error)}`, elapsedSeconds: Math.round((Date.now() - t0) / 1000) };
   }

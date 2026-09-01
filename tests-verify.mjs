@@ -167,7 +167,7 @@ check('不存在的包如实上报缺书(不再静默)', missing.installed.lengt
 //    问人即判负 + 工具动作流进直播台 + 正常轮取 assistant/message 文本。
 {
   const phases = []
-  const s1 = { sessionId: 's-ask', frames: [], rpc: async () => ({}), close: () => {} }
+  const s1 = { sessionId: 's-ask', frames: [], prompt: async () => {}, close: () => {} }
   const p1 = sendTurn(s1, '测试任务', 30_000, (l) => phases.push(l))
   s1.frames.push({ type: 'tool/call', data: { name: 'read_file', arguments: '{}' } })
   await new Promise((r) => setTimeout(r, 1300))
@@ -176,14 +176,14 @@ check('不存在的包如实上报缺书(不再静默)', missing.installed.lengt
   check('agent 问人 ⇒ 立即判负并带回问题原文', askOut.askedUser === '能否把 book.txt 粘贴给我?', JSON.stringify(askOut))
   check('工具动作实时流进直播台', phases.some((l) => l.includes('read_file')), JSON.stringify(phases))
 
-  const s2 = { sessionId: 's-ok', frames: [], rpc: async () => ({}), close: () => {} }
+  const s2 = { sessionId: 's-ok', frames: [], prompt: async () => {}, close: () => {} }
   const p2 = sendTurn(s2, 'hi', 30_000)
   s2.frames.push({ type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '答复正文' }] } } })
   s2.frames.push({ type: 'turn/end' })
   const okOut = await p2
   check('正常轮返回 reply', okOut.reply === '答复正文', JSON.stringify(okOut))
 
-  const s3 = { sessionId: 's-to', frames: [], rpc: async () => ({}), close: () => {} }
+  const s3 = { sessionId: 's-to', frames: [], prompt: async () => {}, close: () => {} }
   const toOut = await sendTurn(s3, 'hi', 1500)
   check('轮预算耗尽返回空对象(超时语义不变)', toOut.reply === undefined && toOut.askedUser === undefined, JSON.stringify(toOut))
 }

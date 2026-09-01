@@ -73,15 +73,25 @@
 - [ ] **0.8 发射→验收结构闸**(P3 验尸修法,v7 议程①):deploy_app/emit_app 前置
       要求配套 preset 有窗口内考官判定(读 selfcheck-history,同名重发后失效)——
       「发射完成≠可用」从散文承诺升格为机械闸;拒发 vs 大声记账按第七条与
-      "不替用户砍"权衡后定。
-
-- [ ] **0.9 wire 迁移(DSH alpha.2,底册 docs/research/dsh-alpha2-migration.md)**:
-      上游 rc.8→0.1.2-alpha.2 已同步(host 3097 在跑,插件全链绿),wire 整体重铸
-      (斜杠端点/args.request 双包裹/requestId/cookie 鉴权/remote.mux 流/$events
-      代答,协议已实弹破译)。待迁:src/verify.ts 真会话探针(**alpha.2 上
-      verify_preset 的 wire 探针不可用直到迁完**)、frontend.ts 模板页会话调用、
-      bench 三驱动器、index-add auto 路——建一份共享 wire 客户端四处复用,业务
-      判定逻辑零改动。白捡顺手:seq 锚计数、approval waterfall 进考卷面。
+      "不替用户砍"权衡后定。**设计约束两条(2026-09-01,Rust 类比复盘)**:
+      ①快慢闸分层——cargo-check 级的廉价前置判定(读台账/查文件)在前,考官级
+      的贵验证在后,反馈吞吐是一等资产(P2 缓存热重跑 2.5× 的经验推广);②绕闸
+      必须留痕——任何 gate bypass 走 UB 诚实登记同款机制(可 grep,如 Rust 的
+      `unsafe`),不许静默绕行。
+- [x] **0.9 wire 迁移(DSH alpha.2)——完成(2026-09-01)**:共享客户端
+      `src/wire.ts` 落地(双代:探协议定代际;新代 cookie 落盘缓存跨重启/包裹键
+      读报错自适应/requestId/session-follow/control 投影/$events 代答;detach 与
+      close 分设),七处消费点全部收编:verify.ts 双探针、bench 三驱动器、
+      index-add auto、_vendor 浏览器 SDK(双代 wire 核,中央伺服全页即时生效)+
+      三张模板页、scaffold 模板 SDK、cron-trigger 零件(自包含迷你客户端,共享
+      cookie 缓存)。判据:npm test 13 套零✗;3097(alpha.2)实弹 A/B 双 PASS
+      (探针路回显 WIRE_OK_3097;代答路 $events 按 label 答 staging 且 tokenUsage
+      投影收到真值)。新协议事实:`session/control` **无参**(生成声明为准,
+      空 `{args:{}}`,全局流帧带 sessionId 自滤)。残差(重发自愈,不另立工单):
+      已部署 app 的页面拷贝与在跑的 cron-trigger 旧实例仍是旧 wire,各自随下次
+      deploy_app/零件重挂载自动换血;浏览器双代核已镜像 Node 实测面,真机浏览器
+      验证挂在下一次 deploy_app 的六门 DOM 考。白捡项(seq 锚计数、approval
+      waterfall 进考卷面)转入 v7 议程。
 
 ## 已完成基线(免得重复造)
 

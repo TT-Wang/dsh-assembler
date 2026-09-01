@@ -26,6 +26,7 @@ import yaml from 'js-yaml'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { openWireSession } from '../lib/wire.js'
 import { inventoryEndpoints, specBaseUrl } from './spec-intake.mjs'
 import { assertYaml, s } from './yaml-write.mjs'
 
@@ -704,7 +705,7 @@ ${inventory}
 async function agentTurn(port, session, text, timeoutMs = 900_000) {
   const endsBefore = session.frames.filter((e) => e.type === 'turn/end').length
   const start = session.frames.length
-  await session.rpc('session.prompt', { sessionId: session.sessionId, mode: 'queue', content: [{ type: 'text', text }] })
+  await session.prompt(text)
   const t0 = Date.now()
   while (Date.now() - t0 < timeoutMs) {
     if (session.frames.filter((e) => e.type === 'turn/end').length > endsBefore) {
@@ -721,26 +722,10 @@ async function agentTurn(port, session, text, timeoutMs = 900_000) {
 }
 
 async function openSession(port, cwd) {
-  const rpc = async (method, payload) => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/${method}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'client-request', rpcId: `auto-${Date.now()}-${Math.random().toString(36).slice(2)}`, method, payload }),
-    })
-    const j = await res.json()
-    if (!j.result?.ok) throw new Error(`${method}: ${JSON.stringify(j.result?.error ?? j).slice(0, 400)}`)
-    return j.result.value
-  }
-  const { sessionId } = await rpc('session.create', { cwd })
-  const frames = []
-  const ws = new WebSocket(`ws://127.0.0.1:${port}/api/events.mux`)
-  ws.onmessage = (m) => {
-    try {
-      const f = JSON.parse(String(m.data))
-      if (f.payload?.type === 'session/event' && f.payload.sessionId === sessionId) frames.push(f.payload.event)
-    } catch { /* non-JSON frame */ }
-  }
-  await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('events.mux 连接失败')) })
-  return { sessionId, frames, rpc, close: () => ws.close() }
+  // 传输层走 lib/wire.js 共享客户端(BACKLOG 0.9,探协议定代际、两代同形)。
+  // auto 收尾只断流不掐会话(detach):agent 写件的会话留在侧栏可复查。
+  const w = await openWireSession(port, { cwd })
+  return { sessionId: w.sessionId, frames: w.frames, prompt: w.prompt, close: w.detach }
 }
 
 async function auto() {

@@ -65,13 +65,30 @@
    业务层零改动;传输层建 **一份共享 wire 客户端**(cookie/RPC/流/代答)四处复用。
    备选:SDK/ACP stdio profile 无 cookie 无 WS,但 initialize 尚无 agentPreset 口。
 
+**完成记(2026-09-01,BACKLOG 0.9 结案)**:共享客户端 = `src/wire.ts`(双代,
+探协议定代际;openWireSession 统一门面,帧面/代答/投影归一成旧形状,业务判定
+零改动)。消费点比原工单多三处(dsh-hop 试跑 B 的体检收获):七处全收编——
+verify.ts 双探针 / bench 三驱动器 / index-add auto / **frontends/_vendor 浏览器
+SDK**(双代 wire 核;`_vendor` 为中央伺服,改一份全页生效,含已部署老 app)/
+三张模板页(内联客户端收编为 SDK 薄转发)/ **scaffold 模板 SDK**(生成性欠债,
+不迁则新发射 app 全是旧 wire)/ **cron-trigger 零件**(自包含迷你双代客户端,
+共享 `~/.dsh/assembler/wire-auth.json` cookie 缓存)。判据:npm test 13 套零✗;
+3097(alpha.2)实弹双 PASS——探针路(preset 会话回显)与代答路($events 按
+label 答、tokenUsage 投影收到真值)。**新协议事实**:`session/control` 无参
+(生成声明 `control:(signal?)=>AsyncIterable`,包裹键=控制器 TS 参数名的又一
+证;开流恰为空 `{args:{}}`,全局流帧带 sessionId 自滤)。残差(重发自愈):
+已部署 app 页面拷贝与在跑 cron-trigger 旧实例仍旧 wire,随下次 deploy_app/
+零件重挂载换血;浏览器核真机验证挂下一次 deploy_app 六门 DOM 考。
+
 ## 五、3096(生产 host)重启操作卡
 
 1. `cd /Users/tongtao/code/deepseek-harness-rc8`(必须检出根,tsx 靠根 tsconfig)
 2. 已由本次同步完成:pnpm install、clean+build、sidebar 0.18.0-alpha.0、.env 体检
 3. 停旧 → 原命令启动 → 首启盯 session-persistence 报错(schema 20)
 4. 浏览器开一次启动行的 `?token=` URL(30 天 cookie)
-5. 注意:verify_preset 的 wire 探针待 0.9 迁移;其余装配功能可用
+5. ~~注意:verify_preset 的 wire 探针待 0.9 迁移~~ **0.9 已结案(2026-09-01),
+   探针/驱动器/页面/零件全链新 wire 可用**;重启后建议顺手跑一发
+   `node bench/run-writer-seat.mjs <port>` 或真会话 verify_preset 冒烟
 
 ## 空表格之谜(2026-08-31,已破案——**先前"alpha.2 UI bug"归因错误,推翻**)
 

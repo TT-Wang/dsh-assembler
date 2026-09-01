@@ -5,6 +5,7 @@
 // (v5 仪器 + 合奏层)。用法:node bench/run-proving.mjs [port] [P1,P3]
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
+import { openWireSession } from '../lib/wire.js'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -55,39 +56,13 @@ writeFileSync(join(CORPUS_B, 'B-产品手册.md'), `# 澄音 B2 骨传导耳机 
 单次 9 小时;磁吸充电 1.5 小时充满。
 `)
 
-const rpc = async (method, payload) => {
-  const r = await fetch(`http://127.0.0.1:${PORT}/api/${method}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'client-request', rpcId: `pg-${Date.now()}-${Math.random().toString(36).slice(2)}`, method, payload }),
-    signal: AbortSignal.timeout(30_000),
-  })
-  const j = await r.json()
-  if (!j.result?.ok) throw new Error(`${method}: ${JSON.stringify(j.result?.error ?? j).slice(0, 200)}`)
-  return j.result.value
-}
-
 async function runOne(scn) {
   const t0 = Date.now()
   const cwdSnapshot = (() => { try { return readdirSync(join(homedir(), 'apps')).sort() } catch { return [] } })()
-  const { sessionId } = await rpc('session.create', { cwd: join(homedir(), 'apps') })
-  const frames = []
-  let tokenUsage = null
-  const otherFrameCounts = {}
-  const approvalFrames = []
-  const ws = new WebSocket(`ws://127.0.0.1:${PORT}/api/events.mux`)
-  ws.onmessage = (m) => {
-    try {
-      const f = JSON.parse(String(m.data))
-      if (f.payload?.type === 'session/event' && f.payload.sessionId === sessionId) frames.push(f.payload.event)
-      else if (f.payload?.type === 'question/requested' && f.payload.sessionId === sessionId) frames.push({ type: '__question', rpcId: f.rpcId, questions: f.payload.questions })
-      else if (f.payload?.type === 'session/projection' && f.payload.sessionId === sessionId && f.payload.key === 'tokenUsage') tokenUsage = f.payload.value ?? null
-      else if (f.payload?.sessionId === sessionId && typeof f.payload?.type === 'string') {
-        otherFrameCounts[f.payload.type] = (otherFrameCounts[f.payload.type] ?? 0) + 1
-        if (/approval|permission/i.test(f.payload.type)) approvalFrames.push(JSON.stringify(f.payload).slice(0, 400))
-      }
-    } catch { /* 非 JSON 帧 */ }
-  }
-  await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('ws failed')) })
+  // 传输层走 lib/wire.js 共享客户端(BACKLOG 0.9,两代同形):帧面全录/审批帧
+  // 存原文/tokenUsage 走投影的纪律下沉进客户端,驱动器判定逻辑零改动。
+  const w = await openWireSession(PORT, { cwd: join(homedir(), 'apps'), questions: true, projections: true })
+  const { sessionId, frames, otherFrameCounts, approvalFrames } = w
 
   const questionTexts = []
   const answersGiven = []
@@ -105,15 +80,9 @@ async function runOne(scn) {
       return pick !== undefined ? { id: String(item.id), selected: [pick] } : { id: String(item.id), selected: [], custom: '按你的判断来,不用再问我。' }
     })
     answersGiven.push(answers)
-    const resp = await fetch(`http://127.0.0.1:${PORT}/api/respond`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'client-response', rpcId: q.rpcId, result: { ok: true, value: { sessionId, answer: { answers } } } }),
-      signal: AbortSignal.timeout(15_000),
-    })
-    try {
-      const receipt = await resp.json()
-      if (receipt?.accepted === false) { answerRejected = true; console.log(`    !! ${scn.id} 应答被拒收:${JSON.stringify(receipt).slice(0, 160)}`) }
-    } catch { /* 无回执体 */ }
+    // 回执两代形状(旧 respond 顶层 {accepted} / 新 $events result.ok)由客户端归一
+    const receipt = await w.answer(q, answers)
+    if (!receipt.accepted) { answerRejected = true; console.log(`    !! ${scn.id} 应答被拒收:${receipt.detail ?? ''}`) }
   }
 
   const assistantTexts = []
@@ -152,7 +121,7 @@ async function runOne(scn) {
     segRef.i = pi + 1
     const segT0 = Date.now()
     const text = String(seg.text).replace('CORPUS_A', CORPUS_A).replace('CORPUS_B', CORPUS_B)
-    await rpc('session.prompt', { sessionId, mode: 'queue', content: [{ type: 'text', text }] })
+    await w.prompt(text)
     console.log(`  ▶ ${scn.id} 段 ${pi + 1}/${scn.prompts.length}`)
     const budget = (seg.budgetMinutes ?? 25) * 60_000
     lastActivityRef.t = Date.now()
@@ -171,13 +140,12 @@ async function runOne(scn) {
       console.log(`    !! ${scn.id} 段 ${pi + 1} 非自然结束(${endReason}),后续段照发(生活流:用户不等它喘匀)`)
     }
   }
-  try { await rpc('session.cancel', { sessionId }) } catch { /* 已结束 */ }
-  try { ws.close() } catch { /* ignore */ }
+  try { w.close() } catch { /* 已结束 */ }
   return {
     sessionId, cwdSnapshot, tools, toolCalls, segments,
     finalText: assistantTexts.join('\n\n'), finalTextComplete: true, insistText: INSIST,
     answered, answersGiven, answerRejected, questionTexts, otherFrameCounts, approvalFrames,
-    elapsedSeconds: Math.round((Date.now() - t0) / 1000), usage: tokenUsage, usageCollected: tokenUsage !== null,
+    elapsedSeconds: Math.round((Date.now() - t0) / 1000), usage: w.tokenUsage, usageCollected: w.tokenUsage !== null,
   }
 }
 

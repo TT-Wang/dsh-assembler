@@ -10,6 +10,104 @@
 (function () {
   'use strict';
 
+  // ── wire 核(双代,BACKLOG 0.9)────────────────────────────────────────────
+  // 0.1.2-alpha.1 起 wire 重铸:斜杠端点 + payload 双包裹({args:{request:…}},
+  // 包裹键=控制器 TS 参数名)+ prompt 自铸 requestId + 事件走 remote.mux 逻辑流。
+  // 本 vendor 由 host 从仓库磁盘**实时伺服**,而 host 进程可能仍在跑旧代代码
+  // (原地升级的幽灵宿主)——所以浏览器侧同样探协议定代际:朝斜杠 session/list
+  // 打一发,404 = 旧代(点号端点),200/401 = 新代。同源 cookie 浏览器自动带
+  // (用户 30 天内开过一次 ?token= URL 即可;401 说明没开过,报错会说)。
+  var wireCohortP = null;
+  function wireCohort() {
+    if (wireCohortP) return wireCohortP;
+    wireCohortP = fetch('/api/session/list', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'client-request', rpcId: 'fe-cohort-probe', method: 'session/list', payload: { args: { _request: {} } } }),
+    }).then(function (r) { return r.status === 404 ? 'legacy' : 'new'; })
+      .catch(function () { return 'new'; });
+    return wireCohortP;
+  }
+
+  function unwrapRpc(label) {
+    return function (j) {
+      if (!j.result || !j.result.ok) throw new Error(label + ' 失败:' + JSON.stringify((j.result && j.result.error) || j).slice(0, 200));
+      return j.result.value;
+    };
+  }
+
+  // wireRpc(method, payload):method 用旧点号规范名(session.create 等),内部按
+  // 代际翻译。新代包裹键先按 request 发,网关逐字点名 _request 就换键重发——
+  // 读报错改发,不抄对照表。
+  function wireRpc(method, payload) {
+    return wireCohort().then(function (c) {
+      var rpcId = 'fe-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+      if (c === 'legacy') {
+        return fetch('/api/' + method, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'client-request', rpcId: rpcId, method: method, payload: payload }),
+        }).then(function (res) { return res.json(); }).then(unwrapRpc(method));
+      }
+      var endpoint = method.replace('.', '/');
+      var req = payload || {};
+      if (endpoint === 'session/prompt' && !req.requestId) req = Object.assign({ requestId: rpcId }, req);
+      var send = function (key) {
+        var args = {}; args[key] = req;
+        return fetch('/api/' + endpoint, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'client-request', rpcId: rpcId, method: endpoint, payload: { args: args } }),
+        }).then(function (res) {
+          if (res.status === 401) throw new Error(endpoint + ' 失败:HTTP 401 未鉴权——请先在本浏览器打开一次 host 启动打印的 ?token= 链接(30 天有效)');
+          return res.json();
+        });
+      };
+      return send('request').then(function (j) {
+        var err = j.result && !j.result.ok ? j.result.error : null;
+        if (err && /_request/.test(String(err.message || ''))) return send('_request');
+        return j;
+      }).then(unwrapRpc(endpoint));
+    });
+  }
+
+  // wireStream(getSessionId, onEvent, opts?):订本会话事件流,断线自重连;
+  // getSessionId() 返回 falsy 时停止。事件形状两代一致(assistant/message /
+  // tool/call / turn/end)。opts.onReady 在订阅真正建立后回调一次。
+  function wireStream(getSessionId, onEvent, opts) {
+    var stopped = false;
+    var readyFired = false;
+    function fireReady() { if (!readyFired && opts && opts.onReady) { readyFired = true; opts.onReady(); } }
+    function connect(c) {
+      var sid = getSessionId();
+      if (stopped || !sid) return;
+      var reconnect = function () { if (!stopped && getSessionId()) setTimeout(function () { connect(c); }, 1500); };
+      if (c === 'legacy') {
+        var ws = new WebSocket(location.origin.replace(/^http/, 'ws') + '/api/events.mux');
+        ws.onopen = fireReady;
+        ws.onmessage = function (m) {
+          var f; try { f = JSON.parse(String(m.data)); } catch (_) { return; }
+          var p = f.payload;
+          if (p && p.type === 'session/event' && p.sessionId === getSessionId()) onEvent(p.event);
+        };
+        ws.onclose = reconnect;
+        return;
+      }
+      var streamId = 'fe-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+      var ws2 = new WebSocket(location.origin.replace(/^http/, 'ws') + '/api/remote.mux');
+      ws2.onopen = function () {
+        ws2.send(JSON.stringify({ type: 'open', streamId: streamId, endpoint: 'session/follow', payload: { args: { request: { address: { kind: 'session', sessionId: sid } } } } }));
+      };
+      ws2.onmessage = function (m) {
+        var f; try { f = JSON.parse(String(m.data)); } catch (_) { return; }
+        if (f.streamId !== streamId || f.type !== 'item') return;
+        var v = f.value;
+        if (v && v.type === 'snapshot') fireReady(); // follow 首帧 = snapshot,订阅已立
+        else if (v && v.type === 'event' && v.event) onEvent(v.event);
+      };
+      ws2.onclose = reconnect;
+    }
+    wireCohort().then(connect);
+    return { close: function () { stopped = true; } };
+  }
+
   // ── 会话面客户端 ──────────────────────────────────────────────────────────
   // createClient({ presetId, workdir, onToolCall?, onDelta?, onError? })
   //   .ask(text) → Promise<{ reply, fence }>:发一轮、等 turn/end、带围栏解析结果
@@ -19,16 +117,7 @@
     var turnWaiters = [];
     var replyBuf = '';
 
-    function rpc(method, payload) {
-      return fetch('/api/' + method, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'client-request', rpcId: 'fe-' + Date.now() + '-' + Math.random().toString(36).slice(2), method: method, payload: payload }),
-      }).then(function (res) { return res.json(); }).then(function (j) {
-        if (!j.result || !j.result.ok) throw new Error(method + ' 失败:' + JSON.stringify((j.result && j.result.error) || j).slice(0, 200));
-        return j.result.value;
-      });
-    }
+    var rpc = wireRpc; // 双代翻译在 wire 核里,调用面保持旧点号规范名
 
     function textOf(e) {
       var c = e.data && e.data.message && e.data.message.content;
@@ -51,23 +140,14 @@
       }
     }
 
-    function openWs() {
-      ws = new WebSocket(location.origin.replace(/^http/, 'ws') + '/api/events.mux');
-      ws.onmessage = function (m) {
-        var f; try { f = JSON.parse(String(m.data)); } catch (_) { return; }
-        var p = f.payload;
-        if (!p || p.type !== 'session/event' || p.sessionId !== sessionId) return;
-        handle(p.event);
-      };
-      ws.onclose = function () { if (sessionId) setTimeout(openWs, 1500); };
-    }
-
     function ensureSession() {
       if (sessionId) return Promise.resolve();
       return rpc('session.create', { cwd: cfg.workdir, agentPreset: cfg.presetId }).then(function (v) {
-        sessionId = v.sessionId; openWs();
+        sessionId = v.sessionId;
+        // 等订阅真正建立再放行发问(onReady:legacy=ws.open,new=follow 首帧 snapshot)
+        // ——create 与订阅之间的早到帧不能丢。
         return new Promise(function (r) {
-          var t = setInterval(function () { if (ws && ws.readyState === 1) { clearInterval(t); r(); } }, 50);
+          ws = wireStream(function () { return sessionId; }, handle, { onReady: r });
         });
       });
     }
@@ -264,6 +344,7 @@
   }
 
   window.AssemblerSDK = {
+    wire: { cohort: wireCohort, rpc: wireRpc, stream: wireStream },
     createClient: createClient,
     extractFence: extractFence,
     discoverServices: discoverServices,

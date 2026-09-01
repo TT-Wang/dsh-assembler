@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- chat-console — 装配默认前端(Franken UI / shadcn 观感):与该 preset agent 直接对话。
-     接线走 host 同源 wire(session.create / session.prompt / events.mux)。 -->
+     接线走 host 同源 wire(经 _vendor/assembler-sdk.js 的双代 wire 核:session.create / session.prompt / 事件流)。 -->
 <html lang="zh" class="uk-theme-zinc">
 <head>
 <meta charset="utf-8">
@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="_vendor/core.min.css">
 <link rel="stylesheet" href="_vendor/utilities.min.css">
 <script src="_vendor/core.iife.js" defer></script>
+<script src="_vendor/assembler-sdk.js"></script>
 <style>
   .dot{width:9px;height:9px;border-radius:9999px;background:hsl(var(--muted-foreground));flex:none;transition:background .3s}
   .dot.busy{background:hsl(var(--primary));animation:pulse 1.1s infinite}
@@ -54,19 +55,8 @@ const lane = $('lane'), dot = $('dot'), box = $('box'), sendBtn = $('sendBtn');
 function showErr(m) { const e = $('err'); e.textContent = m; e.style.display = 'block'; setTimeout(() => e.style.display = 'none', 8000); }
 function setBusy(b) { busy = b; dot.className = 'dot ' + (b ? 'busy' : 'ok'); sendBtn.disabled = b; }
 
-async function rpc(method, payload) {
-  const res = await fetch('/api/' + method, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'client-request', rpcId: 'fe-' + Date.now() + '-' + Math.random().toString(36).slice(2), method, payload }) });
-  const j = await res.json();
-  if (!j.result || !j.result.ok) throw new Error(method + ' 失败: ' + JSON.stringify(j.result && j.result.error || j).slice(0, 200));
-  return j.result.value;
-}
-function openWs() {
-  ws = new WebSocket(location.origin.replace(/^http/, 'ws') + '/api/events.mux');
-  ws.onmessage = (m) => { let f; try { f = JSON.parse(String(m.data)); } catch { return; }
-    const p = f.payload; if (!p || p.type !== 'session/event' || p.sessionId !== sessionId) return; handle(p.event); };
-  ws.onclose = () => { if (sessionId) setTimeout(openWs, 1500); };
-}
+// wire 双代翻译在共享 SDK(_vendor/assembler-sdk.js)里:旧点号规范名进,按宿主代际出
+function rpc(method, payload) { return AssemblerSDK.wire.rpc(method, payload); }
 function textOf(e) { const c = e.data && e.data.message && e.data.message.content;
   if (typeof c === 'string') return c;
   if (Array.isArray(c)) return c.map((b) => b && b.type === 'text' ? b.text : '').join(''); return ''; }
@@ -96,8 +86,9 @@ function handle(e) {
 async function ensureSession() {
   if (sessionId) return;
   const v = await rpc('session.create', { cwd: CFG.workdir, agentPreset: CFG.presetId });
-  sessionId = v.sessionId; openWs();
-  await new Promise((r) => { const t = setInterval(() => { if (ws && ws.readyState === 1) { clearInterval(t); r(); } }, 50); });
+  sessionId = v.sessionId;
+  // 等订阅真正建立再放行(legacy=ws.open,new=follow 首帧 snapshot)——早到帧不能丢
+  await new Promise((r) => { ws = AssemblerSDK.wire.stream(() => sessionId, handle, { onReady: r }); });
 }
 async function send() {
   const text = box.value.trim();

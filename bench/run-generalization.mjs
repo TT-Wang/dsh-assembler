@@ -10,6 +10,7 @@
 // 而我据此又报了一轮结论。**"两份实现必然走偏"这句话,我是在自己身上验的第二遍。**
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
+import { openWireSession } from '../lib/wire.js'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -62,45 +63,17 @@ writeFileSync(join(CORPUS, '产品手册.md'), `# 星轨 X1 净水器 用户手�
 - 持续报警红灯:水压不足,检查进水阀是否全开。
 `)
 
-const rpc = async (method, payload) => {
-  const r = await fetch(`http://127.0.0.1:${PORT}/api/${method}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'client-request', rpcId: `gen-${Date.now()}-${Math.random().toString(36).slice(2)}`, method, payload }),
-    signal: AbortSignal.timeout(30_000),
-  })
-  const j = await r.json()
-  if (!j.result?.ok) throw new Error(`${method}: ${JSON.stringify(j.result?.error ?? j).slice(0, 200)}`)
-  return j.result.value
-}
-
 /** 跑一题:开会话 → 发需求 → 代答检查点 → 跟到静默 → 收集轨迹。 */
 async function runOne(scn) {
   const t0 = Date.now()
   // 考场快照(混杂变量入档,审计发现 11:cwd 是生活环境——判卷不用,复盘要查)
   const cwdSnapshot = (() => { try { return readdirSync(join(homedir(), 'apps')).sort() } catch { return [] } })()
-  const { sessionId } = await rpc('session.create', { cwd: join(homedir(), 'apps') })
-  const frames = []
-  // 帧面全录(建议修 14):approval/permission 类帧此前被静默丢弃——审批挂起会被
-  // 记成"agent 停滞"。不猜帧名:凡本会话的未识别帧按 type 计数,疑似审批帧存原文。
-  const otherFrameCounts = {}
-  const approvalFrames = []
-  // token 计量走 session/projection 的 tokenUsage 累计帧(协议挖掘:mux 上不存在
-  // token_usage/usage 会话事件,旧采集是死代码假零 13 连)。保留最后一帧的累计值。
-  let tokenUsage = null
-  const ws = new WebSocket(`ws://127.0.0.1:${PORT}/api/events.mux`)
-  ws.onmessage = (m) => {
-    try {
-      const f = JSON.parse(String(m.data))
-      if (f.payload?.type === 'session/event' && f.payload.sessionId === sessionId) frames.push(f.payload.event)
-      else if (f.payload?.type === 'question/requested' && f.payload.sessionId === sessionId) frames.push({ type: '__question', rpcId: f.rpcId, questions: f.payload.questions })
-      else if (f.payload?.type === 'session/projection' && f.payload.sessionId === sessionId && f.payload.key === 'tokenUsage') tokenUsage = f.payload.value ?? null
-      else if (f.payload?.sessionId === sessionId && typeof f.payload?.type === 'string') {
-        otherFrameCounts[f.payload.type] = (otherFrameCounts[f.payload.type] ?? 0) + 1
-        if (/approval|permission/i.test(f.payload.type)) approvalFrames.push(JSON.stringify(f.payload).slice(0, 400))
-      }
-    } catch { /* 非 JSON 帧 */ }
-  }
-  await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('ws failed')) })
+  // 传输层走 lib/wire.js 共享客户端(BACKLOG 0.9):探协议定代际,新 wire 走
+  // cookie + session/follow + $events,旧 wire 走点号端点 + events.mux。帧面全录、
+  // 审批帧存原文(建议修 14)、tokenUsage 走投影不走会话事件(假零 13 连教训)——
+  // 这些纪律全部下沉进客户端,两代同形,本驱动器判定逻辑零改动。
+  const w = await openWireSession(PORT, { cwd: join(homedir(), 'apps'), questions: true, projections: true })
+  const { sessionId, frames, otherFrameCounts, approvalFrames } = w
 
   const questionTexts = []
   const answersGiven = []
@@ -125,24 +98,15 @@ async function runOne(scn) {
       return pick !== undefined ? { id: String(item.id), selected: [pick] } : { id: String(item.id), selected: [], custom: '按你的判断来,不用再问我。' }
     })
     answersGiven.push(answers)
-    const resp = await fetch(`http://127.0.0.1:${PORT}/api/respond`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'client-response', rpcId: q.rpcId, result: { ok: true, value: { sessionId, answer: { answers } } } }),
-      signal: AbortSignal.timeout(15_000),
-    })
-    // 回执核验(审计发现 5:host 对无效应答**静默拒收**且 HTTP 200——驱动器故障
-    // 与 agent 失败必须分开记账,否则死锁被记成"agent 慢")。
-    try {
-      const receipt = await resp.json()
-      // 必修 2:回执体是**顶层** {accepted, reason}(协议挖掘实证),不裹 result.value
-      // ——旧读法永远 undefined,拒收核验形同虚设。
-      const acc = receipt?.accepted
-      if (acc === false) { answerRejected = true; console.log(`    !! ${scn.id} 检查点应答被拒收:${JSON.stringify(receipt).slice(0, 160)}`) }
-    } catch { /* 无回执体:留 answerRejected=false,endReason 兜底 */ }
+    // 回执核验(审计发现 5:host 对无效应答**静默拒收**——驱动器故障与 agent 失败
+    // 必须分开记账,否则死锁被记成"agent 慢")。两代回执形状差异(旧 respond 顶层
+    // {accepted} / 新 $events 的 result.ok)由客户端归一成 {accepted, detail}。
+    const receipt = await w.answer(q, answers)
+    if (!receipt.accepted) { answerRejected = true; console.log(`    !! ${scn.id} 检查点应答被拒收:${receipt.detail ?? ''}`) }
   }
 
   const prompt = scn.prompt.replace('CORPUS_DIR', CORPUS)
-  await rpc('session.prompt', { sessionId, mode: 'queue', content: [{ type: 'text', text: prompt }] })
+  await w.prompt(prompt)
 
   const budget = (scn.budgetMinutes ?? 25) * 60_000
   let scanned = 0, lastActivity = Date.now(), answered = 0, sawTurnEnd = false
@@ -176,13 +140,12 @@ async function runOne(scn) {
     // 保释与 pending 解耦:真停滞即保释(工具悬挂时旧逻辑把保释自己锁死,必烧满预算)。
     if (Date.now() - lastActivity > 6 * 60_000) { endReason = pending > 0 ? 'stalled-pending' : 'stalled'; console.log(`    !! ${scn.id} 停滞保释(${endReason})`); break }
   }
-  try { await rpc('session.cancel', { sessionId }) } catch { /* 已结束 */ }
-  try { ws.close() } catch { /* ignore */ }
+  try { w.close() } catch { /* 已结束 */ }
   // finalText = 全部 assistant 文本按序拼接,**全文,不截断**(审计发现 13:只留
   // 末条 + 截 1200 已实际咬掉 C 档档案;边界声明常写在倒数第二条)。
   // finalTextComplete(必修 8):聚合不设上限,如实打"全文完整"戳——重判器凭它
   // 免除 1200 字截断时代的降级推定(旧推定在 v5 全文档案上恒真,等于永不复算)。
-  return { sessionId, cwdSnapshot, tools, toolCalls, finalText: assistantTexts.join('\n\n'), finalTextComplete: true, insistText: INSIST, answered, answersGiven, answerRejected, questionTexts, otherFrameCounts, approvalFrames, endReason, elapsedSeconds: Math.round((Date.now() - t0) / 1000), usage: tokenUsage, usageCollected: tokenUsage !== null }
+  return { sessionId, cwdSnapshot, tools, toolCalls, finalText: assistantTexts.join('\n\n'), finalTextComplete: true, insistText: INSIST, answered, answersGiven, answerRejected, questionTexts, otherFrameCounts, approvalFrames, endReason, elapsedSeconds: Math.round((Date.now() - t0) / 1000), usage: w.tokenUsage, usageCollected: w.tokenUsage !== null }
 }
 
 
