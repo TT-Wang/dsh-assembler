@@ -95,7 +95,7 @@
       验证挂在下一次 deploy_app 的六门 DOM 考。白捡项(seq 锚计数、approval
       waterfall 进考卷面)转入 v7 议程。
 
-- [ ] **1.0 前端能力工单(2026-09-01 立项,目标:对打 Lovable 不输脸)**。审计基线:
+- [x] **1.0 前端能力工单——第一波完成(2026-09-01 立项即日交付;证据档 docs/research/fe-workticket-2026-09-01/)**。验收两连全过:夹具 E2E 六门 PASS(新动词链实弹);真写手席 324s 全链,写手自发走看→改→再看回路(preview_app+read_image)并采用新原语。残差(不阻断,后续随用随补):advisory 视觉评语车道、upload/hover 考卷级活体、范例回流常态化、Radix Select 的两步 click 范式进范例。原立项文如下。审计基线:
       DOM 考官词表仅 click/fill 两动词;写手无预览反馈(盲写);scaffold 原子 13 件
       (shadcn 子集,骨架哈希锁死缺件只能上报);图表能力为零;写手范例仅 2 张,
       战役已验收页面零回流;模板车道 10 件已零件化(capabilities.yml frontend-*)。

@@ -41,4 +41,10 @@
 
 - upload/hover 动词:零件层 10/10 实测,执行器层未在真考卷跑(选做题型出现时自然覆盖);
 - advisory 视觉评语车道未建(明确不进判定,后续单独立项);
-- 真写手席在新词表下的活体运行:见后续记录。
+- ~~真写手席在新词表下的活体运行~~ **已完成(2026-09-01,run-writer-seat 3097 memo-wall)**:
+  真 agent 全链 324s——emit_preset(3 零件,独立验收 3/3 PASS)→ 检查点代答 → emit_app(v6)
+  → 写页 → **preview_app → edit → preview_app → read_image(写手亲眼看了截图再改)**
+  → verify_app FAIL → 外科修复 → verify_app PASS → deploy_app → 独立复核全绿(页面 200/
+  资产全通/PAGE-SPEC 4 动作/selfcheck 在)。写手自发采用:toast×4、Skeleton×2、
+  PAGE-SPEC 里 press+waitText 新动词考题。页面成色见 memo-wall.light.png——真便签墙
+  (胶带贴纸细节/色签/筛选计数),不是聊天框套壳。看→改→再看回路在真会话自发成立。
