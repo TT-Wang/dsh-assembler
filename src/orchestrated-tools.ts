@@ -1588,13 +1588,84 @@ export function verifyTriggerToolDefinition(ctx: Context, config: Config): ToolD
 export const EMIT_APP_TOOL_NAME = 'emit_app'
 export const VERIFY_APP_TOOL_NAME = 'verify_app'
 
-export function emitAppToolDefinition(_ctx: Context, _config: Config): ToolDefinition {
+/**
+ * 0.8 发射→验收结构闸(P3 验尸修法):「发射完成 ≠ 可用」从散文承诺升格为机械闸。
+ * 试炼场 P3 的唯一失分就是 agent 发射配套 preset 后跳过 verify_preset 直奔写页——
+ * 散文契约(接力棒)没有够得着的手。此闸是那只手。
+ *
+ * 判据(快闸:读台账不开会话,廉价判定在前——0.8 设计约束①):配套 preset 的
+ * selfcheck-history 里,**当前字节代际**(presetSha 与考官同一函数)的最新判定
+ * 必须是 PASS。同名重发改变 sha ⇒ 旧判定自动失效——代际绑定,不用墙钟窗口。
+ *
+ * 绕闸走 acceptUnverifiedPreset:true(「不替用户砍」:通路保留,但绝不静默——
+ * 0.8 设计约束②):结果行 ⚠ + 记分板永久追加 verdict:'BYPASS' 一行,read_preset
+ * 的验收记分板会把 BYPASS×n 摊在台面上——Rust `unsafe` 同款可 grep 留痕。
+ */
+function presetVerdictGate(presetRoot: string, presetId: string): { ok: boolean; evidence: string } {
+  const dir = join(presetRoot, presetId)
+  const sha = presetSha(readFileSync(join(dir, 'agent.cordis.yml'), 'utf8'))
+  const histPath = join(dir, 'selfcheck-history.jsonl')
+  const rows = existsSync(histPath)
+    ? readFileSync(histPath, 'utf8').trim().split('\n')
+      .map((l) => { try { return JSON.parse(l) as Record<string, unknown> } catch { return null } })
+      .filter((r): r is Record<string, unknown> => r !== null)
+    : []
+  const sameGen = rows.filter((r) => r.presetSha256 === sha && String(r.verdict) !== 'BYPASS')
+  if (sameGen.length === 0) {
+    const lastAny = rows[rows.length - 1]
+    return {
+      ok: false,
+      evidence: rows.length === 0
+        ? `记分板为空(${histPath})——该 preset 从未经独立验收`
+        : `记分板 ${String(rows.length)} 行里没有当前字节代际(sha ${sha.slice(0, 8)})的判定;最近一行 ${String(lastAny?.at ?? '?').slice(0, 19)} ${String(lastAny?.verdict ?? '?')}(sha ${String(lastAny?.presetSha256 ?? '').slice(0, 8)})属旧代际,同名重发后已失效`,
+    }
+  }
+  const last = sameGen[sameGen.length - 1]
+  if (String(last.verdict) !== 'PASS') {
+    return { ok: false, evidence: `当前代际最新考官判定是 ${String(last.verdict)}(${String(last.at ?? '').slice(0, 19)}),不是 PASS` }
+  }
+  return { ok: true, evidence: `配套 preset 验收在窗:PASS @${String(last.at ?? '').slice(0, 19)}(字节 ${sha.slice(0, 8)})` }
+}
+
+/** 绕闸留痕:记分板追加 BYPASS 行(写失败不拦路——结果行的 ⚠ 仍在)。 */
+function recordVerdictBypass(presetRoot: string, presetId: string, tool: string): void {
+  const dir = join(presetRoot, presetId)
+  try {
+    appendFileSync(join(dir, 'selfcheck-history.jsonl'), `${JSON.stringify({
+      at: new Date().toISOString(),
+      presetSha256: presetSha(readFileSync(join(dir, 'agent.cordis.yml'), 'utf8')),
+      verdict: 'BYPASS',
+      note: `${tool} acceptUnverifiedPreset:true(未经当前代际考官判定即发射)`,
+    })}\n`)
+  } catch (e: unknown) {
+    console.error(`[assembler] BYPASS 留痕写入失败(发射照常,但记分板缺行):${e instanceof Error ? e.message : String(e)}`)
+  }
+}
+
+/** 两个发射工具共用的闸口:通过返回证据行;拒绝抛全格报错;绕闸返回 ⚠ 行并留痕。 */
+function enforceVerdictGate(presetRoot: string, presetId: string, tool: string, bypass: boolean): string {
+  const gate = presetVerdictGate(presetRoot, presetId)
+  if (gate.ok) return gate.evidence
+  if (bypass) {
+    recordVerdictBypass(presetRoot, presetId, tool)
+    return `⚠ 绕过验收闸发射(acceptUnverifiedPreset):${gate.evidence}——已在记分板留 BYPASS 痕;后果自负,建议尽快 verify_preset {"presetId": "${presetId}"}`
+  }
+  throw new Error(
+    `${tool} 拒绝:配套 preset「${presetId}」没有当前代际的考官 PASS——${gate.evidence}。`
+    + `发射完成 ≠ 可用(试炼场 P3 验尸)。下一步:verify_preset {"presetId": "${presetId}"} 拿到 PASS 后重试;`
+    + `明知故犯要抢发,传 acceptUnverifiedPreset:true(会在验收记分板永久留 BYPASS 痕)。`,
+  )
+}
+
+export function emitAppToolDefinition(_ctx: Context, config: Config): ToolDefinition {
   return defineTool({
     name: EMIT_APP_TOOL_NAME,
     description:
       'DUMB scaffold materializer (deterministic, zero LLM): copies the app skeleton (Vite+React+shadcn vocabulary + locked SDK + '
       + 'PAGE-SPEC exam format), injects params via app.config.json (template bytes stay pristine), runs npm install, and writes '
-      + 'scaffold.lock.yml (provenance + params). YOU then write src/pages/ (starter examples included), verify_app examines, deploy_app publishes.'
+      + 'scaffold.lock.yml (provenance + params). YOU then write src/pages/ (starter examples included), verify_app examines, deploy_app publishes. '
+      + 'LAUNCH→VERDICT GATE: when params.PRESET_ID is set, refuses unless that preset carries a current-generation examiner PASS '
+      + '(verify_preset first — emitting is NOT availability); acceptUnverifiedPreset:true bypasses loudly (permanent BYPASS scoreboard row).'
 ,
     parameters: {
       name: { type: 'string', description: 'kebab-case app name; default target is ~/apps/<name>', required: true },
@@ -1602,13 +1673,14 @@ export function emitAppToolDefinition(_ctx: Context, _config: Config): ToolDefin
       params: { type: 'object', additionalProperties: true, description: 'scaffold param slots as a flat string map: APP_NAME, PRESET_ID (the paired preset), WORKDIR (its workspace abs path); missing required ones come back as an actionable list; secret-shaped keys are refused by design', required: true },
       pagesDir: { type: 'string', description: 'absolute path of a pages directory to seed src/pages/ with (optional; its PAGE-SPEC.yml is promoted to the app root)' },
       fresh: { type: 'boolean', description: 'true = wipe a non-empty targetDir and re-materialize (同址重印)' },
+      acceptUnverifiedPreset: { type: 'boolean', description: 'bypass the launch→verdict gate when params.PRESET_ID has no current-generation examiner PASS — loud: the result carries a ⚠ and the preset scoreboard gains a permanent BYPASS row' },
     },
     output: {
       schema: { type: 'string' as const },
       render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
     },
     execute: async (args: unknown): Promise<string> => {
-      const a = args as { name?: unknown; targetDir?: unknown; params?: unknown; pagesDir?: unknown; fresh?: unknown }
+      const a = args as { name?: unknown; targetDir?: unknown; params?: unknown; pagesDir?: unknown; fresh?: unknown; acceptUnverifiedPreset?: unknown }
       const name = sanitizePresetName(String(a.name ?? ''))
       if (name === '') throw new Error('emit_app 需要 kebab-case 的 name')
       const params: Record<string, string> = {}
@@ -1616,6 +1688,16 @@ export function emitAppToolDefinition(_ctx: Context, _config: Config): ToolDefin
         for (const [k, v] of Object.entries(a.params as Record<string, unknown>)) {
           if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') params[k] = String(v)
         }
+      }
+      // 0.8 发射→验收结构闸:PRESET_ID 指向的配套 preset 须有当前代际考官 PASS
+      let gateLine = ''
+      const pairedPreset = sanitizePresetName(String(params.PRESET_ID ?? ''))
+      if (pairedPreset !== '') {
+        const presetRoot = presetRootOf(config)
+        if (!existsSync(join(presetRoot, pairedPreset, 'agent.cordis.yml'))) {
+          throw presetNotFoundError(EMIT_APP_TOOL_NAME, presetRoot, pairedPreset, '(params.PRESET_ID 指向的配套 preset 须先 emit_preset 发射)')
+        }
+        gateLine = enforceVerdictGate(presetRoot, pairedPreset, EMIT_APP_TOOL_NAME, a.acceptUnverifiedPreset === true)
       }
       const targetDir = typeof a.targetDir === 'string' && a.targetDir.trim() !== '' ? a.targetDir.trim() : join(homedir(), 'apps', name)
       const t0 = Date.now()
@@ -1629,6 +1711,7 @@ export function emitAppToolDefinition(_ctx: Context, _config: Config): ToolDefin
       const pending = result.pendingSecrets.filter((sm) => !sm.configured)
       return [
         `app 骨架已实例化:${result.targetDir}(scaffold ${result.scaffold}@v${String(result.version)},模板哈希 ${result.templateHash})`,
+        gateLine,
         ...(pending.length > 0
           ? [`待配凭证:${pending.map((sm) => `${sm.env}(${sm.purpose})`).join(';')} —— 值只进启动环境变量,不落文件`]
           : []),
@@ -1745,19 +1828,22 @@ export function deployAppToolDefinition(_ctx: Context, config: Config): ToolDefi
       + 'paths guarded. Each publish SNAPSHOTS the page it replaces, so a bad iteration is one call away from undo: '
       + 'deploy_app {"presetId": "...", "rollback": true} restores the previous page (no targetDir needed). '
       + 'It also records where the page came from, so a LATER session can answer "edit this page" without hunting for the source '
-      + '(read_preset reports it).'
+      + '(read_preset reports it). LAUNCH→VERDICT GATE: refuses unless the paired preset carries a current-generation examiner PASS '
+      + 'in its scoreboard (verify_preset first; a re-emit invalidates old verdicts); acceptUnverifiedPreset:true bypasses loudly '
+      + '(permanent BYPASS row in the scoreboard).'
 ,
     parameters: {
       targetDir: { type: 'string', description: 'the scaffold app directory (holds dist/ after verify_app\'s build gate); omit when rollback is true' },
       presetId: { type: 'string', description: 'the paired preset id to publish into', required: true },
       rollback: { type: 'boolean', description: 'restore the page this preset had before the last deploy_app (one snapshot slot; the current page becomes the snapshot, so rollback is itself undoable)' },
+      acceptUnverifiedPreset: { type: 'boolean', description: 'bypass the launch→verdict gate when the paired preset has no current-generation examiner PASS — loud: the result carries a ⚠ and the preset scoreboard gains a permanent BYPASS row' },
     },
     output: {
       schema: { type: 'string' as const },
       render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
     },
     execute: async (args: unknown): Promise<string> => {
-      const a = args as { targetDir?: unknown; presetId?: unknown; rollback?: unknown }
+      const a = args as { targetDir?: unknown; presetId?: unknown; rollback?: unknown; acceptUnverifiedPreset?: unknown }
       const targetDir = String(a.targetDir ?? '').trim()
       const presetId = sanitizePresetName(String(a.presetId ?? ''))
       const rollback = a.rollback === true
@@ -1790,6 +1876,9 @@ export function deployAppToolDefinition(_ctx: Context, config: Config): ToolDefi
         return `已回滚到上一版页面:${target}\n页面:${url}\n(当前版本已存为快照——再调一次 rollback 就换回去)`
       }
 
+      // 0.8 发射→验收结构闸(rollback 是撤销路,不设闸)
+      const gateLine = enforceVerdictGate(presetRoot, presetId, DEPLOY_APP_TOOL_NAME, a.acceptUnverifiedPreset === true)
+
       if (targetDir === '' || !targetDir.startsWith('/')) throw new Error('deploy_app 需要绝对路径 targetDir(回滚时才可省略)')
       const dist = join(resolve(targetDir), 'dist')
       if (!existsSync(join(dist, 'index.html'))) {
@@ -1813,7 +1902,7 @@ export function deployAppToolDefinition(_ctx: Context, config: Config): ToolDefi
         : null
       writeFileSync(srcPath, JSON.stringify({ targetDir: resolve(targetDir), scaffold: scaffoldId, deployedAt: new Date().toISOString(), hasSnapshot: hadPrev }, null, 2) + '\n')
       appendOrchLedger({ tool: DEPLOY_APP_TOOL_NAME, presetId, targetDir, url, snapshot: hadPrev })
-      return `已发布:${dist} → ${target}\n页面:${url}\n源头已记录:${resolve(targetDir)}${scaffoldId !== null ? `(scaffold ${scaffoldId})` : ''}`
+      return `已发布:${dist} → ${target}\n${gateLine}\n页面:${url}\n源头已记录:${resolve(targetDir)}${scaffoldId !== null ? `(scaffold ${scaffoldId})` : ''}`
         + (hadPrev ? `\n上一版已存快照——出问题就 deploy_app {"presetId":"${presetId}","rollback":true}` : '')
         + prose('\n【接力棒】向用户如实报告页面 URL 与验收结论;页面动作的行为考证据在 verify_app 的结果里。')
     },

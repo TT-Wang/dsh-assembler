@@ -70,14 +70,16 @@
       P5 3/3 边界法/P6 13/13 页面级迭代实锤);稳定重跑 P2+P4 逐判项一致零翻案;
       Σ墙钟 94.8min,概念账守恒,战役期间零修法提交。**范式成立命题:达成**
       (≥5/6 且失败一行定位)。首轮档案封存 3b95683。
-- [ ] **0.8 发射→验收结构闸**(P3 验尸修法,v7 议程①):deploy_app/emit_app 前置
-      要求配套 preset 有窗口内考官判定(读 selfcheck-history,同名重发后失效)——
-      「发射完成≠可用」从散文承诺升格为机械闸;拒发 vs 大声记账按第七条与
-      "不替用户砍"权衡后定。**设计约束两条(2026-09-01,Rust 类比复盘)**:
-      ①快慢闸分层——cargo-check 级的廉价前置判定(读台账/查文件)在前,考官级
-      的贵验证在后,反馈吞吐是一等资产(P2 缓存热重跑 2.5× 的经验推广);②绕闸
-      必须留痕——任何 gate bypass 走 UB 诚实登记同款机制(可 grep,如 Rust 的
-      `unsafe`),不许静默绕行。
+- [x] **0.8 发射→验收结构闸——完成(2026-09-01)**(P3 验尸修法,v7 议程①):
+      `presetVerdictGate` 落地 deploy_app + emit_app(rollback 撤销路免辖)——判据
+      为**当前字节代际**(presetSha 与考官同函数)在记分板里的最新判定 = PASS,
+      同名重发改 sha 即旧判定自动失效(代际绑定,免墙钟窗口)。两条设计约束
+      兑现:①快闸(读台账不开会话,贵考官在其后);②绕闸留痕——拒发默认,
+      `acceptUnverifiedPreset:true` 保「不替用户砍」通路,代价是记分板永久追加
+      BYPASS 行(read_preset 记分板摊出 BYPASS×n,Rust `unsafe` 同款可 grep)。
+      判据:7 枚闸钉全绿(空账拒/旧代际拒/FAIL 拒/PASS 过/绕闸留痕/emit_app 同辖/
+      幽灵 preset 报错),两个既有发射夹具升格为已验收流,npm test 零✗。P3 反事实:
+      当年的失分序列现会在 emit_app 一步被拦并指回 verify_preset。
 - [x] **0.9 wire 迁移(DSH alpha.2)——完成(2026-09-01)**:共享客户端
       `src/wire.ts` 落地(双代:探协议定代际;新代 cookie 落盘缓存跨重启/包裹键
       读报错自适应/requestId/session-follow/control 投影/$events 代答;detach 与

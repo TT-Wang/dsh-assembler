@@ -142,6 +142,9 @@ check('死知识闸:目录里一个读取面都没有时如实说明是缺件',
   const tmp = mkt(pj(tmpd(), 'deploy-iter-'))
   const root = pj(tmp, 'presets'); const pdir = pj(root, 'p1')
   mkd(pdir, { recursive: true }); wfs(pj(pdir, 'agent.cordis.yml'), 'name: p1\n')
+  // 0.8 闸就位后,发射类夹具须带当前代际考官 PASS(模拟已验收 preset 的正常流)
+  const { presetSha: pSha } = await import('./lib/index.js')
+  wfs(pj(pdir, 'selfcheck-history.jsonl'), JSON.stringify({ at: '2026-08-31T00:00:00Z', presetSha256: pSha(rfs(pj(pdir, 'agent.cordis.yml'), 'utf8')), verdict: 'PASS' }) + '\n')
   const app = pj(tmp, 'app'); mkd(pj(app, 'dist'), { recursive: true })
   wfs(pj(app, 'scaffold.lock.yml'), 'scaffold: scaffold-react\nversion: 4\n')
   const putDist = (marker) => wfs(pj(app, 'dist', 'index.html'), `<div id=root>${marker}</div>`)
@@ -449,11 +452,59 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   // 两道门各报各的(顺序:先解析 preset——回滚路径不带 targetDir,必须先有 preset)
   check('deploy_app:preset 不存在报可行动错误', await deployAppToolDefinition(fakeCtx, {}).execute({ targetDir: '/tmp/no-such-app-x', presetId: 'no-such-preset-x' }).then(() => false, (e) => e.message.includes('不存在')))
   {
-    const { mkdtempSync: mk, mkdirSync: md, writeFileSync: wf } = await import('node:fs')
+    const { mkdtempSync: mk, mkdirSync: md, writeFileSync: wf, appendFileSync: af, readFileSync: rfB, existsSync: exB } = await import('node:fs')
     const { tmpdir: td } = await import('node:os')
-    const rootD = mk(j3(td(), 'dep-nodist-')); md(j3(rootD, 'p'), { recursive: true }); wf(j3(rootD, 'p', 'agent.cordis.yml'), 'name: p\n')
-    check('deploy_app:preset 在但无 dist 报可行动错误(指回 verify_app)',
-      await deployAppToolDefinition(fakeCtx, { presetRoot: rootD }).execute({ targetDir: '/tmp/no-such-app-x', presetId: 'p' }).then(() => false, (e) => e.message.includes('verify_app')))
+    const { presetSha } = await import('./lib/index.js')
+    const mkPreset = (tag, historyRows) => {
+      const rootD = mk(j3(td(), `dep-gate-${tag}-`)); md(j3(rootD, 'p'), { recursive: true })
+      wf(j3(rootD, 'p', 'agent.cordis.yml'), 'name: p\n')
+      const sha = presetSha(rfB(j3(rootD, 'p', 'agent.cordis.yml'), 'utf8'))
+      for (const row of historyRows(sha)) af(j3(rootD, 'p', 'selfcheck-history.jsonl'), JSON.stringify(row) + '\n')
+      return { rootD, sha }
+    }
+    // ── 0.8 发射→验收结构闸(P3 修法):发射完成 ≠ 可用,机械闸拦跳过验收 ──
+    {
+      const { rootD } = mkPreset('empty', () => [])
+      check('闸:记分板为空 → 拒发,指回 verify_preset 并说明绕闸代价',
+        await deployAppToolDefinition(fakeCtx, { presetRoot: rootD }).execute({ targetDir: '/tmp/no-such-app-x', presetId: 'p' })
+          .then(() => false, (e) => e.message.includes('verify_preset') && e.message.includes('acceptUnverifiedPreset') && e.message.includes('BYPASS')))
+    }
+    {
+      const { rootD } = mkPreset('stale', () => [{ at: '2026-08-30T00:00:00Z', presetSha256: 'deadbeef', verdict: 'PASS' }])
+      check('闸:旧代际 PASS 不算数(同名重发后失效)',
+        await deployAppToolDefinition(fakeCtx, { presetRoot: rootD }).execute({ targetDir: '/tmp/no-such-app-x', presetId: 'p' })
+          .then(() => false, (e) => e.message.includes('旧代际')))
+    }
+    {
+      const { rootD } = mkPreset('fail', (sha) => [{ at: '2026-08-31T00:00:00Z', presetSha256: sha, verdict: 'FAIL' }])
+      check('闸:当前代际最新判定 FAIL → 拒发',
+        await deployAppToolDefinition(fakeCtx, { presetRoot: rootD }).execute({ targetDir: '/tmp/no-such-app-x', presetId: 'p' })
+          .then(() => false, (e) => e.message.includes('FAIL')))
+    }
+    {
+      const { rootD } = mkPreset('pass', (sha) => [{ at: '2026-08-31T00:00:00Z', presetSha256: sha, verdict: 'PASS' }])
+      check('闸:当前代际 PASS 过闸;下一道门(无 dist)报可行动错误指回 verify_app',
+        await deployAppToolDefinition(fakeCtx, { presetRoot: rootD }).execute({ targetDir: '/tmp/no-such-app-x', presetId: 'p' })
+          .then(() => false, (e) => e.message.includes('verify_app') && !e.message.includes('verify_preset')))
+    }
+    {
+      const { rootD } = mkPreset('bypass', () => [])
+      const err = await deployAppToolDefinition(fakeCtx, { presetRoot: rootD }).execute({ targetDir: '/tmp/no-such-app-x', presetId: 'p', acceptUnverifiedPreset: true })
+        .then(() => '', (e) => e.message)
+      const hist = exB(j3(rootD, 'p', 'selfcheck-history.jsonl')) ? rfB(j3(rootD, 'p', 'selfcheck-history.jsonl'), 'utf8') : ''
+      check('闸:绕闸放行到下一道门,且记分板永久留 BYPASS 痕(unsafe 同款可 grep)',
+        err.includes('verify_app') && hist.includes('"BYPASS"') && hist.includes('acceptUnverifiedPreset'))
+    }
+    {
+      const { emitAppToolDefinition: emitGate } = await import('./lib/orchestrated-tools.js')
+      const { rootD } = mkPreset('emit', () => [])
+      check('闸:emit_app 同受辖(PRESET_ID 未验收 → 拒绝实例化)',
+        await emitGate(fakeCtx, { presetRoot: rootD }).execute({ name: 'x-app', params: { APP_NAME: 'x', PRESET_ID: 'p', WORKDIR: '/tmp' } })
+          .then(() => false, (e) => e.message.includes('verify_preset')))
+      check('闸:emit_app 的 PRESET_ID 指向不存在的 preset → 可行动报错(先 emit_preset)',
+        await emitGate(fakeCtx, { presetRoot: rootD }).execute({ name: 'x-app', params: { APP_NAME: 'x', PRESET_ID: 'ghost-p', WORKDIR: '/tmp' } })
+          .then(() => false, (e) => e.message.includes('不存在') || e.message.includes('emit_preset')))
+    }
   }
 }
 
