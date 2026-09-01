@@ -80,7 +80,15 @@ label 答、tokenUsage 投影收到真值)。**新协议事实**:`session/contro
 已部署 app 页面拷贝与在跑 cron-trigger 旧实例仍旧 wire,随下次 deploy_app/
 零件重挂载换血;浏览器核真机验证挂下一次 deploy_app 六门 DOM 考。
 
-## 五、3096(生产 host)重启操作卡
+## 五、生产 host 重启操作卡(题写 3096 系旧惯例误记,实测生产端口 = 3080)
+
+> **已执行(2026-09-01)**:停旧 PID 42939(8/26 起的幽灵,随行 cron-trigger 子进程
+> 一并回收)→ 检出根原命令重启 → 新 PID 46496,首启**零 schema/持久化报错**
+> (会话库早经 3097 的 alpha.2 首启完成 19→20,同一 DSH_HOME)→ 幽灵体检判
+> 「一致 + 新 wire」exit 0 → wire-e2e 双路 PASS(探针路回显;$events 按 label
+> 代答 + tokenUsage 投影真值)。stdout 落 ~/.dsh/logs/web-3080.log(token 可自捞)。
+> 至此两台 host(3080 生产/3097 战场)全在 alpha.2,全链换血完毕;cron-trigger
+> 新码随下次 preset 挂载生效。
 
 1. `cd /Users/tongtao/code/deepseek-harness-rc8`(必须检出根,tsx 靠根 tsconfig)
 2. 已由本次同步完成:pnpm install、clean+build、sidebar 0.18.0-alpha.0、.env 体检
