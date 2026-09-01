@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import yaml from 'js-yaml'
-import { addKnowledgeToolDefinition, readPresetToolDefinition, submitPartToolDefinition, assemblerMode, deployAppToolDefinition, emitAppToolDefinition, emitPresetToolDefinition, matchCatalogToolDefinition, searchCatalogToolDefinition, verifyAppToolDefinition, verifyPresetToolDefinition, verifyTriggerToolDefinition, verifySharedDataToolDefinition } from './orchestrated-tools.js'
+import { addKnowledgeToolDefinition, readPresetToolDefinition, submitPartToolDefinition, assemblerMode, deployAppToolDefinition, emitAppToolDefinition, emitPresetToolDefinition, matchCatalogToolDefinition, previewAppToolDefinition, searchCatalogToolDefinition, verifyAppToolDefinition, verifyPresetToolDefinition, verifyTriggerToolDefinition, verifySharedDataToolDefinition } from './orchestrated-tools.js'
 import { FRONTEND_ROUTE, frontendRouteHandler } from './frontend.js'
 
 export { FRONTEND_ROUTE, FRONTEND_TEMPLATES_DIR, DEFAULT_FRONTEND_TEMPLATE, emitFrontend, fillTemplate, shortTitle, listAssemblyProgress, listFrontendTemplates, resolveFrontendFile, frontendRouteHandler } from './frontend.js'
@@ -1458,6 +1458,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     ctx.effect(() => ctx.tools.register(verifySharedDataToolDefinition(ctx, config)), 'assembler.tool.verify_shared_data()')
     // app 车道(scaffold 唯一底盘):哑实例化 + app 独立考官 + 发布(与 preset 车道同构)。
     ctx.effect(() => ctx.tools.register(emitAppToolDefinition(ctx, config)), 'assembler.tool.emit_app()')
+    ctx.effect(() => ctx.tools.register(previewAppToolDefinition(ctx, config)), 'assembler.tool.preview_app()')
     ctx.effect(() => ctx.tools.register(verifyAppToolDefinition(ctx, config)), 'assembler.tool.verify_app()')
     ctx.effect(() => ctx.tools.register(deployAppToolDefinition(ctx, config)), 'assembler.tool.deploy_app()')
     // 触发面考官:无人值守形态的第四格——打一发,验后果。

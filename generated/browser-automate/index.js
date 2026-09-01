@@ -1,6 +1,10 @@
 // MCP stdio server adapter for microsoft/playwright v1.45.0 (Apache-2.0)
 // Capability id: browser-automate
-// Tools: browser-open, browser-extract, browser-click, browser-fill, browser-screenshot
+// Tools: browser-open, browser-extract, browser-click, browser-fill, browser-screenshot,
+//        browser-select, browser-press, browser-hover, browser-upload, browser-inspect
+// (后五指 2026-09-01 加装:DOM 考官词表 2→8 与 preview 机械眼的手;见装配器
+//  BACKLOG 1.0 前端能力工单。选择器全程走 playwright locator,天然支持 text=、
+//  :nth-match(sel, n)、[role=] 等引擎——"循环格点第 N 项"不需要新工具,教词表即可。)
 //
 // 依赖 playwright（官方浏览器自动化库）。进程内维护单例 Browser/Page：
 //   - 首次需要页面时惰性启动（优先使用 playwright 自带的 chromium；
@@ -17,7 +21,7 @@ import { chromium } from 'playwright'
 
 const server = new McpServer({
   name: 'browser-automate',
-  version: '0.0.1'
+  version: '0.1.0'
 })
 
 const MAX_TEXT = 60000 // 文本响应截断上限
@@ -65,10 +69,22 @@ async function getBrowser(headless = true) {
   return browser
 }
 
+// console/pageerror 必须从建页起就监听——事后问不到历史(机械眼的证据链要求)。
+// browser-open 新建页面时数组随之重置,天然按"当前页面"分段。
+let consoleEntries = []
+let pageErrors = []
+
 async function getPage() {
   if (page && !page.isClosed()) return page
   const b = await getBrowser()
   page = await b.newPage()
+  consoleEntries = []
+  pageErrors = []
+  page.on('console', (msg) => {
+    const t = msg.type()
+    if (t === 'error' || t === 'warning') consoleEntries.push({ type: t, text: String(msg.text()).slice(0, 300) })
+  })
+  page.on('pageerror', (err) => { pageErrors.push(String(err && err.message || err).slice(0, 300)) })
   return page
 }
 
@@ -123,6 +139,9 @@ server.tool(
     }
     try {
       const p = await getPage(args.headless)
+      // 每次导航清空 console/pageerror 台账:机械眼按"本页本次加载"计账
+      consoleEntries = []
+      pageErrors = []
       const resp = await p.goto(url, { waitUntil: args.waitUntil, timeout: args.timeout })
       const out = {
         title: await p.title().catch(() => null),
@@ -289,6 +308,207 @@ server.tool(
       }
     } catch (err) {
       return fail(`browser-screenshot 失败: ${err.message ?? String(err)}`)
+    }
+  }
+)
+
+// ---- 工具 5:browser-select ------------------------------------------------
+server.tool(
+  'browser-select',
+  '在原生 <select> 元素上选择选项(派发真实 change 事件,React 受控组件可用)。' +
+    '按 value 或可见文本 label 选;二者给其一。注意:Radix/shadcn 的 Select 不是原生 ' +
+    '<select>,那种用两步 browser-click(先点触发器,再点 [role=option] 或 text=选项文本)。',
+  {
+    selector: z.string().min(1).describe('原生 select 元素的 CSS 选择器'),
+    value: z.string().optional().describe('按 option 的 value 选'),
+    label: z.string().optional().describe('按 option 的可见文本选'),
+    timeout: z.number().int().positive().max(120000).optional().default(30000)
+  },
+  async (args) => {
+    const selector = String(args.selector ?? '').trim()
+    if (!selector) return fail('参数错误: selector 为必填字符串')
+    if (args.value === undefined && args.label === undefined) return fail('参数错误: value 与 label 至少给其一')
+    try {
+      const p = await getPage()
+      const loc = p.locator(selector)
+      await loc.waitFor({ state: 'visible', timeout: args.timeout })
+      const picked = await loc.selectOption(args.value !== undefined ? { value: args.value } : { label: args.label }, { timeout: args.timeout })
+      return ok(`已选择 (selector="${selector}") → ${JSON.stringify(picked)}`)
+    } catch (err) {
+      return fail(`browser-select 失败: ${err.message ?? String(err)}(收到 value=${JSON.stringify(args.value)} label=${JSON.stringify(args.label)};若目标是 Radix/shadcn Select,请改用两步 browser-click)`)
+    }
+  }
+)
+
+// ---- 工具 6:browser-press -------------------------------------------------
+server.tool(
+  'browser-press',
+  '在指定元素上按一个键(如 Enter、Escape、ArrowDown、Control+a)。派发真实键盘事件,' +
+    'React onKeyDown/回车提交(bindEnter 类)可用。selector 缺省时对页面焦点元素按键。',
+  {
+    selector: z.string().optional().describe('目标元素 CSS 选择器;缺省 = 当前焦点'),
+    key: z.string().min(1).describe('键名,playwright 语法:Enter/Escape/Tab/ArrowDown/Control+a 等'),
+    timeout: z.number().int().positive().max(120000).optional().default(30000)
+  },
+  async (args) => {
+    const key = String(args.key ?? '').trim()
+    if (!key) return fail('参数错误: key 为必填字符串')
+    try {
+      const p = await getPage()
+      if (args.selector) {
+        const loc = p.locator(String(args.selector))
+        await loc.waitFor({ state: 'visible', timeout: args.timeout })
+        await loc.press(key, { timeout: args.timeout })
+      } else {
+        await p.keyboard.press(key)
+      }
+      return ok(`已按键 ${key}${args.selector ? ` (selector="${args.selector}")` : '(焦点元素)'}`)
+    } catch (err) {
+      return fail(`browser-press 失败: ${err.message ?? String(err)}`)
+    }
+  }
+)
+
+// ---- 工具 7:browser-hover -------------------------------------------------
+server.tool(
+  'browser-hover',
+  '将鼠标悬停到指定元素上(触发 tooltip/悬浮菜单等 hover 态)。悬停后一般紧跟 ' +
+    'browser-extract 或 browser-click 验证/操作被揭示的内容。',
+  {
+    selector: z.string().min(1).describe('要悬停元素的 CSS 选择器'),
+    timeout: z.number().int().positive().max(120000).optional().default(30000)
+  },
+  async (args) => {
+    const selector = String(args.selector ?? '').trim()
+    if (!selector) return fail('参数错误: selector 为必填字符串')
+    try {
+      const p = await getPage()
+      const loc = p.locator(selector)
+      await loc.waitFor({ state: 'visible', timeout: args.timeout })
+      await loc.hover({ timeout: args.timeout })
+      return ok(`已悬停 (selector="${selector}")`)
+    } catch (err) {
+      return fail(`browser-hover 失败: ${err.message ?? String(err)}`)
+    }
+  }
+)
+
+// ---- 工具 8:browser-upload ------------------------------------------------
+server.tool(
+  'browser-upload',
+  '向 <input type=file> 设置要上传的本地文件(派发真实 change 事件,React 可用)。' +
+    'filePath 必须是本机已存在的文件绝对路径(调用方先落盘再传路径)。',
+  {
+    selector: z.string().min(1).describe('文件输入框的 CSS 选择器,如 input[type=file]'),
+    filePath: z.string().min(1).describe('要上传文件的绝对路径(须已存在)'),
+    timeout: z.number().int().positive().max(120000).optional().default(30000)
+  },
+  async (args) => {
+    const selector = String(args.selector ?? '').trim()
+    const filePath = String(args.filePath ?? '').trim()
+    if (!selector || !filePath) return fail('参数错误: selector 与 filePath 均为必填')
+    try {
+      const p = await getPage()
+      const loc = p.locator(selector)
+      await loc.waitFor({ state: 'attached', timeout: args.timeout })
+      await loc.setInputFiles(filePath, { timeout: args.timeout })
+      return ok(`已设置上传文件 (selector="${selector}") ← ${filePath}`)
+    } catch (err) {
+      return fail(`browser-upload 失败: ${err.message ?? String(err)}`)
+    }
+  }
+)
+
+// ---- 工具 9:browser-inspect -----------------------------------------------
+// 机械眼:一次调用返回本页的确定性体检 JSON——console/pageerror 台账、横向溢出、
+// 零尺寸/出屏元素、死图、低对比度文本样本、布局降维速写。colorScheme 可切换
+// 亮/暗模拟(设置后保持,便于紧跟 browser-screenshot 拍同一主题)。
+server.tool(
+  'browser-inspect',
+  '对当前页面做确定性体检,返回 JSON:consoleErrors(本次加载的 console error/warning)、' +
+    'pageErrors(未捕获异常)、overflowX(横向溢出元素)、zeroSized(渲染为零尺寸的可见候选)、' +
+    'deadImages(naturalWidth=0)、lowContrast(对比度 < 4.5 的文本样本,WCAG 近似)、' +
+    'layout(布局降维速写:主要元素的盒子与文本)。colorScheme 给 light/dark 时先切换模拟再体检。',
+  {
+    colorScheme: z.enum(['light', 'dark']).optional().describe('体检前切换 prefers-color-scheme 模拟(设置后保持)'),
+    maxItems: z.number().int().positive().max(50).optional().default(12).describe('每类问题最多列几条')
+  },
+  async (args) => {
+    try {
+      const p = await getPage()
+      if (args.colorScheme) await p.emulateMedia({ colorScheme: args.colorScheme })
+      if (args.colorScheme) await p.waitForTimeout(150) // 给主题样式一拍生效时间
+      const max = args.maxItems ?? 12
+      const audit = await p.evaluate((MAX) => {
+        const short = (el) => {
+          const id = el.id ? `#${el.id}` : ''
+          const cls = el.classList.length ? `.${[...el.classList].slice(0, 2).join('.')}` : ''
+          return `${el.tagName.toLowerCase()}${id}${cls}`
+        }
+        const lum = (r, g, b) => {
+          const f = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) }
+          return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+        }
+        const parseRgb = (s) => {
+          const m = /rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)/.exec(s)
+          return m ? { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] } : null
+        }
+        const doc = document.documentElement
+        const overflowX = []
+        const zeroSized = []
+        const deadImages = []
+        const lowContrast = []
+        const vw = window.innerWidth
+        if (doc.scrollWidth > vw + 1) overflowX.push(`<页面整体> scrollWidth ${doc.scrollWidth} > 视口 ${vw}`)
+        const els = [...document.querySelectorAll('body *')]
+        for (const el of els) {
+          const cs = getComputedStyle(el)
+          if (cs.display === 'none' || cs.visibility === 'hidden') continue
+          const r = el.getBoundingClientRect()
+          if (overflowX.length < MAX && r.right > vw + 1 && r.width > 8) overflowX.push(`${short(el)} 右缘 ${Math.round(r.right)}px 超出视口 ${vw}px`)
+          // OPTION/OPTGROUP 在闭合的 select 里天然 0×0(预览眼首航实测误报),不算病
+          if (zeroSized.length < MAX && (r.width === 0 || r.height === 0) && el.childElementCount === 0 && (el.textContent || '').trim() !== '' && el.tagName !== 'OPTION' && el.tagName !== 'OPTGROUP') zeroSized.push(`${short(el)} 有文本但渲染 ${Math.round(r.width)}×${Math.round(r.height)}`)
+          if (el.tagName === 'IMG' && deadImages.length < MAX && el.complete && el.naturalWidth === 0) deadImages.push(`${short(el)} src=${(el.getAttribute('src') || '').slice(0, 80)}`)
+          if (lowContrast.length < MAX && el.childElementCount === 0) {
+            const txt = (el.textContent || '').trim()
+            if (txt.length >= 3 && r.width > 0 && r.height > 0) {
+              const fg = parseRgb(cs.color)
+              let bgEl = el
+              let bg = null
+              while (bgEl && bgEl !== document.body.parentElement) {
+                const c = parseRgb(getComputedStyle(bgEl).backgroundColor)
+                if (c && c.a > 0.9) { bg = c; break }
+                bgEl = bgEl.parentElement
+              }
+              if (fg && bg) {
+                const L1 = lum(fg.r, fg.g, fg.b)
+                const L2 = lum(bg.r, bg.g, bg.b)
+                const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05)
+                if (ratio < 4.5) lowContrast.push(`${short(el)} 对比度 ${ratio.toFixed(1)}:「${txt.slice(0, 24)}」`)
+              }
+            }
+          }
+        }
+        // 布局降维速写:两层以内的主要容器 + 尺寸 + 首行文本
+        const layout = []
+        const walk = (el, depth) => {
+          if (depth > 2 || layout.length >= 40) return
+          const r = el.getBoundingClientRect()
+          if (r.width < 24 || r.height < 16) return
+          const txt = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).join(' ').slice(0, 40)
+          layout.push(`${'  '.repeat(depth)}${short(el)} [${Math.round(r.width)}×${Math.round(r.height)} @${Math.round(r.left)},${Math.round(r.top)}]${txt ? ` "${txt}"` : ''}`)
+          for (const c of el.children) walk(c, depth + 1)
+        }
+        const root = document.querySelector('#root') || document.body
+        walk(root, 0)
+        return { overflowX, zeroSized, deadImages, lowContrast, layout, title: document.title }
+      }, max)
+      audit.consoleErrors = consoleEntries.slice(0, max)
+      audit.pageErrors = pageErrors.slice(0, max)
+      audit.colorScheme = args.colorScheme ?? 'default'
+      return ok(JSON.stringify(audit, null, 1))
+    } catch (err) {
+      return fail(`browser-inspect 失败: ${err.message ?? String(err)}`)
     }
   }
 )

@@ -4,9 +4,12 @@
 #   route: wire    判断流(真 agent 会话)   —— 必须给 probe(单轮考题)与 marks(验收标记)
 #   route: ai-thin 薄判断(一次补全)        —— v1 经 wire 承载,标注留档
 # 写手纪律:确定性动作(增删改查/汇总/渲染)一律 face;只有真需要判断的动作才 wire。
-# dom 标注(可选,只许 face 动作):steps 只有 {fill,value}/{click} 两种;fill 必须把
-# @@TOKEN@@ 织进输入、effect/expectText 至少一处含 @@TOKEN@@(区分口令,防行为考直打
-# SQL 的行冒充页面点出来的行);selector 用你自己起的稳定 id(如 #draft/#addBtn)。
+# dom 标注(可选,只许 face 动作):steps 七动词——{fill,value}/{click}/{select,value}
+# (原生下拉)/{press,key}(如 Enter)/{hover}/{upload,name,content}(文件流)/
+# {waitText,value}(元素级回显断言)。fill.value 或 upload.content 必须把 @@TOKEN@@
+# 织进输入,且 effect/expectText/waitText 至少一处含 @@TOKEN@@(区分口令,防行为考
+# 直打 SQL 的行冒充页面点出来的行)。selector 用你自己起的稳定 id(如 #draft/#addBtn);
+# 支持 playwright 引擎:text=按钮文本、:nth-match(.card button, 2)(循环格第 N 项)、[role=]。
 # 不标注也有保底:考官对每页做挂载死活考(#root 空白即 FAIL),未标注动作如实登记。
 pages: []
 # 示例:

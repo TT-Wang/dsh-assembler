@@ -95,7 +95,18 @@
       验证挂在下一次 deploy_app 的六门 DOM 考。白捡项(seq 锚计数、approval
       waterfall 进考卷面)转入 v7 议程。
 
-## 已完成基线(免得重复造)
+- [ ] **1.0 前端能力工单(2026-09-01 立项,目标:对打 Lovable 不输脸)**。审计基线:
+      DOM 考官词表仅 click/fill 两动词;写手无预览反馈(盲写);scaffold 原子 13 件
+      (shadcn 子集,骨架哈希锁死缺件只能上报);图表能力为零;写手范例仅 2 张,
+      战役已验收页面零回流;模板车道 10 件已零件化(capabilities.yml frontend-*)。
+      五路修法:①preview_app 预览眼(headless 渲染+机械体检+截图+布局降维,秒级
+      快闸)——写手看得见;②考官词表 2→8(select/press/upload/click-nth/hover/
+      assert 类,每动词带正反 fixture 钉)——考官够得着,写手才敢写;④原子补件
+      (progress/skeleton/tooltip/switch/radio/popover/toast)+零依赖 SVG 图表原语
+      (data-* 可机验)——解锁硬顶;③范例即模式库 v0(examples/ 扩容+战役页面
+      回流规矩,目录级检索为后续);⑤机械美学门(溢出/对比度/console/暗色双渲染,
+      确定性入闸;视觉评语走 aux advisory 不进判定)。验收:端到端两连——手动写手
+      全动词全原语过六门,真写手席(run-writer-seat)在新词表/新原语下真会话跑通。
 
 配方车道(rag-qa/record-desk/scaffold-react)· 双面化四件套(sqlite 服务脸/
 记录配方/app↔agent 交接考/cron-trigger)· SDK 蒸馏 · scaffold 五门 + 行为考 ·

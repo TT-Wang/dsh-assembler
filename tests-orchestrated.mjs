@@ -274,6 +274,18 @@ check('自检包 v2:rerun 只带可草图化路径(probes[0].token 还原,3 轮�
   check('DOM 考卷:词表外 step 键 FAIL(报错教词表)', validateDomPaper([{ ...legal, dom: { steps: [{ clcik: '#x' }] } }]).some((v) => v.includes('不合词表')))
   check('DOM 考卷:wire 动作带 dom FAIL', validateDomPaper([{ name: 'w', route: 'wire', dom: { steps: [{ click: '#x' }] } }]).some((v) => v.includes('只考 face')))
   check('DOM 考卷:缺区分口令 FAIL(防行为考直打冒充)', validateDomPaper([{ name: 'n', route: 'face', effect: { sql: 'SELECT 1 WHERE id=1', expect: 'x' }, dom: { steps: [{ fill: '#a', value: '无口令' }, { click: '#b' }] } }]).some((v) => v.includes('区分口令')))
+  // ── 词表 2→8(BACKLOG 1.0 ②):七动词正反钉 ──
+  const legalWide = { name: '全词表', route: 'face', effect: { sql: 'SELECT 1 WHERE t LIKE ?', sampleParams: ['%@@TOKEN@@%'], expect: 'x' }, dom: { steps: [
+    { fill: '#a', value: '口令 @@TOKEN@@' }, { select: '#sel', value: '乙' }, { press: '#a', key: 'Enter' },
+    { hover: '#tip' }, { click: ':nth-match(.card button, 2)' }, { waitText: '#out', value: '@@TOKEN@@' },
+  ] } }
+  check('DOM 考卷:七动词全用合法过闸(含 :nth-match 选择器)', validateDomPaper([legalWide]).length === 0, JSON.stringify(validateDomPaper([legalWide])))
+  check('DOM 考卷:press 缺 key 点名', validateDomPaper([{ ...legalWide, dom: { steps: [{ fill: '#a', value: '@@TOKEN@@' }, { press: '#a' }] } }]).some((v) => v.includes('press step 缺 key')))
+  check('DOM 考卷:select 缺 value 点名', validateDomPaper([{ ...legalWide, dom: { steps: [{ fill: '#a', value: '@@TOKEN@@' }, { select: '#s' }] } }]).some((v) => v.includes('select step 缺 value')))
+  check('DOM 考卷:upload 缺 content 点名', validateDomPaper([{ ...legalWide, dom: { steps: [{ upload: '#f', name: 'a.txt' }] } }]).some((v) => v.includes('upload step 缺 content')))
+  check('DOM 考卷:upload.content 织口令可过区分口令闸(文件流的织入路)', validateDomPaper([{ name: 'u', route: 'face', effect: { sql: 'SELECT 1 WHERE t LIKE ?', sampleParams: ['%@@TOKEN@@%'], expect: 'x' }, dom: { steps: [{ upload: '#f', name: 'a.txt', content: '正文 @@TOKEN@@' }, { click: '#go' }] } }]).length === 0)
+  check('DOM 考卷:waitText 织口令可当回显断言(免 expectText)', validateDomPaper([{ name: 'w', route: 'face', dom: { steps: [{ fill: '#a', value: '@@TOKEN@@' }, { click: '#go' }, { waitText: '#out', value: '@@TOKEN@@' }] } }]).length === 0)
+  check('DOM 考卷:一步两动词 FAIL(报错教全词表)', validateDomPaper([{ ...legalWide, dom: { steps: [{ fill: '#a', value: '@@TOKEN@@', click: '#b' }] } }]).some((v) => v.includes('恰一个动词') && v.includes('waitText')))
   check('页 id↔文件:双向错配都点名并列真实清单', (() => {
     const mm = pageIdFileMismatches(['board', 'ghost'], ['board.tsx', 'orphan.tsx'])
     return mm.some((x) => x.includes('ghost') && x.includes('board')) && mm.some((x) => x.includes('orphan'))
@@ -628,7 +640,7 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   const { readFileSync: rfc } = await import('node:fs')
   const idxSrc = rfc('src/index.ts', 'utf8')
   const faces = (idxSrc.match(/ctx\.effect\(\(\) => ctx\.tools\.register\(/g) ?? []).length
-  check('概念账:工具面 = 12(宪法当前账;新增工具面必须同刀删一个或修宪)', faces === 12, `实得 ${faces}`)
+  check('概念账:工具面 = 13(2026-09-01 修宪 +preview_app,BACKLOG 1.0;新增工具面必须同刀删一个或修宪)', faces === 13, `实得 ${faces}`)
   const viaLine = /via: ((?:'[a-z-]+'(?: \| )?)+)/.exec(idxSrc)?.[1] ?? ''
   const viaCount = (viaLine.match(/'/g) ?? []).length / 2
   check('概念账:via 5 种(第九条执行后 recipe 已消)', viaCount === 5, viaLine)

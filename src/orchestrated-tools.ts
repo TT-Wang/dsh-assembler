@@ -45,7 +45,7 @@ import { checkArchProbe } from './arch-spec.js'
 import { rankCapabilities } from './capability-index.js'
 import { DEFAULT_FRONTEND_TEMPLATE, FRONTEND_ROUTE, emitFrontend, listFrontendTemplates } from './frontend.js'
 import { execFileSync, spawn as spawnPart } from 'node:child_process'
-import { SCAFFOLD_DIR as SCAFFOLD_ROOT_FOR_RESEMBLE, hashLockPaths, loadScaffold, materializeApp, runAppSelftest } from './scaffold.js'
+import { SCAFFOLD_DIR as SCAFFOLD_ROOT_FOR_RESEMBLE, hashLockPaths, loadScaffold, materializeApp, runAppPreview, runAppSelftest } from './scaffold.js'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -1720,7 +1720,7 @@ export function emitAppToolDefinition(_ctx: Context, config: Config): ToolDefini
     },
   })
 }
-export function verifyAppToolDefinition(_ctx: Context, _config: Config): ToolDefinition {
+export function verifyAppToolDefinition(_ctx: Context, config: Config): ToolDefinition {
   return defineTool({
     name: VERIFY_APP_TOOL_NAME,
     description:
@@ -1742,7 +1742,9 @@ export function verifyAppToolDefinition(_ctx: Context, _config: Config): ToolDef
       if (targetDir === '' || !targetDir.startsWith('/')) throw new Error('verify_app 需要绝对路径 targetDir(emit_app 结果里的 app 目录)')
       const t0 = Date.now()
       const wirePort = typeof a.wirePort === 'number' ? a.wirePort : (_ctx.get?.('webServer') as { port?: number } | undefined)?.port
-      const result = await runAppSelftest(targetDir, { ...(wirePort !== undefined ? { wirePort } : {}) })
+      // presetRoot 必须随 config 下传(存量 bug,前端工单夹具现形:不传则考官对默认
+      // $DSH_HOME 取脸,行为考在自定义 presetRoot 下考错对象——no such table 假死)
+      const result = await runAppSelftest(targetDir, { presetRoot: presetRootOf(config), ...(wirePort !== undefined ? { wirePort } : {}) })
       // pagesHash 进沙箱外台账(v5 审计必修 1):app 内 last-verify.json 在沙箱内可被
       // 篡改,判定与被考字节的绑定必须有一份 agent 够不着的权威记录。
       const pagesHash = ((): string | null => { try { return hashLockPaths(targetDir, ['src/pages', 'PAGE-SPEC.yml']) } catch { return null } })()
@@ -1817,6 +1819,46 @@ function presetNotFoundError(tool: string, presetRoot: string, wrong: string, ex
 // static-deploy 零件是给"交付出去的 agent 自建自发"用的(挂在 preset 里);
 // 主 agent 在装配现场没有它的工具面,发布这步由本 host 面工具承接,闸门同款:
 // preset 必须存在、dist/index.html 必须在、路径守卫。发布 = 确定性拷贝,印刷机职权。
+export const PREVIEW_APP_TOOL_NAME = 'preview_app'
+
+/**
+ * 预览眼(BACKLOG 1.0 ①,修宪第 13 工具面):写手的镜子,不是考官的判定。
+ * 0.8 快慢闸分层在页面车道的落地——秒级看脸(机械体检+截图),分钟级验行为
+ * (verify_app 六门)仍是唯一判定。
+ */
+export function previewAppToolDefinition(_ctx: Context, config: Config): ToolDefinition {
+  return defineTool({
+    name: PREVIEW_APP_TOOL_NAME,
+    description:
+      'FAST mirror for the page writer (seconds; NOT a verdict): builds the app, renders every page headless in light AND dark, '
+      + 'and returns a deterministic checkup — console/page errors, horizontal overflow, dead images, low-contrast text, zero-sized '
+      + 'elements, and a layout sketch — plus screenshots saved under <targetDir>/.preview/. Loop look→fix→re-preview until clean, '
+      + 'THEN send to verify_app (the six-gate examiner stays the only verdict; this tool never judges).'
+,
+    parameters: {
+      targetDir: { type: 'string', description: 'the scaffold app directory (emit_app result, holds scaffold.lock.yml)', required: true },
+      pages: { type: 'array', items: { type: 'string' }, description: 'only preview these page ids (default: all pages from PAGE-SPEC, else src/pages/*.tsx)' },
+    },
+    output: {
+      schema: { type: 'string' as const },
+      render: (_args: unknown, value: string) => [{ type: 'text' as const, text: value }],
+    },
+    execute: async (args: unknown): Promise<string> => {
+      const a = args as { targetDir?: unknown; pages?: unknown }
+      const targetDir = String(a.targetDir ?? '').trim()
+      if (targetDir === '' || !targetDir.startsWith('/')) throw new Error('preview_app 需要绝对路径 targetDir(emit_app 结果里的 app 目录)')
+      const pages = Array.isArray(a.pages) ? a.pages.map((p) => String(p)).filter((p) => p !== '') : undefined
+      const t0 = Date.now()
+      const r = await runAppPreview(resolve(targetDir), {
+        presetRoot: presetRootOf(config),
+        ...(pages !== undefined ? { pages } : {}),
+      })
+      appendOrchLedger({ tool: PREVIEW_APP_TOOL_NAME, targetDir, status: r.status, elapsedSeconds: Math.round((Date.now() - t0) / 1000) })
+      return r.report
+    },
+  })
+}
+
 export const DEPLOY_APP_TOOL_NAME = 'deploy_app'
 
 export function deployAppToolDefinition(_ctx: Context, config: Config): ToolDefinition {

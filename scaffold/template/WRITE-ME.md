@@ -84,14 +84,22 @@ APP.PRESET_ID / APP.APP_NAME                        // 实例参数
 SDK 出口:`faces` `face`(通用)· `sqliteFace` `aiFace` `filesFace`(便捷)· `createClient` `bindEnter` `extractFence` `APP`。
 
 `@/components/ui/`:badge · button · card · checkbox · dialog · dropdown-menu ·
-input · label · select · separator · table · tabs · textarea
-图标:`lucide-react`(任意图标名);图表:`recharts`(仪表盘用)。
+input · label · select · separator · table · tabs · textarea · **progress · skeleton ·
+switch · tooltip · popover · radio-group · toast · chart**(2026-09-01 补件)。
+图表与陈列(`@/components/ui/chart`):`SimpleBarChart/SimpleLineChart/SimplePieChart`
+(吃 `{label,value}[]`,主题色自动,容器带 data-chart/data-points 供考官断言)与
+`StatCard`(仪表盘首排数字卡);更花的图直接 `import 'recharts'`(骨架依赖,自由区随便用)。
+轻提示(`@/components/ui/toast`):`toast('已保存')` 即用,免 Provider;错误用
+`toast(msg, { variant: 'destructive' })`。加载骨架屏:`<Skeleton className="h-24" />`。
+图标:`lucide-react`(任意图标名)。
 页面文件:默认导出组件 + `export const title = '导航名'`;多页自动出 hash 导航。
 
 ## 范例 = 起始页(照猫画虎,质量地板在这)
 
 - `examples/board.tsx` — 看板:face 直连列/增/拖 + wire 分析 + 错误出声,全套纪律的活体
 - `examples/records.tsx` — 记录台:schema 驱动表格 + 表单直录 + face 汇总
+- `examples/dashboard.tsx` — 仪表盘:统计卡首排 + 柱状/环图 + select 过滤 + 回车速录 +
+  toast 反馈 + 空态/骨架屏("落库数据要看一眼"的标准形状,图表件的活范本)
 
 需求落在这些形状里时,**整页拷进 `src/pages/` 当起点再改**(examples/ 本身在锁定面,
 只读;拷贝进自由区后随便改)。记录/台账/库存类需求直接从 records.tsx 起步,
@@ -101,6 +109,10 @@ input · label · select · separator · table · tabs · textarea
 
 1. ~~emit_app~~(已完成,骨架即本目录)
 2. **你:写 PAGE-SPEC.yml + src/pages/**
-3. `verify_app { targetDir }` — 六门:构建/骨架锁/页面 lint/资产可达/**行为考**(照你的考卷真考)/**DOM 考**(真开页面:每页挂载死活必考;face 动作可标 dom 步骤,考官真填真点验"点击→落库→回显"——给要标注的交互元素起稳定 id,如 `#draft`/`#addBtn`,范例页 board.tsx 就是范本);FAIL 带证据,外科修复后重验,连续 3 次 FAIL 停手上报
-4. `deploy_app { targetDir, presetId }` — 构建产物发布进 preset,同源上线
-5. 如实向用户报告:页面 URL、考了什么、结论
+3. `preview_app { targetDir }` — **预览眼(秒级快闸,不判定)**:每页亮/暗双主题
+   截图(落 `.preview/`)+ 机械体检(console/pageerror、横向溢出、死图、低对比度、
+   零尺寸)+ 布局降维速写。**看着改**:体检零异常、布局速写读起来像你想要的样子,
+   再送考——省一轮六门。改一版看一版,这是你的镜子。
+4. `verify_app { targetDir }` — 六门:构建/骨架锁/页面 lint/资产可达/**行为考**(照你的考卷真考)/**DOM 考**(真开页面:每页挂载死活必考;face 动作可标 dom 步骤,考官真操作验"交互→落库→回显"。dom 步词表七动词:`{fill,value}` `{click}` `{select,value}`(原生下拉)`{press,key}`(回车提交类)`{hover}` `{upload,name,content}`(文件流)`{waitText,value}`(元素级回显断言);selector 支持 `text=`、`:nth-match(sel,n)`(循环格点第 N 项)、`[role=]`。给交互元素起稳定 id,如 `#draft`/`#addBtn`;board.tsx/dashboard.tsx 是范本);FAIL 带证据,外科修复后重验,连续 3 次 FAIL 停手上报
+5. `deploy_app { targetDir, presetId }` — 构建产物发布进 preset,同源上线
+6. 如实向用户报告:页面 URL、考了什么、结论

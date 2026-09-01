@@ -16,20 +16,45 @@
 // 本模块不 import scaffold.ts(避免环):共享件(makeSub/assertEffect/服务脸)
 // 由调用方注入。
 import { createServer } from 'node:http'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 // ── 考卷校验(纯函数,单测主战场)──────────────────────────────────────────────
 
-export interface DomStep { fill?: string; click?: string; value?: string }
+/**
+ * DOM 步词表(BACKLOG 1.0 前端能力工单,2→8):
+ *   {fill: sel, value}            填输入(真 input 事件)
+ *   {click: sel}                  点击(selector 支持 playwright 引擎:text=、:nth-match(sel,n)、[role=])
+ *   {select: sel, value}          原生 <select> 选项(Radix/shadcn Select 用两步 click)
+ *   {press: sel, key}             按键(Enter/Escape/ArrowDown…;回车提交类由此可考)
+ *   {hover: sel}                  悬停(揭示 tooltip/悬浮菜单)
+ *   {upload: sel, name, content}  文件上传(考官落盘临时文件;content 可织 @@TOKEN@@)
+ *   {waitText: sel, value}        步内断言:轮询该元素文本须含 value(可含 @@TOKEN@@)
+ * spec 级 expectText 保留:整根 #root 文本的最终回显断言。
+ */
+export interface DomStep {
+  fill?: string; click?: string; select?: string; press?: string; hover?: string
+  upload?: string; waitText?: string
+  value?: string; key?: string; name?: string; content?: string
+}
 export interface DomSpec { steps?: DomStep[]; expectText?: string }
 
+const DOM_VERBS = ['fill', 'click', 'select', 'press', 'hover', 'upload', 'waitText'] as const
+/** 每个动词的必备伴随字段(缺了闸下点名)。 */
+const VERB_COMPANIONS: Record<string, string[]> = {
+  fill: ['value'], click: [], select: ['value'], press: ['key'], hover: [],
+  upload: ['name', 'content'], waitText: ['value'],
+}
+const COMPANION_KEYS = new Set(['value', 'key', 'name', 'content'])
+const VOCAB_HINT = '词表:{fill,value}/{click}/{select,value}/{press,key}/{hover}/{upload,name,content}/{waitText,value};selector 支持 text=、:nth-match(sel,n)、[role=] 引擎(循环格点第 N 项用 :nth-match)'
+
 /**
- * DOM 标注的机械闸:封闭词表(fill/click)、只许长在 face 动作上、区分口令闸
- * (steps 里必须有 fill 织入 @@TOKEN@@,且 effect/expectText 至少一处含 @@TOKEN@@)。
- * 区分口令闸是三闸里最关键的:行为考在同一次 verify 里已用直打 SQL 造过行,
- * 一个不带独立口令的 effect(如 WHERE id=1)会被那次直打满足——DOM 没点,断言
- * 照样绿。返回违例清单(空 = 过闸)。
+ * DOM 标注的机械闸:封闭词表(七动词)、只许长在 face 动作上、区分口令闸
+ * (steps 里必须有 fill.value 或 upload.content 织入 @@TOKEN@@,且 effect/
+ * expectText/waitText 至少一处含 @@TOKEN@@)。区分口令闸是三闸里最关键的:
+ * 行为考在同一次 verify 里已用直打 SQL 造过行,一个不带独立口令的 effect
+ * (如 WHERE id=1)会被那次直打满足——DOM 没点,断言照样绿。返回违例清单(空 = 过闸)。
  */
 export function validateDomPaper(
   actions: Array<Record<string, unknown>>,
@@ -46,26 +71,32 @@ export function validateDomPaper(
     }
     const steps = Array.isArray(dom.steps) ? dom.steps : []
     if (steps.length === 0) {
-      violations.push(`动作「${name}」dom.steps 为空——至少一步(fill/click)`)
+      violations.push(`动作「${name}」dom.steps 为空——至少一步(${VOCAB_HINT})`)
       continue
     }
     for (const st of steps) {
-      const keys = Object.keys(st as Record<string, unknown>).filter((k) => k !== 'value')
-      const known = keys.filter((k) => k === 'fill' || k === 'click')
-      if (keys.length !== 1 || known.length !== 1) {
-        violations.push(`动作「${name}」的 step ${JSON.stringify(st)} 不合词表——只有 {fill:"<selector>",value:"..."} 与 {click:"<selector>"} 两种(拼错改对重验;要新交互词汇,那是考官升级,回 scaffold-dom 提)`)
+      const rec = st as Record<string, unknown>
+      const verbKeys = Object.keys(rec).filter((k) => !COMPANION_KEYS.has(k))
+      const known = verbKeys.filter((k) => (DOM_VERBS as readonly string[]).includes(k))
+      if (verbKeys.length !== 1 || known.length !== 1) {
+        violations.push(`动作「${name}」的 step ${JSON.stringify(st)} 不合词表——每步恰一个动词。${VOCAB_HINT}(拼错改对重验;要新交互词汇,那是考官升级,回 scaffold-dom 提)`)
+        continue
       }
-      if (typeof st.fill === 'string' && typeof st.value !== 'string') {
-        violations.push(`动作「${name}」的 fill step 缺 value`)
+      const verb = known[0] as string
+      for (const need of VERB_COMPANIONS[verb] ?? []) {
+        if (typeof rec[need] !== 'string') violations.push(`动作「${name}」的 ${verb} step 缺 ${need}(${VOCAB_HINT})`)
       }
     }
-    const fillsToken = steps.some((st) => typeof st.value === 'string' && st.value.includes('@@TOKEN@@'))
+    const weavesToken = steps.some((st) =>
+      (typeof st.fill === 'string' && typeof st.value === 'string' && st.value.includes('@@TOKEN@@'))
+      || (typeof st.upload === 'string' && typeof st.content === 'string' && st.content.includes('@@TOKEN@@')))
     const eff = a.effect as { sql?: string; sampleParams?: unknown[]; expect?: string } | undefined
     const effHasToken = JSON.stringify(eff ?? {}).includes('@@TOKEN@@')
     const expectTextHasToken = typeof dom.expectText === 'string' && dom.expectText.includes('@@TOKEN@@')
-    if (!fillsToken || !(effHasToken || expectTextHasToken)) {
+    const waitTextHasToken = steps.some((st) => typeof st.waitText === 'string' && typeof st.value === 'string' && st.value.includes('@@TOKEN@@'))
+    if (!weavesToken || !(effHasToken || expectTextHasToken || waitTextHasToken)) {
       violations.push(
-        `动作「${name}」缺区分口令:steps 里必须有 fill 把 @@TOKEN@@ 织进输入,且 effect/expectText 至少一处含 @@TOKEN@@。`
+        `动作「${name}」缺区分口令:steps 里必须有 fill.value 或 upload.content 把 @@TOKEN@@ 织进输入,且 effect/expectText/waitText 至少一处含 @@TOKEN@@。`
         + '没有区分口令,行为考直打 SQL 造的行会满足这里的断言——DOM 没点,考卷照绿(假 PASS)。',
       )
     }
@@ -108,6 +139,7 @@ export async function startExamServer(distDir: string, presetDir: string, preset
     if (req.method !== 'GET') return send(405, 'Method Not Allowed')
     let pathname: string
     try { pathname = new URL(req.url ?? '/', 'http://local').pathname } catch { return send(400, 'Bad Request') }
+    if (pathname === '/favicon.ico') { res.statusCode = 204; return res.end() } // 浏览器自动请求,404 会脏 console 台账(预览眼首航实测)
     if (pathname === `${base}/.service`) {
       const svcFile = join(presetDir, 'workspace', '.service.json')
       if (!existsSync(svcFile)) return send(404, 'no service faces')
@@ -144,6 +176,14 @@ export interface BrowserHand {
   click: (selector: string) => Promise<string>
   fill: (selector: string, value: string) => Promise<string>
   extract: (selector: string) => Promise<string>
+  select: (selector: string, value: string) => Promise<string>
+  press: (selector: string, key: string) => Promise<string>
+  hover: (selector: string) => Promise<string>
+  upload: (selector: string, filePath: string) => Promise<string>
+  /** 机械眼:确定性体检 JSON(console/溢出/死图/对比度/布局速写);colorScheme 切亮暗。 */
+  inspect: (colorScheme?: 'light' | 'dark') => Promise<string>
+  /** 截图,返回 base64(png)。 */
+  shot: () => Promise<string>
   close: () => Promise<void>
 }
 
@@ -162,17 +202,25 @@ export async function openBrowserHand(repoRoot: string): Promise<BrowserHand> {
     args: [join(repoRoot, 'generated', 'browser-automate', 'index.js')],
     env: process.env as Record<string, string>,
   }))
-  const call = async (name: string, argsObj: Record<string, unknown>): Promise<string> => {
-    const r = await c.callTool({ name, arguments: argsObj }, undefined, { timeout: CALL_DEADLINE_MS }) as { content?: Array<{ type?: string; text?: string }>; isError?: boolean }
+  const callRaw = async (name: string, argsObj: Record<string, unknown>): Promise<{ text: string; imageBase64: string }> => {
+    const r = await c.callTool({ name, arguments: argsObj }, undefined, { timeout: CALL_DEADLINE_MS }) as { content?: Array<{ type?: string; text?: string; data?: string }>; isError?: boolean }
     const text = (r.content ?? []).map((b) => b.text ?? '').join('')
+    const imageBase64 = (r.content ?? []).find((b) => b.type === 'image')?.data ?? ''
     if (r.isError === true) throw new Error(`${name}: ${text.slice(0, 300)}`)
-    return text
+    return { text, imageBase64 }
   }
+  const call = async (name: string, argsObj: Record<string, unknown>): Promise<string> => (await callRaw(name, argsObj)).text
   return {
     open: (url) => call('browser-open', { url, waitUntil: 'domcontentloaded' }),
     click: (selector) => call('browser-click', { selector, timeout: 10_000 }),
     fill: (selector, value) => call('browser-fill', { selector, value, timeout: 10_000 }),
     extract: (selector) => call('browser-extract', { selector }),
+    select: (selector, value) => call('browser-select', { selector, value, timeout: 10_000 }),
+    press: (selector, key) => call('browser-press', { selector, key, timeout: 10_000 }),
+    hover: (selector) => call('browser-hover', { selector, timeout: 10_000 }),
+    upload: (selector, filePath) => call('browser-upload', { selector, filePath, timeout: 10_000 }),
+    inspect: (colorScheme) => call('browser-inspect', { ...(colorScheme !== undefined ? { colorScheme } : {}), maxItems: 12 }),
+    shot: async () => (await callRaw('browser-screenshot', {})).imageBase64,
     close: async () => { try { await c.close() } catch { /* 零件 EOF 自杀 */ } },
   }
 }
@@ -279,9 +327,26 @@ export async function runDomExam(opts: DomExamOpts): Promise<{ status: 'PASS' | 
           for (const st of dom.steps ?? []) {
             if (typeof st.fill === 'string') await hand.fill(st.fill, String(sub(st.value ?? '')))
             else if (typeof st.click === 'string') await hand.click(st.click)
+            else if (typeof st.select === 'string') await hand.select(st.select, String(sub(st.value ?? '')))
+            else if (typeof st.press === 'string') await hand.press(st.press, String(st.key ?? 'Enter'))
+            else if (typeof st.hover === 'string') await hand.hover(st.hover)
+            else if (typeof st.upload === 'string') {
+              // 上传:考官落盘临时文件(content 过 sub,区分口令可织进文件内容)
+              const dir = mkdtempSync(join(tmpdir(), 'dom-upload-'))
+              const filePath = join(dir, String(st.name ?? 'upload.txt'))
+              writeFileSync(filePath, String(sub(st.content ?? '')))
+              await hand.upload(st.upload, filePath)
+            } else if (typeof st.waitText === 'string') {
+              const want = String(sub(st.value ?? ''))
+              const sel = st.waitText
+              const shown = await pollUntil(EFFECT_BUDGET_MS, 400, async () => {
+                try { return (await hand.extract(sel)).includes(want) } catch { return false }
+              })
+              if (!shown) throw new Error(`waitText:${String(EFFECT_BUDGET_MS / 1000)}s 内「${sel}」的文本未含「${want}」`)
+            }
           }
         } catch (error: unknown) {
-          fail = `dom 动作「${name}」:${(error instanceof Error ? error.message : String(error)).slice(0, 200)}(selector 找不到/多匹配/不可见——对照页面源码里的 id)`
+          fail = `dom 动作「${name}」:${(error instanceof Error ? error.message : String(error)).slice(0, 240)}(selector 找不到/多匹配/不可见——对照页面源码里的 id;循环格用 :nth-match(sel,n),按文本用 text=)`
           break
         }
         const eff = a.effect as { sql?: string; sampleParams?: unknown[]; expect?: string } | undefined

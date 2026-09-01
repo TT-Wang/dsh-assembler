@@ -24,7 +24,7 @@
 import { spawn, execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { pageIdFileMismatches, runDomExam } from './scaffold-dom.js'
+import { type BrowserHand, openBrowserHand, pageIdFileMismatches, runDomExam, startExamServer } from './scaffold-dom.js'
 import { createServer } from 'node:net'
 import { homedir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
@@ -719,6 +719,122 @@ export async function runAppSelftest(
  * 入库门:底盘自证——用自带 sample 实例化到临时目录,跑同一台考官。
  * scripts/index-add.mjs scaffold 调它;底盘改版不过此门不许发货。
  */
+// ── 预览眼(BACKLOG 1.0 ①):写手的快闸——看得见,才写得好 ────────────────────
+
+export interface AppPreviewResult { status: 'OK' | 'WARN' | 'FAIL' | 'SKIPPED'; report: string }
+
+interface PreviewAudit {
+  consoleErrors?: Array<{ type: string; text: string }>
+  pageErrors?: string[]
+  overflowX?: string[]
+  zeroSized?: string[]
+  deadImages?: string[]
+  lowContrast?: string[]
+  layout?: string[]
+}
+
+/**
+ * preview_app 的引擎:构建 → 起考场镜像服务器 → 每页 × 亮/暗双主题机械体检
+ * (console/pageerror、横向溢出、死图、低对比度、零尺寸、布局降维速写)+ 截图落盘
+ * (targetDir/.preview/<page>.<light|dark>.png)。
+ *
+ * 定位(0.8 快慢闸分层的页面车道落地):**秒级快闸,只看脸不验行为**——判定仍归
+ * verify_app 六门。所以除「构建失败/考场不可用」外不判 FAIL:体检异常一律 WARN
+ * 带清单,写手看着改。审美不可机判的部分不在此处(advisory 车道另立,不进判定)。
+ */
+export async function runAppPreview(
+  targetDir: string,
+  opts: { scaffoldRoot?: string; onPhase?: (line: string) => void; pages?: string[]; presetRoot?: string } = {},
+): Promise<AppPreviewResult> {
+  const phase = (line: string): void => { opts.onPhase?.(line) }
+  const lockPath = join(targetDir, 'scaffold.lock.yml')
+  if (!existsSync(lockPath)) throw new Error(`preview_app: ${targetDir} 没有 scaffold.lock.yml——这不是 emit_app 实例化出来的 app(先 emit_app)`)
+  const lock = (yaml.load(readFileSync(lockPath, 'utf8')) ?? {}) as { params?: Record<string, string> }
+  const spec = loadScaffold(opts.scaffoldRoot)
+  // 1) 构建(快闸里最贵的一步;失败原文即报告——那也是预览价值:编译器先说话)
+  if (Array.isArray(spec.run.build) && spec.run.build.length > 0) {
+    phase(`构建:${spec.run.build.join(' ')}`)
+    try {
+      execFileSync(spec.run.build[0] as string, spec.run.build.slice(1), { cwd: targetDir, encoding: 'utf8', timeout: 300_000, stdio: ['ignore', 'pipe', 'pipe'] })
+    } catch (e: unknown) {
+      const err = e as { stdout?: string; stderr?: string; message?: string }
+      const detail = `${String(err.stdout ?? '')}${String(err.stderr ?? '')}`.trim()
+      return { status: 'FAIL', report: `构建失败(预览的前置门):\n${(detail !== '' ? detail : String(err.message ?? '')).slice(-1800)}` }
+    }
+  }
+  // 2) 页面清单:PAGE-SPEC 优先;没考卷也能预览(按 src/pages/*.tsx)
+  let pageIds: string[] = []
+  try {
+    const ps = (yaml.load(readFileSync(join(targetDir, 'PAGE-SPEC.yml'), 'utf8')) ?? {}) as { pages?: Array<{ id?: unknown }> }
+    pageIds = (Array.isArray(ps.pages) ? ps.pages : []).map((p) => String(p.id ?? '')).filter((x) => x !== '')
+  } catch { /* 无考卷 */ }
+  if (pageIds.length === 0) {
+    try { pageIds = readdirSync(join(targetDir, 'src', 'pages')).filter((f) => f.endsWith('.tsx')).map((f) => f.replace(/\.tsx$/, '')) } catch { /* 无页 */ }
+  }
+  const only = opts.pages
+  if (only !== undefined && only.length > 0) pageIds = pageIds.filter((p) => only.includes(p))
+  if (pageIds.length === 0) return { status: 'SKIPPED', report: '无页可预览(PAGE-SPEC 无页且 src/pages/ 空)——写页后再来' }
+  // 3) 考场(镜像生产路由;.service 惰性读,无脸页面自会降级)+ 浏览器手
+  const presetId = String(lock.params?.PRESET_ID ?? 'preview')
+  const presetDir = join(opts.presetRoot ?? join(homedir(), '.dsh', '.agent-presets'), presetId)
+  const exam = await startExamServer(join(targetDir, 'dist'), presetDir, presetId)
+  // 配套 preset 在场就自拉服务脸(与考官同一只手):页面带真数据渲染——眼里看到的
+  // 才是真脸(图表有数、表格有行);preset 缺席则页面按 SDK 语义优雅降级照样可看。
+  const faceHold = existsSync(presetDir)
+    ? await acquireSqliteFace(presetDir, phase)
+    : { face: null, kill: () => { /* 无配套 preset */ } }
+  let hand: BrowserHand
+  try {
+    hand = await openBrowserHand(REPO)
+  } catch (error: unknown) {
+    faceHold.kill()
+    exam.close()
+    return { status: 'SKIPPED', report: `预览不可用(浏览器手拉不起:${(error instanceof Error ? error.message : String(error)).slice(0, 160)})——修法:cd ${REPO}/generated/browser-automate && npm install && npx playwright install chromium` }
+  }
+  const previewDir = join(targetDir, '.preview')
+  mkdirSync(previewDir, { recursive: true })
+  const lines: string[] = []
+  let warns = 0
+  try {
+    for (const pid of pageIds) {
+      for (const scheme of ['light', 'dark'] as const) {
+        phase(`预览 ${pid} [${scheme}]`)
+        await hand.open(`http://127.0.0.1:${String(exam.port)}${exam.base}/#${pid}`)
+        let audit: PreviewAudit = {}
+        try { audit = JSON.parse(await hand.inspect(scheme)) as PreviewAudit } catch { lines.push(`— ${pid} [${scheme}] 体检解析失败(照常截图)`); }
+        const rootText = await hand.extract('#root').catch(() => '')
+        const mounted = rootText.trim().length > 0
+        const shotPath = join(previewDir, `${pid}.${scheme}.png`)
+        try { writeFileSync(shotPath, Buffer.from(await hand.shot(), 'base64')) } catch { /* 截图失败不拦路 */ }
+        const issues: string[] = []
+        if (!mounted) issues.push('挂载后 #root 空白(JS 运行时死亡——看下方 console/pageerror)')
+        for (const e of audit.pageErrors ?? []) issues.push(`pageerror: ${e}`)
+        for (const e of audit.consoleErrors ?? []) issues.push(`console.${e.type}: ${e.text}`)
+        for (const s of audit.overflowX ?? []) issues.push(`横向溢出: ${s}`)
+        for (const s of audit.deadImages ?? []) issues.push(`死图: ${s}`)
+        for (const s of audit.zeroSized ?? []) issues.push(`零尺寸: ${s}`)
+        for (const s of audit.lowContrast ?? []) issues.push(`低对比度: ${s}`)
+        warns += issues.length
+        lines.push(`— ${pid} [${scheme}] ${mounted ? '挂载✓' : '挂载✗'};${issues.length === 0 ? '体检零异常' : `异常 ${String(issues.length)} 项`};截图 ${shotPath}`)
+        for (const i of issues.slice(0, 8)) lines.push(`    · ${i}`)
+        if (issues.length > 8) lines.push(`    · …还有 ${String(issues.length - 8)} 项(修完上面的再看)`)
+        if (scheme === 'light') {
+          lines.push('    布局速写:')
+          for (const l of (audit.layout ?? []).slice(0, 16)) lines.push(`      ${l}`)
+        }
+      }
+    }
+  } finally {
+    faceHold.kill()
+    exam.close()
+    await hand.close()
+  }
+  const head = warns === 0
+    ? `预览:${String(pageIds.length)} 页 × 亮/暗 体检零异常(这是快闸不是判定,verify_app 六门照走)`
+    : `预览:${String(pageIds.length)} 页 × 亮/暗,体检异常共 ${String(warns)} 项——修完再送考,省一轮六门(快闸不判 FAIL,判定归 verify_app)`
+  return { status: warns === 0 ? 'OK' : 'WARN', report: [head, ...lines].join('\n') }
+}
+
 export async function runScaffoldGate(
   opts: { scaffoldRoot?: string; tmpRoot?: string; onPhase?: (line: string) => void } = {},
 ): Promise<{ scaffold: string; version: number; materialize: MaterializeResult; selftest: AppSelftestResult }> {

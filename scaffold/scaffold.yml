@@ -11,7 +11,7 @@
 # 改 template/ 任何字节(含 scaffold-sync-vocab 重同步)必须升 version 重过门:
 #   node scripts/index-add.mjs scaffold-gate
 id: scaffold-react
-version: 5
+version: 6
 description: >-
   定制前端骨架:Vite + React + shadcn/ui + Tailwind v4(13 件词汇已联邦入库)+
   固定通信 SDK(wire 会话/服务脸直连/围栏出声/IME 守卫)。写手在 src/pages/
