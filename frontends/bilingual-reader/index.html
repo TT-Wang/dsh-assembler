@@ -154,7 +154,7 @@
 </div>
 <div class="toast" id="toast"></div>
 <script>
-const CFG = { presetId: '{{presetId}}', workdir: '{{workdir}}' };
+const CFG = {{cfg}};
 let sessionId = null, ws = null, busy = false, replyBuf = '', replyMeta = { err: null };
 let books = [], chapters = [], curBook = null, curChapter = null, paraCount = 0;
 let fontScale = 1, theme = localStorage.getItem('br-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');

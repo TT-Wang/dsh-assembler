@@ -53,7 +53,7 @@
   </div>
 </div>
 <script>
-const CFG = { presetId: '{{presetId}}', workdir: '{{workdir}}' };
+const CFG = {{cfg}};
 const $ = (id) => document.getElementById(id);
 const dot = $('dot'), cards = $('cards'), tableHost = $('tableHost'), raw = $('raw'), tools = $('tools');
 const CONTRACT = '请汇总当前数据,给出概览。回复末尾必须附一个 ```json 围栏,形如:\n' +

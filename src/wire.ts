@@ -313,29 +313,36 @@ export async function openWireSession(port: number, opts: WireSessionOptions = {
       detach: () => { /* 未订流则无事可断;订流后在下方替换 */ },
       close: () => { session.cancel(); session.detach(); },
     };
-    if (wantEvents) {
-      const WsCtor = (globalThis as { WebSocket?: new (url: string) => MuxSocketLike }).WebSocket;
-      if (WsCtor === undefined) throw new Error("此 Node 无内建 WebSocket(需 Node ≥ 22)");
-      const ws = new WsCtor(`ws://127.0.0.1:${String(port)}/api/events.mux`);
-      ws.addEventListener("message", (m) => {
-        try {
-          const f = JSON.parse(String(m.data)) as any;
-          if (f.payload?.type === "session/event" && f.payload.sessionId === sessionId) frames.push(f.payload.event);
-          else if (opts.questions === true && f.payload?.type === "question/requested" && f.payload.sessionId === sessionId) frames.push({ type: "__question", rpcId: f.rpcId, questions: f.payload.questions } satisfies CheckpointFrame);
-          else if (opts.projections === true && f.payload?.type === "session/projection" && f.payload.sessionId === sessionId && f.payload.key === "tokenUsage") session.tokenUsage = f.payload.value ?? null;
-          else if (f.payload?.sessionId === sessionId && typeof f.payload?.type === "string") {
-            otherFrameCounts[f.payload.type] = (otherFrameCounts[f.payload.type] ?? 0) + 1;
-            if (/approval|permission/i.test(String(f.payload.type))) approvalFrames.push(JSON.stringify(f.payload).slice(0, 400));
-          }
-        } catch { /* 非 JSON 帧 */ }
-      });
-      await new Promise<void>((res, rej) => {
-        ws.addEventListener("open", () => { res(); });
-        ws.addEventListener("error", () => { rej(new Error("events.mux websocket failed")); });
-      });
-      session.detach = () => { ws.close(); };
+    try {
+      if (wantEvents) {
+        const WsCtor = (globalThis as { WebSocket?: new (url: string) => MuxSocketLike }).WebSocket;
+        if (WsCtor === undefined) throw new Error("此 Node 无内建 WebSocket(需 Node ≥ 22)");
+        const ws = new WsCtor(`ws://127.0.0.1:${String(port)}/api/events.mux`);
+        ws.addEventListener("message", (m) => {
+          try {
+            const f = JSON.parse(String(m.data)) as any;
+            if (f.payload?.type === "session/event" && f.payload.sessionId === sessionId) frames.push(f.payload.event);
+            else if (opts.questions === true && f.payload?.type === "question/requested" && f.payload.sessionId === sessionId) frames.push({ type: "__question", rpcId: f.rpcId, questions: f.payload.questions } satisfies CheckpointFrame);
+            else if (opts.projections === true && f.payload?.type === "session/projection" && f.payload.sessionId === sessionId && f.payload.key === "tokenUsage") session.tokenUsage = f.payload.value ?? null;
+            else if (f.payload?.sessionId === sessionId && typeof f.payload?.type === "string") {
+              otherFrameCounts[f.payload.type] = (otherFrameCounts[f.payload.type] ?? 0) + 1;
+              if (/approval|permission/i.test(String(f.payload.type))) approvalFrames.push(JSON.stringify(f.payload).slice(0, 400));
+            }
+          } catch { /* 非 JSON 帧 */ }
+        });
+        await new Promise<void>((res, rej) => {
+          ws.addEventListener("open", () => { res(); });
+          ws.addEventListener("error", () => { rej(new Error("events.mux websocket failed")); });
+        });
+        session.detach = () => { ws.close(); };
+      }
+      return session;
+    } catch (error) {
+      // 失败路径清场(CW-2):session/create 已成功,开流(events.mux)失败不能留
+      // 无人认领的运行中会话——cancel 后原样上抛(尽力而为,掐不掉不吞错)。
+      session.cancel();
+      throw error;
     }
-    return session;
   }
 
   // ── 新 wire ──
@@ -367,45 +374,54 @@ export async function openWireSession(port: number, opts: WireSessionOptions = {
     detach: () => { for (const s of streams) s.close(); },
     close: () => { session.cancel(); session.detach(); },
   };
-  if (wantEvents) {
-    const follow = await openStream(auth, "session/follow", { args: { request: { address: { kind: "session", sessionId } } } }, (value) => {
-      const item = value as { type?: string; event?: { type?: string } };
-      if (item.type === "event" && item.event !== undefined) frames.push(item.event);
-      else if (typeof item.type === "string") otherFrameCounts[`follow/${item.type}`] = (otherFrameCounts[`follow/${item.type}`] ?? 0) + 1;
-    });
-    streams.push(follow);
-  }
-  if (opts.projections === true) {
-    // session/control 投影流:**无参**(生成声明 typert.remote-client.d.ts:
-    // `control: (signal?) => AsyncIterable<SessionControlFrame>`,参数名即包裹键,
-    // 无参 = 恰为空 {args:{}}——传 request 网关逐字拒收,实测 2026-08-31)。
-    // 全局流,帧带 sessionId 自滤;基线帧 type:'baseline',投影帧 {type:'projection',sessionId,key,value,seq}。
-    const control = await openStream(auth, "session/control", { args: {} }, (value) => {
-      const item = value as { type?: string; sessionId?: string; key?: string; value?: unknown };
-      if (item.type === "projection" && item.sessionId === sessionId && item.key === "tokenUsage") session.tokenUsage = item.value ?? null;
-    });
-    streams.push(control);
-  }
-  if (opts.questions === true) {
-    // $events waterfall:问答与审批同流;网关点名 payload 必须恰为空 {args:{}}
-    const events = await openStream(auth, "$events", { args: {} }, (value) => {
-      const frame = value as { type?: string; event?: string; eventId?: string; agentId?: string; request?: { questions?: unknown[] } };
-      if (frame.type !== "waterfall" || frame.agentId !== sessionId) return;
-      if (frame.event === "user-questions/request" && frame.eventId !== undefined) {
-        frames.push({ type: "__question", eventId: frame.eventId, questions: frame.request?.questions ?? [] } satisfies CheckpointFrame);
-      } else {
-        const key = String(frame.event ?? "waterfall/?");
-        otherFrameCounts[key] = (otherFrameCounts[key] ?? 0) + 1;
-        if (/approval|permission/i.test(key)) approvalFrames.push(JSON.stringify(frame).slice(0, 400));
-      }
-    });
-    const ready = events.first as { type?: string; clientId?: string };
-    if (ready.type !== "ready" || ready.clientId === undefined) {
-      events.close();
-      throw new Error(`$events: 首帧不是 ready 而是 ${JSON.stringify(events.first).slice(0, 200)}`);
+  try {
+    if (wantEvents) {
+      const follow = await openStream(auth, "session/follow", { args: { request: { address: { kind: "session", sessionId } } } }, (value) => {
+        const item = value as { type?: string; event?: { type?: string } };
+        if (item.type === "event" && item.event !== undefined) frames.push(item.event);
+        else if (typeof item.type === "string") otherFrameCounts[`follow/${item.type}`] = (otherFrameCounts[`follow/${item.type}`] ?? 0) + 1;
+      });
+      streams.push(follow);
     }
-    eventsClientId = ready.clientId;
-    streams.push(events);
+    if (opts.projections === true) {
+      // session/control 投影流:**无参**(生成声明 typert.remote-client.d.ts:
+      // `control: (signal?) => AsyncIterable<SessionControlFrame>`,参数名即包裹键,
+      // 无参 = 恰为空 {args:{}}——传 request 网关逐字拒收,实测 2026-08-31)。
+      // 全局流,帧带 sessionId 自滤;基线帧 type:'baseline',投影帧 {type:'projection',sessionId,key,value,seq}。
+      const control = await openStream(auth, "session/control", { args: {} }, (value) => {
+        const item = value as { type?: string; sessionId?: string; key?: string; value?: unknown };
+        if (item.type === "projection" && item.sessionId === sessionId && item.key === "tokenUsage") session.tokenUsage = item.value ?? null;
+      });
+      streams.push(control);
+    }
+    if (opts.questions === true) {
+      // $events waterfall:问答与审批同流;网关点名 payload 必须恰为空 {args:{}}
+      const events = await openStream(auth, "$events", { args: {} }, (value) => {
+        const frame = value as { type?: string; event?: string; eventId?: string; agentId?: string; request?: { questions?: unknown[] } };
+        if (frame.type !== "waterfall" || frame.agentId !== sessionId) return;
+        if (frame.event === "user-questions/request" && frame.eventId !== undefined) {
+          frames.push({ type: "__question", eventId: frame.eventId, questions: frame.request?.questions ?? [] } satisfies CheckpointFrame);
+        } else {
+          const key = String(frame.event ?? "waterfall/?");
+          otherFrameCounts[key] = (otherFrameCounts[key] ?? 0) + 1;
+          if (/approval|permission/i.test(key)) approvalFrames.push(JSON.stringify(frame).slice(0, 400));
+        }
+      });
+      const ready = events.first as { type?: string; clientId?: string };
+      if (ready.type !== "ready" || ready.clientId === undefined) {
+        events.close();
+        throw new Error(`$events: 首帧不是 ready 而是 ${JSON.stringify(events.first).slice(0, 200)}`);
+      }
+      eventsClientId = ready.clientId;
+      streams.push(events);
+    }
+    return session;
+  } catch (error) {
+    // 失败路径清场(CW-2):session/create 已成功,任一 openStream(session/follow、
+    // session/control、$events)失败或 $events 首帧非 ready 都不能留孤儿会话——
+    // 已开流全断,再 cancel 会话,原样上抛(掐不掉不吞错)。
+    for (const s of streams) s.close();
+    session.cancel();
+    throw error;
   }
-  return session;
 }

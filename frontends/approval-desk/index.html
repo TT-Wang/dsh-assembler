@@ -57,7 +57,7 @@
   </div>
 </div>
 <script>
-const CFG = { presetId: '{{presetId}}', workdir: '{{workdir}}' };
+const CFG = {{cfg}};
 const $ = (id) => document.getElementById(id);
 const list = $('list'), out = $('out'), dot = $('dot'), tools = $('tools');
 const CONTRACT = '回复末尾必须附一个 ```json 围栏,给出当前全部待审事项,形如:\n' +

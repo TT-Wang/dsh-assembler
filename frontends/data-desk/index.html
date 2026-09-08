@@ -73,7 +73,7 @@
   </div>
 </div>
 <script>
-const CFG = { presetId: '{{presetId}}', workdir: '{{workdir}}' };
+const CFG = {{cfg}};
 const HINT = '\n(如结果含结构化数据,请在回复末尾附一个 ```json 围栏,形如 {"table":{"columns":[...],"rows":[[...]]}}。)';
 const $ = (id) => document.getElementById(id);
 const out = $('out'), dot = $('dot'), tools = $('tools'), tableHost = $('tableHost');

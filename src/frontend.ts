@@ -47,7 +47,36 @@ const MIME: Record<string, string> = {
   '.json': 'application/json; charset=utf-8',
 }
 
-/** 模板填参:{{key}} → 值;HTML 文本槽位由调用方保证已转义(值都来自装配器自身)。 */
+/**
+ * HTML 元素/属性区转义(存储型 XSS 闸第一半):进 HTML 槽位(title/presetId/
+ * requirement)的值统一过这里——& 最先转义防二次编码,& < > " ' 五字符全转,
+ * 宿主文本一律降级成纯文本,`<img onerror=…>` 与引号截断属性全部失效。
+ */
+function escapeHtmlText(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/**
+ * JS/script 区整值注入(存储型 XSS 闸第二半):整值经 JSON.stringify 序列化后
+ * 再把 '<' 转成 \u003c——HTML 解析器在 script 元素内只认 </script 收尾,<
+ * 一消失即无越界;撇号/反斜杠/换行由 JSON 转义保证不破串(Windows 路径的
+ * \u 序列、')alert 之类全数失效)。模板 JS 区收敛为单槽 {{cfg}} 消费本函数
+ * 产物,不再逐字段拼单引号字符串。
+ */
+function jsonForScript(value: unknown): string {
+  return JSON.stringify(value)?.replace(/</g, '\\u003c') ?? 'null'
+}
+
+/**
+ * 模板填参:{{key}} → 值。槽值语义由调用方按目标上下文预转义(HTML 区槽 →
+ * escapeHtmlText;JS/script 区收敛后的整值槽 {{cfg}} → jsonForScript),本函数
+ * 只做一次字节替换、不重扫替换进来的值(恶意值含 {{x}} 也不会二次展开)。
+ */
 export function fillTemplate(text: string, slots: Record<string, string>): string {
   return text.replace(/\{\{([A-Za-z][A-Za-z0-9_]*)\}\}/g, (_m, key: string) => slots[key] ?? '')
 }
@@ -98,12 +127,15 @@ export function emitFrontend(opts: {
   // 残句(实测:「中英双语读书助手:用户上传书籍源文件(EPUB/」把整个页头挤爆)。
   // 取法:第一个自然短语(冒号/逗号/分号/句号之前),再退回硬切兜底。
   const title = shortTitle(opts.requirement)
+  // 按上下文转义(CF-1 修法):HTML 元素/属性区的槽值(title/presetId/requirement)
+  // 过 escapeHtmlText;进 JS/script 的 presetId/workdir 收敛成单个 {{cfg}} 槽,
+  // 整值经 jsonForScript 注入——模板消费侧已同步收敛,不再在 JS 里拼裸值。
+  const cfg = jsonForScript({ presetId: opts.presetId, workdir: opts.workdir })
   const slots: Record<string, string> = {
-    presetId: opts.presetId,
-    title,
-    requirement: opts.requirement.replace(/\s+/g, ' ').trim().slice(0, 140),
-    workdir: opts.workdir,
-    route: `${FRONTEND_ROUTE}/${opts.presetId}`,
+    cfg,
+    presetId: escapeHtmlText(opts.presetId),
+    title: escapeHtmlText(title),
+    requirement: escapeHtmlText(opts.requirement.replace(/\s+/g, ' ').trim().slice(0, 140)),
   }
   const files: string[] = []
   let changed = false
