@@ -17,7 +17,7 @@
  * 流程契约走两条腿:工具描述(教流程)+ 结果尾部的接力棒段落(决策点上的新鲜
  * 契约,市场战役 F6 证明比工具描述里的陈年一句可靠)。
  */
-import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -31,9 +31,9 @@ import {
   reconcileCapabilityIdsDetailed,
   installKnowledgePacks, installStateEquipment, knowledgeLocatorText, loadCatalog,
   personaFromPresetText, presetSha, reconcileCapabilityIds, renderPartsLock, resolvePersonaText,
-  sameConceptOnDisk, sanitizePresetName, screenParams, writeGapWorkOrders, writePresetFile,
+  sameConceptOnDisk, sanitizePresetName, screenParams, stripSecretEnv, writeGapWorkOrders, writePresetFile,
   loadVerifyLedger, saveVerifyLedger, carryDecision, VERIFY_CARRY_TTL_MS, lintPersona,
-  type CapabilityEntry, type Catalog, type Config, type MissingDraft,
+  type CapabilityEntry, type Catalog, type Config, type MissingDraft, type VerifyLedger,
 } from './index.js'
 import {
   AUX_CALL_TIMEOUT_MS, PROBE_SKETCH_EXAMPLES, PROBE_TURN_BUDGET_MS, VERIFY_EXTRA_PATH_SOFT_BUDGET_MS, VERIFY_MAX_PATHS,
@@ -914,6 +914,50 @@ export function emitPresetToolDefinition(ctx: Context, config: Config): ToolDefi
   })
 }
 
+// ── 验收判定完整性(OT-2):前端门结果并入总判定 ────────────────────────────────
+// verify_preset 曾把前端门当"独立跑一遍的附注":行为路径全 PASS 而页面 FAIL 时
+// head 照打「验收 PASS」,记分板/台账无任何 FAIL 痕迹,emit_app/deploy_app 的
+// presetVerdictGate 还会把这种 PASS 当闸放行。修复口径:前端验收与行为考同一张
+// 考卷(emit_preset 对每台 preset 都有兜底脸——index.html 缺失 = 发射期 feErr
+// 或事后被删,属交付缺陷),门结果并入总判定并随台账持久化。
+export type VerifyOverallStatus = 'PASS' | 'FAIL' | 'SKIPPED' | 'ERRORED'
+
+/** 前端门单门结果:PASS=门真过;FAIL=页面在但考不过/门执行抛错;SKIPPED=没页可考。 */
+export interface FrontendGateOutcome {
+  status: 'PASS' | 'FAIL' | 'SKIPPED'
+  reason: string
+}
+
+/** 自 OT-2 起 last-verify.json 的形态:在既有字段之外必须持久记录前端门结果。 */
+export type VerifyLedgerWithFrontend = VerifyLedger & { frontend: 'PASS' }
+
+/**
+ * 判定融合(纯函数,单测钉 OT-2 矩阵):行为路径全 PASS 而前端门 FAIL/SKIPPED ⇒
+ * 整卷 FAIL(不是 SKIPPED——坏脸/没脸是交付缺陷,可修,考官不替用户砍)。
+ * 行为已非 PASS 时保持原状(前端行只作附注,不掩盖主判定)。
+ */
+export function fuseVerifyVerdict(behaviorStatus: VerifyOverallStatus, frontend: FrontendGateOutcome | null): VerifyOverallStatus {
+  if (frontend === null || frontend.status === 'PASS') return behaviorStatus
+  return behaviorStatus === 'PASS' ? 'FAIL' : behaviorStatus
+}
+
+/**
+ * 沿用判定(OT-2 口径):旧代台账**没有 frontend:'PASS' 字段**时一律不沿用——
+ * 它可能产自前端门与判定脱钩的时期(页面 FAIL 也能以 PASS 入账);沿用只认
+ * 新口径台账。该字段只在该次 PASS 真过了前端门时写入,故值必为 'PASS'。
+ */
+export function carryDecisionWithFrontend(
+  ledger: VerifyLedger | null,
+  sha: string,
+  nowMs: number,
+  ttlMs: number,
+): { carry: boolean; why: string } {
+  if (ledger !== null && (ledger as VerifyLedgerWithFrontend).frontend !== 'PASS') {
+    return { carry: false, why: '旧代台账未含前端门 PASS 结果(OT-2 前口径)——重验一次把前端门并入判定' }
+  }
+  return carryDecision(ledger, sha, nowMs, ttlMs)
+}
+
 // ── 工具 3:verify_preset ────────────────────────────────────────────────────
 
 export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDefinition {
@@ -1006,25 +1050,31 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
       ].join('\n'))
       try {
         // 增量验收:同字节 + 台账 PASS + 未过期 ⇒ 沿用(明说,绝不冒充新跑)。
+        // OT-2:旧代台账没有前端门结果字段 ⇒ 一律不沿用——需重验一次把前端门
+        // 并入判定(旧口径的 PASS 可能产自"页面 FAIL 照打 PASS"的时期)。
         const priorLedger = loadVerifyLedger(dir)
         const carry = a?.reverify === true
           ? { carry: false, why: 'reverify 强制重验' }
-          : carryDecision(priorLedger, sha, Date.now(), config.verifyCarryTtlMs ?? VERIFY_CARRY_TTL_MS)
+          : carryDecisionWithFrontend(priorLedger, sha, Date.now(), config.verifyCarryTtlMs ?? VERIFY_CARRY_TTL_MS)
         // 记分板对**每种**判定出口都记一行(审计实证:SKIPPED 只进 repo 台账不进
         // 记分板,硬化判卷差点把在预期内的 SKIPPED 冤判成"考官从未真判")。
-        const scoreboard = (verdict: string, note?: string): void => {
+        const scoreboard = (verdict: string, note?: string, extra?: Record<string, unknown>): void => {
           try {
             appendFileSync(join(dir, 'selfcheck-history.jsonl'), `${JSON.stringify({
               at: new Date().toISOString(), presetSha256: sha, verdict,
               ...(note !== undefined ? { note: note.slice(0, 160) } : {}),
+              ...(extra ?? {}),
               elapsedSeconds: Math.round((Date.now() - t0) / 1000),
             })}\n`)
           } catch (e2: unknown) { console.error(`[assembler] 记分板写入失败(判定不受影响,但审计侧会缺行):${e2 instanceof Error ? e2.message : String(e2)}`) }
         }
         if (carry.carry) {
           phase(`验收沿用:${carry.why}`)
-          scoreboard('PASS', `沿用:${carry.why}`)
-          settleAndLedger({ status: 'PASS', carried: true }, 'completed', 'PASS(沿用)')
+          // 沿用行也带前端门字段(carry 成立 ⇒ 台账必含 frontend:'PASS')——
+          // presetVerdictGate 按"PASS 行必须带前端门结果"收,漏了就挡闸。
+          const feKnown = (priorLedger as VerifyLedgerWithFrontend | null)?.frontend ?? 'PASS'
+          scoreboard('PASS', `沿用:${carry.why}`, { frontend: feKnown })
+          settleAndLedger({ status: 'PASS', carried: true, frontend: feKnown }, 'completed', 'PASS(沿用)')
           const carryCov = priorLedger?.utilization !== undefined
             ? `;当时覆盖 ${String(priorLedger.utilization.used)}/${String(priorLedger.utilization.mounted)}`
             : '(旧代台账未记覆盖)'
@@ -1177,23 +1227,36 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
         const usedUnion = mergeToolsUsed(outcomes.map((o) => o.result.toolsUsed))
         const util = partsUtilization(lockParts, usedUnion === undefined ? undefined : new Set(usedUnion.map((x) => x.name)))
         const pathsSummary = { total: plans.length, passed: outcomes.filter((o) => o.result.status === 'PASS').length }
-        // 前端验收(同一张考卷):页面可达门 + 会话环路门。
-        let feLine = ''
+        // 前端验收(同一张考卷,OT-2 并入总判定):页面可达门 + 会话环路门。
+        // 门结果不再只是附注——FAIL/SKIPPED 会把整卷 PASS 挡成 FAIL。没页可考
+        // (index.html 缺失)= SKIPPED:emit_preset 对每台 preset 都有兜底脸,
+        // 页面缺失是发射期 feErr 或事后被删,属交付缺陷,不许以 PASS 出门。
+        let fe: FrontendGateOutcome
         if (existsSync(join(dir, 'frontend', 'index.html'))) {
           try {
             const gate = await runFrontendGate(port, id, dir, { loop: true })
-            feLine = gate.pass ? `\n前端验收:${gate.reason ?? 'PASS'}` : `\n前端验收:FAIL——${gate.reason ?? ''}`
-            phase(gate.pass ? `前端验收:${gate.reason ?? 'PASS'}` : `前端验收:FAIL——${gate.reason ?? ''}`)
+            fe = gate.pass ? { status: 'PASS', reason: gate.reason ?? 'PASS' } : { status: 'FAIL', reason: gate.reason ?? '页面门 FAIL' }
+            phase(`前端验收:${fe.status}——${fe.reason}`)
           } catch (error: unknown) {
-            feLine = `\n前端验收:FAIL——${error instanceof Error ? error.message : String(error)}`
+            fe = { status: 'FAIL', reason: error instanceof Error ? error.message : String(error) }
+            phase(`前端验收:FAIL——${fe.reason}`)
           }
+        } else {
+          fe = { status: 'SKIPPED', reason: 'frontend/index.html 不存在(页面未发射或已被删除)——前端门无页可考' }
+          phase(`前端验收:SKIPPED——${fe.reason}`)
         }
+        const feLine = fe.status === 'PASS' ? `\n前端验收:${fe.reason}` : `\n前端验收:${fe.status}——${fe.reason}`
+        // OT-2 判定融合:行为路径全 PASS 而前端门 FAIL/SKIPPED ⇒ 整卷 FAIL。
+        const overall = fuseVerifyVerdict(verification.status, fe)
+        const frontendBlocked = overall !== verification.status
         // 纵向记分板(penguin 吸收):每次真跑的判定追加一行——第 30 天故事的台账。
-        // 聚合数字由代码算,不由模型写;写失败绝不影响判定。
+        // 聚合数字由代码算,不由模型写;写失败绝不影响判定。PASS 行带 frontend
+        // 字段(presetVerdictGate 据此拒绝旧口径的 PASS 行)。
         try {
           appendFileSync(join(dir, 'selfcheck-history.jsonl'), `${JSON.stringify({
-            at: new Date().toISOString(), presetSha256: sha, verdict: verification.status,
+            at: new Date().toISOString(), presetSha256: sha, verdict: overall,
             ...(verification.kind !== undefined ? { kind: verification.kind } : {}),
+            frontend: fe.status,
             paths: pathsSummary,
             ...(util !== null ? { utilization: { mounted: util.mounted, used: util.usedCount } } : {}),
             elapsedSeconds: Math.round((Date.now() - t0) / 1000),
@@ -1201,19 +1264,23 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
           })}\n`)
         } catch (e2: unknown) { console.error(`[assembler] 记分板写入失败(判定不受影响,但审计侧会缺行):${e2 instanceof Error ? e2.message : String(e2)}`) }
         let selfCheckLine = ''
-        if (verification.status === 'PASS') {
+        if (overall === 'PASS') {
           try {
             const onDisk = readFileSync(presetPath, 'utf8')
             const summary = verification.kind === 'scenario' ? verification.scenario?.goal : verification.probe?.task
             const verifiedAt = new Date().toISOString()
-            saveVerifyLedger(dir, {
+            // OT-2:台账持久记录前端门结果(旧台账无该字段 ⇒ carryDecisionWithFrontend
+            // 视作需重验)。整体 PASS 只在行为+前端门双过时发生,故字段值恒 'PASS'。
+            const ledger: VerifyLedgerWithFrontend = {
               presetSha256: presetSha(onDisk), status: 'PASS',
               ...(verification.kind !== undefined ? { kind: verification.kind } : {}),
               verifiedAt,
               paths: plans.length,
               ...(util !== null ? { utilization: { mounted: util.mounted, used: util.usedCount } } : {}),
               ...(typeof summary === 'string' && summary !== '' ? { summary: summary.slice(0, 120) } : {}),
-            })
+              frontend: 'PASS',
+            }
+            saveVerifyLedger(dir, ledger)
             // 自检包随 PASS 落盘:考官的卷子沉淀为交付物自己的测试套件。
             writeFileSync(join(dir, 'selfcheck.json'), renderSelfCheck({ presetId: id, presetSha256: presetSha(onDisk), plans, verifiedAt }))
             selfCheckLine = '\n自检包:selfcheck.json 已随 preset 落盘(改 persona/升零件后可重跑同卷体检)'
@@ -1223,20 +1290,22 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
           }
         }
         const elapsed = Math.round((Date.now() - t0) / 1000)
-        phase(`验收完成:${verification.status}(${String(elapsed)}s,${String(outcomes.length)}/${String(pathsSummary.total)} 路径)`)
+        phase(`验收完成:${overall}(${String(elapsed)}s,${String(outcomes.length)}/${String(pathsSummary.total)} 路径${frontendBlocked ? ',前端门挡判定' : ''})`)
         // 动用率/验收覆盖:多路径并集上的实测证据回填(②context 的事后镜子)。
         // 字段名对齐 OTel GenAI 的 execute_tool / gen_ai.tool.name,台账可直喂观测平台。
         settleAndLedger({
-          status: verification.status,
+          status: overall,
           ...(verification.kind !== undefined ? { kind: verification.kind } : {}),
           ...(verification.reason !== undefined ? { reason: verification.reason.slice(0, 200) } : {}),
+          ...(frontendBlocked ? { reason: `前端门 ${fe.status}:${fe.reason.slice(0, 140)}` } : {}),
+          frontend: fe.status,
           sketch: sketchInputs.length > 0 && sketchNote === '',
           paths: pathsSummary,
           pathResults: outcomes.map((o) => ({ i: o.i, kind: o.plan.kind, status: o.result.status, ...(o.result.reason !== undefined ? { reason: o.result.reason.slice(0, 120) } : {}) })),
           derive: { out: deriveUsage.outputTokens, reason: deriveUsage.reasoningTokens },
           ...(usedUnion !== undefined ? { toolExecutions: usedUnion.map((u) => ({ 'gen_ai.tool.name': u.name, calls: u.calls })) } : {}),
           ...(util !== null ? { utilization: { mounted: util.mounted, used: util.usedCount } } : {}),
-        }, verification.status === 'PASS' ? 'completed' : 'failed', verification.status)
+        }, overall === 'PASS' ? 'completed' : 'failed', overall)
         const utilLine = util === null ? '' : `\n验收覆盖:${String(util.usedCount)}/${String(util.mounted)} 个工具零件被探针动用(${String(outcomes.length)} 路径)${util.unused.length > 0 ? `;未覆盖:${util.unused.slice(0, 12).join(', ')}${prose('(探针只走主流程与补考题,未动用≠无用——这是修剪线索:确认多余就调 emit_preset 去掉重发)')}` : ''}`
         const structParts = lockParts.filter((p) => p.tool === undefined)
         const structLine = structParts.length > 0 ? `\n结构件(不按轨迹计覆盖):${structParts.slice(0, 8).map((p) => { const via = byId.get(p.capability)?.via; return `${p.capability}(${via === 'knowledge' ? '教材,另有检索门' : via === 'frontend' ? '前端,另有页面门' : '结构'})` }).join('、')}` : ''
@@ -1250,11 +1319,16 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
           return `  路径 ${String(o.i)} ${o.result.status === 'PASS' ? '✓' : '✗'} ${label}${single}${o.result.status !== 'PASS' && o.result.reason !== undefined ? `;${o.result.reason.slice(0, 160)}` : ''}${turns !== '' ? `\n${turns}` : ''}`
         }).join('\n')
         const detail = usageDetail(deriveUsage)
-        const head = `验收 ${verification.status}(${String(elapsed)}s,${String(outcomes.length)} 路径${detail !== '' ? `,推导 ${detail}` : ''})${sketchNote}`
-        if (verification.status === 'PASS') {
+        const head = `验收 ${overall}(${String(elapsed)}s,${String(outcomes.length)} 路径${detail !== '' ? `,推导 ${detail}` : ''})${sketchNote}`
+        // 前端门挡判定时的头条解释:路径全 ✓ 而整卷 FAIL 是"同一张考卷"的既定
+        // 口径,头条就得说清为什么,不让 agent/用户对着 2/2 ✓ 猜 FAIL 从哪来。
+        const blockNote = frontendBlocked
+          ? `\n⚠ 前端门挡判定:行为路径全过,但前端验收 ${fe.status}——${fe.reason.slice(0, 200)}。前端是交付的一部分(每台 preset 都有兜底脸),坏脸/没脸不许以 PASS 交付:补上页面(emit_preset 同名重发或 deploy_app)后重验。`
+          : ''
+        if (overall === 'PASS') {
           return `${head}\n${pathLadder}${feLine}${utilLine}${structLine}${coverageDeriveNote}${notesLine}${selfCheckLine}${contractPass}`
         }
-        return `${head}\n${pathLadder}${feLine}${utilLine}${coverageDeriveNote}${notesLine}${verification.status === 'FAIL' || verification.status === 'ERRORED' ? contractFail : contractPass}`
+        return `${head}${blockNote}\n${pathLadder}${feLine}${utilLine}${coverageDeriveNote}${notesLine}${overall === 'FAIL' || overall === 'ERRORED' ? contractFail : contractPass}`
       } catch (error: unknown) {
         settleAndLedger({ status: 'ERRORED', reason: error instanceof Error ? error.message.slice(0, 200) : String(error) }, 'failed', 'ERRORED')
         throw error
@@ -1624,7 +1698,14 @@ function presetVerdictGate(presetRoot: string, presetId: string): { ok: boolean;
   if (String(last.verdict) !== 'PASS') {
     return { ok: false, evidence: `当前代际最新考官判定是 ${String(last.verdict)}(${String(last.at ?? '').slice(0, 19)}),不是 PASS` }
   }
-  return { ok: true, evidence: `配套 preset 验收在窗:PASS @${String(last.at ?? '').slice(0, 19)}(字节 ${sha.slice(0, 8)})` }
+  // OT-2(与 verify_preset 台账同口径):PASS 行必须带 frontend:'PASS'。前端门与
+  // 判定脱钩时期的 PASS 行没有该字段——页面 FAIL 也可能顶着 PASS 出门,这类
+  // 旧口径判定不得当闸放行,必须 verify_preset 重验一次把前端门并入判定。
+  if (last.frontend !== 'PASS') {
+    const shown = typeof last.frontend === 'string' ? last.frontend : '(缺失)'
+    return { ok: false, evidence: `当前代际最新判定是 PASS 但未含前端门结果(frontend=${shown})——旧口径判定(前端门未并入),需 verify_preset 重验` }
+  }
+  return { ok: true, evidence: `配套 preset 验收在窗:PASS @${String(last.at ?? '').slice(0, 19)}(字节 ${sha.slice(0, 8)},前端门 PASS)` }
 }
 
 /** 绕闸留痕:记分板追加 BYPASS 行(写失败不拦路——结果行的 ⚠ 仍在)。 */
@@ -1958,6 +2039,17 @@ export function deployAppToolDefinition(_ctx: Context, config: Config): ToolDefi
 // 工具在 host 进程里跑,天生跨沙箱;质检门(检索命中)一分不减。
 export const ADD_KNOWLEDGE_TOOL_NAME = 'add_knowledge'
 
+// ── add_knowledge 入库尺寸纪律(OT-4)────────────────────────────────────────
+// 语料在检索门前会被整树 readFileSync + toLowerCase 常驻内存(见下方 corpus),
+// 无上限的文档集可 OOM 长驻 host;包还要随 preset 拷贝、按 docCount/totalBytes
+// 记账。选值依据:知识包的设计对象是手册/教材级语料(仓库 shipped 实测单包
+// ≤2 文件 / ≤20KB,见 knowledge/),上限取 4-5 个数量级余量——200 文件 /
+// 64 MiB 仍远超任何合法教材;超限几乎必然是分错包或指错了目录,拒绝比截断
+// 诚实(截断会让台账数字与盘上不一致)。大批量语料应落在 preset 的
+// workspace/ 随交付物走,不经检索门。
+export const KB_MAX_DOC_FILES = 200
+export const KB_MAX_TOTAL_BYTES = 64 * 1024 * 1024
+
 export function addKnowledgeToolDefinition(_ctx: Context, config: Config): ToolDefinition {
   return defineTool({
     name: ADD_KNOWLEDGE_TOOL_NAME,
@@ -1995,12 +2087,21 @@ export function addKnowledgeToolDefinition(_ctx: Context, config: Config): ToolD
       if (id === '') throw new Error('add_knowledge 需要 id(kebab-case 包名)')
       if (description === '') throw new Error('add_knowledge 需要 description(选型器要靠它检索到这包知识)')
       if (probes.length === 0) throw new Error('add_knowledge 需要 probes:检索门考题 [{question, mustInclude:["逐字片段"]}]——没有考题的知识包不许入库')
+      // OT-4:空考题/空标记不进门——''.includes 对任何语料恒真,mustInclude 含
+      // 空串/纯空白会让检索门空转通过(等于没有检索门)。入口拒绝并出声。
+      for (const [pi, p] of probes.entries()) {
+        if (p === null || typeof p !== 'object') throw new Error(`add_knowledge: probes[${String(pi)}] 不是对象——每份考题要 {question, mustInclude:[逐字片段]}`)
+        const marks = (Array.isArray(p.mustInclude) ? p.mustInclude : []).map((m) => String(m))
+        const blank = marks.filter((m) => m.trim() === '')
+        if (marks.length === 0 || blank.length > 0) {
+          throw new Error(`add_knowledge: probes[${String(pi)}] 的 mustInclude 为空或含空串/纯空白标记(${String(blank.length)} 个)——检索门考题要逐字片段,空标记会让门空转通过(修片段或补文档,不要削弱考题)`)
+        }
+      }
       if (!existsSync(docsDir)) throw new Error(`add_knowledge: 文档目录不存在:${docsDir}`)
 
       const repoRoot = REPO
       const packDir = join(repoRoot, 'knowledge', id)
       const docsOut = join(packDir, 'docs')
-      mkdirSync(docsOut, { recursive: true })
 
       // 收文档(与 CLI 同口径:文本类,扁平化文件名,记字节)
       const exts = new Set(['.md', '.txt', '.markdown'])
@@ -2015,30 +2116,56 @@ export function addKnowledgeToolDefinition(_ctx: Context, config: Config): ToolD
       }
       const docs = collect(docsDir)
       if (docs.length === 0) throw new Error(`add_knowledge: ${docsDir} 里没有 .md/.txt/.markdown 文档`)
-      let totalBytes = 0
-      for (const d of docs) {
-        const rel = d.slice(docsDir.replace(/\/$/, '').length + 1).replace(/[/\\]/g, '__')
-        const bytes = readFileSync(d)
-        writeFileSync(join(docsOut, rel), bytes)
-        totalBytes += bytes.length
+      // OT-4 尺寸纪律:上限在**任何落盘之前**检查(stat 预扫 + 复制时复核——
+      // 源目录可能正在被并发写入,预扫过了复制途中超限也要拦)。
+      const statSum = docs.reduce((acc, d) => acc + statSync(d).size, 0)
+      if (docs.length > KB_MAX_DOC_FILES || statSum > KB_MAX_TOTAL_BYTES) {
+        throw new Error(`add_knowledge: ${docsDir} 有 ${String(docs.length)} 份文档 / ${String(Math.round(statSum / 1024))} KiB,超过单包上限 ${String(KB_MAX_DOC_FILES)} 份 / ${String(KB_MAX_TOTAL_BYTES / 1024 / 1024)} MiB——知识包以手册/教材为设计对象(仓库 shipped 单包 ≤2 份/≤20KB);大批量语料请直接放 preset 的 workspace/ 随交付物走,不经检索门`)
       }
 
-      // 检索门:考题的逐字片段必须真能在文档里找到(找不到 = 这包知识对 agent 不可用)
-      const corpus = readdirSync(docsOut).map((f: string) => ({ name: f, text: readFileSync(join(docsOut, f), 'utf8').toLowerCase() }))
-      const results = probes.map((p) => {
-        const marks = (Array.isArray(p.mustInclude) ? p.mustInclude : []).map(String)
-        const hits = marks.map((m) => {
-          const doc = corpus.find((c: { name: string; text: string }) => c.text.includes(m.toLowerCase()))
-          return { mark: m, found: doc !== undefined, in: doc?.name ?? null }
+      // OT-4 半包纪律:复制先进**同文件系统 staging**,全部闸(尺寸复核、检索门)
+      // 过完才整包原子换入 knowledge/<id>/docs。try/finally 保证任何失败路径
+      // 都不留 docs 半包——emit 的缺书闸只查 docs 目录存在性,半包会被当完整
+      // 教材装进 preset(静默截断的教材 = 交付物自毁)。既有同名旧包在失败时
+      // 保持原样(旧实现会把旧包也一起删掉,更新失败 = 好包陪葬)。
+      const staging = join(repoRoot, 'knowledge', `.staging-${id}-${String(process.pid)}-${Date.now()}`)
+      const stagingDocs = join(staging, 'docs')
+      mkdirSync(stagingDocs, { recursive: true })
+      let totalBytes = 0
+      let results: Array<{ question: string; hits: Array<{ mark: string; found: boolean; in: string | null }>; pass: boolean }> = []
+      try {
+        for (const d of docs) {
+          const rel = d.slice(docsDir.replace(/\/$/, '').length + 1).replace(/[/\\]/g, '__')
+          const bytes = readFileSync(d)
+          totalBytes += bytes.length
+          if (totalBytes > KB_MAX_TOTAL_BYTES) {
+            throw new Error(`add_knowledge: ${docsDir} 复制途中超过字节上限 ${String(KB_MAX_TOTAL_BYTES / 1024 / 1024)} MiB(源目录在被并发写入?)——已中止,未入库`)
+          }
+          writeFileSync(join(stagingDocs, rel), bytes)
+        }
+        // 检索门:考题的逐字片段必须真能在文档里找到(找不到 = 这包知识对 agent 不可用)
+        const corpus = readdirSync(stagingDocs).map((f: string) => ({ name: f, text: readFileSync(join(stagingDocs, f), 'utf8').toLowerCase() }))
+        results = probes.map((p) => {
+          const marks = (Array.isArray(p.mustInclude) ? p.mustInclude : []).map(String)
+          const hits = marks.map((m) => {
+            const doc = corpus.find((c: { name: string; text: string }) => c.text.includes(m.toLowerCase()))
+            return { mark: m, found: doc !== undefined, in: doc?.name ?? null }
+          })
+          return { question: String(p.question ?? ''), hits, pass: marks.length > 0 && hits.every((h) => h.found) }
         })
-        return { question: String(p.question ?? ''), hits, pass: marks.length > 0 && hits.every((h) => h.found) }
-      })
-      const failed = results.filter((r) => !r.pass)
-      if (failed.length > 0) {
-        rmSync(packDir, { recursive: true, force: true })
-        throw new Error(`add_knowledge: 检索门未过(${failed.length}/${results.length} 条考题检不出预期片段),知识包已丢弃——`
-          + failed.map((r) => `「${r.question.slice(0, 30)}」缺:${r.hits.filter((h) => !h.found).map((h) => h.mark).join('/')}`).join(';')
-          + prose(' 修片段或补文档,不要削弱考题。'))
+        const failed = results.filter((r) => !r.pass)
+        if (failed.length > 0) {
+          throw new Error(`add_knowledge: 检索门未过(${failed.length}/${results.length} 条考题检不出预期片段),未入库——`
+            + failed.map((r) => `「${r.question.slice(0, 30)}」缺:${r.hits.filter((h) => !h.found).map((h) => h.mark).join('/')}`).join(';')
+            + prose(' 修片段或补文档,不要削弱考题。'))
+        }
+        // 提交点:清旧代 docs 后原子 rename(staging/docs → docsOut)。提交点之前
+        // 失败 = 旧包完好或没有包;提交点之后 = 整包(meta 在下一步落盘)。
+        rmSync(docsOut, { recursive: true, force: true })
+        mkdirSync(packDir, { recursive: true })
+        renameSync(stagingDocs, docsOut)
+      } finally {
+        rmSync(staging, { recursive: true, force: true })
       }
 
       const meta = {
@@ -2197,6 +2324,23 @@ export function readPresetToolDefinition(_ctx: Context, config: Config): ToolDef
   })
 }
 
+// ── submit_part 门禁时限件(OT-1)────────────────────────────────────────────
+// 会话提交的字节在宿主进程面上被门禁执行;独立实探(connect/listTools/close)
+// 曾无任何超时——坏零件可以让 listTools 永不返回,工具调用无限挂起。上限取
+// 30s:对比同函数内 npm 300s / smoke 180s 的时限,实探只是"数一下工具名",
+// 毫秒级就该返回;参考 verify.ts 的 PROBE_RPC_TIMEOUT_MS=30s 纪律同量级。
+export const SUBMIT_GATE_PROBE_TIMEOUT_MS = 30_000
+
+/** 给"应当毫秒级返回、坏实现却可能永不返回"的门禁实探 RPC 一个明确上限。 */
+export async function withGateTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  return await new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${what} 超时(>${String(Math.round(ms / 1000))}s)——坏零件挂起,已按失败处理`))
+    }, ms)
+    p.then((v) => { clearTimeout(timer); resolve(v) }, (e: unknown) => { clearTimeout(timer); reject(e) })
+  })
+}
+
 export function submitPartToolDefinition(_ctx: Context, config: Config): ToolDefinition {
   return defineTool({
     name: SUBMIT_PART_TOOL_NAME,
@@ -2265,29 +2409,51 @@ export function submitPartToolDefinition(_ctx: Context, config: Config): ToolDef
         rmSync(dir, { recursive: true, force: true })
         throw new Error(`submit_part: ${why}(零件已丢弃,目录未被污染)`)
       }
+      // OT-1:门禁子进程只继承宿主 env 的**非 secret 形**键(stripSecretEnv 与
+      // index.ts 装配 env 同口径)——会话提交的字节在宿主进程面上跑,npm 依赖的
+      // 生命周期脚本(已被 --ignore-scripts 关掉)、smoke、零件本体都拿不到
+      // password/secret/token/api_key 形环境变量(被注入的坏零件第一件事就是
+      // 读 env 里的密钥)。
+      const gateEnv = stripSecretEnv(process.env)
       try {
-        execFileSync('npm', ['install', '--no-audit', '--no-fund'], { cwd: dir, encoding: 'utf8', timeout: 300_000, stdio: ['ignore', 'pipe', 'pipe'] })
+        // --ignore-scripts(OT-1):npm install 不再执行依赖的 lifecycle 脚本——
+        // 那是宿主级代码执行面,提交的 dependencies 里有恶意的 postinstall 就
+        // 是 RCE;装依赖只为跑 smoke/实探,脚本收益为零。
+        execFileSync('npm', ['install', '--no-audit', '--no-fund', '--ignore-scripts'], { cwd: dir, env: gateEnv, encoding: 'utf8', timeout: 300_000, stdio: ['ignore', 'pipe', 'pipe'] })
       } catch (error: unknown) {
         const e = error as { stderr?: string; stdout?: string }
         fail(`npm install 失败:${String(e.stderr ?? e.stdout ?? '').slice(-400)}`)
       }
       try {
-        execFileSync('node', ['smoke.mjs'], { cwd: dir, encoding: 'utf8', timeout: 180_000, stdio: ['ignore', 'pipe', 'pipe'] })
+        execFileSync('node', ['smoke.mjs'], { cwd: dir, env: gateEnv, encoding: 'utf8', timeout: 180_000, stdio: ['ignore', 'pipe', 'pipe'] })
       } catch (error: unknown) {
         const e = error as { stderr?: string; stdout?: string }
         fail(`冒烟未过——原文:\n${`${String(e.stdout ?? '')}\n${String(e.stderr ?? '')}`.trim().slice(-800)}`)
       }
-      // 独立实探:不信 smoke 自报,从装配器自身依赖直连
+      // 独立实探:不信 smoke 自报,从装配器自身依赖直连。
+      // OT-1:connect/listTools/close 全部受 SUBMIT_GATE_PROBE_TIMEOUT_MS 时限
+      // 管辖;超时或失败一律先掐掉零件子进程(transport.close 自带 stdin.end →
+      // SIGTERM → SIGKILL 上限;pid 直杀作双保险)再产可行动 FAIL——
+      // 不留挂起的孤儿进程占住工具通道。
       let tools: Array<{ name: string; description: string }> = []
       try {
         const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
         const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js')
+        const transport = new StdioClientTransport({ command: 'node', args: [join(dir, 'index.js')], env: gateEnv })
         const c = new Client({ name: 'submit-part-probe', version: '0.0.1' })
-        await c.connect(new StdioClientTransport({ command: 'node', args: [join(dir, 'index.js')], env: process.env as Record<string, string> }))
-        tools = (await c.listTools()).tools.map((t) => ({ name: t.name, description: (t.description ?? '').replace(/\n[\s\S]*/, '').slice(0, 120) }))
-        await c.close()
+        try {
+          await withGateTimeout(c.connect(transport), SUBMIT_GATE_PROBE_TIMEOUT_MS, '独立实探 connect')
+          const listed = await withGateTimeout(c.listTools(), SUBMIT_GATE_PROBE_TIMEOUT_MS, '独立实探 listTools')
+          tools = listed.tools.map((t) => ({ name: t.name, description: (t.description ?? '').replace(/\n[\s\S]*/, '').slice(0, 120) }))
+          await withGateTimeout(c.close(), 5_000, '独立实探 close')
+        } catch (error: unknown) {
+          // 超时/失败路径:掐零件进程再上报(孤儿进程会占住工具通道)。
+          try { const pid = transport.pid; if (pid !== null) process.kill(pid, 'SIGKILL') } catch { /* 已退/未拉起 */ }
+          try { void c.close() } catch { /* 尽力而为 */ }
+          throw error
+        }
       } catch (error: unknown) {
-        fail(`独立实探失败(listTools):${error instanceof Error ? error.message.slice(0, 300) : String(error)}`)
+        fail(`独立实探失败:${error instanceof Error ? error.message.slice(0, 300) : String(error)}`)
       }
       if (tools.length === 0) fail('listTools 为空——不是可用的 MCP server')
 
