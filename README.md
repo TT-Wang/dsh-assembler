@@ -18,7 +18,7 @@ The catalog grows through an **induction pipeline**: open-source libraries, publ
 
 | | |
 |---|---|
-| Catalog | **90 parts / 244 tools** — 66 library-backed, 19 service-backed, 5 first-party (`index/catalog.yml`) |
+| Catalog | **103 parts / 311 tools** — 71 library-backed, 27 service-backed, 5 first-party (`index/catalog.yml`) |
 | Verification | every assembly ends with an independent black-box probe in a real session; every web page passes a reachability gate and a live-session loop gate |
 | Wall time | a single agent typically lands in minutes, verification included |
 
@@ -169,7 +169,7 @@ Four kinds of capability:
 | `mcp` | MCP server tools (federated at assembly time) | `mcp-weather-forecast-current-weather`, 229 of them |
 | `knowledge` | client teaching material (copied into `kb/`) | `acme-policies-kb` |
 
-**90 parts / 244 tools** — 66 library-backed, 19 service-backed, 5 first-party.
+**103 parts / 311 tools** — 71 library-backed, 27 service-backed, 5 first-party.
 
 ### Service-backed parts — live data and external systems
 
