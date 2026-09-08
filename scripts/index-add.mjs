@@ -21,7 +21,7 @@
  *   node scripts/index-add.mjs check-all
  *       全量复检:跑每个 generated/<id>/smoke.mjs,任一失败退出非零。
  */
-import { execSync, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import yaml from 'js-yaml'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
@@ -72,9 +72,19 @@ function partEnv() {
   return env
 }
 
+/**
+ * die 协议:打判定 + 置 exitCode + 抛信号退出,不直接 process.exit。
+ *
+ * process.exit 不经过 finally(05 报告 M5 教训:auto() 里 die 会让已开的 wire
+ * 会话不被 detach,agent 可能仍在跑、烧预算)。改抛信号让栈正常解开:沿途
+ * finally(会话收尾)先执行,顶层 catch 吞掉信号,进程在事件循环清空后以
+ * exitCode=1 自然退出——与成功路径同一退出方式,收尾里的异步请求有时间完成。
+ */
+class DieSignal extends Error {}
 const die = (msg) => {
   console.log(JSON.stringify({ ok: false, error: msg }))
-  process.exit(1)
+  process.exitCode = 1
+  throw new DieSignal(String(msg))
 }
 const out = (obj) => {
   console.log(JSON.stringify({ ok: true, ...obj }))
@@ -267,6 +277,17 @@ function scaffoldCore(repoSlugArg, opts) {
   const repoSlug = repoSlugArg
   if (!isService && !repoSlug?.includes('/')) die('scaffold 需要 <owner/repo>,如 kpdecker/jsdiff(服务型零件用 --service <base-url>)')
   const pkg = opts.pkg ?? (isService ? (opts.id ?? '') : repoSlug.split('/')[1])
+  // 白名单闸(M1):repoSlug/pkg 是外部文本(LLM 调用方/上游数据)且会拼进命令与
+  // 目录文件。即使命令已改 spawnSync 数组参数,仍先按白名单拒绝——
+  // owner/repo 只允许 URL-safe 字符与一个 '/';npm 包名按 npm 规范
+  // (URL-safe,可带 @scope/,每段以字母数字开头)。含 shell 元字符/控制字符/
+  // 空段/多余斜杠一律在收录前挡掉,报可行动的错。
+  if (!isService && !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repoSlug)) {
+    die(`scaffold 的 <owner/repo> 非法,只允许 字母/数字/._- 各一段加一个 /:${JSON.stringify(repoSlug)}(服务型零件用 --service <base-url>)`)
+  }
+  if (!isService && !/^(?:@[A-Za-z0-9][A-Za-z0-9._~-]*\/)?[A-Za-z0-9][A-Za-z0-9._~-]*$/.test(String(pkg ?? ''))) {
+    die(`npm 包名非法(不是规范 npm 包名,或含 shell/控制字符):${JSON.stringify(pkg)}——用 --pkg 指定规范包名`)
+  }
   const id = (opts.id ?? pkg).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '')
   const dup = dedupGate({ id, pkg: isService ? `service:${id}` : pkg, repoSlug: isService ? opts.service : repoSlug })
   if (dup !== null && opts.force !== 'yes') die(`去重门:${dup}(确认要重复收录用 --force yes)`)
@@ -274,17 +295,23 @@ function scaffoldCore(repoSlugArg, opts) {
   if (isService) return scaffoldService(id, opts)
 
   let meta
-  try {
-    meta = JSON.parse(execSync(`npm view ${pkg} version license description --json`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }))
-  } catch (error) {
+  // 命令一律 spawnSync 数组参数,不经 shell(M1):npm view 不再拼字符串。
+  const view = spawnSync('npm', ['view', pkg, 'version', 'license', 'description', '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+  if (view.status !== 0 || view.stdout === null || view.stdout === '') {
     // 过堂:曾吞掉 npm 的真实 stderr(404?网络?),只剩猜测句。
-    die(`npm view ${pkg} 失败:${String(error?.stderr ?? error?.message ?? error).trim().slice(-200)}——包名不对就用 --pkg 指定 npm 包名`)
+    const tail = String(view.stderr ?? view.stdout ?? '').trim().slice(-200) || view.error?.message || `npm view 退出码 ${view.status}`
+    die(`npm view ${pkg} 失败:${tail}——包名不对就用 --pkg 指定 npm 包名`)
+  }
+  try {
+    meta = JSON.parse(view.stdout)
+  } catch {
+    die(`npm view ${pkg} 的输出不是 JSON:${view.stdout.trim().slice(-200)}——registry 行为异常,换 --pkg 或稍后再试`)
   }
 
   const upstream = join(REPO, '.cache', 'upstream', id)
   if (!existsSync(upstream)) {
     try {
-      execSync(`git clone --depth 1 https://github.com/${repoSlug}.git "${upstream}"`, { stdio: 'pipe' })
+      spawnSync('git', ['clone', '--depth', '1', `https://github.com/${repoSlug}.git`, upstream], { stdio: 'pipe' })
     } catch {
       // 上游读不到不拦骨架:调用方还能从 npm README/类型定义读 API
     }
@@ -764,6 +791,7 @@ async function auto() {
     try {
       report = await verifyCore(sc.id)
     } catch (error) {
+      if (error instanceof DieSignal) throw error // die 的退出信号不是"冒烟失败",不进自愈回路
       // 零件自愈:把冒烟原文喂回同一会话,让它自己定位并修,再过一次门。
       console.error('[auto] 冒烟未过,喂回失败输出让 agent 修复…')
       const repair = await agentTurn(port, session, [
@@ -1003,15 +1031,21 @@ async function adopt() {
   })
 }
 
-if (cmd === 'scaffold') scaffold()
-else if (cmd === 'verify') await verify()
-else if (cmd === 'register') register()
-else if (cmd === 'check-all') await checkAll()
-else if (cmd === 'coverage') coverage()
-else if (cmd === 'auto') await auto()
-else if (cmd === 'from-spec') await fromSpec()
-else if (cmd === 'knowledge') knowledgeScaffold()
-else if (cmd === 'knowledge-verify') knowledgeVerify()
-else if (cmd === 'scaffold-gate') await scaffoldGate()
-else if (cmd === 'adopt') await adopt()
-else die('用法:index-add.mjs scaffold <owner/repo> --pkg <npm名> | adopt <npm-mcp-package> [--probe <tool>[:<json>]] | scaffold-gate | verify <id> | register <id> | check-all | coverage | auto <owner/repo> --pkg <npm名> [--id <id>] [--port 3096]')
+try {
+  if (cmd === 'scaffold') scaffold()
+  else if (cmd === 'verify') await verify()
+  else if (cmd === 'register') register()
+  else if (cmd === 'check-all') await checkAll()
+  else if (cmd === 'coverage') coverage()
+  else if (cmd === 'auto') await auto()
+  else if (cmd === 'from-spec') await fromSpec()
+  else if (cmd === 'knowledge') knowledgeScaffold()
+  else if (cmd === 'knowledge-verify') knowledgeVerify()
+  else if (cmd === 'scaffold-gate') await scaffoldGate()
+  else if (cmd === 'adopt') await adopt()
+  else die('用法:index-add.mjs scaffold <owner/repo> --pkg <npm名> | adopt <npm-mcp-package> [--probe <tool>[:<json>]] | scaffold-gate | verify <id> | register <id> | check-all | coverage | auto <owner/repo> --pkg <npm名> [--id <id>] [--port 3096]')
+} catch (error) {
+  // die 已打印判定并置 exitCode=1;信号到此为止,让进程在事件循环清空后自然
+  // 退出(finally 里的会话/连接收尾有时间完成)。其它异常照旧炸出,不吞。
+  if (!(error instanceof DieSignal)) throw error
+}
