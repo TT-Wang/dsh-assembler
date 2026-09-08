@@ -144,7 +144,7 @@ check('死知识闸:目录里一个读取面都没有时如实说明是缺件',
   mkd(pdir, { recursive: true }); wfs(pj(pdir, 'agent.cordis.yml'), 'name: p1\n')
   // 0.8 闸就位后,发射类夹具须带当前代际考官 PASS(模拟已验收 preset 的正常流)
   const { presetSha: pSha } = await import('./lib/index.js')
-  wfs(pj(pdir, 'selfcheck-history.jsonl'), JSON.stringify({ at: '2026-08-31T00:00:00Z', presetSha256: pSha(rfs(pj(pdir, 'agent.cordis.yml'), 'utf8')), verdict: 'PASS' }) + '\n')
+  wfs(pj(pdir, 'selfcheck-history.jsonl'), JSON.stringify({ at: '2026-08-31T00:00:00Z', presetSha256: pSha(rfs(pj(pdir, 'agent.cordis.yml'), 'utf8')), verdict: 'PASS', frontend: 'PASS' }) + '\n')
   const app = pj(tmp, 'app'); mkd(pj(app, 'dist'), { recursive: true })
   wfs(pj(app, 'scaffold.lock.yml'), 'scaffold: scaffold-react\nversion: 4\n')
   const putDist = (marker) => wfs(pj(app, 'dist', 'index.html'), `<div id=root>${marker}</div>`)
@@ -494,10 +494,16 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
           .then(() => false, (e) => e.message.includes('FAIL')))
     }
     {
-      const { rootD } = mkPreset('pass', (sha) => [{ at: '2026-08-31T00:00:00Z', presetSha256: sha, verdict: 'PASS' }])
+      const { rootD } = mkPreset('pass', (sha) => [{ at: '2026-08-31T00:00:00Z', presetSha256: sha, verdict: 'PASS', frontend: 'PASS' }])
       check('闸:当前代际 PASS 过闸;下一道门(无 dist)报可行动错误指回 verify_app',
         await deployAppToolDefinition(fakeCtx, { presetRoot: rootD }).execute({ targetDir: '/tmp/no-such-app-x', presetId: 'p' })
           .then(() => false, (e) => e.message.includes('verify_app') && !e.message.includes('verify_preset')))
+    }
+    {
+      const { rootD } = mkPreset('legacy-pass', (sha) => [{ at: '2026-08-31T00:00:00Z', presetSha256: sha, verdict: 'PASS' }])
+      check('闸:OT-2 前口径 PASS 行(无 frontend 字段)不当闸放行——指回 verify_preset 重验',
+        await deployAppToolDefinition(fakeCtx, { presetRoot: rootD }).execute({ targetDir: '/tmp/no-such-app-x', presetId: 'p' })
+          .then(() => false, (e) => e.message.includes('verify_preset') && e.message.includes('前端门')))
     }
     {
       const { rootD } = mkPreset('bypass', () => [])
@@ -665,6 +671,163 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
   const spDesc = submitPartToolDefinition(fakeCtx, {}).description
   check('契约钉:read_preset = 沙箱外资源的读窗(点名装备 DDL)', rpDesc.includes('equipment DDL') && rpDesc.includes('outside your shell sandbox'))
   check('契约钉:submit_part = 你写码/门执行,不过门不入库', spDesc.includes('tool-surface twin') && spDesc.includes('registers it only if every gate passes') && spDesc.includes('Nothing is registered on failure'))
+}
+
+// ── A6 OT-2:前端门并入总判定(融合矩阵/沿用口径/门本体/台账字段钉)────────────
+{
+  const M6 = await import('./lib/orchestrated-tools.js')
+  const { fuseVerifyVerdict, carryDecisionWithFrontend } = M6
+  const { presetSha: ps6 } = await import('./lib/index.js')
+  const fePASS = { status: 'PASS', reason: '页面门+环路门 PASS' }
+  const feFAIL = { status: 'FAIL', reason: '环路门:回复未含口令' }
+  const feSKIP = { status: 'SKIPPED', reason: 'frontend/index.html 不存在' }
+  check('OT-2 融合:行为 PASS × 门 PASS = PASS', fuseVerifyVerdict('PASS', fePASS) === 'PASS')
+  check('OT-2 融合:行为 PASS × 门 FAIL = FAIL(坏脸不许以 PASS 出门)', fuseVerifyVerdict('PASS', feFAIL) === 'FAIL')
+  check('OT-2 融合:行为 PASS × 门 SKIPPED(没页可考)= FAIL', fuseVerifyVerdict('PASS', feSKIP) === 'FAIL')
+  check('OT-2 融合:行为 FAIL 保持 FAIL(门行不掩盖主判定)', fuseVerifyVerdict('FAIL', feFAIL) === 'FAIL')
+  check('OT-2 融合:行为 ERRORED 保持 ERRORED', fuseVerifyVerdict('ERRORED', feSKIP) === 'ERRORED')
+  check('OT-2 融合:无门(理论不可达)按行为原判', fuseVerifyVerdict('PASS', null) === 'PASS')
+  const now6 = Date.now()
+  const sha6 = ps6('name: p\n')
+  const mkLedger6 = (extra) => ({ presetSha256: sha6, status: 'PASS', verifiedAt: new Date(now6 - 3_600_000).toISOString(), ...extra })
+  const c1 = carryDecisionWithFrontend(mkLedger6({}), sha6, now6, 7 * 24 * 3_600_000)
+  check('OT-2 沿用:旧代台账(无前端门字段)不沿用,点名需重验', c1.carry === false && c1.why.includes('前端门'), c1.why)
+  const c2 = carryDecisionWithFrontend(mkLedger6({ frontend: 'PASS' }), sha6, now6, 7 * 24 * 3_600_000)
+  check('OT-2 沿用:新口径台账(前端门 PASS)同字节窗口内沿用', c2.carry === true, c2.why)
+  const c3 = carryDecisionWithFrontend(mkLedger6({ frontend: 'PASS' }), ps6('name: q\n'), now6, 7 * 24 * 3_600_000)
+  check('OT-2 沿用:字节变了仍不沿用(原因归字节)', c3.carry === false && c3.why.includes('字节'), c3.why)
+  check('OT-2 沿用:无台账不沿用', carryDecisionWithFrontend(null, sha6, now6, 7 * 24 * 3_600_000).carry === false)
+  // 门本体(loop:false 只跑门 1,不开真会话——离线可真实触发 FAIL 的夹具)
+  {
+    const { createServer } = await import('node:http')
+    const { runFrontendGate } = await import('./lib/verify.js')
+    const serve = (html) => new Promise((resolve, reject) => {
+      const srv = createServer((_req, res) => { res.setHeader('content-type', 'text/html'); res.end(html) })
+      srv.on('error', reject)
+      srv.listen(0, '127.0.0.1', () => resolve({ srv, port: srv.address().port }))
+    })
+    const bad = await serve('<script>const CFG={presetId:\'p1\'}</script><div id="root">{{workdir}}</div>')
+    try {
+      const g = await runFrontendGate(bad.port, 'p1', '/nonexistent', { loop: false })
+      check('前端门本体:残留 {{槽位}} 的页面被抓 FAIL(门真会红)', g.pass === false && String(g.reason).includes('槽位'), String(g.reason))
+    } finally { bad.srv.close() }
+    const good = await serve('<script>const CFG = { presetId: \'p1\', workdir: \'/w\' }</script>')
+    try {
+      const g = await runFrontendGate(good.port, 'p1', '/nonexistent', { loop: false })
+      check('前端门本体:绑定证据在 + 零残留槽 = 门 1 PASS', g.pass === true)
+    } finally { good.srv.close() }
+  }
+  {
+    const rf6 = (await import('node:fs')).readFileSync
+    const src6 = rf6('src/orchestrated-tools.ts', 'utf8')
+    check('A6 钉:记分板行带前端门字段(frontend: fe.status)', src6.includes('frontend: fe.status'))
+    check('A6 钉:last-verify.json 持久记录前端门字段;沿用走 carryDecisionWithFrontend', src6.includes("frontend: 'PASS',") && src6.includes('carryDecisionWithFrontend'))
+    check('A6 钉:presetVerdictGate 拒旧口径 PASS 行(无前端门字段)', src6.includes('last.frontend !== \'PASS\''))
+    check('A6 钉:head 按融合后的判定写(验收 ${overall})', src6.includes('验收 ${overall}('))
+  }
+}
+
+// ── A7 OT-1:门禁加固钉(ignore-scripts / env 剥 secret / 实探超时件)──────────
+{
+  const M7 = await import('./lib/orchestrated-tools.js')
+  const { SUBMIT_GATE_PROBE_TIMEOUT_MS, withGateTimeout } = M7
+  const { stripSecretEnv } = await import('./lib/index.js')
+  const src7 = (await import('node:fs')).readFileSync('src/orchestrated-tools.ts', 'utf8')
+  check('A7 钉:npm install 带 --ignore-scripts(宿主级脚本面关闭)', src7.includes("'install', '--no-audit', '--no-fund', '--ignore-scripts'"))
+  check('A7 钉:门禁子进程 env 经 stripSecretEnv 剥 secret 形键(复用 scrub 语义)', src7.includes('const gateEnv = stripSecretEnv(process.env)'))
+  check('A7 钉:独立实探 connect/listTools/close 全有明确超时上限', SUBMIT_GATE_PROBE_TIMEOUT_MS >= 1_000
+    && src7.includes('withGateTimeout(c.connect(') && src7.includes('withGateTimeout(c.listTools(') && src7.includes("withGateTimeout(c.close(), 5_000")
+    && src7.includes("transport.pid; if (pid !== null) process.kill(pid, 'SIGKILL')"), String(SUBMIT_GATE_PROBE_TIMEOUT_MS))
+  const stripped = stripSecretEnv({ PATH: '/usr/bin', HOME: '/h', PASSWORD: 'x', DEEPSEEK_API_KEY: 'k', api_key: 'a', AUTH_TOKEN: 't', SMOKE_TOKEN_2: 's' })
+  check('A7:stripSecretEnv 剥 password/secret/token/api_key 形键,留 PATH/HOME',
+    stripped.PATH === '/usr/bin' && stripped.HOME === '/h'
+    && !('PASSWORD' in stripped) && !('DEEPSEEK_API_KEY' in stripped) && !('api_key' in stripped) && !('AUTH_TOKEN' in stripped) && !('SMOKE_TOKEN_2' in stripped))
+  const never = new Promise(() => { /* 永不返回:坏 listTools 的等价物 */ })
+  const t0 = Date.now()
+  const timeoutErr = await withGateTimeout(never, 60, '测试实探').then(() => '', (e) => String(e.message))
+  check('A7:withGateTimeout 对永不返回的实探按时拒绝并点名(不无限挂起)', timeoutErr.includes('测试实探') && timeoutErr.includes('超时') && Date.now() - t0 < 5000, timeoutErr)
+  const okVal = await withGateTimeout(Promise.resolve('ok'), 2000, '快探')
+  check('A7:withGateTimeout 正常返回透传', okVal === 'ok')
+}
+
+// ── A8 OT-4:add_knowledge 尺寸纪律 / 空标记拒绝 / 半包清理(失败不留痕)──────
+{
+  const { addKnowledgeToolDefinition: akd8, KB_MAX_DOC_FILES, KB_MAX_TOTAL_BYTES } = await import('./lib/orchestrated-tools.js')
+  const { mkdtempSync: mk8, mkdirSync: md8, writeFileSync: wf8, rmSync: rm8, existsSync: ex8, readdirSync: rd8, readFileSync: rff8 } = await import('node:fs')
+  const { join: j8 } = await import('node:path')
+  const { tmpdir: td8 } = await import('node:os')
+  check('A8 常量:文件/字节上限导出且为正值(64MiB/200 份,依据注释在源码)', KB_MAX_DOC_FILES === 200 && KB_MAX_TOTAL_BYTES === 64 * 1024 * 1024)
+  const docDir = mk8(j8(td8(), 'ot4-docs-'))
+  const tmp = mk8(j8(td8(), 'ot4-'))
+  try {
+    const throwsA8 = async (args, needle) => akd8({ get: () => undefined }, { catalogPath: j8(tmp, 'caps.yml') }).execute(args).then(() => false, (e) => String(e.message).includes(needle))
+    check('A8 闸:mustInclude 纯空白标记入口拒绝(空转检索门消失)', await throwsA8({ docsDir: docDir, id: 'x', description: 'd', probes: [{ question: 'q', mustInclude: ['   '] }] }, '纯空白'))
+    check('A8 闸:mustInclude 空串标记入口拒绝', await throwsA8({ docsDir: docDir, id: 'x', description: 'd', probes: [{ question: 'q', mustInclude: ['ok', ''] }] }, '空串'))
+    check('A8 闸:mustInclude 缺失入口拒绝', await throwsA8({ docsDir: docDir, id: 'x', description: 'd', probes: [{ question: 'q' }] }, 'mustInclude'))
+    // 文件数超限:201 份 > 200 上限,任何落盘前即拒(拒绝时目录不留任何包)
+    for (let i = 0; i < 201; i++) wf8(j8(docDir, `f${String(i).padStart(3, '0')}.md`), 'x'.repeat(100))
+    check('A8 闸:文件数超上限拒绝并报错', await throwsA8({ docsDir: docDir, id: 'ot4big', description: 'd', probes: [{ question: 'q', mustInclude: ['x'] }] }, '上限'))
+    check('A8 半包:超限拒绝后 knowledge/ 无包、无 staging 残留', !ex8('knowledge/ot4big') && rd8('knowledge').filter((n) => n.startsWith('.staging-')).length === 0)
+    // 检索门失败路径:staging 被 finally 清掉,不留 docs 半包(旧实现留在盘上等 emit 当完整包装)
+    rm8(docDir, { recursive: true, force: true }); md8(docDir, { recursive: true })
+    wf8(j8(docDir, 'a.md'), 'hello world')
+    const gateErr = await akd8({ get: () => undefined }, { catalogPath: j8(tmp, 'caps.yml') })
+      .execute({ docsDir: docDir, id: 'ot4fail', description: 'd', probes: [{ question: 'q', mustInclude: ['absent-needle-zzz'] }] })
+      .then(() => '', (e) => String(e.message))
+    check('A8 闸:检索门不过 → 拒绝入库(可行动文案)', gateErr.includes('检索门未过') && gateErr.includes('absent-needle-zzz'))
+    check('A8 半包:检索门失败后 knowledge/ 无包目录、无 .staging-* 残留', !ex8('knowledge/ot4fail') && rd8('knowledge').filter((n) => n.startsWith('.staging-')).length === 0, rd8('knowledge').filter((n) => n.startsWith('.staging-')).join(','))
+    // 正路径:staging 整包换入 + meta/report/登记都齐(成功后清理,不给仓库留测试包)
+    wf8(j8(tmp, 'caps.yml'), 'capabilities: []\n')
+    const okOut = await akd8({ get: () => undefined }, { catalogPath: j8(tmp, 'caps.yml') })
+      .execute({ docsDir: docDir, id: 'ot4ok', description: 'd', probes: [{ question: 'q', mustInclude: ['hello world'] }] })
+    const capsNow = rff8(j8(tmp, 'caps.yml'), 'utf8')
+    const metaOk = JSON.parse(rff8('knowledge/ot4ok/.knowledge-meta.json', 'utf8'))
+    check('A8 正路径:整包换入(knowledge/<id>/docs)+ meta 记账 + 登记条目', okOut.includes('ot4ok') && ex8('knowledge/ot4ok/docs/a.md') && metaOk.docCount === 1 && metaOk.totalBytes === 'hello world'.length && capsNow.includes('kb-ot4ok'))
+  } finally {
+    rm8(docDir, { recursive: true, force: true })
+    rm8(tmp, { recursive: true, force: true })
+    rm8('knowledge/ot4ok', { recursive: true, force: true })
+    rm8('knowledge/ot4fail', { recursive: true, force: true })
+    rm8('index/reports/knowledge-ot4ok.json', { force: true })
+  }
+}
+
+// ── A9 M2:scaffold spawn 加固(runAppSelftest start ENOENT → FAIL 证据)──────
+{
+  const { mkdtempSync: mk9a, mkdirSync: md9, writeFileSync: wf9, rmSync: rm9 } = await import('node:fs')
+  const { tmpdir: td9a } = await import('node:os')
+  const { join: j9a } = await import('node:path')
+  const { runAppSelftest: ras9 } = await import('./lib/scaffold.js')
+  const tmp = mk9a(j9a(td9a(), 'm2-spawn-'))
+  try {
+    const fix = j9a(tmp, 'fix')
+    md9(j9a(fix, 'template'), { recursive: true })
+    wf9(j9a(fix, 'template', 'index.html'), '<div id="root"></div>')
+    wf9(j9a(fix, 'scaffold.yml'), [
+      'id: t-m2', 'version: 1', 'description: spawn 加固测试', 'license: BSD-3-Clause',
+      'params: []', 'requiredSecrets: []',
+      'run:',
+      '  start: [./no-such-exam-binary-m2]',
+      '  readyPath: /',
+      'selftest:',
+      '  checks:',
+      '    - { kind: static-reach }',
+    ].join('\n'))
+    const app = j9a(tmp, 'app')
+    md9(app, { recursive: true })
+    wf9(j9a(app, 'scaffold.lock.yml'), 'scaffold: t-m2\nversion: 1\n')
+    const res = await ras9(app, { scaffoldRoot: fix, startTimeoutMs: 6000 })
+    const startChk = (res.checks ?? []).find((c) => c.check === 'start')
+    check('verify_app:M2——start 命令 ENOENT 转 FAIL 证据(不崩进程)', res.status === 'FAIL' && startChk?.status === 'FAIL' && startChk.evidence.includes('不可执行'), JSON.stringify(res).slice(0, 300))
+  } finally {
+    rm9(tmp, { recursive: true, force: true })
+  }
+  {
+    const scSrc = (await import('node:fs')).readFileSync('src/scaffold.ts', 'utf8')
+    check('A9 钉:三处 spawn 全挂 error 监听(ENOENT 不冒泡成进程级崩溃)', (scSrc.match(/\.on\('error'/g) ?? []).length >= 3)
+    check('A9 钉:三处 spawn stdout 均置 ignore(防 64KB 管道背压假超时)', (scSrc.match(/stdio: \['ignore', 'ignore', 'pipe'\]/g) ?? []).length >= 3)
+    check('A9 钉:自拉零件 spawn 前入口 existsSync 校验', scSrc.includes("if (!existsSync(partJs))"))
+  }
 }
 
 if (failures > 0) {

@@ -11,7 +11,7 @@
  * 点号端点+events.mux,新 wire(0.1.2-alpha.1 起)走 cookie+斜杠端点+
  * session/follow 流;帧形状两代归一,本文件判定逻辑零改动。
  */
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
@@ -619,9 +619,30 @@ interface ProbeSession {
  * 那一刻已经成立,掐不掐得掉都不改变结论。
  */
 async function openProbeSession(port: number, presetId: string, cwd?: string): Promise<ProbeSession> {
-  const workdir = cwd ?? mkdtempSync(join(tmpdir(), "assembler-probe-"));
-  const w = await openWireSession(port, { agentPreset: presetId, cwd: workdir, rpcTimeoutMs: PROBE_RPC_TIMEOUT_MS });
-  return { sessionId: w.sessionId, frames: w.frames, prompt: w.prompt, close: w.close };
+  // v1(02 报告):缺省 cwd 时自建的临时工作区曾永不清理——每次缺省 cwd 的探针
+  // (含 agent 在轮内写出的全部夹具/产物)在 /tmp 无界累积。close 必须把**自建**
+  // 目录 rmSync 掉(连开会话失败的空壳目录也不留);调用方显式传入的 cwd(preset
+  // 的 workspace/ 等既有数据目录)绝不动。
+  const selfMade = cwd === undefined
+  const workdir = cwd ?? mkdtempSync(join(tmpdir(), "assembler-probe-"))
+  let w: Awaited<ReturnType<typeof openWireSession>>
+  try {
+    w = await openWireSession(port, { agentPreset: presetId, cwd: workdir, rpcTimeoutMs: PROBE_RPC_TIMEOUT_MS })
+  } catch (error) {
+    if (selfMade) rmSync(workdir, { recursive: true, force: true })
+    throw error
+  }
+  if (!selfMade) return { sessionId: w.sessionId, frames: w.frames, prompt: w.prompt, close: w.close }
+  return {
+    sessionId: w.sessionId,
+    frames: w.frames,
+    prompt: w.prompt,
+    close: () => {
+      // 先掐会话再清目录;w.close 尽力而为(掐不掉也不改变判定),目录清理不因
+      // 它抛错而跳过。
+      try { w.close() } finally { rmSync(workdir, { recursive: true, force: true }) }
+    },
+  }
 }
 
 /**

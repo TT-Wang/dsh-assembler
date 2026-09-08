@@ -237,19 +237,35 @@ export async function acquireSqliteFace(
   let face = readFace()
   if (!(await sqliteFaceAlive(face))) {
     const partJs = join(REPO, 'generated', 'sqlite-query', 'index.js')
+    // M2:自拉零件前先验入口——文件缺失时零件永远拉不起来,在这里给出可行动
+    // 证据(修法 = 重装零件),而不是等 spawn 的异步 ENOENT 崩掉整个考官进程。
+    if (!existsSync(partJs)) {
+      phase(`⚠ 零件入口缺失:${partJs} 不存在——先跑 node scripts/index-add.mjs install sqlite-query 装好零件(或 check-all 自检)再验`)
+      return { face: null, kill: () => { /* 无进程可杀 */ } }
+    }
     const env: Record<string, string> = {
       ...process.env as Record<string, string>,
       PART_WORKDIR: join(presetDir, 'workspace'),
       SQLITE_DEFAULT_DB: join(presetDir, 'workspace', 'data.db'),
     }
     if (existsSync(join(presetDir, 'equipment', 'init.sql'))) env.SQLITE_INIT_DDL_FILE = join(presetDir, 'equipment', 'init.sql')
+    // M2:stdout 置 'ignore'——没人消费的 pipe 会让零件写满 64KB 管道缓冲后堵死
+    // 自己,把"就绪慢"演成假超时;stderr 持续消费(诊断留底)。
+    // spawn 的异步 'error'(node 缺失/不可执行)收进局部变量,由下方探活统一
+    // 转成 FAIL 证据,绝不冒泡成进程级未捕获异常。
     phase('服务脸不在场——考官自行拉起 sqlite 零件')
-    facePart = spawn('node', [partJs], { env, stdio: ['pipe', 'pipe', 'pipe'] })
+    let spawnErr = ''
+    let partErr = ''
+    facePart = spawn('node', [partJs], { env, stdio: ['ignore', 'ignore', 'pipe'] })
+    facePart.on('error', (e: Error) => { spawnErr = e.message })
+    facePart.stderr?.on('data', (d: Buffer) => { partErr = (partErr + d.toString()).slice(-600) })
     for (let i = 0; i < 20; i++) {
+      if (spawnErr !== '') break // 进程根本没起来,别空等满 5s
       await new Promise((r) => setTimeout(r, 250))
       face = readFace()
       if (await sqliteFaceAlive(face)) break
     }
+    if (face === null && spawnErr !== '') phase(`⚠ sqlite 零件自拉失败:${spawnErr}${partErr !== '' ? `(stderr:${partErr.slice(-200)})` : ''}`)
   }
   return { face, kill: () => { facePart?.kill('SIGTERM') } }
 }
@@ -429,17 +445,32 @@ export async function runAppSelftest(
 
   const startArgv = spec.run.start.map((a) => a.replace(/@@PORT@@/g, String(port)))
   phase(`启动 app:${startArgv.join(' ')}(cwd=${targetDir},PORT=${String(port)})`)
+  // M2:start 命令不可执行(ENOENT/无执行权限)时 spawn 异步 emit 'error'——
+  // 不挂监听就是进程级未捕获异常,考官不是给 FAIL 证据而是崩掉整个装配器。
+  // 挂在 race 上把错误转成本门 FAIL 证据(不用等满 waitReady 超时才报)。
+  // stdout 置 'ignore':没人消费的 pipe 会让 app 写满 64KB 管道缓冲后把自己
+  // 堵死,waitReady 假超时误杀。stderr 持续消费(诊断留底,证据带上)。
   const child = spawn(startArgv[0] as string, startArgv.slice(1), {
     cwd: targetDir,
     env: { ...process.env, PORT: String(port) },
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: ['ignore', 'ignore', 'pipe'],
   })
   let childErr = ''
   child.stderr.on('data', (d: Buffer) => { childErr = (childErr + d.toString()).slice(-1000) })
+  // race 在创建时即给两个输入都挂上处理器:spawnFailed 若在 race 已定后再 settle,
+  // 其 rejection 也已被 race 内部消费,不会变成 unhandled rejection。
+  const spawnFailed: Promise<never> = new Promise((_, reject) => {
+    child.on('error', (e: Error) => {
+      reject(new Error(`启动命令不可执行(${String(startArgv[0])}):${e.message}——命令不存在/无执行权限/运行时缺失,先修好运行环境再验(如 cd ${targetDir} && npm install)`))
+    })
+  })
   const checks: AppCheckResult[] = [...preChecks]
   try {
     try {
-      await waitReady(base, spec.run.readyPath, opts.startTimeoutMs ?? 15_000)
+      await Promise.race([
+        waitReady(base, spec.run.readyPath, opts.startTimeoutMs ?? 15_000),
+        spawnFailed,
+      ])
     } catch (error) {
       const reason = `${error instanceof Error ? error.message : String(error)}${childErr !== '' ? `;stderr:${childErr.slice(-300)}` : ''}`
       return { status: 'FAIL', checks: [{ check: 'start', status: 'FAIL', evidence: reason }], elapsedSeconds: Math.round((Date.now() - t0) / 1000), port }
@@ -630,9 +661,26 @@ export async function runAppSelftest(
               if ((process.env[secret] ?? '') === '') { results.push(`ai-thin「${name}」SKIPPED(未配 ${secret},接口模式)`); continue }
               if (!(await aiAlive(ai))) {
                 const partJs = join(REPO, 'generated', 'ai-call', 'index.js')
-                phase('ai 服务脸不在场——考官自行拉起 ai-call 零件')
-                aiPart = spawn('node', [partJs], { env: { ...process.env as Record<string, string>, PART_WORKDIR: join(presetDir, 'workspace') }, stdio: ['pipe', 'pipe', 'pipe'] })
-                for (let i = 0; i < 20; i++) { await new Promise((r) => setTimeout(r, 250)); ai = readAi(); if (await aiAlive(ai)) break }
+                // M2(与 acquireSqliteFace 同款):先验入口,再受控 spawn——缺入口/
+                // 起不来都要留下可行动证据,而不是进程级崩溃;stdout 'ignore' 防
+                // 64KB 管道背压假超时;stderr 持续消费(诊断留底)。
+                if (!existsSync(partJs)) {
+                  phase(`⚠ 零件入口缺失:${partJs} 不存在——先跑 node scripts/index-add.mjs install ai-call 装好零件再验`)
+                } else {
+                  phase('ai 服务脸不在场——考官自行拉起 ai-call 零件')
+                  let aiSpawnErr = ''
+                  let aiPartErr = ''
+                  aiPart = spawn('node', [partJs], { env: { ...process.env as Record<string, string>, PART_WORKDIR: join(presetDir, 'workspace') }, stdio: ['ignore', 'ignore', 'pipe'] })
+                  aiPart.on('error', (e: Error) => { aiSpawnErr = e.message })
+                  aiPart.stderr?.on('data', (d: Buffer) => { aiPartErr = (aiPartErr + d.toString()).slice(-600) })
+                  for (let i = 0; i < 20; i++) {
+                    if (aiSpawnErr !== '') break // 进程根本没起来,别空等满 5s
+                    await new Promise((r) => setTimeout(r, 250))
+                    ai = readAi()
+                    if (await aiAlive(ai)) break
+                  }
+                  if (aiSpawnErr !== '') phase(`⚠ ai-call 零件自拉失败:${aiSpawnErr}${aiPartErr !== '' ? `(stderr:${aiPartErr.slice(-200)})` : ''}`)
+                }
               }
               if (!(await aiAlive(ai)) || ai === null) { behaviorFail = `ai-thin 动作「${name}」:ai 服务脸不可达——用 read_preset {"presetId":"${presetId}","include":["bom"]} 核对 BOM 是否含 ai-call 零件;没有则加进 capabilityIds 同名重发(考官已尝试自拉 generated/ai-call)`; break }
               const promptText = String(sub(a2.prompt ?? ''))
