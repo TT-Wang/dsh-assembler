@@ -250,14 +250,13 @@
 
 ## 等用户(我做不了)
 
-- [ ] **OT-2 迁移:18 个老代 preset 无页面**(2026-09-09 合入 c72e4e9 后前端门并入
-      总判定,`frontend/index.html` 缺失 = SKIPPED = 整卷 FAIL)。198 台里这 18 台从未
-      发射过页面:ai-social-digest、intel-desk、intel-desk-2、nw-dep-triage、
-      nw-policy-desk、nw-policy-desk-2、nw-upgrade-advisor(-2/-3/-4)、rc5-final-check、
-      rc5-smoke-pinyin-qr、slice-benchmark、weather-assistant、weather-chart、
-      web-builder、web-research、x-ai-daily-digest。处置:还在用的(至少 x-ai-daily-digest
-      在跑日摘要)emit_preset 同名重发一次长出兜底脸即可;不用的删目录。旧台账同时
-      因缺 `frontend` 字段一次性不沿用,首次 verify 会真跑探针。
+- [x] **OT-2 迁移:18 个老代 preset 无页面**(2026-09-09 合入 c72e4e9 后前端门并入
+      总判定,`frontend/index.html` 缺失 = SKIPPED = 整卷 FAIL)。处置(同日,用户裁定):
+      x-ai-daily-digest(cron 日摘要在用)用 lib/frontend.js 的 emitFrontend 按
+      parts.lock.yml 里的原需求同字节补发 chat-console 页面(agent.cordis.yml /
+      parts.lock.yml sha 前后不变,3097 伺服 200、零残留槽);其余 17 台(8/13–8/27 起
+      再无活动、零 cron/会话引用、无 workspace)整目录删除,preset 200 → 183,
+      无页面清零。旧台账缺 `frontend` 字段一次性不沿用的规则保留。
 
 - [ ] **重启 3096**(你的主 host 仍是旧构建:无 `/.service` 路由、无 scaffold 工具面)
 - [ ] **真凭证端到端**:按 docs/live-credential-e2e.md 配 env 后扣扳机

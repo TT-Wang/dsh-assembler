@@ -714,8 +714,28 @@ check('lint 完备性:非敏感域不查边界(task-agnostic)', !f5.some((f) => 
     const good = await serve('<script>const CFG = { presetId: \'p1\', workdir: \'/w\' }</script>')
     try {
       const g = await runFrontendGate(good.port, 'p1', '/nonexistent', { loop: false })
-      check('前端门本体:绑定证据在 + 零残留槽 = 门 1 PASS', g.pass === true)
+      check('前端门本体:CF-1 前旧页形(单引号槽)仍过门 1', g.pass === true)
     } finally { good.srv.close() }
+    // 门与发射器同源取证(2026-09-09 回归教训):夹具不再手写,直接用 emitFrontend
+    // 真发射一张模板页喂门——CF-1 把 JS 区改成 JSON 整值后,手写单引号夹具全绿而
+    // 真页面在门口被判"槽位未填"。发射器改页形,这条会先红。
+    {
+      const { emitFrontend } = await import('./lib/frontend.js')
+      const { mkdtempSync, readFileSync: rf, rmSync: rm } = await import('node:fs')
+      const { tmpdir } = await import('node:os')
+      const { join: j } = await import('node:path')
+      const pdir = mkdtempSync(j(tmpdir(), 'fe-gate-real-'))
+      try {
+        emitFrontend({ template: 'chat-console', presetDir: pdir, presetId: 'p1', requirement: "记账助手 <img onerror=alert(1)> 'x'", workdir: j(pdir, 'workspace') })
+        const real = await serve(rf(j(pdir, 'frontend', 'index.html'), 'utf8'))
+        try {
+          const g = await runFrontendGate(real.port, 'p1', pdir, { loop: false })
+          check('前端门本体:真发射的模板页(CF-1 JSON 整值 CFG)过门 1', g.pass === true, String(g.reason))
+          const g2 = await runFrontendGate(real.port, 'p2', pdir, { loop: false })
+          check('前端门本体:真发射页对错 preset id 仍判"槽位未填"(绑定证据认 id 不认页形)', g2.pass === false && String(g2.reason).includes('槽位'), String(g2.reason))
+        } finally { real.srv.close() }
+      } finally { rm(pdir, { recursive: true, force: true }) }
+    }
   }
   {
     const rf6 = (await import('node:fs')).readFileSync
