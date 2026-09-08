@@ -47,7 +47,7 @@
   <div class="max-w-3xl mx-auto text-xs text-muted-foreground mt-2 text-center">{{requirement}}</div>
 </footer>
 <script>
-const CFG = { presetId: '{{presetId}}', workdir: '{{workdir}}' };
+const CFG = {{cfg}};
 let sessionId = null, ws = null, busy = false, agentBubble = null, toolRow = null;
 const $ = (id) => document.getElementById(id);
 const lane = $('lane'), dot = $('dot'), box = $('box'), sendBtn = $('sendBtn');

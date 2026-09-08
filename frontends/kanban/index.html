@@ -52,7 +52,7 @@
 <details class="max-w-5xl mx-auto px-5 pb-8"><summary class="text-xs text-muted-foreground cursor-pointer">agent 原文</summary>
   <div class="prewrap text-sm text-muted-foreground mt-2" id="raw"></div></details>
 <script>
-const CFG = { presetId: '{{presetId}}', workdir: '{{workdir}}' };
+const CFG = {{cfg}};
 const COLS = ['待办', '进行中', '已完成'];
 const $ = (id) => document.getElementById(id);
 const board = $('board'), dot = $('dot'), tools = $('tools'), raw = $('raw');
