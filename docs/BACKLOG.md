@@ -250,6 +250,15 @@
 
 ## 等用户(我做不了)
 
+- [ ] **OT-2 迁移:18 个老代 preset 无页面**(2026-09-09 合入 c72e4e9 后前端门并入
+      总判定,`frontend/index.html` 缺失 = SKIPPED = 整卷 FAIL)。198 台里这 18 台从未
+      发射过页面:ai-social-digest、intel-desk、intel-desk-2、nw-dep-triage、
+      nw-policy-desk、nw-policy-desk-2、nw-upgrade-advisor(-2/-3/-4)、rc5-final-check、
+      rc5-smoke-pinyin-qr、slice-benchmark、weather-assistant、weather-chart、
+      web-builder、web-research、x-ai-daily-digest。处置:还在用的(至少 x-ai-daily-digest
+      在跑日摘要)emit_preset 同名重发一次长出兜底脸即可;不用的删目录。旧台账同时
+      因缺 `frontend` 字段一次性不沿用,首次 verify 会真跑探针。
+
 - [ ] **重启 3096**(你的主 host 仍是旧构建:无 `/.service` 路由、无 scaffold 工具面)
 - [ ] **真凭证端到端**:按 docs/live-credential-e2e.md 配 env 后扣扳机
 - [ ] **快递鸟注册**:注册+实名+订免费套餐 → KDNIAO_EBUSINESS_ID/KDNIAO_API_KEY

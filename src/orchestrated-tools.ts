@@ -1323,7 +1323,7 @@ export function verifyPresetToolDefinition(ctx: Context, config: Config): ToolDe
         // 前端门挡判定时的头条解释:路径全 ✓ 而整卷 FAIL 是"同一张考卷"的既定
         // 口径,头条就得说清为什么,不让 agent/用户对着 2/2 ✓ 猜 FAIL 从哪来。
         const blockNote = frontendBlocked
-          ? `\n⚠ 前端门挡判定:行为路径全过,但前端验收 ${fe.status}——${fe.reason.slice(0, 200)}。前端是交付的一部分(每台 preset 都有兜底脸),坏脸/没脸不许以 PASS 交付:补上页面(emit_preset 同名重发或 deploy_app)后重验。`
+          ? `\n⚠ 前端门挡判定:行为路径全过,但前端验收 ${fe.status}——${fe.reason.slice(0, 200)}。前端是交付的一部分(每台 preset 都有兜底脸),坏脸/没脸不许以 PASS 交付:补上页面(emit_preset 同名重发或 deploy_app)后重验。${fe.status === 'SKIPPED' ? '迁移说明:2026-09-09 前发射、从未有过页面的老代 preset 会首次落到这里——不是回归,emit_preset 同名重发一次就长出兜底脸(参数/persona 同字节不变),之后照常沿用。' : ''}`
           : ''
         if (overall === 'PASS') {
           return `${head}\n${pathLadder}${feLine}${utilLine}${structLine}${coverageDeriveNote}${notesLine}${selfCheckLine}${contractPass}`
@@ -2424,11 +2424,25 @@ export function submitPartToolDefinition(_ctx: Context, config: Config): ToolDef
         const e = error as { stderr?: string; stdout?: string }
         fail(`npm install 失败:${String(e.stderr ?? e.stdout ?? '').slice(-400)}`)
       }
+      // --ignore-scripts 的代价(2026-09-09 合入 OT-1 后补):依赖若靠 install/
+      // postinstall 脚本拉原生二进制(better-sqlite3、旧版 sharp 一类),门禁里装
+      // 出来的是没有二进制的空壳,smoke/实探会在 require 处倒下。把这类直接依赖
+      // 点名进失败文案,让提交者知道倒在门禁纪律而不是零件逻辑:换自带预编译
+      // 可选包的版本,或让零件在缺二进制时报可行动错误。
+      const scriptedDeps = Object.keys(deps).filter((d) => {
+        try {
+          const pj = JSON.parse(readFileSync(join(dir, 'node_modules', d, 'package.json'), 'utf8')) as { scripts?: Record<string, string> }
+          return ['preinstall', 'install', 'postinstall'].some((k) => typeof pj.scripts?.[k] === 'string')
+        } catch { return false }
+      })
+      const scriptedHint = scriptedDeps.length > 0
+        ? `\n提示:门禁以 --ignore-scripts 安装依赖,而 ${scriptedDeps.join('、')} 声明了 install/postinstall 脚本(常用于拉取原生二进制)——若失败源于此,换成自带预编译可选包的版本,或让零件在缺二进制时给出可行动错误。`
+        : ''
       try {
         execFileSync('node', ['smoke.mjs'], { cwd: dir, env: gateEnv, encoding: 'utf8', timeout: 180_000, stdio: ['ignore', 'pipe', 'pipe'] })
       } catch (error: unknown) {
         const e = error as { stderr?: string; stdout?: string }
-        fail(`冒烟未过——原文:\n${`${String(e.stdout ?? '')}\n${String(e.stderr ?? '')}`.trim().slice(-800)}`)
+        fail(`冒烟未过——原文:\n${`${String(e.stdout ?? '')}\n${String(e.stderr ?? '')}`.trim().slice(-800)}${scriptedHint}`)
       }
       // 独立实探:不信 smoke 自报,从装配器自身依赖直连。
       // OT-1:connect/listTools/close 全部受 SUBMIT_GATE_PROBE_TIMEOUT_MS 时限
@@ -2453,7 +2467,7 @@ export function submitPartToolDefinition(_ctx: Context, config: Config): ToolDef
           throw error
         }
       } catch (error: unknown) {
-        fail(`独立实探失败:${error instanceof Error ? error.message.slice(0, 300) : String(error)}`)
+        fail(`独立实探失败:${error instanceof Error ? error.message.slice(0, 300) : String(error)}${scriptedHint}`)
       }
       if (tools.length === 0) fail('listTools 为空——不是可用的 MCP server')
 
